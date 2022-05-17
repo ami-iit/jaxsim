@@ -1,6 +1,12 @@
 from . import logging
 
 
+def _np_options():
+    import numpy as np
+
+    np.set_printoptions(precision=5, suppress=True, linewidth=150, threshold=10_000)
+
+
 def _is_editable():
 
     import importlib.util
@@ -27,4 +33,8 @@ if _is_editable():
 else:
     logging.configure(level=logging.LoggingLevel.WARNING)
 
+# Initialize the numpy print options
+_np_options()
+
+del _np_options
 del _is_editable

@@ -1,0 +1,27 @@
+<sdf version='1.9'>
+  <model name='disc'>
+    <link name='body'>
+      <visual name='body_visual'>
+        <pose>0 0 0 1.570796 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.01</length>
+          </cylinder>
+        </geometry>
+      </visual>
+      <inertial>
+        <pose>0 0 0 1.570796 0 0</pose>
+        <mass>0.235619449019</mass>
+        <inertia>
+          <ixx>0.000149225651</ixx>
+          <iyy>0.000149225651</iyy>
+          <izz>0.000294524311</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+      </inertial>
+    </link>
+  </model>
+</sdf>

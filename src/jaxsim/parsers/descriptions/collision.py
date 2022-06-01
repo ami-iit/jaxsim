@@ -59,3 +59,9 @@ class CollisionShape(abc.ABC):
 class BoxCollision(CollisionShape):
 
     center: npt.NDArray
+
+
+@dataclasses.dataclass
+class SphereCollision(CollisionShape):
+
+    center: npt.NDArray

@@ -206,3 +206,52 @@ def create_box_collision(
     return descriptions.BoxCollision(
         collidable_points=collidable_points, center=center_wrt_link
     )
+
+
+def create_sphere_collision(
+    collision_sdf_element, link_description: descriptions.LinkDescription
+) -> descriptions.BoxCollision:
+
+    # From https://stackoverflow.com/a/26127012
+    def fibonacci_sphere(samples: int) -> npt.NDArray:
+
+        points = []
+        phi = np.pi * (3.0 - np.sqrt(5.0))  # golden angle in radians
+
+        for i in range(samples):
+
+            y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+            radius = np.sqrt(1 - y * y)  # radius at y
+
+            theta = phi * i  # golden angle increment
+
+            x = np.cos(theta) * radius
+            z = np.sin(theta) * radius
+
+            points.append(np.array([x, y, z]))
+
+        return np.vstack(points)
+
+    r = collision_sdf_element.geometry.sphere.radius
+    sphere_points = r * fibonacci_sphere(samples=250)
+
+    H = from_sdf_pose(pose=collision_sdf_element.pose.value)
+
+    center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
+
+    sphere_points_wrt_link = (
+        H @ np.hstack([sphere_points, np.vstack([1.0] * sphere_points.shape[0])]).T
+    )[0:3, :]
+
+    collidable_points = [
+        descriptions.CollidablePoint(
+            parent_link=link_description,
+            position=point,
+            enabled=True,
+        )
+        for point in sphere_points_wrt_link.T
+    ]
+
+    return descriptions.SphereCollision(
+        collidable_points=collidable_points, center=center_wrt_link
+    )

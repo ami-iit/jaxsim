@@ -251,6 +251,15 @@ def extract_data_from_sdf(
 
                 collisions.append(box_collision)
 
+            if collision.geometry.sphere is not None:
+
+                sphere_collision = utils.create_sphere_collision(
+                    collision_sdf_element=collision,
+                    link_description=links_dict[link.name],
+                )
+
+                collisions.append(sphere_collision)
+
     return SDFData(
         model_name=sdf_tree.model.name,
         link_descriptions=links,

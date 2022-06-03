@@ -4,14 +4,13 @@ from typing import Dict, List, NamedTuple, Union
 
 import jax.numpy as jnp
 import numpy as np
-import skbot
-import skbot.ignition.sdformat.bindings.v18 as sdf_v
+import pysdf
 from scipy.spatial.transform.rotation import Rotation as R
 
 from jaxsim import logging
 from jaxsim.parsers import descriptions, kinematic_graph
 
-from . import utils
+from . import utils as utils
 
 
 class SDFData(NamedTuple):
@@ -25,7 +24,7 @@ class SDFData(NamedTuple):
     joint_descriptions: List[descriptions.JointDescription]
     collision_shapes: List[descriptions.CollisionShape]
 
-    sdf_tree: sdf_v.Sdf = None
+    sdf_tree: pysdf.Model = None
     model_pose: kinematic_graph.RootPose = kinematic_graph.RootPose()
 
 
@@ -39,31 +38,22 @@ def extract_data_from_sdf(
     # Get the SDF string
     sdf_string = sdf if isinstance(sdf, str) else sdf.read_text()
 
-    # TODO: Fix SDF version since skbot does not currently support v1.9
-    for sdf_ver in {"1.7", "1.8", "1.9"}:
-
-        target_sdf_ver = "1.8"
-        sdf_ver_str = f"version='{target_sdf_ver}'"
-
-        sdf_string = sdf_string.replace(f"version='{sdf_ver}'", sdf_ver_str)
-        sdf_string = sdf_string.replace(f'version="{sdf_ver}"', sdf_ver_str)
-
     # Parse the tree
-    sdf_tree: sdf_v.Sdf = skbot.ignition.sdformat.loads(sdf=sdf_string)  # noqa
+    sdf_tree = pysdf.SDF.from_xml(sdf_string=sdf_string, remove_blank_text=True)
 
     # Detect whether the model is fixed base by checking joints with world parent exist.
     # This link is a special link used to specify that the model's base should be fixed.
-    fixed_base = len([j for j in sdf_tree.model.joint if j.parent == "world"]) > 0
+    fixed_base = len([j for j in sdf_tree.model.joints if j.parent == "world"]) > 0
 
     # Base link of the model. We take the first link in the SDF description.
-    base_link_name = sdf_tree.model.link[0].name
+    base_link_name = sdf_tree.model.links[0].name
 
     # Pose of the model
     if sdf_tree.model.pose is None:
         model_pose = kinematic_graph.RootPose()
 
     else:
-        w_H_m = utils.from_sdf_pose(pose=sdf_tree.model.pose.value)
+        w_H_m = utils.from_sdf_pose(pose=sdf_tree.model.pose)
         xyzw_to_wxyz = np.array([3, 0, 1, 2])
         w_quat_m = R.from_matrix(w_H_m[0:3, 0:3]).as_quat()[xyzw_to_wxyz]
         model_pose = kinematic_graph.RootPose(
@@ -80,12 +70,10 @@ def extract_data_from_sdf(
         descriptions.LinkDescription(
             name=l.name,
             mass=jnp.float32(l.inertial.mass),
-            inertia=utils.from_sdf_inertial(inertial_sdf_element=l.inertial),
-            pose=utils.from_sdf_pose(l.pose.value)
-            if l.pose is not None and isinstance(l.pose.value, str)
-            else np.eye(4),
+            inertia=utils.from_sdf_inertial(inertial=l.inertial),
+            pose=utils.from_sdf_pose(pose=l.pose) if l.pose is not None else np.eye(4),
         )
-        for l in sdf_tree.model.link
+        for l in sdf_tree.model.links
         if l.inertial.mass > 0
     ]
 
@@ -113,20 +101,17 @@ def extract_data_from_sdf(
                 name=j.name,
                 parent=world_link,
                 child=links_dict[j.child],
-                jtype=utils.axis_to_jtype(
-                    axis=utils.from_sdf_string_list(j.axis.xyz.value)
-                    if j.axis is not None and j.axis.xyz is not None
-                    else None,
-                    type=j.type,
-                ),
-                axis=utils.from_sdf_string_list(j.axis.xyz.value)
-                if j.axis is not None and j.axis.xyz is not None
+                jtype=utils.axis_to_jtype(axis=j.axis, type=j.type),
+                axis=utils.from_sdf_string_list(string_list=j.axis.xyz.text)
+                if j.axis is not None
+                and j.axis.xyz is not None
+                and j.axis.xyz.text is not None
                 else None,
-                pose=utils.from_sdf_pose(j.pose.value)
+                pose=utils.from_sdf_pose(pose=j.pose)
                 if j.pose is not None
                 else np.eye(4),
             )
-            for j in sdf_tree.model.joint
+            for j in sdf_tree.model.joints
             if j.type == "fixed"
             and j.parent == "world"
             and j.child in links_dict.keys()
@@ -161,7 +146,7 @@ def extract_data_from_sdf(
     # ============
 
     # Check that all joint poses are expressed w.r.t. their parent link
-    for j in sdf_tree.model.joint:
+    for j in sdf_tree.model.joints:
 
         if j.pose is None:
             continue
@@ -183,16 +168,13 @@ def extract_data_from_sdf(
             name=j.name,
             parent=links_dict[j.parent],
             child=links_dict[j.child],
-            jtype=utils.axis_to_jtype(
-                axis=utils.from_sdf_string_list(j.axis.xyz.value)
-                if j.axis is not None and j.axis.xyz is not None
-                else None,
-                type=j.type,
-            ),
-            axis=utils.from_sdf_string_list(j.axis.xyz.value)
-            if j.axis is not None and j.axis.xyz is not None
+            jtype=utils.axis_to_jtype(axis=j.axis, type=j.type),
+            axis=utils.from_sdf_string_list(j.axis.xyz.text)
+            if j.axis is not None
+            and j.axis.xyz is not None
+            and j.axis.xyz.text is not None
             else None,
-            pose=utils.from_sdf_pose(j.pose.value) if j.pose is not None else np.eye(4),
+            pose=utils.from_sdf_pose(pose=j.pose) if j.pose is not None else np.eye(4),
             initial_position=0.0,
             position_limit=(
                 float(j.axis.limit.lower)
@@ -203,7 +185,7 @@ def extract_data_from_sdf(
                 else np.finfo(float).max,
             ),
         )
-        for j in sdf_tree.model.joint
+        for j in sdf_tree.model.joints
         if j.type in {"revolute", "prismatic", "fixed"}
         and j.parent != "world"
         and j.child in links_dict.keys()
@@ -213,7 +195,7 @@ def extract_data_from_sdf(
     joint_dict = {j.child.name: j.name for j in joints}
 
     # Check that all the link poses are expressed wrt their parent joint
-    for l in sdf_tree.model.link:
+    for l in sdf_tree.model.links:
 
         if l.name not in links_dict:
             continue
@@ -239,22 +221,22 @@ def extract_data_from_sdf(
     collisions: List[descriptions.CollisionShape] = []
 
     # Parse the collisions
-    for link in sdf_tree.model.link:
-        for collision in link.collision:
+    for link in sdf_tree.model.links:
+        for collision in link.colliders:
 
-            if collision.geometry.box is not None:
+            if collision.geometry.box.to_xml() != "<box/>":
 
                 box_collision = utils.create_box_collision(
-                    collision_sdf_element=collision,
+                    collision=collision,
                     link_description=links_dict[link.name],
                 )
 
                 collisions.append(box_collision)
 
-            if collision.geometry.sphere is not None:
+            if collision.geometry.sphere.to_xml() != "<sphere/>":
 
                 sphere_collision = utils.create_sphere_collision(
-                    collision_sdf_element=collision,
+                    collision=collision,
                     link_description=links_dict[link.name],
                 )
 
@@ -268,7 +250,7 @@ def extract_data_from_sdf(
         fixed_base=fixed_base,
         base_link_name=base_link_name,
         model_pose=model_pose,
-        sdf_tree=sdf_tree,
+        sdf_tree=sdf_tree.model,
     )
 
 

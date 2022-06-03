@@ -58,6 +58,11 @@ class PhysicsModel:
         if gravity.size != 3:
             raise ValueError(gravity.size)
 
+        # Currently, we assume that the link frame matches the frame of its parent joint
+        for l in model_description:
+            if not jnp.allclose(l.pose, jnp.eye(4)):
+                raise ValueError(f"Link '{l.name}' has unsupported pose:\n{l.pose}")
+
         # ===================================
         # Initialize physics model parameters
         # ===================================

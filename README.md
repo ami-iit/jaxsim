@@ -82,4 +82,4 @@ For major changes, please open an issue first to discuss what you would like to 
 
 ## License
 
-[LGPLv2+](https://choosealicense.com/licenses/lgpl-3.0/)
+[BSD3](https://choosealicense.com/licenses/bsd-3-clause/)

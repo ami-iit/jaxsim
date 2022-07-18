@@ -83,8 +83,8 @@ class KinematicGraph:
         # Assign the frame index following the name-based indexing.
         # Also here, we assume the model is fixed-base, therefore the first frame will
         # have last_link_idx + 1. These frames are not part of the physics model.
-        for index, link in enumerate(self):
-            link.index = index
+        for index, frame in enumerate(self.frames):
+            frame.index = index + len(self.link_names())
 
         # Number joints so that their index matches their child link index
         links_dict = {l.name: l for l in iter(self)}

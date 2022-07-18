@@ -58,11 +58,11 @@ class JointGenericAxis(JointDescriptor):
 class JointDescription:
 
     name: str
-    parent: LinkDescription
-    child: LinkDescription
     axis: npt.NDArray
     pose: npt.NDArray
     jtype: Union[JointType, JointDescriptor]
+    child: LinkDescription = dataclasses.dataclass(repr=False)
+    parent: LinkDescription = dataclasses.dataclass(repr=False)
 
     index: int = 0
 

@@ -136,7 +136,9 @@ def extract_data_from_sdf(
         # Combine the pose of the base link (child of the found fixed joint)
         # with the pose of the fixed joint connecting with the world.
         # Note: we assume it's a fixed joint and ignore any joint angle.
-        links_dict[joints_with_world_parent[0].child.name].pose = (
+        links_dict[joints_with_world_parent[0].child.name].mutable(
+            validate=False
+        ).pose = (
             joints_with_world_parent[0].pose
             @ links_dict[joints_with_world_parent[0].child.name].pose
         )

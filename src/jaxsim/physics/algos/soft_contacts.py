@@ -133,11 +133,13 @@ def collidable_points_pos_vel(
     return pos_vel[0:3, :].squeeze(), pos_vel[3:6, :].squeeze()
 
 
-class SoftContactsParams(NamedTuple):
 
-    K: float = 1e6
-    D: float = 2000
-    mu: float = 0.5
+@jax_dataclasses.pytree_dataclass
+class SoftContactsParams:
+
+    K: float = jnp.array(1e6, dtype=float)
+    D: float = jnp.array(2000, dtype=float)
+    mu: float = jnp.array(0.5, dtype=float)
 
 
 def soft_contacts_model(

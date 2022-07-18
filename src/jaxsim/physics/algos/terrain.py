@@ -1,6 +1,7 @@
 import abc
 
 import jax.numpy as jnp
+import jax_dataclasses
 
 import jaxsim.typing as jtp
 
@@ -28,6 +29,7 @@ class Terrain(abc.ABC):
         return n / jnp.linalg.norm(n)
 
 
+@jax_dataclasses.pytree_dataclass
 class FlatTerrain(Terrain):
     def height(self, x: float, y: float) -> float:
         return 0.0

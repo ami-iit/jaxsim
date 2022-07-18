@@ -3,21 +3,25 @@ import dataclasses
 from typing import List
 
 import jax.numpy as jnp
-import numpy.typing as npt
+import jax_dataclasses
 
+import jaxsim.typing as jtp
 from jaxsim.sixd import se3
+from jaxsim.utils import JaxsimDataclass
 
 
-@dataclasses.dataclass
-class LinkDescription:
+@jax_dataclasses.pytree_dataclass
+class LinkDescription(JaxsimDataclass):
 
-    name: str
+    name: str = jax_dataclasses.static_field()
     mass: float
-    inertia: npt.NDArray
+    inertia: jtp.Matrix
     index: int = None
-    parent: "LinkDescription" = None
-    pose: npt.NDArray = dataclasses.field(default_factory=lambda: jnp.eye(4))
-    children: List["LinkDescription"] = dataclasses.field(default_factory=list)
+    parent: "LinkDescription" = jax_dataclasses.static_field(default=None, repr=False)
+    pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
+    children: List["LinkDescription"] = jax_dataclasses.static_field(
+        default_factory=list, repr=False
+    )
 
     def __hash__(self) -> int:
 
@@ -29,7 +33,7 @@ class LinkDescription:
         return f"#{self.index}_<{self.name}>"
 
     def lump_with(
-        self, link: "LinkDescription", lumped_H_removed: npt.NDArray
+        self, link: "LinkDescription", lumped_H_removed: jtp.Matrix
     ) -> "LinkDescription":
 
         from jaxsim.parsers.sdf.utils import flip_velocity_serialization

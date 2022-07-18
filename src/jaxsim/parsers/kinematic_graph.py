@@ -75,7 +75,7 @@ class KinematicGraph:
         # have index 0. We will deal with the floating base in a later stage,
         # when this Model object is converted to the physics model.
         for index, link in enumerate(self):
-            link.index = index
+            link.mutable(validate=False).index = index
 
         # Order frames with their name
         super().__setattr__("frames", sorted(self.frames, key=lambda f: f.name))
@@ -136,7 +136,9 @@ class KinematicGraph:
     ]:
 
         # Create a dict that maps link name to the link, for easy retrieval
-        links_dict: Dict[str, descriptions.LinkDescription] = {l.name: l for l in links}
+        links_dict: Dict[str, descriptions.LinkDescription] = {
+            l.name: l.mutable(validate=False) for l in links
+        }
 
         if root_link_name not in links_dict:
             raise ValueError(root_link_name)
@@ -191,7 +193,7 @@ class KinematicGraph:
             logging.info(msg=msg)
 
         return (
-            links_dict[root_link_name],
+            links_dict[root_link_name].mutable(mutable=False),
             list(set(joints) - set(removed_joints)),
             frames,
         )

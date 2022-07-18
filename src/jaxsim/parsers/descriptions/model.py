@@ -122,6 +122,11 @@ class ModelDescription(KinematicGraph):
         msg = "The model reduction logic assumes that removed joints have zero angles"
         logging.info(msg=msg)
 
+        if len(set(considered_joints) - set(self.joint_names())) != 0:
+            extra_joints = set(considered_joints) - set(self.joint_names())
+            msg = f"Found joints not part of the model: {extra_joints}"
+            raise ValueError(msg)
+
         return ModelDescription.build_model_from(
             name=self.name,
             links=list(self.links_dict.values()),

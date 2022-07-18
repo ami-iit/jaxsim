@@ -8,6 +8,7 @@ from jaxsim.physics.model.physics_model_state import (
     PhysicsModelInput,
     PhysicsModelState,
 )
+from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
@@ -36,15 +37,10 @@ class ODEInput:
 
 
 @jax_dataclasses.pytree_dataclass
-class ODEState:
+class ODEState(JaxsimDataclass):
 
     physics_model: PhysicsModelState
     soft_contacts: SoftContactsState
-
-    def serialize(self) -> jtp.VectorJax:
-
-        serialized_object, _ = jax.flatten_util.ravel_pytree(self)
-        return serialized_object
 
     @staticmethod
     def deserialize(data: jtp.VectorJax, physics_model: PhysicsModel) -> "ODEState":
@@ -53,14 +49,6 @@ class ODEState:
         _, unflatten_data = jax.flatten_util.ravel_pytree(dummy_object)
 
         return unflatten_data(data)
-
-    def replace(self, validate: bool = True, **kwargs) -> "ODEState":
-
-        with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_state:
-
-            _ = [updated_state.__setattr__(k, v) for k, v in kwargs.items()]
-
-        return updated_state
 
     @staticmethod
     def zero(physics_model: PhysicsModel) -> "ODEState":

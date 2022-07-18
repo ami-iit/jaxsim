@@ -9,8 +9,8 @@ from jaxsim.physics.model.physics_model import PhysicsModel
 from . import utils
 
 
-def forward_kinematics(
-    model: PhysicsModel, body_index: int, q: jtp.Vector, xfb: jtp.Vector
+def forward_kinematics_model(
+    model: PhysicsModel, q: jtp.Vector, xfb: jtp.Vector
 ) -> jtp.Matrix:
 
     x_fb, q, _, _, _, _ = utils.process_inputs(
@@ -36,4 +36,11 @@ def forward_kinematics(
         W_X_i_i = W_X_i[model.parent[i]] @ jnp.linalg.inv(i_X_λi[i])
         W_X_i = W_X_i.at[i].set(W_X_i_i)
 
-    return Plucker.to_transform(W_X_i[body_index])
+    return jnp.stack([Plucker.to_transform(X) for X in list(W_X_i)])
+
+
+def forward_kinematics(
+    model: PhysicsModel, body_index: int, q: jtp.Vector, xfb: jtp.Vector
+) -> jtp.Matrix:
+
+    return forward_kinematics_model(model=model, q=q, xfb=xfb)[body_index]

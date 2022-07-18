@@ -74,10 +74,11 @@ def rnea(
         Xup_i = Xj[i] @ Xtree[i]
         Xup = Xup.at[i].set(Xup_i)
 
-        v[i] = Xup[i] @ v[int(model.parent[i])] + vJ
-        a[i] = Xup[i] @ a[int(model.parent[i])] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
+        λi = model._parent_array_dict[i]
+        v[i] = Xup[i] @ v[λi] + vJ
+        a[i] = Xup[i] @ a[λi] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
 
-        i_X_0_i = Xup[i] @ i_X_0[model.parent[i]]
+        i_X_0_i = Xup[i] @ i_X_0[λi]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
         i_X_W = jnp.linalg.inv(i_X_0[i] @ B_X_W).T
 
@@ -96,7 +97,9 @@ def rnea(
         value = S[i].T @ f[i]
         tau = tau.at[ii].set(value.squeeze())
 
-        if model.parent[i] != 0 or model.is_floating_base:
-            f[int(model.parent[i])] = f[int(model.parent[i])] + Xup[i].T @ f[i]
+        λi = model._parent_array_dict[i]
+
+        if λi != 0 or model.is_floating_base:
+            f[λi] = f[λi] + Xup[i].T @ f[i]
 
     return B_X_W.T @ jnp.vstack(f[0]), jnp.vstack(tau)

@@ -268,3 +268,14 @@ class PhysicsModel:
     def __hash__(self):
 
         return hash(self.__repr__())
+
+    def __repr__(self) -> str:
+
+        attributes = [
+            f"dofs: {self.dofs()},",
+            f"links: {self.NB},",
+            f"floating_base: {self.is_floating_base},",
+        ]
+        attributes_string = "\n    ".join(attributes)
+
+        return f"{type(self).__name__}(\n    {attributes_string}\n)"

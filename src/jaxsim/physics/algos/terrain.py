@@ -33,3 +33,14 @@ class Terrain(abc.ABC):
 class FlatTerrain(Terrain):
     def height(self, x: float, y: float) -> float:
         return 0.0
+
+
+@jax_dataclasses.pytree_dataclass
+class PlaneTerrain(Terrain):
+
+    plane_normal: jtp.Vector = jax_dataclasses.field(default=jnp.array([0, 0, 1.0]))
+
+    def height(self, x: float, y: float) -> float:
+
+        a, b, c = self.plane_normal
+        return -(a * x + b * x) / c

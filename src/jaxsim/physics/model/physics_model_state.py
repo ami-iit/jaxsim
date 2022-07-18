@@ -3,10 +3,11 @@ import jax_dataclasses
 
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
+from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
-class PhysicsModelState:
+class PhysicsModelState(JaxsimDataclass):
 
     # Joint state
     joint_positions: jtp.Vector
@@ -46,14 +47,6 @@ class PhysicsModelState:
                 self.base_linear_velocity,
             ]
         )
-
-    def replace(self, validate: bool = True, **kwargs) -> "PhysicsModelState":
-
-        with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_state:
-
-            _ = [updated_state.__setattr__(k, v) for k, v in kwargs.items()]
-
-        return updated_state
 
     def valid(
         self, physics_model: "jaxsim.physics.model.physics_model.PhysicsModel"

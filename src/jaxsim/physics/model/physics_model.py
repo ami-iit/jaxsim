@@ -12,14 +12,14 @@ import jaxsim.typing as jtp
 from jaxsim.math.plucker import Plucker
 from jaxsim.parsers.descriptions import JointDescriptor, JointType
 from jaxsim.physics import default_gravity
-from jaxsim.utils import tracing
+from jaxsim.utils import JaxsimDataclass, tracing
 
 from .ground_contact import GroundContact
 from .physics_model_state import PhysicsModelState
 
 
 @pytree_dataclass
-class PhysicsModel:
+class PhysicsModel(JaxsimDataclass):
 
     NB: int = static_field()
     initial_state: PhysicsModelState = jax_dataclasses.field(default=None)
@@ -162,6 +162,19 @@ class PhysicsModel:
     def dofs(self) -> int:
 
         return len(list(self._jtype_dict.keys()))
+
+    def set_gravity(self, gravity: jtp.Vector) -> None:
+
+        gravity = gravity.squeeze()
+
+        if gravity.size == 3:
+            self.gravity = jnp.hstack([0, 0, 0, gravity])
+
+        elif gravity.size == 6:
+            self.gravity = gravity
+
+        else:
+            raise ValueError(gravity.shape)
 
     @property
     def parent(self) -> jtp.Vector:

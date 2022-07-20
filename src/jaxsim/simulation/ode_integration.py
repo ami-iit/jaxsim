@@ -1,3 +1,4 @@
+import enum
 import functools
 from typing import Any, Dict, Tuple, Union
 
@@ -8,6 +9,12 @@ import jaxsim.typing as jtp
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
 from jaxsim.physics.model.physics_model import PhysicsModel
 from jaxsim.simulation import integrators, ode
+
+
+class IntegratorType(enum.IntEnum):
+
+    RungeKutta4 = enum.auto()
+    EulerForward = enum.auto()
 
 
 @jax.jit

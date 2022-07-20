@@ -148,6 +148,7 @@ def dx_dt(
 
     return state_derivative, dict(
         qdd=qdd,
+        ode_input=ode_input,
         contact_forces_links=contact_forces_links,
         contact_forces_points=contact_forces_points,
     )

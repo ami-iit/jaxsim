@@ -105,12 +105,12 @@ def dx_dt(
             terrain=terrain,
         )
 
-    # Compute the total forces applied to the bodies
-    total_forces = ode_input.physics_model.f_ext + contact_forces_links
-
     # ========================
     # Compute forward dynamics
     # ========================
+
+    # Compute the total forces applied to the bodies
+    total_forces = ode_input.physics_model.f_ext + contact_forces_links
 
     # Compute the mechanical joint torques (real torque sent to the joint) by
     # subtracting the optional joint friction
@@ -176,8 +176,6 @@ def dx_dt(
 
         return jnp.array([vector]) if vector.shape == () else vector
 
-    # Build the state derivative.
-    # We use the input ODEState object to keep the pytree structure consistent.
     physics_model_state_derivative = ode_state.physics_model.replace(
         joint_positions=fix_one_dof(ode_state.physics_model.joint_velocities.squeeze()),
         joint_velocities=fix_one_dof(qdd.squeeze()),
@@ -191,14 +189,34 @@ def dx_dt(
         tangential_deformation=tangential_deformation_dot.squeeze(),
     )
 
+    # We store the state derivative using the ODEState class so that the pytree
+    # structure remains consistent, and it allows using our generic pytree integrators
     state_derivative = ode_data.ODEState(
         physics_model=physics_model_state_derivative,
         soft_contacts=soft_contacts_state_derivative,
     )
 
-    return state_derivative, dict(
-        qdd=qdd,
-        ode_input=ode_input,
-        contact_forces_links=contact_forces_links,
-        contact_forces_points=contact_forces_points,
+    # ===============================
+    # Build auxiliary data and return
+    # ===============================
+
+    # Real ODEInput containing the real joint forces that have been actuated and
+    # the total external forces (= original external forces + terrain + limits)
+    ode_input_real = ode_data.ODEInput(
+        physics_model=ode_data.PhysicsModelInput(tau=tau, f_ext=total_forces)
     )
+
+    # Pack the inertial-fixed floating-base acceleration
+    W_nud_WB = jnp.hstack([W_a_WB.squeeze()[3:6], W_a_WB.squeeze()[0:3], qdd.squeeze()])
+
+    # Build the auxiliary data
+    aux_dict = dict(
+        model_acceleration=W_nud_WB,
+        ode_input=ode_input,
+        ode_input_real=ode_input_real,
+        contact_forces_points=contact_forces_points,
+        tangential_deformation_dot=tangential_deformation_dot,
+    )
+
+    # Return the state derivative as a generic PyTree, and the dict with auxiliary info
+    return state_derivative, aux_dict

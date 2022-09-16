@@ -1,9 +1,8 @@
 from typing import Any, Callable, Dict, Tuple, Union
 
 import jax
-import jax.experimental.loops
-import jax.flatten_util
 import jax.numpy as jnp
+from jax.tree_util import tree_map
 
 import jaxsim.typing as jtp
 
@@ -36,29 +35,40 @@ def odeint_euler_one_step(
     dt = tf - t0
     sub_step_dt = dt / num_sub_steps
 
-    # Initial value of the loop carry
-    init_val = (x0, t0, dx_dt(x0, t0)[1])
+    # Initialize the carry
+    Carry = Tuple[State, Time]
+    carry_init: Carry = (x0, t0)
 
-    def body_fun(idx: int, carry: Tuple) -> Tuple:
+    def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
 
-        # Unpack data from the carry
-        x, t, _ = carry
+        # Unpack the carry
+        x_t0, t0 = carry
 
         # Compute the state derivative
-        dxdt, aux = dx_dt(x, t)
+        dxdt_t0, _ = dx_dt(x_t0, t0)
 
-        # Integrate the dynamics and update the time
-        x = jax.tree_map(lambda _x, _dxdt: _x + sub_step_dt * _dxdt, x, dxdt)
-        t = t + sub_step_dt
+        # Integrate the dynamics
+        x_tf = jax.tree_util.tree_map(
+            lambda x, dxdt: x + sub_step_dt * dxdt, x_t0, dxdt_t0
+        )
 
-        # Pack the carry data
-        return x, t, aux
+        # Update the time
+        tf = t0 + sub_step_dt
 
-    x_tf, tf, aux_tf = jax.lax.fori_loop(
-        lower=0, upper=num_sub_steps, body_fun=body_fun, init_val=init_val
+        # Pack the carry
+        carry = (x_tf, tf)
+
+        return carry, None
+
+    # Integrate over the given horizon
+    (x_tf, _), _ = jax.lax.scan(
+        f=body_fun, init=carry_init, xs=None, length=num_sub_steps
     )
 
-    return x_tf, aux_tf
+    # Compute the aux dictionary at t0
+    _, aux_t0 = dx_dt(x0, t0)
+
+    return x_tf, aux_t0
 
 
 def odeint_rk4_one_step(
@@ -74,40 +84,49 @@ def odeint_rk4_one_step(
     dt = tf - t0
     sub_step_dt = dt / num_sub_steps
 
-    # Initial value of the loop carry
-    init_val = (x0, t0, dx_dt(x0, t0)[1])
+    # Initialize the carry
+    Carry = Tuple[State, Time]
+    carry_init: Carry = (x0, t0)
 
-    def body_fun(idx: int, carry: Tuple) -> Tuple:
+    def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
 
-        # Unpack data from the carry
-        x, t, _ = carry
+        # Unpack the carry
+        x_t0, t0 = carry
 
         # Helper to forward the state to compute k2 and k3 at midpoint and k4 at final
-        euler_mid = lambda _x, _dxdt: _x + (0.5 * sub_step_dt) * _dxdt
-        euler_fin = lambda _x, _dxdt: _x + sub_step_dt * _dxdt
+        euler_mid = lambda x, dxdt: x + (0.5 * sub_step_dt) * dxdt
+        euler_fin = lambda x, dxdt: x + sub_step_dt * dxdt
 
         # Compute the RK4 slopes
-        k1, aux = dx_dt(x, t)
-        k2, _ = dx_dt(jax.tree_map(euler_mid, x, k1), t + 0.5 * sub_step_dt)
-        k3, _ = dx_dt(jax.tree_map(euler_mid, x, k2), t + 0.5 * sub_step_dt)
-        k4, _ = dx_dt(jax.tree_map(euler_fin, x, k3), t + sub_step_dt)
+        k1, _ = dx_dt(x_t0, t0)
+        k2, _ = dx_dt(tree_map(euler_mid, x_t0, k1), t0 + 0.5 * sub_step_dt)
+        k3, _ = dx_dt(tree_map(euler_mid, x_t0, k2), t0 + 0.5 * sub_step_dt)
+        k4, _ = dx_dt(tree_map(euler_fin, x_t0, k3), t0 + sub_step_dt)
 
         # Average the slopes and compute the RK4 state derivative
         average = lambda k1, k2, k3, k4: (k1 + 2 * k2 + 2 * k3 + k4) / 6
-        dxdt = jax.tree_map(average, k1, k2, k3, k4)
+        dxdt = jax.tree_util.tree_map(average, k1, k2, k3, k4)
 
-        # Integrate the dynamics and update the time
-        x = jax.tree_map(euler_fin, x, dxdt)
-        t = t + sub_step_dt
+        # Integrate the dynamics
+        x_tf = jax.tree_util.tree_map(euler_fin, x_t0, dxdt)
 
-        # Pack the carry data
-        return x, t, aux
+        # Update the time
+        tf = t0 + sub_step_dt
 
-    x_tf, tf, aux_tf = jax.lax.fori_loop(
-        lower=0, upper=num_sub_steps, body_fun=body_fun, init_val=init_val
+        # Pack the carry
+        carry = (x_tf, tf)
+
+        return carry, None
+
+    # Integrate over the given horizon
+    (x_tf, _), _ = jax.lax.scan(
+        f=body_fun, init=carry_init, xs=None, length=num_sub_steps
     )
 
-    return x_tf, aux_tf
+    # Compute the aux dictionary at t0
+    _, aux_t0 = dx_dt(x0, t0)
+
+    return x_tf, aux_t0
 
 
 # ===============================
@@ -121,56 +140,33 @@ def integrate_single_step_over_horizon(
     x0: State,
 ) -> Tuple[State, Dict[str, Any]]:
 
-    # We cannot use fori_loop because it does not support indexing buffer elements
-    # using the index passed as body_fun input argument.
-    # Assuming the state pytree not having any static attribute, we operate on its
-    # flattened representation.
-    with jax.experimental.loops.Scope() as s:
+    # Initialize the carry
+    carry_init = (x0, t)
 
-        # Dummy run to get the flattened dimensions
-        _, aux0 = integrator_single_step(t[0], t[1], x0)
-        x0_flat, restore_x_fn = jax.flatten_util.ravel_pytree(x0)
-        aux0_flat, restore_aux_fn = jax.flatten_util.ravel_pytree(aux0)
+    def body_fun(carry: Tuple, idx: int) -> Tuple[Tuple, jtp.PyTree]:
 
-        # Allocate the buffers to store flattened data over the entire horizon
-        s.aux = jnp.zeros(shape=(t.size, aux0_flat.size))
-        s.x_horizon = jnp.zeros(shape=(t.size, x0_flat.size))
+        # Unpack the carry
+        x_t0, horizon = carry
 
-        # Store the initial state and aux data
-        s.aux = s.aux.at[0].set(aux0_flat)
-        s.x_horizon = s.x_horizon.at[0].set(x0_flat)
+        # Get the integration interval
+        t0 = horizon[idx]
+        tf = horizon[idx + 1]
 
-        for i in s.range(0, t.size - 1):
+        # Perform a single-step integration of the ODE
+        x_tf, aux_t0 = integrator_single_step(t0, tf, x_t0)
 
-            # Get the indices of the integration step
-            t_start_idx, t_end_idx = (i, i + 1)
+        # Prepare returned data
+        out = (x_t0, aux_t0)
+        carry = (x_tf, horizon)
 
-            # Define the integration interval
-            t_start, t_end = t[t_start_idx], t[t_end_idx]
+        return carry, out
 
-            # Define the initial condition of the ODE
-            x_start = s.x_horizon[t_start_idx]
+    # Integrate over the given horizon
+    _, (x_horizon, aux_horizon) = jax.lax.scan(
+        f=body_fun, init=carry_init, xs=jnp.arange(start=0, stop=len(t))
+    )
 
-            # Integrate the ODE for a single step
-            x_start_pytree = restore_x_fn(x_start)
-            x_end_pytree, aux_pytree = integrator_single_step(
-                t_start, t_end, x_start_pytree
-            )
-
-            # Flatten the pytrees
-            x_end, _ = jax.flatten_util.ravel_pytree(x_end_pytree)
-            aux, _ = jax.flatten_util.ravel_pytree(aux_pytree)
-
-            # Store the final state
-            s.x_horizon = s.x_horizon.at[t_end_idx].set(x_end.squeeze())
-
-            # Store the flattened auxiliary data
-            s.aux = s.aux.at[t_end_idx].set(aux.squeeze())
-
-        x_horizon = jax.vmap(lambda x: restore_x_fn(x))(s.x_horizon)
-        aux = jax.vmap(lambda a: restore_aux_fn(a))(s.aux)
-
-    return x_horizon, aux
+    return x_horizon, aux_horizon
 
 
 # ===================================================================

@@ -1,19 +1,20 @@
 from typing import Tuple
 
+import jax_dataclasses
+
 import jaxsim.high_level
 import jaxsim.parsers.descriptions as descriptions
 import jaxsim.typing as jtp
+from jaxsim.utils import JaxsimDataclass
 
 
-class Joint:
-    def __init__(
-        self,
-        joint_description: descriptions.JointDescription,
-        parent_model: "jaxsim.high_level.model.Model" = None,
-    ):
+@jax_dataclasses.pytree_dataclass
+class Joint(JaxsimDataclass):
 
-        self.parent_model = parent_model
-        self.joint_description = joint_description
+    joint_description: descriptions.JointDescription = jax_dataclasses.static_field()
+    parent_model: "jaxsim.high_level.model.Model" = jax_dataclasses.field(
+        default=None, repr=False, compare=False
+    )
 
     def valid(self) -> bool:
 

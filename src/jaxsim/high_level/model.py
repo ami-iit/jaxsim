@@ -1,6 +1,6 @@
 import dataclasses
 import pathlib
-from typing import Dict, List, NamedTuple, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import jax.experimental.ode
 import jax.numpy as jnp
@@ -10,6 +10,7 @@ import numpy as np
 import jaxsim
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
+import jaxsim.physics.algos.forward_kinematics
 import jaxsim.physics.algos.rnea
 import jaxsim.physics.model.physics_model
 import jaxsim.physics.model.physics_model_state
@@ -18,12 +19,15 @@ from jaxsim import high_level, physics, sixd
 from jaxsim.parsers.sdf.utils import flip_velocity_serialization
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
-from jaxsim.simulation import ode_data
+from jaxsim.simulation import ode_data, ode_integration
+from jaxsim.simulation.ode_integration import IntegratorType
+from jaxsim.utils import JaxsimDataclass
 
 from .common import VelRepr
 
 
-class ModelData(NamedTuple):
+@jax_dataclasses.pytree_dataclass
+class ModelData(JaxsimDataclass):
 
     model_state: jaxsim.physics.model.physics_model_state.PhysicsModelState
     model_input: jaxsim.physics.model.physics_model_state.PhysicsModelInput
@@ -46,19 +50,21 @@ class ModelData(NamedTuple):
 
 
 @jax_dataclasses.pytree_dataclass
-class Model:
+class Model(JaxsimDataclass):
 
-    model_name: str
+    model_name: str = jax_dataclasses.static_field()
     physics_model: physics.model.physics_model.PhysicsModel = dataclasses.field(
         repr=False
     )
 
-    velocity_representation: VelRepr = dataclasses.field(default=VelRepr.Mixed)
+    velocity_representation: VelRepr = jax_dataclasses.static_field(
+        default=VelRepr.Mixed
+    )
 
-    _links: Dict[str, "high_level.link.Link"] = dataclasses.field(
+    _links: Dict[str, "high_level.link.Link"] = jax_dataclasses.static_field(
         default_factory=list, repr=False
     )
-    _joints: Dict[str, "high_level.joint.Joint"] = dataclasses.field(
+    _joints: Dict[str, "high_level.joint.Joint"] = jax_dataclasses.static_field(
         default_factory=list, repr=False
     )
 
@@ -75,6 +81,7 @@ class Model:
         vel_repr: VelRepr = VelRepr.Mixed,
         gravity: jtp.Array = jaxsim.physics.default_gravity(),
         is_urdf: bool = False,
+        considered_joints: List[str] = None,
     ) -> "Model":
 
         import jaxsim.parsers.sdf
@@ -83,6 +90,12 @@ class Model:
             raise ValueError("Converting URDF to SDF is not yet supported")
 
         model_description = jaxsim.parsers.sdf.build_model_from_sdf(sdf=sdf)
+
+        if considered_joints is not None:
+            model_description = model_description.reduce(
+                considered_joints=considered_joints
+            )
+
         physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
             model_description=model_description, gravity=gravity
         )
@@ -104,24 +117,31 @@ class Model:
             model_name if model_name is not None else physics_model.description.name
         )
 
+        sorted_links = {
+            l.name: high_level.link.Link(link_description=l)
+            for l in sorted(
+                physics_model.description.links_dict.values(), key=lambda l: l.index
+            )
+        }
+
+        sorted_joints = {
+            j.name: high_level.joint.Joint(joint_description=j)
+            for j in sorted(
+                physics_model.description.joints_dict.values(),
+                key=lambda j: j.index,
+            )
+        }
+
         model = Model(
             physics_model=physics_model,
             model_name=model_name,
             velocity_representation=vel_repr,
-            _links={
-                l.name: high_level.link.Link(link_description=l)
-                for l in sorted(
-                    physics_model.description.links_dict.values(), key=lambda l: l.index
-                )
-            },
-            _joints={
-                j.name: high_level.joint.Joint(joint_description=j)
-                for j in sorted(
-                    physics_model.description.joints_dict.values(),
-                    key=lambda j: j.index,
-                )
-            },
-        ).zero()
+            _links=sorted_links,
+            _joints=sorted_joints,
+        )
+
+        with model.editable(validate=False) as model:
+            model.zero()
 
         if not model.valid():
             raise RuntimeError
@@ -131,10 +151,10 @@ class Model:
     def __post_init__(self):
 
         for l in self._links.values():
-            l.parent_model = self
+            object.__setattr__(l, "parent_model", self)
 
         for j in self._joints.values():
-            j.parent_model = self
+            object.__setattr__(j, "parent_model", self)
 
         object.__setattr__(
             self,
@@ -153,76 +173,58 @@ class Model:
             },
         )
 
-    def zero(self) -> "Model":
+    def reduce(self, considered_joints: List[str]) -> None:
 
-        return jax_dataclasses.replace(
-            self, data=ModelData.zero(physics_model=self.physics_model)  # noqa
+        reduced_model_description = self.physics_model.description.reduce(
+            considered_joints=considered_joints
         )
 
-    def update_data(
-        self,
-        data: ModelData = None,
-        model_state: jaxsim.physics.model.physics_model_state.PhysicsModelState = None,
-        model_input: jaxsim.physics.model.physics_model_state.PhysicsModelInput = None,
-        contact_state: jaxsim.physics.algos.soft_contacts.SoftContactsState = None,
-        validate: bool = True,
-        **kwargs,
-    ) -> "Model":
-
-        data = data if data is not None else self.data
-        model_state = model_state if model_state is not None else data.model_state
-        model_input = model_input if model_input is not None else data.model_input
-        contact_state = (
-            contact_state if contact_state is not None else data.contact_state
+        physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
+            model_description=reduced_model_description,
+            gravity=self.physics_model.gravity[3:6],
         )
 
-        def has_field(dc, field_name: str) -> bool:
-            return field_name in {field.name for field in jax_dataclasses.fields(dc)}
-
-        def replace_fields(dc, **kwargs):
-
-            fields = {key: value for key, value in kwargs.items() if has_field(dc, key)}
-
-            with jax_dataclasses.copy_and_mutate(dc, validate=validate) as updated_dc:
-                _ = [updated_dc.__setattr__(k, v) for k, v in fields.items()]
-
-            return updated_dc
-
-        for key in kwargs.keys():
-            if not any(
-                [
-                    has_field(model_state, key),
-                    has_field(model_input, key),
-                    has_field(contact_state, key),
-                ]
-            ):
-                raise ValueError(f"Failed to replace invalid field '{key}'")
-
-        model_state = replace_fields(model_state, **kwargs)
-        model_input = replace_fields(model_input, **kwargs)
-        contact_state = replace_fields(contact_state, **kwargs)
-
-        update_data = data._replace(
-            model_state=model_state,
-            model_input=model_input,
-            contact_state=contact_state,
+        reduced_model = Model.build(
+            physics_model=physics_model,
+            model_name=self.name(),
+            vel_repr=self.velocity_representation,
         )
 
-        with jax_dataclasses.copy_and_mutate(self) as model:
+        original_mutability = self._mutability()
+        self._set_mutability(mutability=self._mutability().MUTABLE_NO_VALIDATION)
+        self.physics_model = reduced_model.physics_model
+        self.data = reduced_model.data
+        self._links = reduced_model._links
+        self._joints = reduced_model._joints
+        self._set_mutability(original_mutability)
 
-            model.data = update_data
+    def zero(self) -> None:
 
-        return model
+        self.data = ModelData.zero(physics_model=self.physics_model)
+        self.data._set_mutability(self._mutability())
 
-    def change_representation(self, vel_repr: VelRepr) -> "Model":
+    def zero_input(self) -> None:
+
+        self.data.model_input = ModelData.zero(
+            physics_model=self.physics_model
+        ).model_input
+
+        self.data._set_mutability(self._mutability())
+
+    def zero_state(self) -> None:
+
+        model_data_zero = ModelData.zero(physics_model=self.physics_model)
+        self.data.model_state = model_data_zero.model_state
+        self.data.contact_state = model_data_zero.contact_state
+
+        self.data._set_mutability(self._mutability())
+
+    def set_velocity_representation(self, vel_repr: VelRepr) -> None:
 
         if self.velocity_representation is vel_repr:
-            return self
+            return
 
-        with jax_dataclasses.copy_and_mutate(self) as model:
-            model.velocity_representation = vel_repr
-
-        return model
+        self.velocity_representation = vel_repr
 
     # ==========
     # Properties
@@ -231,8 +233,8 @@ class Model:
     def valid(self) -> bool:
 
         valid = True
-        valid = valid and all([l.valid for l in self.links()])
-        valid = valid and all([j.valid for j in self.joints()])
+        valid = valid and all([l.valid() for l in self.links()])
+        valid = valid and all([j.valid() for j in self.joints()])
         return valid
 
     def floating_base(self) -> bool:
@@ -531,29 +533,37 @@ class Model:
 
     def free_floating_generalized_forces(self) -> jtp.Vector:
 
-        model = self.zero().update_data(
-            joint_positions=self.data.model_state.joint_positions,
-            joint_velocities=self.data.model_state.joint_velocities,
-            base_quaternion=self.data.model_state.base_quaternion,
-            base_position=self.data.model_state.base_position,
-            base_linear_velocity=self.data.model_state.base_linear_velocity,
-            base_angular_velocity=self.data.model_state.base_angular_velocity,
-        )
+        model_state = self.data.model_state
+        model = self.copy().mutable(validate=True)
+
+        model.zero()
+        model.data.model_state.joint_positions = model_state.joint_positions
+        model.data.model_state.joint_velocities = model_state.joint_velocities
+        model.data.model_state.base_quaternion = model_state.base_quaternion
+        model.data.model_state.base_position = model_state.base_position
+        model.data.model_state.base_linear_velocity = model_state.base_linear_velocity
+        model.data.model_state.base_angular_velocity = model_state.base_angular_velocity
+
         return jnp.hstack(model.inverse_dynamics())
 
     def free_floating_gravity_forces(self) -> jtp.Vector:
 
-        model = self.zero().update_data(
-            joint_positions=self.data.model_state.joint_positions,
-            base_quaternion=self.data.model_state.base_quaternion,
-            base_position=self.data.model_state.base_position,
-        )
+        model_state = self.data.model_state
+        model = self.copy().mutable(validate=True)
+
+        model.zero()
+        model.data.model_state.joint_positions = model_state.joint_positions
+        model.data.model_state.base_quaternion = model_state.base_quaternion
+        model.data.model_state.base_position = model_state.base_position
 
         return jnp.hstack(model.inverse_dynamics())
 
     def momentum(self) -> jtp.Vector:
 
-        m = self.change_representation(vel_repr=VelRepr.Body)
+        with self.editable(validate=True) as m:
+            m.set_velocity_representation(vel_repr=VelRepr.Body)
+
+        # Compute the momentum in body-fixed velocity representation
         B_h = m.free_floating_mass_matrix()[0:6, :] @ m.generalized_velocity()
 
         if self.velocity_representation is VelRepr.Body:
@@ -575,6 +585,16 @@ class Model:
     # ==========
     # Algorithms
     # ==========
+
+    def forward_kinematics(self) -> jtp.Array:
+
+        W_H_i = jaxsim.physics.algos.forward_kinematics.forward_kinematics_model(
+            model=self.physics_model,
+            q=self.data.model_state.joint_positions,
+            xfb=self.data.model_state.xfb(),
+        )
+
+        return W_H_i
 
     def inverse_dynamics(
         self, joint_accelerations: jtp.Vector = None, a0: jtp.Vector = jnp.zeros(6)
@@ -754,6 +774,23 @@ class Model:
     # Kinematics
     # ==========
 
+    def center_of_mass(self) -> jtp.Vector:
+
+        m = self.total_mass()
+
+        W_H_L = self.forward_kinematics()
+        W_H_B = self.base_transform()
+        B_H_W = jnp.linalg.inv(W_H_B)
+
+        com_links = [
+            (l.mass() * B_H_W @ W_H_L[l.index()] @ jnp.hstack([l.com(), 1]))
+            for l in self.links()
+        ]
+
+        B_c_homo = 1 / m * jnp.sum(jnp.array(com_links), axis=0)
+
+        return (W_H_B @ B_c_homo)[0:3]
+
     def jacobian_momentum(self) -> jtp.Matrix:
         raise NotImplementedError
 
@@ -770,9 +807,11 @@ class Model:
     # Energy
     # ======
 
-    def kinematic_energy(self) -> jtp.Float:
+    def kinetic_energy(self) -> jtp.Float:
 
-        m = self.change_representation(vel_repr=VelRepr.Body)
+        with self.editable(validate=True) as m:
+            m.set_velocity_representation(vel_repr=VelRepr.Body)
+
         nu = m.generalized_velocity()
         M = m.free_floating_mass_matrix()
 
@@ -780,19 +819,29 @@ class Model:
 
     def potential_energy(self) -> jtp.Float:
 
-        gravity = self.physics_model.gravity[3:6]
+        m = self.total_mass()
+        W_c = jnp.hstack([self.center_of_mass(), 1])
+        gravity = self.physics_model.gravity[3:6].squeeze()
 
-        return -jnp.sum(
-            jnp.array(
-                [
-                    l.mass()
-                    * jnp.hstack([gravity, 0])
-                    @ l.transform()
-                    @ jnp.hstack([l.com(), 1])
-                    for l in self.links()
-                ]
-            )
-        )
+        return -(m * jnp.hstack([gravity, 0]) @ W_c)
+
+    # ===========
+    # Set targets
+    # ===========
+
+    def set_joint_generalized_force_targets(
+        self, forces: jtp.Vector, joint_names: List[str] = None
+    ) -> None:
+
+        if joint_names is None:
+            joint_names = self.joint_names()
+
+        if forces.size != len(joint_names):
+            raise ValueError("Wrong arguments size", forces.size, len(joint_names))
+
+        self.data.model_input.tau = self.data.model_input.tau.at[
+            self._joint_indices(joint_names=joint_names)
+        ].set(forces)
 
     # ==========
     # Reset data
@@ -800,10 +849,7 @@ class Model:
 
     def reset_joint_positions(
         self, positions: jtp.Vector, joint_names: List[str] = None
-    ) -> "Model":
-
-        if positions.size == 0:
-            return self
+    ) -> None:
 
         if joint_names is None:
             joint_names = self.joint_names()
@@ -813,18 +859,15 @@ class Model:
 
         # TODO: joint position limits
 
-        new_joint_positions = self.data.model_state.joint_positions.at[
-            self._joint_indices(joint_names=joint_names)
-        ].set(positions)
-
-        return self.update_data(joint_positions=new_joint_positions)
+        self.data.model_state.joint_positions = (
+            self.data.model_state.joint_positions.at[
+                self._joint_indices(joint_names=joint_names)
+            ].set(positions)
+        )
 
     def reset_joint_velocities(
         self, velocities: jtp.Vector, joint_names: List[str] = None
-    ) -> "Model":
-
-        if velocities.size == 0:
-            return self
+    ) -> None:
 
         if joint_names is None:
             joint_names = self.joint_names()
@@ -834,19 +877,17 @@ class Model:
 
         # TODO: joint velocity limits
 
-        new_joint_velocities = self.data.model_state.joint_velocities.at[
-            self._joint_indices(joint_names=joint_names)
-        ].set(velocities)
+        self.data.model_state.joint_velocities = (
+            self.data.model_state.joint_velocities.at[
+                self._joint_indices(joint_names=joint_names)
+            ].set(velocities)
+        )
 
-        return self.update_data(joint_velocities=new_joint_velocities)
+    def reset_base_position(self, position: jtp.Vector) -> None:
 
-    def reset_base_position(self, position: jtp.Vector) -> "Model":
+        self.data.model_state.base_position = position
 
-        return self.update_data(base_position=position)
-
-    def reset_base_orientation(
-        self, orientation: jtp.Array, dcm: bool = False
-    ) -> "Model":
+    def reset_base_orientation(self, orientation: jtp.Array, dcm: bool = False) -> None:
 
         if dcm:
             to_wxyz = np.array([3, 0, 1, 2])
@@ -855,19 +896,17 @@ class Model:
             ).as_quaternion_xyzw()
             orientation = orientation_xyzw[to_wxyz]
 
-        return self.update_data(base_quaternion=orientation)
+        self.data.model_state.base_quaternion = orientation
 
-    def reset_base_transform(self, transform: jtp.Matrix) -> "Model":
+    def reset_base_transform(self, transform: jtp.Matrix) -> None:
 
         if transform.shape != (4, 4):
             raise ValueError(transform.shape)
 
-        model = self
-        model = model.reset_base_position(position=transform[0:3, 3])
-        model = model.reset_base_orientation(orientation=transform[0:3, 0:3], dcm=True)
-        return model
+        self.reset_base_position(position=transform[0:3, 3])
+        self.reset_base_orientation(orientation=transform[0:3, 0:3], dcm=True)
 
-    def reset_base_velocity(self, base_velocity: jtp.VectorJax) -> "Model":
+    def reset_base_velocity(self, base_velocity: jtp.VectorJax) -> None:
 
         if not self.physics_model.is_floating_base:
             msg = "Changing the base velocity of a fixed-based model is not allowed"
@@ -906,10 +945,63 @@ class Model:
         else:
             raise ValueError(self.velocity_representation)
 
-        return self.update_data(
-            base_linear_velocity=base_velocity_inertial[0:3],
-            base_angular_velocity=base_velocity_inertial[3:6],
+        self.data.model_state.base_linear_velocity = base_velocity_inertial[0:3]
+        self.data.model_state.base_angular_velocity = base_velocity_inertial[3:6]
+
+    # ===========
+    # Integration
+    # ===========
+
+    def integrate(
+        self,
+        t0: jtp.Float,
+        tf: jtp.Float,
+        sub_steps: int = 1,
+        integrator_type: IntegratorType = IntegratorType.EulerForward,
+        terrain: soft_contacts.Terrain = soft_contacts.FlatTerrain(),
+        contact_parameters: soft_contacts.SoftContactsParams = soft_contacts.SoftContactsParams(),
+    ) -> None:
+
+        x0 = ode_integration.ode.ode_data.ODEState(
+            physics_model=self.data.model_state,
+            soft_contacts=self.data.contact_state,
         )
+
+        ode_input = ode_integration.ode.ode_data.ODEInput(
+            physics_model=self.data.model_input
+        )
+
+        if integrator_type is IntegratorType.EulerForward:
+            integrator_fn = ode_integration.ode_integration_euler
+
+        elif integrator_type is IntegratorType.RungeKutta4:
+            integrator_fn = ode_integration.ode_integration_rk4
+
+        else:
+            raise ValueError(integrator_type)
+
+        ode_states, aux = integrator_fn(
+            x0=x0,
+            t=jnp.array([t0, tf], dtype=float),
+            ode_input=ode_input,
+            physics_model=self.physics_model,
+            soft_contacts_params=contact_parameters,
+            num_sub_steps=sub_steps,
+            terrain=terrain,
+            return_aux=True,
+        )
+
+        ode_state_tf = jax.tree_map(lambda x: x[-1], ode_states)
+        ode_input_tf = jax.tree_map(lambda x: x[-1], aux["ode_input"])
+
+        model_data = ModelData(
+            model_state=ode_state_tf.physics_model,
+            contact_state=ode_state_tf.soft_contacts,
+            model_input=ode_input_tf.physics_model,
+        )
+
+        self.data = model_data
+        self._set_mutability(self._mutability())
 
     # ===============
     # Private methods

@@ -133,7 +133,6 @@ def collidable_points_pos_vel(
     return pos_vel[0:3, :].squeeze(), pos_vel[3:6, :].squeeze()
 
 
-
 @jax_dataclasses.pytree_dataclass
 class SoftContactsParams:
 

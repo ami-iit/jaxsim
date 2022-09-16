@@ -112,12 +112,22 @@ def dx_dt(
     # Compute forward dynamics
     # ========================
 
+    # Compute the mechanical joint torques (real torque sent to the joint) by
+    # subtracting the optional joint friction
+    # TODO: add support of coulomb/viscous parameters in parsers and PhysicsModel
+    kp_friction = jnp.array([0.0] * physics_model.dofs())
+    kd_friction = jnp.array([0.0] * physics_model.dofs())
+    tau = ode_input.physics_model.tau - (
+        jnp.diag(kp_friction) @ jnp.sign(ode_state.physics_model.joint_positions)
+        + jnp.diag(kd_friction) @ ode_state.physics_model.joint_velocities
+    )
+
     W_a_WB, qdd = algos.aba.aba(
         model=physics_model,
         xfb=ode_state.physics_model.xfb(),
         q=ode_state.physics_model.joint_positions,
         qd=ode_state.physics_model.joint_velocities,
-        tau=ode_input.physics_model.tau,
+        tau=tau,
         f_ext=total_forces,
     )
 

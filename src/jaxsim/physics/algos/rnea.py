@@ -51,15 +51,15 @@ def rnea(
     Xup = Xup.at[0].set(Xup_0)
 
     v[0] = jnp.zeros(shape=(6, 1))
-    a[0] = -B_X_W @ jnp.vstack(gravity)
     f[0] = jnp.zeros(shape=(6, 1))
+    a[0] = -B_X_W @ jnp.vstack(gravity)
 
     if model.is_floating_base:
 
         W_v_WB = jnp.vstack(x_fb[7:])
         v[0] = B_X_W @ W_v_WB
 
-        a[0] = Xup[0] @ (jnp.vstack(a0fb) - jnp.vstack(gravity))
+        a[0] = B_X_W @ (jnp.vstack(a0fb) - jnp.vstack(gravity))
         f[0] = (
             I[0] @ a[0]
             + Cross.vx_star(v[0]) @ I[0] @ v[0]
@@ -74,10 +74,11 @@ def rnea(
         Xup_i = Xj[i] @ Xtree[i]
         Xup = Xup.at[i].set(Xup_i)
 
-        v[i] = Xup[i] @ v[int(model.parent[i])] + vJ
-        a[i] = Xup[i] @ a[int(model.parent[i])] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
+        λi = model._parent_array_dict[i]
+        v[i] = Xup[i] @ v[λi] + vJ
+        a[i] = Xup[i] @ a[λi] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
 
-        i_X_0_i = Xup[i] @ i_X_0[model.parent[i]]
+        i_X_0_i = Xup[i] @ i_X_0[λi]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
         i_X_W = jnp.linalg.inv(i_X_0[i] @ B_X_W).T
 
@@ -96,7 +97,15 @@ def rnea(
         value = S[i].T @ f[i]
         tau = tau.at[ii].set(value.squeeze())
 
-        if model.parent[i] != 0 or model.is_floating_base:
-            f[int(model.parent[i])] = f[int(model.parent[i])] + Xup[i].T @ f[i]
+        λi = model._parent_array_dict[i]
 
-    return B_X_W.T @ jnp.vstack(f[0]), jnp.vstack(tau)
+        if λi != 0 or model.is_floating_base:
+            f[λi] = f[λi] + Xup[i].T @ f[i]
+
+    # Handle 1 DoF models
+    tau = jnp.atleast_1d(tau.squeeze())
+    tau = jnp.vstack(tau) if tau.size > 0 else jnp.empty(shape=(0, 1))
+
+    W_f0 = B_X_W.T @ jnp.vstack(f[0])
+
+    return W_f0, tau

@@ -112,7 +112,7 @@ def dx_dt(
     # Compute forward dynamics
     # ========================
 
-    xd_fb, qdd = algos.aba.aba(
+    W_a_WB, qdd = algos.aba.aba(
         model=physics_model,
         xfb=ode_state.physics_model.xfb(),
         q=ode_state.physics_model.joint_positions,
@@ -120,6 +120,44 @@ def dx_dt(
         tau=ode_input.physics_model.tau,
         f_ext=total_forces,
     )
+
+    # =========================================
+    # Compute the state derivative of base link
+    # =========================================
+
+    if not physics_model.is_floating_base:
+
+        W_Qd_B = jnp.zeros(shape=[4, 1])
+        BW_v_WB = jnp.zeros(shape=[3, 1])
+
+    else:
+
+        from jaxsim.math.conv import Convert
+        from jaxsim.math.quaternion import Quaternion
+
+        W_Qd_B = Quaternion.derivative(
+            quaternion=ode_state.physics_model.base_quaternion,
+            omega=ode_state.physics_model.base_angular_velocity,
+            omega_in_body_fixed=False,
+        ).squeeze()
+
+        # Compute linear component of mixed velocity
+        BW_v_WB = Convert.velocities_threed(
+            v_6d=jnp.hstack(
+                [
+                    ode_state.physics_model.base_angular_velocity,
+                    ode_state.physics_model.base_linear_velocity,
+                ]
+            ),
+            p=ode_state.physics_model.base_position,
+        ).squeeze()
+
+    # Derivative of xfb (floating-base state)
+    xd_fb = jnp.hstack([W_Qd_B, BW_v_WB, W_a_WB.squeeze()]).squeeze()
+
+    # =====================================
+    # Build the full derivative of ODEState
+    # =====================================
 
     def fix_one_dof(vector: jtp.Vector) -> Optional[jtp.Vector]:
 
@@ -138,9 +176,11 @@ def dx_dt(
         base_angular_velocity=xd_fb.squeeze()[7:10],
         base_linear_velocity=xd_fb.squeeze()[10:13],
     )
+
     soft_contacts_state_derivative = ode_state.soft_contacts.replace(
         tangential_deformation=tangential_deformation_dot.squeeze(),
     )
+
     state_derivative = ode_data.ODEState(
         physics_model=physics_model_state_derivative,
         soft_contacts=soft_contacts_state_derivative,

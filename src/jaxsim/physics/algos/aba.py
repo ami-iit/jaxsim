@@ -5,7 +5,6 @@ import jax.experimental.loops
 import jax.numpy as jnp
 
 import jaxsim.typing as jtp
-from jaxsim.math.conv import Convert
 from jaxsim.math.cross import Cross
 from jaxsim.math.plucker import Plucker
 from jaxsim.math.quaternion import Quaternion
@@ -206,34 +205,13 @@ def aba(
         qdd = s.qdd
 
     # Handle 1 DoF models
-    qdd = qdd.squeeze()
-    qdd = jnp.array([qdd]) if qdd.shape == () else qdd
+    qdd = jnp.atleast_1d(qdd.squeeze())
+    qdd = jnp.vstack(qdd) if qdd.size > 0 else jnp.empty(shape=(0, 1))
 
-    # Initialize zero base velocity and acceleration
-    W_a_WB = jnp.zeros(shape=[6, 1])
-    base_lin_vel = jnp.zeros(shape=[3, 1])
-    base_quat_dot = jnp.zeros(shape=[4, 1])
-
-    # Add gravitational effects to floating-base models and handle base quantities
-    if model.is_floating_base:
-
-        W_a_WB = jnp.linalg.solve(B_X_W, a[0]) + jnp.vstack(model.gravity)
-        base_quat_dot = Quaternion.derivative(
-            quaternion=base_quat,
-            omega=base_vel[0:3],
-            omega_in_body_fixed=False,
-        )
-        base_lin_vel = Convert.velocities_threed(base_vel, base_pos)
-
-    xd_fb = jnp.vstack(
-        [
-            base_quat_dot,
-            base_lin_vel,
-            W_a_WB,
-        ]
+    W_a_WB = jnp.vstack(
+        jnp.linalg.solve(B_X_W, a[0]) + jnp.vstack(model.gravity)
+        if model.is_floating_base
+        else jnp.zeros(6)
     )
 
-    return (
-        jnp.vstack(xd_fb.squeeze()),
-        jnp.vstack(qdd) if qdd.size > 0 else jnp.array([]),
-    )
+    return W_a_WB, qdd

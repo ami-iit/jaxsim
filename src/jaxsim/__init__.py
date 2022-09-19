@@ -1,4 +1,4 @@
-from . import logging
+from . import high_level, logging, math, sixd
 
 
 def _np_options():

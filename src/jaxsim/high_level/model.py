@@ -50,6 +50,34 @@ class ModelData(JaxsimDataclass):
 
 
 @jax_dataclasses.pytree_dataclass
+class StepData(JaxsimDataclass):
+
+    t0: float
+    tf: float
+    dt: float
+
+    # Starting model data and real input (tau, f_ext) computed at t0
+    t0_model_data: ModelData = dataclasses.field(repr=False)
+    t0_model_input_real: jaxsim.physics.model.physics_model_state.PhysicsModelInput = (
+        dataclasses.field(repr=False)
+    )
+
+    # ABA output
+    t0_base_acceleration: jtp.Vector = dataclasses.field(repr=False)
+    t0_joint_acceleration: jtp.Vector = dataclasses.field(repr=False)
+
+    # (new ODEState)
+    # Starting from t0_model_data, can be obtained by integrating the ABA output
+    # and tangential_deformation_dot (which is fn of ode_state at t0)
+    tf_model_state: jaxsim.physics.model.physics_model_state.PhysicsModelState = (
+        dataclasses.field(repr=False)
+    )
+    tf_contact_state: jaxsim.physics.algos.soft_contacts.SoftContactsState = (
+        dataclasses.field(repr=False)
+    )
+
+
+@jax_dataclasses.pytree_dataclass
 class Model(JaxsimDataclass):
 
     model_name: str = jax_dataclasses.static_field()
@@ -858,7 +886,8 @@ class Model(JaxsimDataclass):
         integrator_type: IntegratorType = IntegratorType.EulerForward,
         terrain: soft_contacts.Terrain = soft_contacts.FlatTerrain(),
         contact_parameters: soft_contacts.SoftContactsParams = soft_contacts.SoftContactsParams(),
-    ) -> None:
+        clear_inputs: bool = False,
+    ) -> StepData:
 
         x0 = ode_integration.ode.ode_data.ODEState(
             physics_model=self.data.model_state,
@@ -878,6 +907,7 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(integrator_type)
 
+        # Integrate the model dynamics
         ode_states, aux = integrator_fn(
             x0=x0,
             t=jnp.array([t0, tf], dtype=float),
@@ -889,17 +919,48 @@ class Model(JaxsimDataclass):
             return_aux=True,
         )
 
-        ode_state_tf = jax.tree_map(lambda x: x[-1], ode_states)
-        ode_input_tf = jax.tree_map(lambda x: x[-1], aux["ode_input"])
-
-        model_data = ModelData(
-            model_state=ode_state_tf.physics_model,
-            contact_state=ode_state_tf.soft_contacts,
-            model_input=ode_input_tf.physics_model,
+        # Get quantities at t0
+        t0_model_data = self.data
+        t0_model_input = jax.tree_util.tree_map(lambda l: l[0], aux["ode_input"])
+        t0_model_input_real = jax.tree_util.tree_map(
+            lambda l: l[0], aux["ode_input_real"]
+        )
+        t0_model_acceleration = jax.tree_util.tree_map(
+            lambda l: l[0], aux["model_acceleration"]
         )
 
-        self.data = model_data
+        # Get quantities at tf
+        ode_states: ode_data.ODEState
+        tf_model_state = jax.tree_util.tree_map(
+            lambda l: l[-1], ode_states.physics_model
+        )
+        tf_contact_state = jax.tree_util.tree_map(
+            lambda l: l[-1], ode_states.soft_contacts
+        )
+
+        # Update model state
+        self.data = ModelData(
+            model_state=tf_model_state,
+            contact_state=tf_contact_state,
+            model_input=t0_model_input.physics_model
+            if not clear_inputs
+            else jaxsim.physics.model.physics_model_state.PhysicsModelInput.zero(
+                physics_model=self.physics_model
+            ),
+        )
         self._set_mutability(self._mutability())
+
+        return StepData(
+            t0=t0,
+            tf=tf,
+            dt=(tf - t0),
+            t0_model_data=t0_model_data,
+            t0_model_input_real=t0_model_input_real.physics_model,
+            t0_base_acceleration=t0_model_acceleration[0:6],
+            t0_joint_acceleration=t0_model_acceleration[6:],
+            tf_model_state=tf_model_state,
+            tf_contact_state=tf_contact_state,
+        )
 
     # ===============
     # Private methods

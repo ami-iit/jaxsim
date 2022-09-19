@@ -17,7 +17,7 @@
 - Continuous soft contacts model with no friction cone approximations.
 - Full support of inertial properties of bodies.
 - Revolute, prismatic, and fixed joints support.
-- Forward Euler and RK4 integrators.
+- Integrators: forward Euler, semi-implicit Euler, Runge-Kutta 4.
 - High-level classes to compute multi-body dynamics quantities from simulation state.
 
 Planned features:

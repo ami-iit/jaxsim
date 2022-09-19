@@ -1,0 +1,224 @@
+from typing import Any, Callable, Dict, Tuple, Union
+
+import jax
+import jax.numpy as jnp
+from jax.tree_util import tree_map
+
+import jaxsim.typing as jtp
+
+Time = float
+TimeHorizon = jtp.Vector
+
+State = jtp.PyTree
+StateDerivative = jtp.PyTree
+
+StateDerivativeCallable = Callable[
+    [State, Time], Tuple[StateDerivative, Dict[str, Any]]
+]
+
+
+# =======================
+# Single-step integration
+# =======================
+
+
+def odeint_euler_one_step(
+    dx_dt: StateDerivativeCallable,
+    x0: State,
+    t0: Time,
+    tf: Time,
+    num_sub_steps: int = 1,
+) -> Tuple[State, Dict[str, Any]]:
+
+    # Compute the sub-step size.
+    # We break dt in configurable sub-steps.
+    dt = tf - t0
+    sub_step_dt = dt / num_sub_steps
+
+    # Initialize the carry
+    Carry = Tuple[State, Time]
+    carry_init: Carry = (x0, t0)
+
+    def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+
+        # Unpack the carry
+        x_t0, t0 = carry
+
+        # Compute the state derivative
+        dxdt_t0, _ = dx_dt(x_t0, t0)
+
+        # Integrate the dynamics
+        x_tf = jax.tree_util.tree_map(
+            lambda x, dxdt: x + sub_step_dt * dxdt, x_t0, dxdt_t0
+        )
+
+        # Update the time
+        tf = t0 + sub_step_dt
+
+        # Pack the carry
+        carry = (x_tf, tf)
+
+        return carry, None
+
+    # Integrate over the given horizon
+    (x_tf, _), _ = jax.lax.scan(
+        f=body_fun, init=carry_init, xs=None, length=num_sub_steps
+    )
+
+    # Compute the aux dictionary at t0
+    _, aux_t0 = dx_dt(x0, t0)
+
+    return x_tf, aux_t0
+
+
+def odeint_rk4_one_step(
+    dx_dt: StateDerivativeCallable,
+    x0: State,
+    t0: Time,
+    tf: Time,
+    num_sub_steps: int = 1,
+) -> Tuple[State, Dict[str, Any]]:
+
+    # Compute the sub-step size.
+    # We break dt in configurable sub-steps.
+    dt = tf - t0
+    sub_step_dt = dt / num_sub_steps
+
+    # Initialize the carry
+    Carry = Tuple[State, Time]
+    carry_init: Carry = (x0, t0)
+
+    def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+
+        # Unpack the carry
+        x_t0, t0 = carry
+
+        # Helper to forward the state to compute k2 and k3 at midpoint and k4 at final
+        euler_mid = lambda x, dxdt: x + (0.5 * sub_step_dt) * dxdt
+        euler_fin = lambda x, dxdt: x + sub_step_dt * dxdt
+
+        # Compute the RK4 slopes
+        k1, _ = dx_dt(x_t0, t0)
+        k2, _ = dx_dt(tree_map(euler_mid, x_t0, k1), t0 + 0.5 * sub_step_dt)
+        k3, _ = dx_dt(tree_map(euler_mid, x_t0, k2), t0 + 0.5 * sub_step_dt)
+        k4, _ = dx_dt(tree_map(euler_fin, x_t0, k3), t0 + sub_step_dt)
+
+        # Average the slopes and compute the RK4 state derivative
+        average = lambda k1, k2, k3, k4: (k1 + 2 * k2 + 2 * k3 + k4) / 6
+        dxdt = jax.tree_util.tree_map(average, k1, k2, k3, k4)
+
+        # Integrate the dynamics
+        x_tf = jax.tree_util.tree_map(euler_fin, x_t0, dxdt)
+
+        # Update the time
+        tf = t0 + sub_step_dt
+
+        # Pack the carry
+        carry = (x_tf, tf)
+
+        return carry, None
+
+    # Integrate over the given horizon
+    (x_tf, _), _ = jax.lax.scan(
+        f=body_fun, init=carry_init, xs=None, length=num_sub_steps
+    )
+
+    # Compute the aux dictionary at t0
+    _, aux_t0 = dx_dt(x0, t0)
+
+    return x_tf, aux_t0
+
+
+# ===============================
+# Adapter: single step -> horizon
+# ===============================
+
+
+def integrate_single_step_over_horizon(
+    integrator_single_step: Callable[[Time, Time, State], Tuple[State, Dict[str, Any]]],
+    t: TimeHorizon,
+    x0: State,
+) -> Tuple[State, Dict[str, Any]]:
+
+    # Initialize the carry
+    carry_init = (x0, t)
+
+    def body_fun(carry: Tuple, idx: int) -> Tuple[Tuple, jtp.PyTree]:
+
+        # Unpack the carry
+        x_t0, horizon = carry
+
+        # Get the integration interval
+        t0 = horizon[idx]
+        tf = horizon[idx + 1]
+
+        # Perform a single-step integration of the ODE
+        x_tf, aux_t0 = integrator_single_step(t0, tf, x_t0)
+
+        # Prepare returned data
+        out = (x_t0, aux_t0)
+        carry = (x_tf, horizon)
+
+        return carry, out
+
+    # Integrate over the given horizon
+    _, (x_horizon, aux_horizon) = jax.lax.scan(
+        f=body_fun, init=carry_init, xs=jnp.arange(start=0, stop=len(t))
+    )
+
+    return x_horizon, aux_horizon
+
+
+# ===================================================================
+# Integration over horizon (same APIs of jax.experimental.ode.odeint)
+# ===================================================================
+
+
+def odeint_euler(
+    func,
+    y0: State,
+    t: TimeHorizon,
+    *args,
+    num_sub_steps: int = 1,
+    return_aux: bool = False
+) -> Union[State, Tuple[State, Dict[str, Any]]]:
+
+    # Close func over additional inputs and parameters
+    dx_dt_closure_aux = lambda x, ts: func(x, ts, *args)
+
+    # Close one-step integration over its arguments
+    integrator_single_step = lambda t0, tf, x0: odeint_euler_one_step(
+        dx_dt=dx_dt_closure_aux, x0=x0, t0=t0, tf=tf, num_sub_steps=num_sub_steps
+    )
+
+    # Integrate the state and compute optional auxiliary data over the horizon
+    out, aux = integrate_single_step_over_horizon(
+        integrator_single_step=integrator_single_step, t=t, x0=y0
+    )
+
+    return (out, aux) if return_aux else out
+
+
+def odeint_rk4(
+    func,
+    y0: State,
+    t: TimeHorizon,
+    *args,
+    num_sub_steps: int = 1,
+    return_aux: bool = False
+) -> Union[State, Tuple[State, Dict[str, Any]]]:
+
+    # Close func over additional inputs and parameters
+    dx_dt_closure = lambda x, ts: func(x, ts, *args)
+
+    # Close one-step integration over its arguments
+    integrator_single_step = lambda t0, tf, x0: odeint_rk4_one_step(
+        dx_dt=dx_dt_closure, x0=x0, t0=t0, tf=tf, num_sub_steps=num_sub_steps
+    )
+
+    # Integrate the state and compute optional auxiliary data over the horizon
+    out, aux = integrate_single_step_over_horizon(
+        integrator_single_step=integrator_single_step, t=t, x0=y0
+    )
+
+    return (out, aux) if return_aux else out

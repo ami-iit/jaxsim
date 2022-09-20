@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 import jax.numpy as jnp
 import numpy as np
@@ -60,7 +60,7 @@ def compute_contact_forces(
 
 def dx_dt(
     x: ode_data.ODEState,
-    t: Optional[Union[float, jtp.Vector]],
+    t: Optional[jtp.Float],
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     ode_input: ode_data.ODEInput = None,

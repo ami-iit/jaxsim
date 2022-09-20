@@ -37,6 +37,23 @@ class PhysicsModelState(JaxsimDataclass):
             joint_velocities=jnp.zeros(physics_model.dofs()),
         )
 
+    def position(self) -> jtp.Vector:
+
+        return jnp.hstack(
+            [self.base_position, self.base_quaternion, self.joint_positions]
+        )
+
+    def velocity(self) -> jtp.Vector:
+
+        # W_v_WB: inertial-fixed representation of the base velocity
+        return jnp.hstack(
+            [
+                self.base_linear_velocity,
+                self.base_angular_velocity,
+                self.joint_velocities,
+            ]
+        )
+
     def xfb(self) -> jtp.Array:
 
         return jnp.hstack(

@@ -82,7 +82,7 @@ class JaxSim(JaxsimDataclass):
 
     def reset(self, remove_models: bool = True) -> None:
 
-        self.data.time_ns *= 0
+        self.data.time_ns = jnp.zeros_like(self.data.time_ns)
 
         if remove_models:
             self.data.models = dict()

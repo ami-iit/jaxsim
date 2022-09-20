@@ -901,6 +901,9 @@ class Model(JaxsimDataclass):
         if integrator_type is IntegratorType.EulerForward:
             integrator_fn = ode_integration.ode_integration_euler
 
+        elif integrator_type is IntegratorType.EulerSemiImplicit:
+            integrator_fn = ode_integration.ode_integration_euler_semi_implicit
+
         elif integrator_type is IntegratorType.RungeKutta4:
             integrator_fn = ode_integration.ode_integration_rk4
 

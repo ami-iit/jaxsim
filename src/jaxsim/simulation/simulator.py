@@ -46,14 +46,14 @@ class JaxSim(JaxsimDataclass):
 
     # Step size stored in ns in order to prevent floats approximation
     step_size_ns: jtp.Int = jax_dataclasses.field(
-        default_factory=lambda: jnp.array(0.001, dtype=int)
+        default_factory=lambda: jnp.array(1_000_000, dtype=int)
     )
 
     # Number of substeps performed at each integration step
     steps_per_run: jtp.Int = jax_dataclasses.static_field(default=1)
 
     # Default velocity representation (could be overridden for individual models)
-    velocity_representation: VelRepr = jax_dataclasses.field(default=VelRepr.Mixed)
+    velocity_representation: VelRepr = jax_dataclasses.field(default=VelRepr.Inertial)
 
     # Integrator type
     integrator_type: ode_integration.IntegratorType = jax_dataclasses.static_field(
@@ -67,8 +67,8 @@ class JaxSim(JaxsimDataclass):
     def build(
         step_size: jtp.Float,
         steps_per_run: jtp.Int = 1,
-        velocity_representation: VelRepr = VelRepr.Mixed,
-        integrator_type: ode_integration.IntegratorType = ode_integration.IntegratorType.EulerForward,
+        velocity_representation: VelRepr = VelRepr.Inertial,
+        integrator_type: ode_integration.IntegratorType = ode_integration.IntegratorType.EulerSemiImplicit,
         simulator_data: SimulatorData = None,
     ) -> "JaxSim":
 

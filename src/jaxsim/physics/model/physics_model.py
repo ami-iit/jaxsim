@@ -1,6 +1,7 @@
 import dataclasses
-from typing import Dict, List, Union
+from typing import Dict, Union
 
+import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
@@ -185,25 +186,29 @@ class PhysicsModel(JaxsimDataclass):
 
         return jnp.array([-1] + list(self._parent_array_dict.values()))
 
-    def support_body_array(self, body_index: int) -> jtp.Vector:
+    def support_body_array(self, body_index: jtp.Int) -> jtp.Vector:
         """Returns κ(i)"""
 
-        kappa: List[int] = [body_index]
+        κ_bool = self.support_body_array_bool(body_index=body_index)
+        return jnp.array(jnp.where(κ_bool)[0], dtype=int)
 
-        if body_index == 0:
-            return np.array(kappa)
+    def support_body_array_bool(self, body_index: jtp.Int) -> jtp.Vector:
 
-        while True:
+        active_link = body_index
+        κ_bool = jnp.zeros(self.NB, dtype=bool)
 
-            i = self._parent_array_dict[kappa[-1]]
+        for i in np.flip(np.arange(start=0, stop=self.NB)):
 
-            if i == 0:
-                break
+            κ_bool, active_link = jax.lax.cond(
+                pred=(i == active_link),
+                false_fun=lambda: (κ_bool, active_link),
+                true_fun=lambda: (
+                    κ_bool.at[active_link].set(True),
+                    self.parent[active_link],
+                ),
+            )
 
-            kappa.append(i)
-
-        kappa.append(0)
-        return np.array(list(reversed(kappa)), dtype=int)
+        return κ_bool
 
     @property
     def tree_transforms(self) -> jtp.Array:

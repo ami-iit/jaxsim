@@ -62,38 +62,24 @@ def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Mat
     Jb = i_X_0[body_index]
     J = J.at[0:6, 0:6].set(Jb)
 
-    ComputeJacobianCarry = jtp.MatrixJax
-    compute_jacobian_carry = J
+    # To make JIT happy, we operate on a boolean version of κ(i).
+    # Checking if j ∈ κ(i) is equivalent to: κ_bool(j) is True.
+    κ_bool = model.support_body_array_bool(body_index=body_index)
 
-    def compute_jacobian(
-        carry: ComputeJacobianCarry, i: jtp.Int
-    ) -> Tuple[ComputeJacobianCarry, None]:
-        def update_jacobian(
-            carry: Tuple[ComputeJacobianCarry, jtp.Int]
-        ) -> ComputeJacobianCarry:
-
-            J, i = carry
+    def compute_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> Tuple[jtp.MatrixJax, None]:
+        def update_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> jtp.MatrixJax:
 
             ii = i - 1
-
             Js_i = i_X_0[body_index] @ jnp.linalg.inv(i_X_0[i]) @ S[i]
             J = J.at[0:6, 6 + ii].set(Js_i.squeeze())
 
             return J
 
-        carry = jax.lax.cond(
-            pred=(jnp.any(i == model.support_body_array(body_index=body_index))),
-            true_fun=update_jacobian,
-            false_fun=lambda carry_i: carry_i[0],
-            operand=(carry, i),
-        )
-
-        return carry, None
+        J = jax.lax.select(pred=κ_bool[i], on_true=update_jacobian(J, i), on_false=J)
+        return J, None
 
     J, _ = jax.lax.scan(
-        f=compute_jacobian,
-        init=compute_jacobian_carry,
-        xs=np.arange(start=1, stop=model.NB),
+        f=compute_jacobian, init=J, xs=np.arange(start=1, stop=model.NB)
     )
 
     return J

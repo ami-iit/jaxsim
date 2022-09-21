@@ -36,24 +36,19 @@ class LinkDescription(JaxsimDataclass):
         self, link: "LinkDescription", lumped_H_removed: jtp.Matrix
     ) -> "LinkDescription":
 
-        from jaxsim.parsers.sdf.utils import flip_velocity_serialization
-
-        # Convert ang-lin serialization used in physics algorithms to lin-ang
-        I_removed = flip_velocity_serialization(link.inertia)
+        # Get the 6D inertia of the link to remove
+        I_removed = link.inertia
 
         # Create the SE3 object. Note the inverse.
-        H = se3.SE3.from_matrix(lumped_H_removed).inverse()
+        r_H_l = se3.SE3.from_matrix(lumped_H_removed).inverse()
+        r_X_l = r_H_l.adjoint()
 
         # Move the inertia
-        I_removed_in_lumped_frame = H.adjoint().transpose() @ I_removed @ H.adjoint()
+        I_removed_in_lumped_frame = r_X_l.transpose() @ I_removed @ r_X_l
 
-        # Switch back to ang-lin serialization
-        I_removed_in_lumped_frame_anglin = flip_velocity_serialization(
-            I_removed_in_lumped_frame
-        )
-
+        # Create the new combined link
         lumped_link = copy.deepcopy(self)
         lumped_link.mass = self.mass + link.mass
-        lumped_link.inertia = self.inertia + I_removed_in_lumped_frame_anglin
+        lumped_link.inertia = self.inertia + I_removed_in_lumped_frame
 
         return lumped_link

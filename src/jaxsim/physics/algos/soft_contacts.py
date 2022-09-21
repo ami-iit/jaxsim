@@ -61,9 +61,7 @@ def collidable_points_pos_vel(
     xfb: jtp.Vector = None,
 ) -> Tuple[jtp.Matrix, jtp.Matrix]:
 
-    x_fb, q, qd, _, _, _ = utils.process_inputs(
-        physics_model=model, xfb=xfb, q=q, qd=qd
-    )
+    xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
 
     Xa = jnp.array([jnp.eye(6)] * (model.NB))
     vb = jnp.array([jnp.zeros([6, 1])] * (model.NB))
@@ -73,7 +71,7 @@ def collidable_points_pos_vel(
     Xa_0 = Plucker.from_rot_and_trans(Quaternion.to_dcm(qn), r)
     Xa = Xa.at[0].set(Xa_0)
 
-    vfb = jnp.vstack(xfb[7:])
+    vfb = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
     vb_0 = Xa[0] @ vfb
     vb = vb.at[0].set(vb_0)
 
@@ -211,9 +209,6 @@ def soft_contacts_model(
         # Compute lin-ang 6D forces (inertial representation)
         W_f = jax.vmap(lambda X, f: X @ f)(W_Xf_CW, CW_f.T).T
 
-        # Convert lin-ang to ang-lin
-        W_f = jnp.vstack([W_f[3:6, :], W_f[0:3, :]])
-
         return W_f, jnp.zeros_like(u), jnp.zeros_like(forces_normal[0])
 
     # =========================
@@ -274,9 +269,6 @@ def soft_contacts_model(
 
         # Compute lin-ang 6D forces (inertial representation)
         W_f = jax.vmap(lambda X, f: X @ f)(W_Xf_CW, CW_f.T).T
-
-        # Convert lin-ang to ang-lin
-        W_f = jnp.vstack([W_f[3:6, :], W_f[0:3, :]])
 
         return W_f, ud, jnp.zeros_like(f_cone_boundary)
 

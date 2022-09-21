@@ -144,7 +144,7 @@ class PhysicsModel(JaxsimDataclass):
             _jtype_dict=joint_types_dict,
             _tree_transforms_dict=tree_transforms_dict,
             _link_inertias_dict=link_spatial_inertias_dict,
-            gravity=jnp.hstack([np.zeros(3), gravity.squeeze()]),
+            gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
             gc=GroundContact.build_from(model_description=model_description),
             description=(model_description),
@@ -169,7 +169,7 @@ class PhysicsModel(JaxsimDataclass):
         gravity = gravity.squeeze()
 
         if gravity.size == 3:
-            self.gravity = jnp.hstack([0, 0, 0, gravity])
+            self.gravity = jnp.hstack([gravity, 0, 0, 0])
 
         elif gravity.size == 6:
             self.gravity = gravity

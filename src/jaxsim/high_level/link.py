@@ -1,14 +1,11 @@
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
-import numpy.typing as npt
 
 import jaxsim.high_level
 import jaxsim.parsers.descriptions as descriptions
 import jaxsim.sixd as sixd
 import jaxsim.typing as jtp
-from jaxsim.parsers.sdf.utils import flip_velocity_serialization
-from jaxsim.physics.algos.forward_kinematics import forward_kinematics
 from jaxsim.physics.algos.jacobian import jacobian
 from jaxsim.utils import JaxsimDataclass
 
@@ -47,31 +44,23 @@ class Link(JaxsimDataclass):
 
         return self.link_description.mass
 
-    def spatial_inertia(self) -> npt.NDArray:
+    def spatial_inertia(self) -> jtp.Matrix:
 
-        return flip_velocity_serialization(self.link_description.inertia)
-
-    def com(self) -> jtp.VectorJax:
-
-        from jaxsim.math.skew import Skew
-
-        skew_mc1 = self.spatial_inertia()[3:6, 0:3]
-
-        com_wrt_link_frame = (Skew.vee(skew_mc1) / self.mass()).squeeze()
-        return com_wrt_link_frame
+        return self.link_description.inertia
 
     def com_position(self, in_link_frame: bool = True) -> jtp.VectorJax:
 
-        from jaxsim.math.skew import Skew
+        from jaxsim.math.inertia import Inertia
 
-        skew_mc1 = self.spatial_inertia()[3:6, 0:3]
-        L_p_CoM = (Skew.vee(skew_mc1) / self.mass()).squeeze()
+        _, L_p_CoM, _ = Inertia.to_params(M=self.spatial_inertia())
 
         if in_link_frame:
-            return L_p_CoM
+            return L_p_CoM.squeeze()
 
         W_H_L = self.transform()
-        return W_H_L @ L_p_CoM
+        W_ph_CoM = W_H_L @ jnp.hstack([L_p_CoM.squeeze(), 1])
+
+        return W_ph_CoM[0:3].squeeze()
 
     # ==========
     # Kinematics
@@ -90,12 +79,7 @@ class Link(JaxsimDataclass):
 
     def transform(self) -> jtp.Matrix:
 
-        return forward_kinematics(
-            model=self.parent_model.physics_model,
-            body_index=self.index(),
-            q=self.parent_model.data.model_state.joint_positions,
-            xfb=self.parent_model.data.model_state.xfb(),
-        )
+        return self.parent_model.forward_kinematics()[self.index()]
 
     def velocity(self, vel_repr: VelRepr = None) -> jtp.Vector:
 
@@ -119,19 +103,11 @@ class Link(JaxsimDataclass):
             output_vel_repr = self.parent_model.velocity_representation
 
         # Return the doubly left-trivialized free-floating jacobian
-        J_body_anglin = jacobian(
+        L_J_WL_B = jacobian(
             model=self.parent_model.physics_model,
             body_index=self.index(),
             q=self.parent_model.data.model_state.joint_positions,
         )
-
-        # Convert ang-lin to lin-ang serialization
-        L_J_WL_B = jnp.zeros_like(J_body_anglin)
-        L_J_WL_B = L_J_WL_B.at[0:6, 0:6].set(
-            flip_velocity_serialization(J_body_anglin[0:6, 0:6])
-        )
-        L_J_WL_B = L_J_WL_B.at[0:3, 6:].set(J_body_anglin[3:6, 6:])
-        L_J_WL_B = L_J_WL_B.at[3:6, 6:].set(J_body_anglin[0:3, 6:])
 
         if self.parent_model.velocity_representation is VelRepr.Body:
 
@@ -183,8 +159,7 @@ class Link(JaxsimDataclass):
 
     def external_force(self) -> jtp.Vector:
 
-        W_f_ext_anglin = self.parent_model.data.model_input.f_ext[self.index()]
-        W_f_ext = jnp.hstack([W_f_ext_anglin[3:6], W_f_ext_anglin[0:3]])
+        W_f_ext = self.parent_model.data.model_input.f_ext[self.index()]
 
         if self.parent_model.velocity_representation is VelRepr.Inertial:
             return W_f_ext
@@ -235,12 +210,11 @@ class Link(JaxsimDataclass):
         else:
             raise ValueError(self.parent_model.velocity_representation)
 
-        W_f_ext_anglin = jnp.hstack([W_f_ext[3:6], W_f_ext[0:3]])
         W_f_ext_current = self.parent_model.data.model_input.f_ext[self.index(), :]
 
         self.parent_model.data.model_input.f_ext = (
             self.parent_model.data.model_input.f_ext.at[self.index(), :].set(
-                W_f_ext_current + W_f_ext_anglin
+                W_f_ext_current + W_f_ext
             )
         )
 
@@ -267,7 +241,7 @@ class Link(JaxsimDataclass):
             W_H_GL = W_H_L @ L_H_GL
             GL_X_W = sixd.se3.SE3.from_matrix(W_H_GL).inverse().adjoint()
 
-            W_f_ext = GL_X_W.T @ GL_f_ext
+            W_f_ext = GL_X_W.transpose() @ GL_f_ext
 
         elif self.parent_model.velocity_representation is VelRepr.Mixed:
 
@@ -277,17 +251,16 @@ class Link(JaxsimDataclass):
             W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
             GW_X_W = sixd.se3.SE3.from_matrix(W_H_GW).inverse().adjoint()
 
-            W_f_ext = GW_X_W.T @ GW_f_ext
+            W_f_ext = GW_X_W.transpose() @ GW_f_ext
 
         else:
             raise ValueError(self.parent_model.velocity_representation)
 
-        W_f_ext_anglin = jnp.hstack([W_f_ext[3:6], W_f_ext[0:3]])
         W_f_ext_current = self.parent_model.data.model_input.f_ext[self.index(), :]
 
         self.parent_model.data.model_input.f_ext = (
             self.parent_model.data.model_input.f_ext.at[self.index(), :].set(
-                W_f_ext_current + W_f_ext_anglin
+                W_f_ext_current + W_f_ext
             )
         )
 

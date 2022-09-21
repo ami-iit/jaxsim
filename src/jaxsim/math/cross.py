@@ -9,12 +9,12 @@ class Cross:
     @staticmethod
     def vx(velocity_sixd: jtp.Vector) -> jtp.Matrix:
 
-        ω, v = jnp.split(velocity_sixd.squeeze(), 2)
+        v, ω = jnp.split(velocity_sixd.squeeze(), 2)
 
         v_cross = jnp.block(
             [
-                [Skew.wedge(vector=ω), jnp.zeros(shape=(3, 3))],
-                [Skew.wedge(vector=v), Skew.wedge(vector=ω)],
+                [Skew.wedge(vector=ω), Skew.wedge(vector=v)],
+                [jnp.zeros(shape=(3, 3)), Skew.wedge(vector=ω)],
             ]
         )
 

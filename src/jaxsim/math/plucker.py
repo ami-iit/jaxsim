@@ -13,10 +13,10 @@ class Plucker:
 
         R = dcm
 
-        X = jnp.vstack(
+        X = jnp.block(
             [
-                jnp.hstack([R, jnp.zeros(shape=(3, 3))]),
-                jnp.hstack([-R @ Skew.wedge(vector=translation), R]),
+                [R, -R @ Skew.wedge(vector=translation)],
+                [jnp.zeros(shape=(3, 3)), R],
             ]
         )
 
@@ -28,7 +28,7 @@ class Plucker:
         X = adjoint
 
         R = X[0:3, 0:3]
-        p = -Skew.vee(R.T @ X[3:6, 0:3])
+        p = -Skew.vee(R.T @ X[0:3, 3:6])
 
         return R, p
 
@@ -40,10 +40,10 @@ class Plucker:
         R = H[0:3, 0:3]
         p = H[0:3, 3]
 
-        X = jnp.vstack(
+        X = jnp.block(
             [
-                jnp.hstack([R, jnp.zeros(shape=(3, 3))]),
-                jnp.hstack([Skew.wedge(vector=p) @ R, R]),
+                [R, Skew.wedge(vector=p) @ R],
+                [jnp.zeros(shape=(3, 3)), R],
             ]
         )
 
@@ -55,7 +55,7 @@ class Plucker:
         X = adjoint
 
         R = X[0:3, 0:3]
-        o_x_R = X[3:6, 0:3]
+        o_x_R = X[0:3, 3:6]
 
         H = jnp.vstack(
             [

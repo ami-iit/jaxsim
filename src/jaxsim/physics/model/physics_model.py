@@ -184,7 +184,7 @@ class PhysicsModel(JaxsimDataclass):
     def parent_array(self) -> jtp.Vector:
         """Returns λ(i)"""
 
-        return jnp.array([-1] + list(self._parent_array_dict.values()))
+        return jnp.array([-1] + list(self._parent_array_dict.values()), dtype=int)
 
     def support_body_array(self, body_index: jtp.Int) -> jtp.Vector:
         """Returns κ(i)"""

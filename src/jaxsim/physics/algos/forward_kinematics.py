@@ -14,7 +14,7 @@ from . import utils
 
 def forward_kinematics_model(
     model: PhysicsModel, q: jtp.Vector, xfb: jtp.Vector
-) -> jtp.Matrix:
+) -> jtp.Array:
 
     x_fb, q, _, _, _, _ = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=None, tau=None, f_ext=None

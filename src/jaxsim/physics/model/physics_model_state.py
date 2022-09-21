@@ -54,7 +54,7 @@ class PhysicsModelState(JaxsimDataclass):
             ]
         )
 
-    def xfb(self) -> jtp.Array:
+    def xfb(self) -> jtp.Vector:
 
         return jnp.hstack(
             [

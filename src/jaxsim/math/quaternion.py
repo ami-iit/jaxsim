@@ -7,6 +7,16 @@ from .skew import Skew
 
 class Quaternion:
     @staticmethod
+    def to_xyzw(wxyz: jtp.Vector) -> jtp.Vector:
+
+        return wxyz.squeeze()[jnp.array([1, 2, 3, 0])]
+
+    @staticmethod
+    def to_wxyz(xyzw: jtp.Vector) -> jtp.Vector:
+
+        return xyzw.squeeze()[jnp.array([3, 0, 1, 2])]
+
+    @staticmethod
     def to_dcm(quaternion: jtp.Vector) -> jtp.Matrix:
 
         q = quaternion / jnp.linalg.norm(quaternion)

@@ -20,7 +20,7 @@ class Convert:
             raise ValueError(p.shape)
 
         R = X[0:3, 0:3]
-        r = -Skew.vee(R.T @ X[3:6, 0:3])
+        r = -Skew.vee(R.T @ X[0:3, 3:6])
 
         if cols_p > 1:
             r = jnp.tile(r, (1, cols_p))
@@ -47,7 +47,7 @@ class Convert:
             v = jnp.repeat(v, cols_p, axis=1)
 
         if rows_v == 6:
-            vp = v[3:6, :] + jnp.cross(v[0:3, :], p, axis=0)
+            vp = v[0:3, :] + jnp.cross(v[3:6, :], p, axis=0)
         else:
             raise ValueError(v.shape)
 
@@ -71,7 +71,7 @@ class Convert:
             raise ValueError(cols_p, cols_fp)
 
         if rows_fp == 3:
-            f = jnp.vstack([jnp.cross(p, fp, axis=0), fp])
+            f = jnp.vstack([fp, jnp.cross(p, fp, axis=0)])
         else:
             raise ValueError(fp.shape)
 

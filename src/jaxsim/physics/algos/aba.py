@@ -43,7 +43,7 @@ def aba(
     # Base pose B_X_W and velocity
     base_quat = jnp.vstack(x_fb[0:4])
     base_pos = jnp.vstack(x_fb[4:7])
-    base_vel = jnp.vstack(x_fb[7:])
+    base_vel = jnp.vstack(jnp.hstack([x_fb[10:13], x_fb[7:10]]))
     B_X_W = Plucker.from_rot_and_trans(
         dcm=Quaternion.to_dcm(quaternion=base_quat), translation=base_pos
     )

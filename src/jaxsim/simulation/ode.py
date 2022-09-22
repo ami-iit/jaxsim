@@ -155,8 +155,8 @@ def dx_dt(
         BW_v_WB = Convert.velocities_threed(
             v_6d=jnp.hstack(
                 [
-                    ode_state.physics_model.base_angular_velocity,
                     ode_state.physics_model.base_linear_velocity,
+                    ode_state.physics_model.base_angular_velocity,
                 ]
             ),
             p=ode_state.physics_model.base_position,
@@ -181,8 +181,8 @@ def dx_dt(
         joint_velocities=fix_one_dof(qdd.squeeze()),
         base_quaternion=xd_fb.squeeze()[0:4],
         base_position=xd_fb.squeeze()[4:7],
-        base_angular_velocity=xd_fb.squeeze()[7:10],
-        base_linear_velocity=xd_fb.squeeze()[10:13],
+        base_angular_velocity=xd_fb.squeeze()[10:13],
+        base_linear_velocity=xd_fb.squeeze()[7:10],
     )
 
     soft_contacts_state_derivative = ode_state.soft_contacts.replace(
@@ -207,7 +207,7 @@ def dx_dt(
     )
 
     # Pack the inertial-fixed floating-base acceleration
-    W_nud_WB = jnp.hstack([W_a_WB.squeeze()[3:6], W_a_WB.squeeze()[0:3], qdd.squeeze()])
+    W_nud_WB = jnp.hstack([W_a_WB.squeeze(), qdd.squeeze()])
 
     # Build the auxiliary data
     aux_dict = dict(

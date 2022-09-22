@@ -11,7 +11,7 @@ from .rotation import Rotation
 
 
 def jcalc(
-    jtyp: Union[JointType, JointDescriptor], q: float
+    jtyp: Union[JointType, JointDescriptor], q: jtp.Float
 ) -> Tuple[jtp.Matrix, jtp.Vector]:
 
     if isinstance(jtyp, JointType):
@@ -31,43 +31,43 @@ def jcalc(
             dcm=Rotation.from_axis_angle(vector=(q * jtyp.axis)),
             translation=jnp.zeros(3),
         )
-        S = jnp.vstack(jnp.hstack([jtyp.axis.squeeze(), jnp.zeros(3)]))
+        S = jnp.vstack(jnp.hstack([jnp.zeros(3), jtyp.axis.squeeze()]))
 
     elif code is JointType.P:
 
         jtyp: JointGenericAxis
         Xj = Adjoint.translate(direction=(q * jtyp.axis))
-        S = jnp.vstack(jnp.hstack([jnp.zeros(3), jtyp.axis.squeeze()]))
+        S = jnp.vstack(jnp.hstack([jtyp.axis.squeeze(), jnp.zeros(3)]))
 
     elif code is JointType.Rx:
 
         Xj = Adjoint.rotate_x(theta=q)
-        S = jnp.vstack([1.0, 0, 0, 0, 0, 0])
+        S = jnp.vstack([0, 0, 0, 1.0, 0, 0])
 
     elif code is JointType.Ry:
 
         Xj = Adjoint.rotate_y(theta=q)
-        S = jnp.vstack([0, 1.0, 0, 0, 0, 0])
+        S = jnp.vstack([0, 0, 0, 0, 1.0, 0])
 
     elif code is JointType.Rz:
 
         Xj = Adjoint.rotate_z(theta=q)
-        S = jnp.vstack([0, 0, 1.0, 0, 0, 0])
+        S = jnp.vstack([0, 0, 0, 0, 0, 1.0])
 
     elif code is JointType.Px:
 
         Xj = Adjoint.translate(direction=jnp.hstack([q, 0.0, 0.0]))
-        S = jnp.vstack([0, 0, 0, 1.0, 0, 0])
+        S = jnp.vstack([1.0, 0, 0, 0, 0, 0])
 
     elif code is JointType.Py:
 
         Xj = Adjoint.translate(direction=jnp.hstack([0.0, q, 0.0]))
-        S = jnp.vstack([0, 0, 0, 0, 1.0, 0])
+        S = jnp.vstack([0, 1.0, 0, 0, 0, 0])
 
     elif code is JointType.Pz:
 
         Xj = Adjoint.translate(direction=jnp.hstack([0.0, 0.0, q]))
-        S = jnp.vstack([0, 0, 0, 0, 0, 1.0])
+        S = jnp.vstack([0, 0, 1.0, 0, 0, 0])
 
     else:
         raise ValueError(code)

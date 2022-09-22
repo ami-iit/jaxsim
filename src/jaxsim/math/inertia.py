@@ -9,29 +9,29 @@ from .skew import Skew
 
 class Inertia:
     @staticmethod
-    def to_sixd(mass: float, com: jtp.Vector, I: jtp.Matrix) -> jtp.Matrix:
+    def to_sixd(mass: jtp.Float, com: jtp.Vector, I: jtp.Matrix) -> jtp.Matrix:
 
         if I.shape != (3, 3):
             raise ValueError(I, I.shape)
 
-        C = Skew.wedge(vector=com)
+        c = Skew.wedge(vector=com)
 
-        M = jnp.vstack(
+        M = jnp.block(
             [
-                jnp.hstack([I + mass * C @ C.T, mass * C]),
-                jnp.hstack([mass * C.T, mass * jnp.eye(3)]),
+                [mass * jnp.eye(3), mass * c.T],
+                [mass * c, I + mass * c @ c.T],
             ]
         )
 
         return M
 
     @staticmethod
-    def to_params(M: jtp.Matrix) -> Tuple[float, jtp.Vector, jtp.Matrix]:
+    def to_params(M: jtp.Matrix) -> Tuple[jtp.Float, jtp.Vector, jtp.Matrix]:
 
-        m = M[5, 5]
+        m = jnp.diag(M[0:3, 0:3]).sum() / 3
 
-        mC = M[0:3, 3:6]
+        mC = M[3:6, 0:3]
         c = Skew.vee(mC) / m
-        I = M[0:3, 0:3] - mC @ mC.T / m
+        I = M[3:6, 3:6] - (mC @ mC.T / m)
 
         return m, c, I

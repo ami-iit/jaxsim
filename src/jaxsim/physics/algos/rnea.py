@@ -22,7 +22,7 @@ def rnea(
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
 
-    x_fb, q, qd, qdd, _, f_ext = utils.process_inputs(
+    xfb, q, qd, qdd, _, f_ext = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=qd, qdd=qdd, f_ext=f_ext
     )
 
@@ -45,8 +45,8 @@ def rnea(
     a: Dict[int, jtp.VectorJax] = dict()
     f: Dict[int, jtp.VectorJax] = dict()
 
-    qn = jnp.vstack(x_fb[0:4])
-    r = jnp.vstack(x_fb[4:7])
+    qn = jnp.vstack(xfb[0:4])
+    r = jnp.vstack(xfb[4:7])
     Xup_0 = B_X_W = Plucker.from_rot_and_trans(Quaternion.to_dcm(qn), r)
     Xup = Xup.at[0].set(Xup_0)
 
@@ -56,7 +56,7 @@ def rnea(
 
     if model.is_floating_base:
 
-        W_v_WB = jnp.vstack(x_fb[7:])
+        W_v_WB = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
         v[0] = B_X_W @ W_v_WB
 
         a[0] = B_X_W @ (jnp.vstack(a0fb) - jnp.vstack(gravity))

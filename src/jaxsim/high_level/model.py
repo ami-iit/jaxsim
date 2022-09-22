@@ -16,7 +16,6 @@ import jaxsim.physics.model.physics_model
 import jaxsim.physics.model.physics_model_state
 import jaxsim.typing as jtp
 from jaxsim import high_level, physics, sixd
-from jaxsim.parsers.sdf.utils import flip_velocity_serialization
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.simulation import ode_data, ode_integration
@@ -205,7 +204,7 @@ class Model(JaxsimDataclass):
 
         physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
             model_description=reduced_model_description,
-            gravity=self.physics_model.gravity[3:6],
+            gravity=self.physics_model.gravity[0:3],
         )
 
         reduced_model = Model.build(
@@ -281,7 +280,7 @@ class Model(JaxsimDataclass):
 
         return len(self._joints)
 
-    def total_mass(self) -> float:
+    def total_mass(self) -> jtp.Float:
 
         return jnp.sum(jnp.array([l.mass() for l in self.links()]))
 
@@ -419,7 +418,6 @@ class Model(JaxsimDataclass):
 
     def base_velocity(self) -> jtp.Vector:
 
-        # Get the base 6D velocity expressed in inertial representation
         W_v_WB = jnp.hstack(
             [
                 self.data.model_state.base_linear_velocity,
@@ -431,8 +429,7 @@ class Model(JaxsimDataclass):
 
     def external_forces(self) -> jtp.Matrix:
 
-        f_ext_anglin = self.data.model_input.f_ext
-        W_f_ext = jnp.hstack([f_ext_anglin[:, 3:6], f_ext_anglin[:, 0:3]])
+        W_f_ext = self.data.model_input.f_ext
 
         inertial_to_active = lambda f: self.inertial_to_active_representation(
             f, is_force=True
@@ -465,25 +462,10 @@ class Model(JaxsimDataclass):
 
     def free_floating_mass_matrix(self) -> jtp.Matrix:
 
-        M_body_anglin = jaxsim.physics.algos.crba.crba(
+        M_body = jaxsim.physics.algos.crba.crba(
             model=self.physics_model,
             q=self.data.model_state.joint_positions,
         )
-
-        Mbb = flip_velocity_serialization(M_body_anglin[0:6, 0:6])
-        Mbs_ang = M_body_anglin[0:3, 6:]
-        Mbs_lin = M_body_anglin[3:6, 6:]
-        Msb_ang = M_body_anglin[6:, 0:3]
-        Msb_lin = M_body_anglin[6:, 3:6]
-
-        M_body_linang = jnp.zeros_like(M_body_anglin)
-        M_body_linang = M_body_linang.at[0:6, 0:6].set(Mbb)
-        M_body_linang = M_body_linang.at[0:6, 6:].set(jnp.vstack([Mbs_lin, Mbs_ang]))
-        M_body_linang = M_body_linang.at[6:, 0:6].set(jnp.hstack([Msb_lin, Msb_ang]))
-        M_body_linang = M_body_linang.at[6:, 6:].set(M_body_anglin[6:, 6:])
-
-        # This is M in body-fixed velocity representation
-        M_body = M_body_linang
 
         if self.velocity_representation is VelRepr.Body:
             return M_body
@@ -570,9 +552,9 @@ class Model(JaxsimDataclass):
             for l in self.links()
         ]
 
-        B_c_homo = (1 / m) * jnp.sum(jnp.array(com_links), axis=0)
+        B_ph_CoM = (1 / m) * jnp.sum(jnp.array(com_links), axis=0)
 
-        return (W_H_B @ B_c_homo)[0:3]
+        return (W_H_B @ B_ph_CoM)[0:3]
 
     # ==========
     # Algorithms
@@ -618,23 +600,19 @@ class Model(JaxsimDataclass):
         # Express base_acceleration in inertial representation
         W_a_WB = self.active_to_inertial_representation(array=base_acceleration)
 
-        # Convert to ang-lin serialization
-        W_a_WB_anglin = self.flip_lin_ang_6D(array=W_a_WB)
-
         # Compute RNEA
-        f_B_anglin, tau = jaxsim.physics.algos.rnea.rnea(
+        W_f_B, tau = jaxsim.physics.algos.rnea.rnea(
             model=self.physics_model,
             xfb=self.data.model_state.xfb(),
             q=self.data.model_state.joint_positions,
             qd=self.data.model_state.joint_velocities,
             qdd=joint_accelerations,
-            a0fb=W_a_WB_anglin,
+            a0fb=W_a_WB,
             f_ext=self.data.model_input.f_ext,
         )
 
-        # Adjust shape and convert to lin-ang serialization
+        # Adjust shape
         tau = jnp.atleast_1d(tau.squeeze())
-        W_f_B = self.flip_lin_ang_6D(array=f_B_anglin)
 
         # Express W_f_B in the active representation
         f_B = self.inertial_to_active_representation(array=W_f_B, is_force=True)
@@ -667,7 +645,7 @@ class Model(JaxsimDataclass):
         tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
 
         # Compute ABA
-        W_a_WB_anglin, sdd = jaxsim.physics.algos.aba.aba(
+        W_a_WB, sdd = jaxsim.physics.algos.aba.aba(
             model=self.physics_model,
             xfb=self.data.model_state.xfb(),
             q=self.data.model_state.joint_positions,
@@ -676,9 +654,8 @@ class Model(JaxsimDataclass):
             f_ext=self.data.model_input.f_ext,
         )
 
-        # Adjust shape and convert to lin-ang serialization
+        # Adjust shape
         sdd = jnp.atleast_1d(sdd.squeeze())
-        W_a_WB = self.flip_lin_ang_6D(array=W_a_WB_anglin)
 
         # Express W_a_WB in the active representation
         a_WB = self.inertial_to_active_representation(array=W_a_WB)
@@ -968,16 +945,6 @@ class Model(JaxsimDataclass):
     # ===============
     # Private methods
     # ===============
-
-    @staticmethod
-    def flip_lin_ang_6D(array: jtp.Array) -> jtp.Array:
-
-        array = jnp.array(array).squeeze()
-
-        if array.size != 6:
-            raise ValueError(array.size)
-
-        return jnp.flip(jnp.array(jnp.split(array, 2)), axis=0).flatten()
 
     def inertial_to_active_representation(
         self, array: jtp.Array, is_force: bool = False

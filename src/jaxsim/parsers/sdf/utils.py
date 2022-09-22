@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -32,39 +32,9 @@ def from_sdf_pose(pose: pysdf.Pose) -> npt.NDArray:
     )
 
 
-def flip_velocity_serialization(array: npt.NDArray) -> npt.NDArray:
-
-    _np = np if isinstance(array, np.ndarray) else jnp
-    array_in = array.squeeze()
-
-    if array_in.shape[0] % 2 != 0:
-        raise ValueError(array_in.shape)
-
-    # array is a 6d vector
-    if len(array_in.shape) == 1:
-
-        half1, half2 = _np.split(array_in, 2)
-        out = _np.hstack([half2, half1]).reshape(array.shape)
-        return out
-
-    # array is a 6x6 matrix
-    else:
-
-        # This will fail if the matrix is not 2D
-        n_rows, n_cols = array.shape
-
-        # Must be a square 2D matrix
-        if not n_rows == n_cols:
-            raise ValueError(array_in.shape)
-
-        A, B = _np.split(array_in[0 : int(n_rows / 2), :], 2, axis=1)
-        C, D = _np.split(array_in[int(n_rows / 2) :, :], 2, axis=1)
-
-        return _np.block([[D, C], [B, A]])
-
-
 def from_sdf_inertial(inertial: pysdf.Link.Inertial) -> npt.NDArray:
 
+    from jaxsim.math.inertia import Inertia
     from jaxsim.sixd import se3, so3
 
     # Extract the "mass" element
@@ -83,12 +53,7 @@ def from_sdf_inertial(inertial: pysdf.Link.Inertial) -> npt.NDArray:
     )
 
     # Build the 6x6 generalized inertia at the CoM
-    I_generalized = np.vstack(
-        [
-            np.hstack([m * np.eye(3), np.zeros(shape=(3, 3))]),
-            np.hstack([np.zeros(shape=(3, 3)), I_com]),
-        ]
-    )
+    I_generalized = Inertia.to_sixd(mass=m, com=np.zeros(3), I=I_com)
 
     # Transform euler to DCM matrix (sequence of extrinsic rotations, i.e. all angles
     # consider a fixed reference frame)
@@ -105,14 +70,12 @@ def from_sdf_inertial(inertial: pysdf.Link.Inertial) -> npt.NDArray:
 
     # We need its inverse
     com_H_l = l_H_com.inverse()
+    com_X_l = com_H_l.adjoint()
 
     # Express the CoM inertia matrix in the link frame
-    I_expressed_in_link_frame = com_H_l.adjoint().T @ I_generalized @ com_H_l.adjoint()
+    I_expressed_in_link_frame = com_X_l.T @ I_generalized @ com_X_l
 
-    # Convert lin-ang serialization to ang-lin used by Featherstone
-    I_link = flip_velocity_serialization(I_expressed_in_link_frame)
-
-    return jnp.array(I_link)
+    return jnp.array(I_expressed_in_link_frame)
 
 
 def axis_to_jtype(

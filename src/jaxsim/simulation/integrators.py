@@ -165,7 +165,7 @@ def odeint_euler_semi_implicit_one_step(
 
         # Compute linear component of mixed velocity BW_v_WB
         return Convert.velocities_threed(
-            v_6d=jnp.hstack([W_v_ang_WB, W_v_lin_WB]), p=W_pos_B.squeeze()
+            v_6d=jnp.hstack([W_v_lin_WB, W_v_ang_WB]), p=W_pos_B.squeeze()
         ).squeeze()
 
     def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:

@@ -8,9 +8,8 @@ import jax_dataclasses
 
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
+from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.conv import Convert
-from jaxsim.math.plucker import Plucker
-from jaxsim.math.quaternion import Quaternion
 from jaxsim.math.skew import Skew
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
@@ -66,9 +65,10 @@ def collidable_points_pos_vel(
     Xa = jnp.array([jnp.eye(6)] * (model.NB))
     vb = jnp.array([jnp.zeros([6, 1])] * (model.NB))
 
-    qn = xfb[0:4]
-    r = xfb[4:7]
-    Xa_0 = Plucker.from_rot_and_trans(Quaternion.to_dcm(qn), r)
+    # 6D transform of base velocity
+    Xa_0 = B_X_W = Adjoint.from_quaternion_and_translation(
+        quaternion=xfb[0:4], translation=xfb[4:7], inverse=True
+    )
     Xa = Xa.at[0].set(Xa_0)
 
     vfb = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))

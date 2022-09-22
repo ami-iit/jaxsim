@@ -4,63 +4,34 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.typing as jtp
+from jaxsim.sixd import so3
 
 from .skew import Skew
 
 
 class Rotation:
     @staticmethod
-    def x(theta: float) -> jtp.Matrix:
+    def x(theta: jtp.Float) -> jtp.Matrix:
 
-        c = jnp.cos(theta)
-        s = jnp.sin(theta)
-
-        return jnp.array(
-            [
-                [1, 0, 0],
-                [0, c, s],
-                [0, -s, c],
-            ]
-        )
+        return so3.SO3.from_x_radians(theta=theta).as_matrix()
 
     @staticmethod
-    def y(theta: float) -> jtp.Matrix:
+    def y(theta: jtp.Float) -> jtp.Matrix:
 
-        c = jnp.cos(theta)
-        s = jnp.sin(theta)
-
-        return jnp.array(
-            [
-                [c, 0, -s],
-                [0, 1, 0],
-                [s, 0, c],
-            ]
-        )
+        return so3.SO3.from_y_radians(theta=theta).as_matrix()
 
     @staticmethod
-    def z(theta: float) -> jtp.Matrix:
+    def z(theta: jtp.Float) -> jtp.Matrix:
 
-        c = jnp.cos(theta)
-        s = jnp.sin(theta)
-
-        return jnp.array(
-            [
-                [c, s, 0],
-                [-s, c, 0],
-                [0, 0, 1],
-            ]
-        )
+        return so3.SO3.from_z_radians(theta=theta).as_matrix()
 
     @staticmethod
     def from_axis_angle(vector: jtp.Vector) -> jtp.Matrix:
 
+        vector = vector.squeeze()
         theta = jnp.linalg.norm(vector)
 
-        def theta_is_zero(theta_and_v: Tuple[float, jtp.Vector]) -> jtp.Matrix:
-
-            return jnp.eye(3)
-
-        def theta_is_not_zero(theta_and_v: Tuple[float, jtp.Vector]) -> jtp.Matrix:
+        def theta_is_not_zero(theta_and_v: Tuple[jtp.Float, jtp.Vector]) -> jtp.Matrix:
 
             theta, v = theta_and_v
 
@@ -74,11 +45,11 @@ class Rotation:
 
             R = c * jnp.eye(3) - s * Skew.wedge(u) + c1 * u @ u.T
 
-            return R
+            return R.transpose()
 
         return jax.lax.cond(
             pred=(theta == 0.0),
-            true_fun=theta_is_zero,
+            true_fun=lambda operand: jnp.eye(3),
             false_fun=theta_is_not_zero,
             operand=(theta, vector),
         )

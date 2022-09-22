@@ -4,9 +4,8 @@ import jax.numpy as jnp
 import numpy as np
 
 import jaxsim.typing as jtp
+from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.cross import Cross
-from jaxsim.math.plucker import Plucker
-from jaxsim.math.quaternion import Quaternion
 from jaxsim.physics.model.physics_model import PhysicsModel
 
 from . import utils
@@ -45,9 +44,13 @@ def rnea(
     a: Dict[int, jtp.VectorJax] = dict()
     f: Dict[int, jtp.VectorJax] = dict()
 
-    qn = jnp.vstack(xfb[0:4])
-    r = jnp.vstack(xfb[4:7])
-    Xup_0 = B_X_W = Plucker.from_rot_and_trans(Quaternion.to_dcm(qn), r)
+    # 6D transform of base velocity
+    Xup_0 = B_X_W = Adjoint.from_quaternion_and_translation(
+        quaternion=xfb[0:4],
+        translation=xfb[4:7],
+        inverse=True,
+        normalize_quaternion=True,
+    )
     Xup = Xup.at[0].set(Xup_0)
 
     v[0] = jnp.zeros(shape=(6, 1))

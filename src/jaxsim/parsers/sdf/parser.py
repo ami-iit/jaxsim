@@ -184,6 +184,16 @@ def extract_data_from_sdf(
                 if j.axis is not None and j.axis.limit is not None
                 else np.finfo(float).max,
             ),
+            friction_static=j.axis.dynamics.friction
+            if j.axis is not None
+            and j.axis.dynamics is not None
+            and j.axis.dynamics.friction is not None
+            else 0.0,
+            friction_viscous=j.axis.dynamics.damping
+            if j.axis is not None
+            and j.axis.dynamics is not None
+            and j.axis.dynamics.friction is not None
+            else 0.0,
         )
         for j in sdf_tree.model.joints
         if j.type in {"revolute", "prismatic", "fixed"}

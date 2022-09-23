@@ -5,8 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import jaxsim.typing as jtp
-from jaxsim.math.plucker import Plucker
-from jaxsim.math.quaternion import Quaternion
+from jaxsim.math.adjoint import Adjoint
 from jaxsim.physics.model.physics_model import PhysicsModel
 
 from . import utils
@@ -20,9 +19,9 @@ def forward_kinematics_model(
         physics_model=model, xfb=xfb, q=q, qd=None, tau=None, f_ext=None
     )
 
-    qn = jnp.vstack(x_fb[0:4])
-    r = jnp.vstack(x_fb[4:7])
-    W_X_0 = jnp.linalg.inv(Plucker.from_rot_and_trans(Quaternion.to_dcm(qn), r))
+    W_X_0 = Adjoint.from_quaternion_and_translation(
+        quaternion=x_fb[0:4], translation=x_fb[4:7]
+    )
 
     # This is the 6D velocity transform from i-th link frame to the world frame
     W_X_i = jnp.zeros(shape=[model.NB, 6, 6])
@@ -61,7 +60,7 @@ def forward_kinematics_model(
         xs=np.arange(start=1, stop=model.NB),
     )
 
-    return jnp.stack([Plucker.to_transform(X) for X in list(W_X_i)])
+    return jnp.stack([Adjoint.to_transform(adjoint=X) for X in list(W_X_i)])
 
 
 def forward_kinematics(

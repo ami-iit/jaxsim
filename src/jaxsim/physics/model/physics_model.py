@@ -10,9 +10,9 @@ from jax_dataclasses import pytree_dataclass, static_field
 import jaxsim.parsers
 import jaxsim.physics
 import jaxsim.typing as jtp
-from jaxsim.math.plucker import Plucker
 from jaxsim.parsers.descriptions import JointDescriptor, JointType
 from jaxsim.physics import default_gravity
+from jaxsim.sixd import se3
 from jaxsim.utils import JaxsimDataclass, tracing
 
 from .ground_contact import GroundContact
@@ -94,8 +94,14 @@ class PhysicsModel(JaxsimDataclass):
         # (this is just the pose of the base link in the SDF description)
         base_link = model_description.links_dict[model_description.link_names()[0]]
         R_H_B = model_description.transform(name=base_link.name)
-        B_H_R = np.linalg.inv(R_H_B)
-        tree_transform_0 = Plucker.from_transform(transform=B_H_R)
+        tree_transform_0 = se3.SE3.from_matrix(matrix=R_H_B).adjoint()
+
+        # Helper to compute the transform pre(i)_H_λ(i).
+        # Given a joint 'i', it is the coordinate transform between its predecessor
+        # frame [pre(i)] and the frame of its parent link [λ(i)].
+        prei_H_λi = lambda j: model_description.relative_transform(
+            relative_to=j.name, name=j.parent.name
+        )
 
         # Compute the tree transforms: pre(i)_X_λ(i).
         # Given a joint 'i', it is the coordinate transform between its predecessor
@@ -103,11 +109,7 @@ class PhysicsModel(JaxsimDataclass):
         tree_transforms_dict = {
             0: tree_transform_0,
             **{
-                j.index: Plucker.from_transform(
-                    transform=model_description.relative_transform(
-                        relative_to=j.name, name=j.parent.name
-                    )
-                )
+                j.index: se3.SE3.from_matrix(matrix=prei_H_λi(j)).adjoint()
                 for j in model_description.joints
             },
         }

@@ -5,9 +5,9 @@ from typing import Dict, List, NamedTuple, Union
 import jax.numpy as jnp
 import numpy as np
 import pysdf
-from scipy.spatial.transform.rotation import Rotation as R
 
 from jaxsim import logging
+from jaxsim.math.quaternion import Quaternion
 from jaxsim.parsers import descriptions, kinematic_graph
 
 from . import utils as utils
@@ -54,11 +54,9 @@ def extract_data_from_sdf(
 
     else:
         w_H_m = utils.from_sdf_pose(pose=sdf_tree.model.pose)
-        xyzw_to_wxyz = np.array([3, 0, 1, 2])
-        w_quat_m = R.from_matrix(w_H_m[0:3, 0:3]).as_quat()[xyzw_to_wxyz]
         model_pose = kinematic_graph.RootPose(
             root_position=w_H_m[0:3, 3],
-            root_quaternion=w_quat_m,
+            root_quaternion=Quaternion.from_dcm(dcm=w_H_m[0:3, 0:3]),
         )
 
     # ===========

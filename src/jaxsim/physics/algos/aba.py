@@ -5,9 +5,8 @@ import jax.experimental.loops
 import jax.numpy as jnp
 
 import jaxsim.typing as jtp
+from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.cross import Cross
-from jaxsim.math.plucker import Plucker
-from jaxsim.math.quaternion import Quaternion
 from jaxsim.physics.model.physics_model import PhysicsModel
 
 from . import utils
@@ -44,8 +43,13 @@ def aba(
     base_quat = jnp.vstack(x_fb[0:4])
     base_pos = jnp.vstack(x_fb[4:7])
     base_vel = jnp.vstack(jnp.hstack([x_fb[10:13], x_fb[7:10]]))
-    B_X_W = Plucker.from_rot_and_trans(
-        dcm=Quaternion.to_dcm(quaternion=base_quat), translation=base_pos
+
+    # 6D transform of base velocity
+    B_X_W = Adjoint.from_quaternion_and_translation(
+        quaternion=base_quat,
+        translation=base_pos,
+        inverse=True,
+        normalize_quaternion=True,
     )
     i_X_λi = i_X_λi.at[0].set(B_X_W)
 
@@ -208,8 +212,12 @@ def aba(
     qdd = jnp.atleast_1d(qdd.squeeze())
     qdd = jnp.vstack(qdd) if qdd.size > 0 else jnp.empty(shape=(0, 1))
 
+    # Get the resulting base acceleration (w/o gravity) in body-fixed representation
+    B_a_WB = a[0]
+
+    # Convert the base acceleration to inertial-fixed representation, and add gravity
     W_a_WB = jnp.vstack(
-        jnp.linalg.solve(B_X_W, a[0]) + jnp.vstack(model.gravity)
+        jnp.linalg.solve(B_X_W, B_a_WB) + jnp.vstack(model.gravity)
         if model.is_floating_base
         else jnp.zeros(6)
     )

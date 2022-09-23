@@ -105,6 +105,20 @@ def dx_dt(
             terrain=terrain,
         )
 
+    # ==============
+    # Joint friction
+    # ==============
+
+    # Static and viscous joint friction parameters
+    kc = jnp.array(list(physics_model._joint_friction_static.values()))
+    kv = jnp.array(list(physics_model._joint_friction_viscous.values()))
+
+    # Compute the joint friction torque
+    tau_friction = -(
+        jnp.diag(kc) @ jnp.sign(ode_state.physics_model.joint_positions)
+        + jnp.diag(kv) @ ode_state.physics_model.joint_velocities
+    )
+
     # ========================
     # Compute forward dynamics
     # ========================
@@ -112,15 +126,8 @@ def dx_dt(
     # Compute the total forces applied to the bodies
     total_forces = ode_input.physics_model.f_ext + contact_forces_links
 
-    # Compute the mechanical joint torques (real torque sent to the joint) by
-    # subtracting the optional joint friction
-    # TODO: add support of coulomb/viscous parameters in parsers and PhysicsModel
-    kp_friction = jnp.array([0.0] * physics_model.dofs())
-    kd_friction = jnp.array([0.0] * physics_model.dofs())
-    tau = ode_input.physics_model.tau - (
-        jnp.diag(kp_friction) @ jnp.sign(ode_state.physics_model.joint_positions)
-        + jnp.diag(kd_friction) @ ode_state.physics_model.joint_velocities
-    )
+    # Compute the joint torques to actuate
+    tau = ode_input.physics_model.tau + tau_friction
 
     W_a_WB, qdd = algos.aba.aba(
         model=physics_model,

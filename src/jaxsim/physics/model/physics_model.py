@@ -44,6 +44,9 @@ class PhysicsModel(JaxsimDataclass):
     )
     _link_inertias_dict: Dict[int, jtp.Matrix] = dataclasses.field(default_factory=dict)
 
+    _joint_friction_static: Dict[int, float] = dataclasses.field(default_factory=dict)
+    _joint_friction_viscous: Dict[int, float] = dataclasses.field(default_factory=dict)
+
     def __post_init__(self):
 
         if self.initial_state is None:
@@ -88,6 +91,15 @@ class PhysicsModel(JaxsimDataclass):
         # Note: the joint index is equal to its child link index.
         joint_types_dict = {
             joint.index: joint.jtype for joint in model_description.joints
+        }
+
+        # Dicts from the joint index to the static and viscous friction.
+        # Note: the joint index is equal to its child link index.
+        joint_friction_static = {
+            joint.index: joint.friction_static for joint in model_description.joints
+        }
+        joint_friction_viscous = {
+            joint.index: joint.friction_viscous for joint in model_description.joints
         }
 
         # Transform between model's root and model's base link
@@ -146,6 +158,8 @@ class PhysicsModel(JaxsimDataclass):
             _jtype_dict=joint_types_dict,
             _tree_transforms_dict=tree_transforms_dict,
             _link_inertias_dict=link_spatial_inertias_dict,
+            _joint_friction_static=joint_friction_static,
+            _joint_friction_viscous=joint_friction_viscous,
             gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
             gc=GroundContact.build_from(model_description=model_description),

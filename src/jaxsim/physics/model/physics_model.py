@@ -47,6 +47,9 @@ class PhysicsModel(JaxsimDataclass):
     _joint_friction_static: Dict[int, float] = dataclasses.field(default_factory=dict)
     _joint_friction_viscous: Dict[int, float] = dataclasses.field(default_factory=dict)
 
+    _joint_limit_spring: Dict[int, float] = dataclasses.field(default_factory=dict)
+    _joint_limit_damper: Dict[int, float] = dataclasses.field(default_factory=dict)
+
     def __post_init__(self):
 
         if self.initial_state is None:
@@ -100,6 +103,17 @@ class PhysicsModel(JaxsimDataclass):
         }
         joint_friction_viscous = {
             joint.index: joint.friction_viscous for joint in model_description.joints
+        }
+
+        # Dicts from the joint index to the spring and damper joint limits parameters.
+        # Note: the joint index is equal to its child link index.
+        joint_limit_spring = {
+            joint.index: joint.position_limit_spring
+            for joint in model_description.joints
+        }
+        joint_limit_damper = {
+            joint.index: joint.position_limit_damper
+            for joint in model_description.joints
         }
 
         # Transform between model's root and model's base link
@@ -160,6 +174,8 @@ class PhysicsModel(JaxsimDataclass):
             _link_inertias_dict=link_spatial_inertias_dict,
             _joint_friction_static=joint_friction_static,
             _joint_friction_viscous=joint_friction_viscous,
+            _joint_limit_spring=joint_limit_spring,
+            _joint_limit_damper=joint_limit_damper,
             gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
             gc=GroundContact.build_from(model_description=model_description),

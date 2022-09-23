@@ -194,6 +194,16 @@ def extract_data_from_sdf(
             and j.axis.dynamics is not None
             and j.axis.dynamics.friction is not None
             else 0.0,
+            position_limit_damper=j.axis.limit.dissipation
+            if j.axis is not None
+            and j.axis.limit is not None
+            and j.axis.limit.dissipation is not None
+            else 0.0,
+            position_limit_spring=j.axis.limit.stiffness
+            if j.axis is not None
+            and j.axis.limit is not None
+            and j.axis.limit.stiffness is not None
+            else 0.0,
         )
         for j in sdf_tree.model.joints
         if j.type in {"revolute", "prismatic", "fixed"}

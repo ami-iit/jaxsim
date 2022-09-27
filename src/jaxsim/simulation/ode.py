@@ -105,6 +105,26 @@ def dx_dt(
             terrain=terrain,
         )
 
+    # =====================
+    # Joint position limits
+    # =====================
+
+    # Get the joint position limits
+    s_min, s_max = jnp.array(
+        [j.position_limit for j in physics_model.description.joints_dict.values()]
+    ).T
+
+    # Get the spring/damper parameters of joint limits enforcement
+    # k_spring = jnp.array(list(physics_model._joint_limit_spring.values()))
+    k_damper = jnp.array(list(physics_model._joint_limit_damper.values()))
+
+    # Compute the joint torques that enforce joint limits
+    s = ode_state.physics_model.joint_positions
+    # sd = ode_state.physics_model.joint_velocities
+    tau_min = jnp.where(s <= s_min, k_damper * (s_min - s), 0)
+    tau_max = jnp.where(s >= s_max, k_damper * (s_max - s), 0)
+    tau_limit = tau_max + tau_min
+
     # ==============
     # Joint friction
     # ==============
@@ -127,7 +147,7 @@ def dx_dt(
     total_forces = ode_input.physics_model.f_ext + contact_forces_links
 
     # Compute the joint torques to actuate
-    tau = ode_input.physics_model.tau + tau_friction
+    tau = ode_input.physics_model.tau + tau_friction + tau_limit
 
     W_a_WB, qdd = algos.aba.aba(
         model=physics_model,

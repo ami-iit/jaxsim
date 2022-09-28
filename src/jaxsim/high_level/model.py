@@ -186,11 +186,11 @@ class Model(JaxsimDataclass):
         for j in self._joints.values():
             j.mutable(validate=False).parent_model = self
 
-        self._links = {
+        self._links: Dict[str, high_level.link.Link] = {
             k: v for k, v in sorted(self._links.items(), key=lambda kv: kv[1].index())
         }
 
-        self._joints = {
+        self._joints: Dict[str, high_level.joint.Joint] = {
             k: v for k, v in sorted(self._joints.items(), key=lambda kv: kv[1].index())
         }
 

@@ -1,6 +1,6 @@
 import dataclasses
 import enum
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -64,7 +64,7 @@ class JointDescription:
     child: LinkDescription = dataclasses.dataclass(repr=False)
     parent: LinkDescription = dataclasses.dataclass(repr=False)
 
-    index: int = 0
+    index: Optional[int] = None
 
     friction_static: float = 0.0
     friction_viscous: float = 0.0

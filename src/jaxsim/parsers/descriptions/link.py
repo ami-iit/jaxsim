@@ -1,6 +1,6 @@
 import copy
 import dataclasses
-from typing import List
+from typing import List, Optional
 
 import jax.numpy as jnp
 import jax_dataclasses
@@ -16,7 +16,7 @@ class LinkDescription(JaxsimDataclass):
     name: str = jax_dataclasses.static_field()
     mass: float
     inertia: jtp.Matrix
-    index: int = None
+    index: Optional[int] = None
     parent: "LinkDescription" = jax_dataclasses.static_field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
     children: List["LinkDescription"] = jax_dataclasses.static_field(

@@ -69,6 +69,9 @@ class JointDescription:
     friction_static: float = 0.0
     friction_viscous: float = 0.0
 
+    position_limit_damper: float = 0.0
+    position_limit_spring: float = 0.0
+
     position_limit: Tuple[float, float] = (0.0, 0.0)
     initial_position: Union[float, npt.NDArray] = 0.0
 

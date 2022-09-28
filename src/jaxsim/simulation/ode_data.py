@@ -12,7 +12,7 @@ from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
-class ODEInput:
+class ODEInput(JaxsimDataclass):
 
     physics_model: PhysicsModelInput
 
@@ -26,14 +26,6 @@ class ODEInput:
     def valid(self, physics_model: PhysicsModel) -> bool:
 
         return self.physics_model.valid(physics_model=physics_model)
-
-    def replace(self, validate: bool = True, **kwargs) -> "ODEInput":
-
-        with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_input:
-
-            _ = [updated_input.__setattr__(k, v) for k, v in kwargs.items()]
-
-        return updated_input
 
 
 @jax_dataclasses.pytree_dataclass

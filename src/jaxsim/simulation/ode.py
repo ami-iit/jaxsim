@@ -164,8 +164,8 @@ def dx_dt(
 
     if not physics_model.is_floating_base:
 
-        W_Qd_B = jnp.zeros(shape=[4, 1])
-        BW_v_WB = jnp.zeros(shape=[3, 1])
+        W_Qd_B = jnp.zeros(4)
+        BW_v_WB = jnp.zeros(3)
 
     else:
 

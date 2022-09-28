@@ -918,15 +918,20 @@ class Model(JaxsimDataclass):
             lambda l: l[-1], ode_states.soft_contacts
         )
 
+        # Clear user inputs (joint torques and external forces) if asked
+        model_input = jax.lax.cond(
+            pred=clear_inputs,
+            false_fun=lambda: t0_model_input.physics_model,
+            true_fun=lambda: jaxsim.physics.model.physics_model_state.PhysicsModelInput.zero(
+                physics_model=self.physics_model
+            ),
+        )
+
         # Update model state
         self.data = ModelData(
             model_state=tf_model_state,
             contact_state=tf_contact_state,
-            model_input=t0_model_input.physics_model
-            if not clear_inputs
-            else jaxsim.physics.model.physics_model_state.PhysicsModelInput.zero(
-                physics_model=self.physics_model
-            ),
+            model_input=model_input,
         )
         self._set_mutability(self._mutability())
 

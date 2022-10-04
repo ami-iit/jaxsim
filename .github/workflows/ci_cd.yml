@@ -75,6 +75,7 @@ jobs:
           name: dist
 
       - name: Install wheel
+        shell: bash
         run: pip install dist/*.whl
 
       - name: Import the package

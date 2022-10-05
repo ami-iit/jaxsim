@@ -1,0 +1,81 @@
+name: Python CI/CD
+
+on:
+  push:
+  pull_request:
+  release:
+    types:
+      - published
+
+jobs:
+
+  package:
+    name: Package the project
+    runs-on: ubuntu-22.04
+
+    steps:
+
+      - uses: actions/checkout@master
+      - run: git fetch --prune --unshallow
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install Python tools
+        run: pip install build twine
+
+      - name: Create distributions
+        run: python -m build -o dist/
+
+      - name: Inspect dist folder
+        run: ls -lah dist/
+
+      - name: Check wheel's abi and platform tag
+        run: test $(find dist/ -name *-none-any.whl | wc -l) -gt 0
+
+      - name: Run twine check
+        run: twine check dist/*
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          path: dist/*
+          name: dist
+
+  test:
+    name: 'Python${{ matrix.python }}@${{ matrix.os }}'
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - macos-latest
+          - windows-latest
+        python:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          # - "3.11"
+
+    steps:
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Download Python packages
+        uses: actions/download-artifact@v2
+        with:
+          path: dist
+          name: dist
+
+      - name: Install wheel
+        run: pip install dist/*.whl
+
+      - name: Import the package
+        run: python -c "import jaxsim"

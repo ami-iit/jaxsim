@@ -81,3 +81,30 @@ jobs:
 
       - name: Import the package
         run: python -c "import jaxsim"
+
+  publish:
+    name: Publish to PyPI
+    needs: test
+    runs-on: ubuntu-22.04
+
+    steps:
+
+      - name: Download Python packages
+        uses: actions/download-artifact@v2
+        with:
+          path: dist
+          name: dist
+
+      - name: Inspect dist folder
+        run: ls -lah dist/
+
+      - name: Publish to PyPI
+        if: |
+          github.repository == 'ami-iit/jaxsim' &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+           (github.event_name == 'release'))
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
+          skip_existing: true

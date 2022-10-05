@@ -1,41 +1,18 @@
+import os
 from typing import Union
 
 import jax.numpy as jnp
 import numpy as np
 import numpy.typing as npt
-import pysdf
-from scipy.spatial.transform import Rotation as R
+import rod
 
 from jaxsim.parsers import descriptions
 
 
-def from_sdf_string_list(string_list: str, epsilon: float = 1e-06) -> npt.NDArray:
-
-    lst = np.array(string_list.split(" "), dtype=float)
-    lst[np.abs(lst) < epsilon] = 0
-    return lst
-
-
-def from_sdf_pose(pose: pysdf.Pose) -> npt.NDArray:
-
-    # Transform euler to DCM matrix (sequence of extrinsic rotations, i.e. all angles
-    # consider a fixed reference frame)
-    DCM = R.from_euler(
-        seq="xyz", angles=pose.orientation, degrees=pose.degrees
-    ).as_matrix()
-
-    return np.vstack(
-        [
-            np.hstack([DCM, np.vstack(pose.position)]),
-            np.array([0, 0, 0, 1]),
-        ]
-    )
-
-
-def from_sdf_inertial(inertial: pysdf.Link.Inertial) -> npt.NDArray:
+def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
 
     from jaxsim.math.inertia import Inertia
-    from jaxsim.sixd import se3, so3
+    from jaxsim.sixd import se3
 
     # Extract the "mass" element
     m = inertial.mass
@@ -43,52 +20,49 @@ def from_sdf_inertial(inertial: pysdf.Link.Inertial) -> npt.NDArray:
     # Extract the "inertia" element
     inertia_element = inertial.inertia
 
+    ixx = inertia_element.ixx
+    iyy = inertia_element.iyy
+    izz = inertia_element.izz
+    ixy = inertia_element.ixy if inertia_element.ixy is not None else 0.0
+    ixz = inertia_element.ixz if inertia_element.ixz is not None else 0.0
+    iyz = inertia_element.iyz if inertia_element.iyz is not None else 0.0
+
     # Build the 3x3 inertia matrix expressed in the CoM
-    I_com = np.array(
+    I_CoM = np.array(
         [
-            [inertia_element.ixx, inertia_element.ixy, inertia_element.ixz],
-            [inertia_element.ixy, inertia_element.iyy, inertia_element.iyz],
-            [inertia_element.ixz, inertia_element.iyz, inertia_element.izz],
+            [ixx, ixy, ixz],
+            [ixy, iyy, iyz],
+            [ixz, iyz, izz],
         ]
     )
 
     # Build the 6x6 generalized inertia at the CoM
-    I_generalized = Inertia.to_sixd(mass=m, com=np.zeros(3), I=I_com)
-
-    # Transform euler to DCM matrix (sequence of extrinsic rotations, i.e. all angles
-    # consider a fixed reference frame)
-    l_R_com = so3.SO3.from_matrix(
-        R.from_euler(
-            seq="xyz", angles=inertial.pose.orientation, degrees=inertial.pose.degrees
-        ).as_matrix()
-    )
+    I_generalized = Inertia.to_sixd(mass=m, com=np.zeros(3), I=I_CoM)
 
     # Compute the transform from the inertial frame (CoM) to the link frame
-    l_H_com = se3.SE3.from_rotation_and_translation(
-        rotation=l_R_com, translation=np.array(inertial.pose.position)
-    )
+    L_H_CoM = inertial.pose.transform() if inertial.pose is not None else np.eye(4)
 
     # We need its inverse
-    com_H_l = l_H_com.inverse()
-    com_X_l = com_H_l.adjoint()
+    CoM_H_L = se3.SE3.from_matrix(matrix=L_H_CoM).inverse()
+    CoM_X_L: npt.NDArray = CoM_H_L.adjoint()
 
     # Express the CoM inertia matrix in the link frame
-    I_expressed_in_link_frame = com_X_l.T @ I_generalized @ com_X_l
+    I_expressed_in_link_frame = CoM_X_L.T @ I_generalized @ CoM_X_L
 
     return jnp.array(I_expressed_in_link_frame)
 
 
 def axis_to_jtype(
-    axis: pysdf.Joint.Axis, type: str
+    axis: rod.Axis, type: str
 ) -> Union[descriptions.JointType, descriptions.JointDescriptor]:
 
     if type == "fixed":
         return descriptions.JointType.F
 
-    if not (axis.xyz is not None and axis.xyz.text is not None):
+    if not (axis.xyz is not None and axis.xyz.xyz is not None):
         raise ValueError("Failed to read axis xyz data")
 
-    axis_xyz = from_sdf_string_list(axis.xyz.text)
+    axis_xyz = np.array(axis.xyz.xyz)
 
     if np.allclose(axis_xyz, [1, 0, 0]) and type in {"revolute", "continuous"}:
         return descriptions.JointType.Rx
@@ -122,7 +96,7 @@ def axis_to_jtype(
 
 
 def create_box_collision(
-    collision: pysdf.Collision, link_description: descriptions.LinkDescription
+    collision: rod.Collision, link_description: descriptions.LinkDescription
 ) -> descriptions.BoxCollision:
 
     x, y, z = collision.geometry.box.size
@@ -145,7 +119,7 @@ def create_box_collision(
         - center
     )
 
-    H = from_sdf_pose(pose=collision.pose)
+    H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
     center_wrt_link = (H @ np.hstack([center, 1.0]))[0:-1]
     box_corners_wrt_link = (
@@ -167,7 +141,7 @@ def create_box_collision(
 
 
 def create_sphere_collision(
-    collision: pysdf.Collision, link_description: descriptions.LinkDescription
+    collision: rod.Collision, link_description: descriptions.LinkDescription
 ) -> descriptions.SphereCollision:
 
     # From https://stackoverflow.com/a/26127012
@@ -191,9 +165,11 @@ def create_sphere_collision(
         return np.vstack(points)
 
     r = collision.geometry.sphere.radius
-    sphere_points = r * fibonacci_sphere(samples=250)
+    sphere_points = r * fibonacci_sphere(
+        samples=int(os.getenv(key="JAXSIM_COLLISION_SPHERE_POINTS", default=250))
+    )
 
-    H = from_sdf_pose(pose=collision.pose)
+    H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
     center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
 

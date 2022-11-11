@@ -32,11 +32,11 @@ Planned features:
 You can install the project with [`pypa/pip`][pip], preferably in a [virtual environment][venv]:
 
 ```bash
-pip install "jaxsim @ git+https://github.com/ami-iit/jaxsim"
+pip install jaxsim
 ```
 
 Have a look to [`setup.cfg`](setup.cfg) for a complete list of optional dependencies.
-You can install all of them specifying `jaxsim[all]`.
+You can install all of them by specifying `jaxsim[all]`.
 
 **Note:** if you need GPU support, please follow the official [installation instruction][jax_gpu] of JAX.
 

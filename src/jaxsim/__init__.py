@@ -27,7 +27,7 @@ def _np_options() -> None:
     np.set_printoptions(precision=5, suppress=True, linewidth=150, threshold=10_000)
 
 
-def _is_editable():
+def _is_editable() -> bool:
 
     import importlib.util
     import pathlib

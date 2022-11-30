@@ -45,8 +45,8 @@ def configure(level: LoggingLevel = LoggingLevel.WARNING) -> None:
     handler.setFormatter(fmt=coloredlogs.ColoredFormatter(fmt=fmt))
     _logger().addHandler(hdlr=handler)
 
-    # Workaround for double logging caused by abseil handlers
-    # https://github.com/abseil/abseil-py/issues/99
+    # Do not propagate the messages to handlers of parent loggers
+    # (preventing duplicate logging)
     _logger().propagate = False
 
     set_logging_level(level=level)

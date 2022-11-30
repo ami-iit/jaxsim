@@ -19,6 +19,8 @@
 - Revolute, prismatic, and fixed joints support.
 - Integrators: forward Euler, semi-implicit Euler, Runge-Kutta 4.
 - High-level classes to compute multi-body dynamics quantities from simulation state.
+- High-level classes supporting both object-oriented and functional programming.
+- Optional validation of JAX pytrees to prevent JIT re-compilation. 
 
 Planned features:
 

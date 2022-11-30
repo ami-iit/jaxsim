@@ -75,6 +75,17 @@ Here below we summarize the differences between the projects:
 Pull requests are welcome. 
 For major changes, please open an issue first to discuss what you would like to change.
 
+## Citing
+
+```bibtex
+@software{ferigo_jaxsim_2022,
+  author = {Diego Ferigo and Silvio Traversaro and Daniele Pucci},
+  title = {{JAXsim}: A Physics Engine in Reduced Coordinates for Control and Robot Learning},
+  url = {http://github.com/ami-iit/jaxsin},
+  year = {2022},
+}
+```
+
 ## Maintainers
 
 | [<img src="https://github.com/diegoferigo.png" width="40">][df] | [@diegoferigo][df] |

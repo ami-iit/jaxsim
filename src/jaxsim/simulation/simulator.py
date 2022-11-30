@@ -24,7 +24,7 @@ from jaxsim.utils import JaxsimDataclass
 class SimulatorData:
 
     # Simulation time stored in ns in order to prevent floats approximation
-    time_ns: jtp.Int = jnp.array(0, dtype=int)
+    time_ns: jtp.Int = jnp.array(0, dtype=jnp.int64)
 
     # Terrain and contact parameters
     terrain: Terrain = jax_dataclasses.field(default_factory=lambda: FlatTerrain())
@@ -46,7 +46,7 @@ class JaxSim(JaxsimDataclass):
 
     # Step size stored in ns in order to prevent floats approximation
     step_size_ns: jtp.Int = jax_dataclasses.field(
-        default_factory=lambda: jnp.array(1_000_000, dtype=int)
+        default_factory=lambda: jnp.array(1_000_000, dtype=jnp.int64)
     )
 
     # Number of substeps performed at each integration step
@@ -73,7 +73,7 @@ class JaxSim(JaxsimDataclass):
     ) -> "JaxSim":
 
         return JaxSim(
-            step_size_ns=jnp.array(step_size * 1e9, dtype=int),
+            step_size_ns=jnp.array(step_size * 1e9, dtype=jnp.int64),
             steps_per_run=int(steps_per_run),
             velocity_representation=velocity_representation,
             integrator_type=integrator_type,
@@ -91,7 +91,7 @@ class JaxSim(JaxsimDataclass):
 
     def set_step_size(self, step_size: float) -> None:
 
-        self.step_size_ns = jnp.array(step_size * 1e9, dtype=int)
+        self.step_size_ns = jnp.array(step_size * 1e9, dtype=jnp.int64)
 
     def dt(self) -> jtp.Float:
 
@@ -194,8 +194,8 @@ class JaxSim(JaxsimDataclass):
 
     def step(self, clear_inputs: bool = False) -> Dict[str, StepData]:
 
-        t0_ns = jnp.array(self.data.time_ns, dtype=int)
-        dt_ns = jnp.array(self.step_size_ns * self.steps_per_run, dtype=int)
+        t0_ns = jnp.array(self.data.time_ns, dtype=jnp.int64)
+        dt_ns = jnp.array(self.step_size_ns * self.steps_per_run, dtype=jnp.int64)
 
         tf_ns = t0_ns + dt_ns
 

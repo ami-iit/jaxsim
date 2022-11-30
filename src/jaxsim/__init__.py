@@ -1,7 +1,27 @@
 from . import high_level, logging, math, sixd
 
 
-def _np_options():
+# Follow upstream development in https://github.com/google/jax/pull/13304
+def _jnp_options() -> None:
+
+    import os
+
+    from jax.config import config
+
+    # Enable by default
+    if not ("JAX_ENABLE_X64" in os.environ and os.environ["JAX_ENABLE_X64"] == "0"):
+        logging.info("Enabling JAX to use 64bit precision")
+        config.update("jax_enable_x64", True)
+
+        import jax.numpy as jnp
+        import numpy as np
+
+        if jnp.empty(0, dtype=float).dtype != jnp.empty(0, dtype=np.float64).dtype:
+            logging.warning("Failed to enable 64bit precision in JAX")
+
+
+def _np_options() -> None:
+
     import numpy as np
 
     np.set_printoptions(precision=5, suppress=True, linewidth=150, threshold=10_000)
@@ -33,8 +53,12 @@ if _is_editable():
 else:
     logging.configure(level=logging.LoggingLevel.WARNING)
 
+# Configure JAX
+_jnp_options()
+
 # Initialize the numpy print options
 _np_options()
 
+del _jnp_options
 del _np_options
 del _is_editable

@@ -44,28 +44,20 @@ def extract_data_from_sdf(
     sdf_model = (
         sdf_element.models()[0] if len(sdf_models) == 1 else sdf_models[model_name]
     )
+
+    # Log model name
     logging.debug(msg=f"Found model '{sdf_model.name}' in SDF resource")
 
-    # Detect fixed-base models by checking the existence of joints having world as parent
-    sdf_joints_with_world_parent = [
-        j for j in sdf_model.joints() if j.parent == "world"
-    ]
-    fixed_base = len(sdf_joints_with_world_parent) > 0
-
+    # Log type of base link
     logging.debug(
         msg="Model '{}' is {}".format(
-            sdf_model.name, "fixed-base" if fixed_base else "floating-base"
+            sdf_model.name,
+            "fixed-base" if sdf_model.is_fixed_base() else "floating-base",
         )
     )
 
-    # We extract the link connected to 'world', and consider it as base link.
-    # Instead, for floating-base models, we consider the first link as base link.
-    base_link_name = (
-        sdf_joints_with_world_parent[0].name
-        if fixed_base
-        else sdf_model.links()[0].name
-    )
-    logging.debug(msg=f"Considering '{base_link_name}' as base link")
+    # Log detected base link
+    logging.debug(msg=f"Considering '{sdf_model.get_canonical_link()}' as base link")
 
     # Pose of the model
     if sdf_model.pose is None:
@@ -103,7 +95,7 @@ def extract_data_from_sdf(
 
     # In this case, we need to get the pose of the joint that connects the base link
     # to the world and combine their pose
-    if fixed_base:
+    if sdf_model.is_fixed_base():
 
         # Create a massless word link
         world_link = descriptions.LinkDescription(
@@ -241,7 +233,7 @@ def extract_data_from_sdf(
         if l.pose is None:
             continue
 
-        if l.name == base_link_name:
+        if l.name == sdf_model.get_canonical_link():
             continue
 
         if l.name not in joint_dict:
@@ -285,8 +277,8 @@ def extract_data_from_sdf(
         link_descriptions=links,
         joint_descriptions=joints,
         collision_shapes=collisions,
-        fixed_base=fixed_base,
-        base_link_name=base_link_name,
+        fixed_base=sdf_model.is_fixed_base(),
+        base_link_name=sdf_model.get_canonical_link(),
         model_pose=model_pose,
         sdf_model=sdf_model,
     )

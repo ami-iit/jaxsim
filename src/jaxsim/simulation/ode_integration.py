@@ -13,7 +13,6 @@ from jaxsim.simulation import integrators, ode
 
 
 class IntegratorType(enum.IntEnum):
-
     RungeKutta4 = enum.auto()
     EulerForward = enum.auto()
     EulerSemiImplicit = enum.auto()
@@ -27,7 +26,6 @@ def ode_integration_rk4_adaptive(
     *args,
     **kwargs,
 ) -> jtp.Array:
-
     # Close function over its inputs and parameters
     dx_dt_closure = lambda x, ts: ode.dx_dt(x, ts, physics_model, *args)
 
@@ -46,7 +44,6 @@ def ode_integration_euler(
     num_sub_steps: int = 1,
     return_aux: bool = False,
 ) -> Union[ode.ode_data.ODEState, Tuple[ode.ode_data.ODEState, Dict[str, Any]]]:
-
     # Close func over additional inputs and parameters
     dx_dt_closure = lambda x, ts: ode.dx_dt(
         x, ts, physics_model, soft_contacts_params, ode_input, terrain, *args
@@ -78,7 +75,6 @@ def ode_integration_euler_semi_implicit(
     num_sub_steps: int = 1,
     return_aux: bool = False,
 ) -> Union[ode.ode_data.ODEState, Tuple[ode.ode_data.ODEState, Dict[str, Any]]]:
-
     # Close func over additional inputs and parameters
     dx_dt_closure = lambda x, ts: ode.dx_dt(
         x, ts, physics_model, soft_contacts_params, ode_input, terrain, *args
@@ -110,7 +106,6 @@ def ode_integration_rk4(
     num_sub_steps=1,
     return_aux: bool = False,
 ) -> Union[ode.ode_data.ODEState, Tuple[ode.ode_data.ODEState, Dict]]:
-
     # Close func over additional inputs and parameters
     dx_dt_closure = lambda x, ts: ode.dx_dt(
         x, ts, physics_model, soft_contacts_params, ode_input, terrain, *args

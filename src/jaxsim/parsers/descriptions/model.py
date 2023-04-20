@@ -14,7 +14,6 @@ from .link import LinkDescription
 
 @dataclasses.dataclass(frozen=True)
 class ModelDescription(KinematicGraph):
-
     name: str = None
     fixed_base: bool = True
     collision_shapes: List[CollisionShape] = dataclasses.field(default_factory=list)
@@ -30,7 +29,6 @@ class ModelDescription(KinematicGraph):
         considered_joints: List[str] = None,
         model_pose: RootPose = RootPose(),
     ) -> "ModelDescription":
-
         # Create the full kinematic graph
         kinematic_graph = KinematicGraph.build_from(
             links=links,
@@ -41,7 +39,6 @@ class ModelDescription(KinematicGraph):
 
         # Reduce the graph if needed
         if considered_joints is not None:
-
             kinematic_graph = kinematic_graph.reduce(
                 considered_joints=considered_joints
             )
@@ -51,7 +48,6 @@ class ModelDescription(KinematicGraph):
 
         # Move and express the collision shapes of the removed link to the lumped link
         for collision_shape in collisions:
-
             # Get all the collidable points of the shape
             coll_points = [cp for cp in collision_shape.collidable_points]
 
@@ -83,7 +79,6 @@ class ModelDescription(KinematicGraph):
             # If the frame was found, update the collidable points' pose and add them
             #  to the new collision shape
             for cp in collision_shape.collidable_points:
-
                 # Find the link that is part of the (reduced) model in which the
                 # collision shape's parent was lumped into
                 real_parent_link_of_shape = kinematic_graph.frames_dict[
@@ -118,7 +113,6 @@ class ModelDescription(KinematicGraph):
         return model
 
     def reduce(self, considered_joints: List[str]) -> "ModelDescription":
-
         msg = "The model reduction logic assumes that removed joints have zero angles"
         logging.info(msg=msg)
 
@@ -139,7 +133,6 @@ class ModelDescription(KinematicGraph):
         )
 
     def update_collision_shape_of_link(self, link_name: str, enabled: bool) -> None:
-
         if link_name not in self.link_names():
             raise ValueError(link_name)
 
@@ -149,7 +142,6 @@ class ModelDescription(KinematicGraph):
             point.enabled = enabled
 
     def collision_shape_of_link(self, link_name: str) -> CollisionShape:
-
         if link_name not in self.link_names():
             raise ValueError(link_name)
 
@@ -163,7 +155,6 @@ class ModelDescription(KinematicGraph):
         )
 
     def all_enabled_collidable_points(self) -> List[CollidablePoint]:
-
         # Get iterator of all collidable points
         all_collidable_points = itertools.chain.from_iterable(
             [shape.collidable_points for shape in self.collision_shapes]

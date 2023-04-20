@@ -19,14 +19,12 @@ from . import utils
 
 @jax_dataclasses.pytree_dataclass
 class SoftContactsState:
-
     tangential_deformation: jtp.Matrix
 
     @staticmethod
     def zero(
         physics_model: jaxsim.physics.model.physics_model.PhysicsModel,
     ) -> "SoftContactsState":
-
         return SoftContactsState(
             tangential_deformation=jnp.zeros(shape=(3, physics_model.gc.body.size))
         )
@@ -34,7 +32,6 @@ class SoftContactsState:
     def valid(
         self, physics_model: jaxsim.physics.model.physics_model.PhysicsModel
     ) -> bool:
-
         from jaxsim.simulation.utils import check_valid_shape
 
         return check_valid_shape(
@@ -45,9 +42,7 @@ class SoftContactsState:
         )
 
     def replace(self, validate: bool = True, **kwargs) -> "SoftContactsState":
-
         with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_state:
-
             _ = [updated_state.__setattr__(k, v) for k, v in kwargs.items()]
 
         return updated_state
@@ -59,7 +54,6 @@ def collidable_points_pos_vel(
     qd: jtp.Vector,
     xfb: jtp.Vector = None,
 ) -> Tuple[jtp.Matrix, jtp.Matrix]:
-
     xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
 
     Xa = jnp.array([jnp.eye(6)] * (model.NB))
@@ -81,12 +75,10 @@ def collidable_points_pos_vel(
     parent_link_of = model.parent_array()
 
     with jax.experimental.loops.Scope() as s:
-
         s.Xa = Xa
         s.vb = vb
 
         for i in s.range(1, model.NB):
-
             ii = i - 1
 
             Xup = XJ[i] @ Xtree[i]
@@ -102,7 +94,6 @@ def collidable_points_pos_vel(
         vb = s.vb
 
     def process_collidable_points_of_link_with_index(i: int) -> jtp.VectorJax:
-
         X = jnp.linalg.inv(Xa[i])
         v = X @ vb[i]
 
@@ -133,7 +124,6 @@ def collidable_points_pos_vel(
 
 @jax_dataclasses.pytree_dataclass
 class SoftContactsParams:
-
     K: float = jnp.array(1e6, dtype=float)
     D: float = jnp.array(2000, dtype=float)
     mu: float = jnp.array(0.5, dtype=float)
@@ -146,7 +136,6 @@ def soft_contacts_model(
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]:
-
     p = jnp.array(positions).squeeze()
     pd = jnp.array(velocities).squeeze()
     u = jnp.array(tangential_deformation).squeeze()
@@ -190,7 +179,8 @@ def soft_contacts_model(
     # No friction and no tangential forces
     # ====================================
 
-    # Compute the adjoint C[W]->W for transforming 6D forces from mixed to inertial
+    # Compute the adjoint C[W]->W for transforming 6D forces from mixed to inertial.
+    # Note: this is equal to the 6D velocities transform: CW_X_W.transpose().
     W_Xf_CW = jax.vmap(
         lambda W_p_C: jnp.block(
             [
@@ -201,7 +191,6 @@ def soft_contacts_model(
     )(p.T)
 
     def with_no_friction():
-
         # Compute 6D mixed forces in C[W]
         CW_f_lin = forces_normal
         CW_f = jnp.vstack([CW_f_lin, jnp.zeros_like(CW_f_lin)])
@@ -216,7 +205,6 @@ def soft_contacts_model(
     # =========================
 
     def with_friction():
-
         # Initialize the tangential velocity of the point
         v_perpendicular = jax.vmap(jnp.dot)(pd.T, terrain_normal) * terrain_normal.T
         v_tangential = pd - v_perpendicular

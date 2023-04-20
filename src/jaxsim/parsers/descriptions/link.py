@@ -12,7 +12,6 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class LinkDescription(JaxsimDataclass):
-
     name: str = jax_dataclasses.static_field()
     mass: float
     inertia: jtp.Matrix
@@ -24,18 +23,15 @@ class LinkDescription(JaxsimDataclass):
     )
 
     def __hash__(self) -> int:
-
         return hash(self.__repr__())
 
     @property
     def name_and_index(self) -> str:
-
         return f"#{self.index}_<{self.name}>"
 
     def lump_with(
         self, link: "LinkDescription", lumped_H_removed: jtp.Matrix
     ) -> "LinkDescription":
-
         # Get the 6D inertia of the link to remove
         I_removed = link.inertia
 

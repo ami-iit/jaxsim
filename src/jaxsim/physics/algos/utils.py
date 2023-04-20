@@ -15,7 +15,6 @@ def process_inputs(
     tau: jtp.Vector = None,
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector, jtp.Matrix]:
-
     # Remove extra dimensions
     q = q.squeeze() if q is not None else None
     qd = qd.squeeze() if qd is not None else None
@@ -25,7 +24,6 @@ def process_inputs(
     f_ext = f_ext.squeeze() if f_ext is not None else None
 
     def fix_one_dof(vector: jtp.Vector) -> Optional[jtp.Vector]:
-
         if vector is None:
             return None
 

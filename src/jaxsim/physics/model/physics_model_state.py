@@ -8,7 +8,6 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class PhysicsModelState(JaxsimDataclass):
-
     # Joint state
     joint_positions: jtp.Vector
     joint_velocities: jtp.Vector
@@ -31,20 +30,17 @@ class PhysicsModelState(JaxsimDataclass):
     def zero(
         physics_model: "jaxsim.physics.model.physics_model.PhysicsModel",
     ) -> "PhysicsModelState":
-
         return PhysicsModelState(
             joint_positions=jnp.zeros(physics_model.dofs()),
             joint_velocities=jnp.zeros(physics_model.dofs()),
         )
 
     def position(self) -> jtp.Vector:
-
         return jnp.hstack(
             [self.base_position, self.base_quaternion, self.joint_positions]
         )
 
     def velocity(self) -> jtp.Vector:
-
         # W_v_WB: inertial-fixed representation of the base velocity
         return jnp.hstack(
             [
@@ -55,7 +51,6 @@ class PhysicsModelState(JaxsimDataclass):
         )
 
     def xfb(self) -> jtp.Vector:
-
         return jnp.hstack(
             [
                 self.base_quaternion,
@@ -68,7 +63,6 @@ class PhysicsModelState(JaxsimDataclass):
     def valid(
         self, physics_model: "jaxsim.physics.model.physics_model.PhysicsModel"
     ) -> bool:
-
         from jaxsim.simulation.utils import check_valid_shape
 
         valid = True
@@ -120,7 +114,6 @@ class PhysicsModelState(JaxsimDataclass):
 
 @jax_dataclasses.pytree_dataclass
 class PhysicsModelInput:
-
     tau: jtp.VectorJax
     f_ext: jtp.MatrixJax
 
@@ -128,7 +121,6 @@ class PhysicsModelInput:
     def zero(
         physics_model: "jaxsim.physics.model.physics_model.PhysicsModel",
     ) -> "PhysicsModelInput":
-
         ode_input = PhysicsModelInput(
             tau=jnp.zeros(physics_model.dofs()),
             f_ext=jnp.zeros(shape=(physics_model.NB, 6)),
@@ -138,9 +130,7 @@ class PhysicsModelInput:
         return ode_input
 
     def replace(self, validate: bool = True, **kwargs) -> "PhysicsModelInput":
-
         with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_input:
-
             _ = [updated_input.__setattr__(k, v) for k, v in kwargs.items()]
 
         return updated_input
@@ -148,7 +138,6 @@ class PhysicsModelInput:
     def valid(
         self, physics_model: "jaxsim.physics.model.physics_model.PhysicsModel"
     ) -> bool:
-
         from jaxsim.simulation.utils import check_valid_shape
 
         valid = True

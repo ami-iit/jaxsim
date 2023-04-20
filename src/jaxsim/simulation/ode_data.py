@@ -13,30 +13,25 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class ODEInput(JaxsimDataclass):
-
     physics_model: PhysicsModelInput
 
     @staticmethod
     def zero(physics_model: PhysicsModel) -> "ODEInput":
-
         return ODEInput(
             physics_model=PhysicsModelInput.zero(physics_model=physics_model)
         )
 
     def valid(self, physics_model: PhysicsModel) -> bool:
-
         return self.physics_model.valid(physics_model=physics_model)
 
 
 @jax_dataclasses.pytree_dataclass
 class ODEState(JaxsimDataclass):
-
     physics_model: PhysicsModelState
     soft_contacts: SoftContactsState
 
     @staticmethod
     def deserialize(data: jtp.VectorJax, physics_model: PhysicsModel) -> "ODEState":
-
         dummy_object = ODEState.zero(physics_model=physics_model)
         _, unflatten_data = jax.flatten_util.ravel_pytree(dummy_object)
 
@@ -44,7 +39,6 @@ class ODEState(JaxsimDataclass):
 
     @staticmethod
     def zero(physics_model: PhysicsModel) -> "ODEState":
-
         model_state = ODEState(
             physics_model=PhysicsModelState.zero(physics_model=physics_model),
             soft_contacts=SoftContactsState.zero(physics_model=physics_model),
@@ -54,7 +48,6 @@ class ODEState(JaxsimDataclass):
         return model_state
 
     def valid(self, physics_model: PhysicsModel) -> bool:
-
         return self.physics_model.valid(
             physics_model=physics_model
         ) and self.soft_contacts.valid(physics_model=physics_model)

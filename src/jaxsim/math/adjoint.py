@@ -15,7 +15,6 @@ class Adjoint:
         inverse: bool = False,
         normalize_quaternion: bool = False,
     ) -> jtp.Matrix:
-
         assert quaternion.size == 4
         assert translation.size == 3
 
@@ -32,7 +31,6 @@ class Adjoint:
         translation: jtp.Vector = jnp.zeros(3),
         inverse: bool = False,
     ) -> jtp.Matrix:
-
         assert rotation.shape == (3, 3)
         assert translation.size == 3
 
@@ -58,7 +56,6 @@ class Adjoint:
 
     @staticmethod
     def to_transform(adjoint: jtp.Matrix) -> jtp.Matrix:
-
         X = adjoint.squeeze()
         assert X.shape == (6, 6)
 
@@ -76,7 +73,6 @@ class Adjoint:
 
     @staticmethod
     def inverse(adjoint: jtp.Matrix) -> jtp.Matrix:
-
         A_X_B = adjoint
         A_H_B = Adjoint.to_transform(adjoint=A_X_B)
 

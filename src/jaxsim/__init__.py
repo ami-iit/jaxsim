@@ -3,7 +3,6 @@ from . import logging
 
 # Follow upstream development in https://github.com/google/jax/pull/13304
 def _jnp_options() -> None:
-
     import os
 
     from jax.config import config
@@ -21,14 +20,12 @@ def _jnp_options() -> None:
 
 
 def _np_options() -> None:
-
     import numpy as np
 
     np.set_printoptions(precision=5, suppress=True, linewidth=150, threshold=10_000)
 
 
 def _is_editable() -> bool:
-
     import importlib.util
     import pathlib
     import site

@@ -15,7 +15,6 @@ from . import utils as utils
 
 
 class SDFData(NamedTuple):
-
     model_name: str
 
     fixed_base: bool
@@ -32,7 +31,6 @@ class SDFData(NamedTuple):
 def extract_data_from_sdf(
     sdf: Union[pathlib.Path, str], model_name: Optional[str] = None
 ) -> SDFData:
-
     # Parse the SDF resource
     sdf_element = rod.Sdf.load(sdf=sdf)
 
@@ -96,7 +94,6 @@ def extract_data_from_sdf(
     # In this case, we need to get the pose of the joint that connects the base link
     # to the world and combine their pose
     if sdf_model.is_fixed_base():
-
         # Create a massless word link
         world_link = descriptions.LinkDescription(
             name="world", mass=0, inertia=np.zeros(shape=(6, 6))
@@ -157,12 +154,10 @@ def extract_data_from_sdf(
 
     # Check that all joint poses are expressed w.r.t. their parent link
     for j in sdf_model.joints():
-
         if j.pose is None:
             continue
 
         if j.parent == "world":
-
             if j.pose.relative_to in {"__model__", None}:
                 continue
 
@@ -226,7 +221,6 @@ def extract_data_from_sdf(
 
     # Check that all the link poses are expressed wrt their parent joint
     for l in sdf_model.links():
-
         if l.name not in links_dict:
             continue
 
@@ -253,9 +247,7 @@ def extract_data_from_sdf(
     # Parse the collisions
     for link in sdf_model.links():
         for collision in link.collisions():
-
             if collision.geometry.box is not None:
-
                 box_collision = utils.create_box_collision(
                     collision=collision,
                     link_description=links_dict[link.name],
@@ -264,7 +256,6 @@ def extract_data_from_sdf(
                 collisions.append(box_collision)
 
             if collision.geometry.sphere is not None:
-
                 sphere_collision = utils.create_sphere_collision(
                     collision=collision,
                     link_description=links_dict[link.name],
@@ -285,7 +276,6 @@ def extract_data_from_sdf(
 
 
 def build_model_from_sdf(sdf: Union[Path, str]) -> descriptions.ModelDescription:
-
     # Parse data from the SDF
     sdf_data = extract_data_from_sdf(sdf=sdf)
 

@@ -8,7 +8,6 @@ LOGGER_NAME = "jaxsim"
 
 
 class LoggingLevel(enum.IntEnum):
-
     NOTSET = logging.NOTSET
     DEBUG = logging.DEBUG
     INFO = logging.INFO
@@ -18,12 +17,10 @@ class LoggingLevel(enum.IntEnum):
 
 
 def _logger() -> logging.Logger:
-
     return logging.getLogger(name=LOGGER_NAME)
 
 
 def set_logging_level(level: Union[int, LoggingLevel] = LoggingLevel.WARNING):
-
     if isinstance(level, int):
         level = LoggingLevel(level)
 
@@ -31,13 +28,11 @@ def set_logging_level(level: Union[int, LoggingLevel] = LoggingLevel.WARNING):
 
 
 def get_logging_level() -> LoggingLevel:
-
     level = _logger().getEffectiveLevel()
     return LoggingLevel(level)
 
 
 def configure(level: LoggingLevel = LoggingLevel.WARNING) -> None:
-
     info("Configuring the 'jaxsim' logger")
 
     handler = logging.StreamHandler()
@@ -53,30 +48,24 @@ def configure(level: LoggingLevel = LoggingLevel.WARNING) -> None:
 
 
 def debug(msg: str = "") -> None:
-
     _logger().debug(msg=msg)
 
 
 def info(msg: str = "") -> None:
-
     _logger().info(msg=msg)
 
 
 def warning(msg: str = "") -> None:
-
     _logger().warning(msg=msg)
 
 
 def error(msg: str = "") -> None:
-
     _logger().error(msg=msg)
 
 
 def critical(msg: str = "") -> None:
-
     _logger().critical(msg=msg)
 
 
 def exception(msg: str = "") -> None:
-
     _logger().exception(msg=msg)

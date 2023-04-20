@@ -7,7 +7,6 @@ import jaxsim.typing as jtp
 
 
 class Terrain(abc.ABC):
-
     delta = 0.010
 
     @abc.abstractmethod
@@ -15,7 +14,6 @@ class Terrain(abc.ABC):
         pass
 
     def normal(self, x: float, y: float) -> jtp.Vector:
-
         # https://stackoverflow.com/a/5282364
         h_xp = self.height(x=x + self.delta, y=y)
         h_xm = self.height(x=x - self.delta, y=y)
@@ -37,10 +35,8 @@ class FlatTerrain(Terrain):
 
 @jax_dataclasses.pytree_dataclass
 class PlaneTerrain(Terrain):
-
     plane_normal: jtp.Vector = jax_dataclasses.field(default=jnp.array([0, 0, 1.0]))
 
     def height(self, x: float, y: float) -> float:
-
         a, b, c = self.plane_normal
         return -(a * x + b * x) / c

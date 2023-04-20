@@ -21,7 +21,6 @@ from .physics_model_state import PhysicsModelState
 
 @pytree_dataclass
 class PhysicsModel(JaxsimDataclass):
-
     NB: int = static_field()
     initial_state: PhysicsModelState = jax_dataclasses.field(default=None)
     gravity: jtp.Vector = dataclasses.field(
@@ -51,7 +50,6 @@ class PhysicsModel(JaxsimDataclass):
     _joint_limit_damper: Dict[int, float] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-
         if self.initial_state is None:
             initial_state = PhysicsModelState.zero(physics_model=self)
             object.__setattr__(self, "initial_state", initial_state)
@@ -61,7 +59,6 @@ class PhysicsModel(JaxsimDataclass):
         model_description: jaxsim.parsers.descriptions.model.ModelDescription,
         gravity: jtp.Vector = default_gravity(),
     ) -> "PhysicsModel":
-
         if gravity.size != 3:
             raise ValueError(gravity.size)
 
@@ -193,11 +190,9 @@ class PhysicsModel(JaxsimDataclass):
         return physics_model_fixed
 
     def dofs(self) -> int:
-
         return len(list(self._jtype_dict.keys()))
 
     def set_gravity(self, gravity: jtp.Vector) -> None:
-
         gravity = gravity.squeeze()
 
         if gravity.size == 3:
@@ -215,7 +210,6 @@ class PhysicsModel(JaxsimDataclass):
 
     def parent_array(self) -> jtp.Vector:
         """Returns λ(i)"""
-
         return jnp.array([-1] + list(self._parent_array_dict.values()), dtype=int)
 
     def support_body_array(self, body_index: jtp.Int) -> jtp.Vector:
@@ -225,12 +219,10 @@ class PhysicsModel(JaxsimDataclass):
         return jnp.array(jnp.where(κ_bool)[0], dtype=int)
 
     def support_body_array_bool(self, body_index: jtp.Int) -> jtp.Vector:
-
         active_link = body_index
         κ_bool = jnp.zeros(self.NB, dtype=bool)
 
         for i in np.flip(np.arange(start=0, stop=self.NB)):
-
             κ_bool, active_link = jax.lax.cond(
                 pred=(i == active_link),
                 false_fun=lambda: (κ_bool, active_link),
@@ -244,7 +236,6 @@ class PhysicsModel(JaxsimDataclass):
 
     @property
     def tree_transforms(self) -> jtp.Array:
-
         X_tree = jnp.array(
             [
                 self._tree_transforms_dict.get(idx, jnp.eye(6))
@@ -256,7 +247,6 @@ class PhysicsModel(JaxsimDataclass):
 
     @property
     def spatial_inertias(self) -> jtp.Array:
-
         M_links = jnp.array(
             [
                 self._link_inertias_dict.get(idx, jnp.zeros(6))
@@ -267,14 +257,12 @@ class PhysicsModel(JaxsimDataclass):
         return M_links
 
     def jtype(self, joint_index: int) -> JointType:
-
         if joint_index == 0 or joint_index >= self.NB:
             raise ValueError(joint_index)
 
         return self._jtype_dict[joint_index]
 
     def joint_transforms(self, q: jtp.Vector) -> jtp.Array:
-
         from jaxsim.math.joint import jcalc
 
         if not_tracing(q):
@@ -292,7 +280,6 @@ class PhysicsModel(JaxsimDataclass):
         return Xj
 
     def motion_subspaces(self, q: jtp.Vector) -> jtp.Array:
-
         from jaxsim.math.joint import jcalc
 
         if not_tracing(var=q):
@@ -310,7 +297,6 @@ class PhysicsModel(JaxsimDataclass):
         return SS
 
     def __eq__(self, other: "PhysicsModel") -> bool:
-
         same = True
         same = same and self.NB == other.NB
         same = same and np.allclose(self.gravity, other.gravity)
@@ -318,11 +304,9 @@ class PhysicsModel(JaxsimDataclass):
         return same
 
     def __hash__(self):
-
         return hash(self.__repr__())
 
     def __repr__(self) -> str:
-
         attributes = [
             f"dofs: {self.dofs()},",
             f"links: {self.NB},",

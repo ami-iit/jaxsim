@@ -23,7 +23,6 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class SimulatorData(JaxsimDataclass):
-
     # Simulation time stored in ns in order to prevent floats approximation
     time_ns: jtp.Int = jnp.array(0, dtype=jnp.int64)
 
@@ -44,7 +43,6 @@ class SimulatorData(JaxsimDataclass):
 
 @jax_dataclasses.pytree_dataclass
 class JaxSim(JaxsimDataclass):
-
     # Step size stored in ns in order to prevent floats approximation
     step_size_ns: jtp.Int = jax_dataclasses.field(
         default_factory=lambda: jnp.array(1_000_000, dtype=jnp.int64)
@@ -72,7 +70,6 @@ class JaxSim(JaxsimDataclass):
         integrator_type: ode_integration.IntegratorType = ode_integration.IntegratorType.EulerSemiImplicit,
         simulator_data: SimulatorData = None,
     ) -> "JaxSim":
-
         return JaxSim(
             step_size_ns=jnp.array(step_size * 1e9, dtype=jnp.int64),
             steps_per_run=int(steps_per_run),
@@ -82,7 +79,6 @@ class JaxSim(JaxsimDataclass):
         )
 
     def reset(self, remove_models: bool = True) -> None:
-
         self.data.time_ns = jnp.zeros_like(self.data.time_ns)
 
         if remove_models:
@@ -91,39 +87,31 @@ class JaxSim(JaxsimDataclass):
             _ = [m.zero() for m in self.models()]
 
     def set_step_size(self, step_size: float) -> None:
-
         self.step_size_ns = jnp.array(step_size * 1e9, dtype=jnp.int64)
 
     def dt(self) -> jtp.Float:
-
         return (self.step_size_ns * self.steps_per_run) / 1e9
 
     def time(self) -> jtp.Float:
-
         return self.data.time_ns / 1e9
 
     def gravity(self) -> jtp.Vector:
-
         return self.data.gravity
 
     def model_names(self) -> List[str]:
-
         return list(self.data.models.keys())
 
     def get_model(self, model_name: str) -> Model:
-
         if model_name not in self.data.models.keys():
             raise ValueError(f"Failed to find model '{model_name}'")
 
         return self.data.models[model_name]
 
     def models(self, model_names: List[str] = None) -> List[Model]:
-
         model_names = model_names if model_names is not None else self.model_names()
         return [self.data.models[name] for name in model_names]
 
     def set_gravity(self, gravity: jtp.Vector):
-
         gravity = jnp.array(gravity)
 
         if gravity.size != 3:
@@ -142,7 +130,6 @@ class JaxSim(JaxsimDataclass):
         model_name: str = None,
         considered_joints: List[str] = None,
     ) -> Model:
-
         # Build the model from the input SDF resource
         model = jaxsim.high_level.model.Model.build_from_sdf(
             sdf=sdf,
@@ -169,7 +156,6 @@ class JaxSim(JaxsimDataclass):
     def insert_model(
         self, model_description: descriptions.ModelDescription, model_name: str = None
     ) -> Model:
-
         model_name = model_name if model_name is not None else model_description.name
 
         if model_name in self.model_names():
@@ -192,7 +178,6 @@ class JaxSim(JaxsimDataclass):
         return self.data.models[model.name()]
 
     def remove_model(self, model_name: str) -> None:
-
         if model_name not in self.model_names():
             msg = f"Model '{model_name}' is not part of the simulation"
             raise ValueError(msg)
@@ -201,7 +186,6 @@ class JaxSim(JaxsimDataclass):
         self._set_mutability(self._mutability())
 
     def step(self, clear_inputs: bool = False) -> Dict[str, StepData]:
-
         t0_ns = jnp.array(self.data.time_ns, dtype=jnp.int64)
         dt_ns = jnp.array(self.step_size_ns * self.steps_per_run, dtype=jnp.int64)
 
@@ -211,9 +195,7 @@ class JaxSim(JaxsimDataclass):
         step_data = dict()
 
         for model in self.models():
-
             with model.editable(validate=True) as integrated_model:
-
                 step_data[model.name()] = integrated_model.integrate(
                     t0=jnp.array(t0_ns, dtype=float) / 1e9,
                     tf=jnp.array(tf_ns, dtype=float) / 1e9,
@@ -273,7 +255,6 @@ class JaxSim(JaxsimDataclass):
         carry_init: Carry = (sim, callback_handler)
 
         def body_fun(carry: Carry, xs: None) -> Tuple[Carry, jtp.PyTree]:
-
             sim, callback_handler = carry
 
             # Make sure to pass a mutable version of the simulator to the callbacks

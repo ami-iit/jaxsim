@@ -11,7 +11,6 @@ from . import utils
 
 
 def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
-
     _, q, _, _, _, _ = utils.process_inputs(
         physics_model=model, xfb=None, q=q, qd=None, tau=None, f_ext=None
     )
@@ -39,7 +38,6 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
     def propagate_kinematics(
         carry: ForwardPassCarry, i: jtp.Int
     ) -> Tuple[ForwardPassCarry, None]:
-
         Xup, i_X_0 = carry
 
         Xup_i = Xj[i] @ Xtree[i]
@@ -68,7 +66,6 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
     def backward_pass(
         carry: BackwardPassCarry, i: jtp.Int
     ) -> Tuple[BackwardPassCarry, None]:
-
         ii = i - 1
         Mc, M = carry
 
@@ -85,7 +82,6 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
         carry_inner_fn = (j, Fi, M)
 
         def while_loop_body(carry: CarryInnerFn) -> CarryInnerFn:
-
             j, Fi, M = carry
 
             Fi = Xup[j].T @ Fi

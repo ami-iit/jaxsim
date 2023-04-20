@@ -22,7 +22,6 @@ def compute_contact_forces(
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]:
-
     # Compute position and linear mixed velocity of all model's collidable points
     # collidable_points_kinematics
     pos_cp, vel_cp = collidable_points_pos_vel(
@@ -49,7 +48,6 @@ def compute_contact_forces(
 
     # Combine the contact forces of all collidable points belonging to the same body
     for body_idx in set(physics_model.gc.body):
-
         body_idx = int(body_idx)
         contact_forces_links = contact_forces_links.at[body_idx, :].set(
             jnp.sum(contact_forces_points[:, physics_model.gc.body == body_idx], axis=1)
@@ -66,7 +64,6 @@ def dx_dt(
     ode_input: ode_data.ODEInput = None,
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[ode_data.ODEState, Dict[str, Any]]:
-
     if t is not None and isinstance(t, np.ndarray) and t.size != 1:
         raise ValueError(t.size)
 
@@ -110,7 +107,6 @@ def dx_dt(
     # =====================
 
     if physics_model.dofs() > 0:
-
         # Get the joint position limits
         s_min, s_max = jnp.array(
             [j.position_limit for j in physics_model.description.joints_dict.values()]
@@ -133,7 +129,6 @@ def dx_dt(
     # ==============
 
     if physics_model.dofs() > 0:
-
         # Static and viscous joint friction parameters
         kc = jnp.array(list(physics_model._joint_friction_static.values()))
         kv = jnp.array(list(physics_model._joint_friction_viscous.values()))
@@ -171,12 +166,10 @@ def dx_dt(
     # =========================================
 
     if not physics_model.is_floating_base:
-
         W_Qd_B = jnp.zeros(4)
         BW_v_WB = jnp.zeros(3)
 
     else:
-
         from jaxsim.math.conv import Convert
         from jaxsim.math.quaternion import Quaternion
 
@@ -205,7 +198,6 @@ def dx_dt(
     # =====================================
 
     def fix_one_dof(vector: jtp.Vector) -> Optional[jtp.Vector]:
-
         if vector is None:
             return None
 

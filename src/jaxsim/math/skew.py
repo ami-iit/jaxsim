@@ -6,7 +6,6 @@ import jaxsim.typing as jtp
 class Skew:
     @staticmethod
     def wedge(vector: jtp.Vector) -> jtp.Matrix:
-
         vector = vector.squeeze()
 
         x, y, z = vector
@@ -16,7 +15,6 @@ class Skew:
 
     @staticmethod
     def vee(matrix: jtp.Matrix) -> jtp.Vector:
-
         # Note: if the input is not already skew-symmetric, this method returns
         #       the values of the skew-symmetric component
         vector = 0.5 * jnp.vstack(

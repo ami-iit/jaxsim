@@ -22,14 +22,12 @@ from . import descriptions
 
 
 class RootPose(NamedTuple):
-
     root_position: npt.NDArray = np.zeros(3)
     root_quaternion: npt.NDArray = np.array([1.0, 0, 0, 0])
 
 
 @dataclasses.dataclass(frozen=True)
 class KinematicGraph:
-
     root: descriptions.LinkDescription
     frames: List[descriptions.LinkDescription] = dataclasses.field(default_factory=list)
     joints: List[descriptions.JointDescription] = dataclasses.field(
@@ -48,28 +46,23 @@ class KinematicGraph:
 
     @functools.cached_property
     def links_dict(self) -> Dict[str, descriptions.LinkDescription]:
-
         return {l.name: l for l in iter(self)}
 
     @functools.cached_property
     def frames_dict(self) -> Dict[str, descriptions.LinkDescription]:
-
         return {f.name: f for f in self.frames}
 
     @functools.cached_property
     def joints_dict(self) -> Dict[str, descriptions.JointDescription]:
-
         return {j.name: j for j in self.joints}
 
     @functools.cached_property
     def joints_connection_dict(
         self,
     ) -> Dict[Tuple[str, str], descriptions.JointDescription]:
-
         return {(j.parent.name, j.child.name): j for j in self.joints}
 
     def __post_init__(self):
-
         # Assign the link index traversing the graph with BFS.
         # Here we assume the model is fixed-base, therefore the base link will
         # have index 0. We will deal with the floating base in a later stage,
@@ -106,7 +99,6 @@ class KinematicGraph:
         root_link_name: str = None,
         root_pose: RootPose = RootPose(),
     ) -> "KinematicGraph":
-
         if root_link_name is None:
             root_link_name = links[0].name
 
@@ -134,7 +126,6 @@ class KinematicGraph:
         List[descriptions.JointDescription],
         List[descriptions.LinkDescription],
     ]:
-
         # Create a dict that maps link name to the link, for easy retrieval
         links_dict: Dict[str, descriptions.LinkDescription] = {
             l.name: l.mutable(validate=False) for l in links
@@ -149,7 +140,6 @@ class KinematicGraph:
 
         # Couple links and joints creating the final kinematic graph
         for joint in joints:
-
             # Get the parent and child links of the joint
             parent_link = links_dict[joint.parent.name]
             child_link = links_dict[joint.child.name]
@@ -187,7 +177,6 @@ class KinematicGraph:
         # Update the frames. In particular, reset their children. The other properties
         # are kept as they are, and it's caller responsibility to update them if needed.
         for frame in frames:
-
             frame.children = []
             msg = f"Link '{frame.name}' became a frame"
             logging.info(msg=msg)
@@ -199,7 +188,6 @@ class KinematicGraph:
         )
 
     def reduce(self, considered_joints: List[str]) -> "KinematicGraph":
-
         # The current object represents the complete kinematic graph
         full_graph = self
 
@@ -215,7 +203,6 @@ class KinematicGraph:
 
         # Check if all considered joints are part of the full kinematic graph
         if len(set(considered_joints) - set([j.name for j in full_graph.joints])) != 0:
-
             extra_j = set(considered_joints) - set([j.name for j in full_graph.joints])
             msg = f"Not all joints to consider are part of the graph ({{{extra_j}}})"
             raise ValueError(msg)
@@ -251,7 +238,6 @@ class KinematicGraph:
         # this way we propagate these properties back even in the case when also the
         # parent link of a removed joint has to be lumped with its parent.
         for link in reversed(full_graph):
-
             if link.name not in links_to_remove:
                 continue
 
@@ -311,7 +297,6 @@ class KinematicGraph:
 
         # Update the pose of all joints having as parent link a removed link
         for joint in joints_with_removed_parent_link:
-
             # Update the pose. Note that after the lumping process, the dict entry
             # links_dict[joint.parent.name] contains the final lumped link
             joint.pose = full_graph.relative_transform(
@@ -360,7 +345,6 @@ class KinematicGraph:
 
         # Update frames properties using the transforms from the full graph
         for frame in reduced_graph.frames:
-
             # Get the link in which the removed link was lumped into
             new_parent_link = links_dict[frame.name]
 
@@ -381,24 +365,19 @@ class KinematicGraph:
         return reduced_graph
 
     def link_names(self) -> List[str]:
-
         return list(self.links_dict.keys())
 
     def joint_names(self) -> List[str]:
-
         return list(self.joints_dict.keys())
 
     def frame_names(self) -> List[str]:
-
         return list(self.frames_dict.keys())
 
     def transform(self, name: str) -> npt.NDArray:
-
         if name in self.transform_cache:
             return self.transform_cache[name]
 
         if name in self.joint_names():
-
             joint = self.joints_dict[name]
 
             if joint.initial_position != 0.0:
@@ -410,7 +389,6 @@ class KinematicGraph:
             return self.transform_cache[name]
 
         if name in self.link_names():
-
             link = self.links_dict[name]
 
             if link.name == self.root.name:
@@ -431,13 +409,11 @@ class KinematicGraph:
         return self.transform_cache[name]
 
     def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
-
         return np.linalg.inv(self.transform(name=relative_to)) @ self.transform(
             name=name
         )
 
     def print_tree(self) -> None:
-
         import pptree
 
         root_node = self.root
@@ -454,7 +430,6 @@ class KinematicGraph:
         root: descriptions.LinkDescription,
         sort_children: Optional[Callable[[Any], Any]] = lambda link: link.name,
     ) -> Iterable[descriptions.LinkDescription]:
-
         queue = [root]
 
         # We assume that nodes have unique name, and mark a link as visited using
@@ -465,13 +440,11 @@ class KinematicGraph:
         yield root
 
         while len(queue) > 0:
-
             l = queue.pop(0)
 
             # Note: sorting the links with their name so that the order of children
             #       insertion does not matter when assigning the link index
             for child in sorted(l.children, key=sort_children):
-
                 if child.name in visited:
                     continue
 
@@ -481,19 +454,15 @@ class KinematicGraph:
                 yield child
 
     def __iter__(self) -> Iterable[descriptions.LinkDescription]:
-
         yield from KinematicGraph.breadth_first_search(root=self.root)
 
     def __reversed__(self) -> Iterable[descriptions.LinkDescription]:
-
         yield from reversed(list(iter(self)))
 
     def __len__(self) -> int:
-
         return len(list(iter(self)))
 
     def __contains__(self, item: Union[str, descriptions.LinkDescription]) -> bool:
-
         if isinstance(item, str):
             return item in self.link_names()
 
@@ -503,16 +472,13 @@ class KinematicGraph:
         raise TypeError(type(item).__name__)
 
     def __getitem__(self, key: Union[int, str]) -> descriptions.LinkDescription:
-
         if isinstance(key, str):
-
             if key not in self.link_names():
                 raise KeyError(key)
 
             return self.links_dict[key]
 
         if isinstance(key, int):
-
             if key > len(self):
                 raise KeyError(key)
 

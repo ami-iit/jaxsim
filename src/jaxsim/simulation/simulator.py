@@ -10,13 +10,14 @@ import jax_dataclasses
 import jaxsim.high_level
 import jaxsim.parsers.descriptions as descriptions
 import jaxsim.physics
+import jaxsim.simulation.simulator_callbacks as scb
 import jaxsim.typing as jtp
 from jaxsim.high_level.common import VelRepr
 from jaxsim.high_level.model import Model, StepData
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
-from jaxsim.simulation import ode_integration, simulator_callbacks
+from jaxsim.simulation import ode_integration
 from jaxsim.utils import JaxsimDataclass
 
 
@@ -228,14 +229,12 @@ class JaxSim(JaxsimDataclass):
         self,
         horizon_steps: jtp.Int,
         callback_handler: Union[
-            "simulator_callbacks.SimulatorCallback",
-            "simulator_callbacks.CallbackHandler",
+            "scb.SimulatorCallback",
+            "scb.CallbackHandler",
         ] = None,
         clear_inputs: jtp.Bool = False,
-    ) -> Union[
-        "JaxSim",
-        Tuple["JaxSim", Tuple["simulator_callbacks.SimulatorCallback", jtp.PyTree]],
-    ]:
+    ) -> Union["JaxSim", Tuple["JaxSim", Tuple["scb.SimulatorCallback", jtp.PyTree]]]:
+        """"""
 
         # Process a mutable copy of the simulator
         original_mutability = self._mutability()
@@ -249,13 +248,13 @@ class JaxSim(JaxsimDataclass):
         )
 
         # Get the callbacks
-        configure_cb: Optional[simulator_callbacks.ConfigureCallbackSignature] = get_cb(
+        configure_cb: Optional[scb.ConfigureCallbackSignature] = get_cb(
             h=callback_handler, cb_name="configure_cb"
         )
-        pre_step_cb: Optional[simulator_callbacks.PreStepCallbackSignature] = get_cb(
+        pre_step_cb: Optional[scb.PreStepCallbackSignature] = get_cb(
             h=callback_handler, cb_name="pre_step_cb"
         )
-        post_step_cb: Optional[simulator_callbacks.PostStepCallbackSignature] = get_cb(
+        post_step_cb: Optional[scb.PostStepCallbackSignature] = get_cb(
             h=callback_handler, cb_name="post_step_cb"
         )
 
@@ -263,7 +262,7 @@ class JaxSim(JaxsimDataclass):
         sim = configure_cb(sim) if configure_cb is not None else sim
 
         # Initialize the carry
-        Carry = Tuple[JaxSim, simulator_callbacks.CallbackHandler]
+        Carry = Tuple[JaxSim, scb.CallbackHandler]
         carry_init: Carry = (sim, callback_handler)
 
         def body_fun(carry: Carry, xs: None) -> Tuple[Carry, jtp.PyTree]:

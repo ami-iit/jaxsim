@@ -1,4 +1,4 @@
-from . import high_level, logging, math, sixd
+from . import logging
 
 
 # Follow upstream development in https://github.com/google/jax/pull/13304
@@ -62,3 +62,6 @@ _np_options()
 del _jnp_options
 del _np_options
 del _is_editable
+
+from . import high_level, logging, math, sixd
+from .simulation.simulator import JaxSim

@@ -1,14 +1,14 @@
 import abc
 from typing import Callable, Dict, Tuple
 
+import jaxsim
 import jaxsim.typing as jtp
 from jaxsim.high_level.model import StepData
-from jaxsim.simulation.simulator import JaxSim
 
-ConfigureCallbackSignature = Callable[[JaxSim], JaxSim]
-PreStepCallbackSignature = Callable[[JaxSim], JaxSim]
+ConfigureCallbackSignature = Callable[["jaxsim.JaxSim"], "jaxsim.JaxSim"]
+PreStepCallbackSignature = Callable[["jaxsim.JaxSim"], "jaxsim.JaxSim"]
 PostStepCallbackSignature = Callable[
-    [JaxSim, Dict[str, StepData]], Tuple[JaxSim, jtp.PyTree]
+    ["jaxsim.JaxSim", Dict[str, StepData]], Tuple["jaxsim.JaxSim", jtp.PyTree]
 ]
 
 
@@ -23,7 +23,7 @@ class ConfigureCallback(SimulatorCallback):
         return lambda sim: self.configure(sim=sim)
 
     @abc.abstractmethod
-    def configure(self, sim: JaxSim) -> JaxSim:
+    def configure(self, sim: "jaxsim.JaxSim") -> "jaxsim.JaxSim":
         pass
 
 
@@ -34,7 +34,7 @@ class PreStepCallback(SimulatorCallback):
         return lambda sim: self.pre_step(sim=sim)
 
     @abc.abstractmethod
-    def pre_step(self, sim: JaxSim) -> JaxSim:
+    def pre_step(self, sim: "jaxsim.JaxSim") -> "jaxsim.JaxSim":
         pass
 
 
@@ -46,8 +46,8 @@ class PostStepCallback(SimulatorCallback):
 
     @abc.abstractmethod
     def post_step(
-        self, sim: JaxSim, step_data: Dict[str, StepData]
-    ) -> Tuple[JaxSim, jtp.PyTree]:
+        self, sim: "jaxsim.JaxSim", step_data: Dict[str, StepData]
+    ) -> Tuple["jaxsim.JaxSim", jtp.PyTree]:
         pass
 
 

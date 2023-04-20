@@ -1,7 +1,7 @@
 import abc
 import contextlib
 import copy
-from typing import ContextManager, TypeVar
+from typing import Any, ContextManager, TypeVar
 
 import jax.abstract_arrays
 import jax.flatten_util
@@ -14,27 +14,58 @@ import jaxsim.typing as jtp
 T = TypeVar("T")
 
 
-def tracing(var) -> bool:
+def tracing(var: Any) -> bool:
+    """Returns True if the variable is being traced by JAX, False otherwise."""
 
-    return isinstance(
-        var,
-        (
-            jax.abstract_arrays.ShapedArray,
-            jax.interpreters.partial_eval.DynamicJaxprTracer,
-        ),
-    )
+    return jax.numpy.array(
+        [
+            isinstance(var, t)
+            for t in (
+                jax.abstract_arrays.ShapedArray,
+                jax.interpreters.partial_eval.DynamicJaxprTracer,
+            )
+        ]
+    ).any()
+
+
+def not_tracing(var: Any) -> bool:
+    """Returns True if the variable is not being traced by JAX, False otherwise."""
+
+    return True if tracing(var) is False else False
 
 
 class JaxsimDataclass(abc.ABC):
+    """"""
+
     @contextlib.contextmanager
     def editable(self: T, validate: bool = True) -> ContextManager[T]:
+        """"""
 
-        with jax_dataclasses.copy_and_mutate(self, validate=validate) as self_rw:
-            yield self_rw
+        mutability = (
+            Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
+        )
 
-        self_rw._set_mutability(self._mutability())
+        with JaxsimDataclass.mutable_context(self.copy(), mutability=mutability) as obj:
+            yield obj
+
+        # with jax_dataclasses.copy_and_mutate(self, validate=validate) as self_rw:
+        #     yield self_rw
+        #
+        # self_rw._set_mutability(self._mutability())
+
+    @contextlib.contextmanager
+    def mutable_context(self: T, mutability: Mutability) -> ContextManager[T]:
+        """"""
+
+        original_mutability = self._mutability
+
+        self._set_mutability(mutability)
+        yield self
+
+        self._set_mutability(original_mutability)
 
     def is_mutable(self: T, validate: bool = False) -> bool:
+        """"""
 
         return (
             self.__mutability__ is Mutability.MUTABLE

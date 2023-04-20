@@ -23,8 +23,8 @@ def compute_contact_forces(
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]:
 
-    # Compute position and linear velocity (inertial representation)
-    # of all model's collidable points
+    # Compute position and linear mixed velocity of all model's collidable points
+    # collidable_points_kinematics
     pos_cp, vel_cp = collidable_points_pos_vel(
         model=physics_model,
         q=ode_state.physics_model.joint_positions,
@@ -249,6 +249,7 @@ def dx_dt(
         model_acceleration=W_nud_WB,
         ode_input=ode_input,
         ode_input_real=ode_input_real,
+        contact_forces_links=contact_forces_links,
         contact_forces_points=contact_forces_points,
         tangential_deformation_dot=tangential_deformation_dot,
     )

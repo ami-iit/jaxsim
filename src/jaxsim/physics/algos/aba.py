@@ -20,7 +20,6 @@ def aba(
     tau: jtp.Vector,
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
-
     x_fb, q, qd, _, tau, f_ext = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=qd, tau=tau, f_ext=f_ext
     )
@@ -59,7 +58,6 @@ def aba(
 
     # Initialize base quantities
     if model.is_floating_base:
-
         # Base velocity v₀
         v_0 = B_X_W @ base_vel
         v = v.at[0].set(v_0)
@@ -73,7 +71,6 @@ def aba(
         pA = pA.at[0].set(pA_0)
 
     with jax.experimental.loops.Scope() as s:  # Pass 1
-
         s.qd = qd
         s.f_ext = f_ext
 
@@ -84,7 +81,6 @@ def aba(
         s.pA = pA
 
         for i in range(1, model.NB):
-
             ii = i - 1
 
             # Compute parent-to-child transform
@@ -124,7 +120,6 @@ def aba(
     u = jnp.zeros(shape=(model.NB, 1))
 
     with jax.experimental.loops.Scope() as s:  # Pass 2
-
         s.tau = tau
 
         s.U = U
@@ -134,7 +129,6 @@ def aba(
         s.pA = pA
 
         for i in s.range(model.NB - 1, 0, -1):
-
             ii = i - 1
 
             # Compute intermediate results
@@ -153,7 +147,6 @@ def aba(
 
             # Propagate them to the parent, handling the base link
             def propagate(MA_pA):
-
                 MA, pA = MA_pA
 
                 MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
@@ -187,12 +180,10 @@ def aba(
     qdd = jnp.zeros_like(q)
 
     with jax.experimental.loops.Scope() as s:  # Pass 3
-
         s.a = a
         s.qdd = qdd
 
         for i in s.range(1, model.NB):
-
             ii = i - 1
 
             # Propagate link accelerations

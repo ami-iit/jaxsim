@@ -32,7 +32,6 @@ def odeint_euler_one_step(
     tf: Time,
     num_sub_steps: int = 1,
 ) -> Tuple[State, Dict[str, Any]]:
-
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -43,7 +42,6 @@ def odeint_euler_one_step(
     carry_init: Carry = (x0, t0)
 
     def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
-
         # Unpack the carry
         x_t0, t0 = carry
 
@@ -81,7 +79,6 @@ def odeint_rk4_one_step(
     tf: Time,
     num_sub_steps: int = 1,
 ) -> Tuple[State, Dict[str, Any]]:
-
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -92,7 +89,6 @@ def odeint_rk4_one_step(
     carry_init: Carry = (x0, t0)
 
     def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
-
         # Unpack the carry
         x_t0, t0 = carry
 
@@ -139,7 +135,6 @@ def odeint_euler_semi_implicit_one_step(
     tf: Time,
     num_sub_steps: int = 1,
 ) -> Tuple[ODEState, Dict[str, Any]]:
-
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -150,7 +145,6 @@ def odeint_euler_semi_implicit_one_step(
     carry_init: Carry = (x0, t0)
 
     def quaternion_derivative(W_Q_B: jtp.Vector, W_omega_WB: jtp.Vector) -> jtp.Vector:
-
         from jaxsim.math.quaternion import Quaternion
 
         return Quaternion.derivative(
@@ -160,7 +154,6 @@ def odeint_euler_semi_implicit_one_step(
     def inertial_to_3d_mixed(
         W_v_lin_WB: jtp.Vector, W_v_ang_WB: jtp.Vector, W_pos_B: jtp.Vector
     ) -> jtp.Vector:
-
         from jaxsim.math.conv import Convert
 
         # Compute linear component of mixed velocity BW_v_WB
@@ -169,7 +162,6 @@ def odeint_euler_semi_implicit_one_step(
         ).squeeze()
 
     def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
-
         # Unpack the carry
         x_t0, t0 = carry
 
@@ -253,12 +245,10 @@ def integrate_single_step_over_horizon(
     t: TimeHorizon,
     x0: State,
 ) -> Tuple[State, Dict[str, Any]]:
-
     # Initialize the carry
     carry_init = (x0, t)
 
     def body_fun(carry: Tuple, idx: int) -> Tuple[Tuple, jtp.PyTree]:
-
         # Unpack the carry
         x_t0, horizon = carry
 
@@ -296,7 +286,6 @@ def odeint_euler(
     num_sub_steps: int = 1,
     return_aux: bool = False
 ) -> Union[State, Tuple[State, Dict[str, Any]]]:
-
     # Close func over additional inputs and parameters
     dx_dt_closure_aux = lambda x, ts: func(x, ts, *args)
 
@@ -321,7 +310,6 @@ def odeint_euler_semi_implicit(
     num_sub_steps: int = 1,
     return_aux: bool = False
 ) -> Union[State, Tuple[State, Dict[str, Any]]]:
-
     # Close func over additional inputs and parameters
     dx_dt_closure_aux = lambda x, ts: func(x, ts, *args)
 
@@ -346,7 +334,6 @@ def odeint_rk4(
     num_sub_steps: int = 1,
     return_aux: bool = False
 ) -> Union[State, Tuple[State, Dict[str, Any]]]:
-
     # Close func over additional inputs and parameters
     dx_dt_closure = lambda x, ts: func(x, ts, *args)
 

@@ -8,7 +8,6 @@ from .skew import Skew
 class Convert:
     @staticmethod
     def coordinates_tf(X: jtp.Matrix, p: jtp.Matrix) -> jtp.Matrix:
-
         X = X.squeeze()
         p = p.squeeze()
 
@@ -32,7 +31,6 @@ class Convert:
 
     @staticmethod
     def velocities_threed(v_6d: jtp.Matrix, p: jtp.Matrix) -> jtp.Matrix:
-
         v = v_6d.squeeze()
         p = p.squeeze()
 
@@ -55,7 +53,6 @@ class Convert:
 
     @staticmethod
     def forces_sixd(f_3d: jtp.Matrix, p: jtp.Matrix) -> jtp.Matrix:
-
         f = f_3d.squeeze()
         p = p.squeeze()
 

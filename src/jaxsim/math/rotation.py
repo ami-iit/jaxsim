@@ -12,27 +12,22 @@ from .skew import Skew
 class Rotation:
     @staticmethod
     def x(theta: jtp.Float) -> jtp.Matrix:
-
         return so3.SO3.from_x_radians(theta=theta).as_matrix()
 
     @staticmethod
     def y(theta: jtp.Float) -> jtp.Matrix:
-
         return so3.SO3.from_y_radians(theta=theta).as_matrix()
 
     @staticmethod
     def z(theta: jtp.Float) -> jtp.Matrix:
-
         return so3.SO3.from_z_radians(theta=theta).as_matrix()
 
     @staticmethod
     def from_axis_angle(vector: jtp.Vector) -> jtp.Matrix:
-
         vector = vector.squeeze()
         theta = jnp.linalg.norm(vector)
 
         def theta_is_not_zero(theta_and_v: Tuple[jtp.Float, jtp.Vector]) -> jtp.Matrix:
-
             theta, v = theta_and_v
 
             s = jnp.sin(theta)

@@ -14,7 +14,6 @@ from . import utils
 def forward_kinematics_model(
     model: PhysicsModel, q: jtp.Vector, xfb: jtp.Vector
 ) -> jtp.Array:
-
     x_fb, q, _, _, _, _ = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=None, tau=None, f_ext=None
     )
@@ -43,7 +42,6 @@ def forward_kinematics_model(
     def propagate_kinematics(
         carry: PropagateKinematicsCarry, i: jtp.Int
     ) -> Tuple[PropagateKinematicsCarry, None]:
-
         i_X_λi, W_X_i = carry
 
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
@@ -66,5 +64,4 @@ def forward_kinematics_model(
 def forward_kinematics(
     model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector, xfb: jtp.Vector
 ) -> jtp.Matrix:
-
     return forward_kinematics_model(model=model, q=q, xfb=xfb)[body_index]

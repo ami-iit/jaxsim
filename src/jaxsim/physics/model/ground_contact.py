@@ -8,7 +8,6 @@ from jaxsim.parsers.descriptions import ModelDescription
 
 @jax_dataclasses.pytree_dataclass
 class GroundContact:
-
     point: npt.NDArray = jax_dataclasses.field(default_factory=lambda: jnp.array([]))
     body: npt.NDArray = jax_dataclasses.static_field(
         default_factory=lambda: np.array([], dtype=int)
@@ -18,7 +17,6 @@ class GroundContact:
     def build_from(
         model_description: ModelDescription,
     ) -> "GroundContact":
-
         if len(model_description.collision_shapes) == 0:
             return GroundContact()
 

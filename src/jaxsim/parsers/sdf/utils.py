@@ -10,7 +10,6 @@ from jaxsim.parsers import descriptions
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
-
     from jaxsim.math.inertia import Inertia
     from jaxsim.sixd import se3
 
@@ -55,7 +54,6 @@ def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
 def axis_to_jtype(
     axis: rod.Axis, type: str
 ) -> Union[descriptions.JointType, descriptions.JointDescriptor]:
-
     if type == "fixed":
         return descriptions.JointType.F
 
@@ -98,7 +96,6 @@ def axis_to_jtype(
 def create_box_collision(
     collision: rod.Collision, link_description: descriptions.LinkDescription
 ) -> descriptions.BoxCollision:
-
     x, y, z = collision.geometry.box.size
 
     center = np.array([x / 2, y / 2, z / 2])
@@ -143,15 +140,12 @@ def create_box_collision(
 def create_sphere_collision(
     collision: rod.Collision, link_description: descriptions.LinkDescription
 ) -> descriptions.SphereCollision:
-
     # From https://stackoverflow.com/a/26127012
     def fibonacci_sphere(samples: int) -> npt.NDArray:
-
         points = []
         phi = np.pi * (3.0 - np.sqrt(5.0))  # golden angle in radians
 
         for i in range(samples):
-
             y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
             radius = np.sqrt(1 - y * y)  # radius at y
 

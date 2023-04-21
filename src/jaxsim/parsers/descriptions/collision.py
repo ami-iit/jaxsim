@@ -13,7 +13,6 @@ from .link import LinkDescription
 
 @dataclasses.dataclass
 class CollidablePoint:
-
     parent_link: LinkDescription
     position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
     enabled: bool = True
@@ -21,7 +20,6 @@ class CollidablePoint:
     def change_link(
         self, new_link: LinkDescription, new_H_old: npt.NDArray
     ) -> "CollidablePoint":
-
         msg = f"Moving collidable point: {self.parent_link.name} -> {new_link.name}"
         logging.debug(msg=msg)
 
@@ -43,7 +41,6 @@ class CollidablePoint:
 
 @dataclasses.dataclass
 class CollisionShape(abc.ABC):
-
     collidable_points: List[CollidablePoint]
 
     def __str__(self):
@@ -57,11 +54,9 @@ class CollisionShape(abc.ABC):
 
 @dataclasses.dataclass
 class BoxCollision(CollisionShape):
-
     center: npt.NDArray
 
 
 @dataclasses.dataclass
 class SphereCollision(CollisionShape):
-
     center: npt.NDArray

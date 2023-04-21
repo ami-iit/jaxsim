@@ -10,7 +10,6 @@ from .skew import Skew
 class Inertia:
     @staticmethod
     def to_sixd(mass: jtp.Float, com: jtp.Vector, I: jtp.Matrix) -> jtp.Matrix:
-
         if I.shape != (3, 3):
             raise ValueError(I, I.shape)
 
@@ -27,7 +26,6 @@ class Inertia:
 
     @staticmethod
     def to_params(M: jtp.Matrix) -> Tuple[jtp.Float, jtp.Vector, jtp.Matrix]:
-
         m = jnp.diag(M[0:3, 0:3]).sum() / 3
 
         mC = M[3:6, 0:3]

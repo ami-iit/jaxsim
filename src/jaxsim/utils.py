@@ -74,7 +74,6 @@ class JaxsimDataclass(abc.ABC):
         )
 
     def set_mutability(self, mutable: bool = True, validate: bool = False) -> None:
-
         if not mutable:
             mutability = Mutability.FROZEN
         else:
@@ -85,35 +84,28 @@ class JaxsimDataclass(abc.ABC):
         self._set_mutability(mutability=mutability)
 
     def _mutability(self) -> Mutability:
-
         return self.__mutability__
 
     def _set_mutability(self, mutability: Mutability) -> None:
-
         jax_dataclasses._copy_and_mutate._mark_mutable(
             self, mutable=mutability, visited=set()
         )
 
     def mutable(self: T, mutable: bool = True, validate: bool = False) -> T:
-
         self.set_mutability(mutable=mutable, validate=validate)
         return self
 
     def copy(self: T) -> T:
-
         obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
         obj._set_mutability(mutability=self._mutability())
         return obj
 
     def replace(self: T, validate: bool = True, **kwargs) -> T:
-
         with self.editable(validate=validate) as obj:
-
             _ = [obj.__setattr__(k, copy.copy(v)) for k, v in kwargs.items()]
 
         obj._set_mutability(mutability=self._mutability())
         return obj
 
     def flatten(self: T) -> jtp.VectorJax:
-
         return jax.flatten_util.ravel_pytree(self)[0]

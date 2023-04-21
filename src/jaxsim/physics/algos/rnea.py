@@ -20,7 +20,6 @@ def rnea(
     a0fb: jtp.Vector = jnp.zeros(6),
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
-
     xfb, q, qd, qdd, _, f_ext = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=qd, qdd=qdd, f_ext=f_ext
     )
@@ -58,7 +57,6 @@ def rnea(
     a[0] = -B_X_W @ jnp.vstack(gravity)
 
     if model.is_floating_base:
-
         W_v_WB = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
         v[0] = B_X_W @ W_v_WB
 
@@ -70,7 +68,6 @@ def rnea(
         )
 
     for i in np.arange(start=1, stop=model.NB):
-
         ii = i - 1
 
         vJ = S[i] * qd[ii]
@@ -94,7 +91,6 @@ def rnea(
     tau = jnp.zeros_like(q)
 
     for i in reversed(np.arange(start=1, stop=model.NB)):
-
         ii = i - 1
 
         value = S[i].T @ f[i]

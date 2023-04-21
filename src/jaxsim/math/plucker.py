@@ -10,7 +10,6 @@ from .skew import Skew
 class Plucker:
     @staticmethod
     def from_rot_and_trans(dcm: jtp.Matrix, translation: jtp.Vector) -> jtp.Matrix:
-
         R = dcm
 
         X = jnp.block(
@@ -24,7 +23,6 @@ class Plucker:
 
     @staticmethod
     def to_rot_and_trans(adjoint: jtp.Matrix) -> Tuple[jtp.Matrix, jtp.Vector]:
-
         X = adjoint
 
         R = X[0:3, 0:3]
@@ -34,7 +32,6 @@ class Plucker:
 
     @staticmethod
     def from_transform(transform: jtp.Matrix) -> jtp.Matrix:
-
         H = transform
 
         R = H[0:3, 0:3]
@@ -51,7 +48,6 @@ class Plucker:
 
     @staticmethod
     def to_transform(adjoint: jtp.Matrix) -> jtp.Matrix:
-
         X = adjoint
 
         R = X[0:3, 0:3]

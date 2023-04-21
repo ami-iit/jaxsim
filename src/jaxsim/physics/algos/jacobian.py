@@ -11,7 +11,6 @@ from . import utils
 
 
 def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Matrix:
-
     _, q, _, _, _, _ = utils.process_inputs(physics_model=model, q=q)
 
     S = model.motion_subspaces(q=q)
@@ -36,7 +35,6 @@ def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Mat
     def propagate_kinematics(
         carry: PropagateKinematicsCarry, i: jtp.Int
     ) -> Tuple[PropagateKinematicsCarry, None]:
-
         i_X_λi, i_X_0 = carry
 
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
@@ -68,7 +66,6 @@ def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Mat
 
     def compute_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> Tuple[jtp.MatrixJax, None]:
         def update_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> jtp.MatrixJax:
-
             ii = i - 1
             Js_i = i_X_0[body_index] @ jnp.linalg.inv(i_X_0[i]) @ S[i]
             J = J.at[0:6, 6 + ii].set(Js_i.squeeze())

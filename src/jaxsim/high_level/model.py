@@ -761,6 +761,9 @@ class Model(JaxsimDataclass):
         if positions.size != len(joint_names):
             raise ValueError("Wrong arguments size", positions.size, len(joint_names))
 
+        if positions.size == 0:
+            return
+
         # TODO: joint position limits
 
         self.data.model_state.joint_positions = (
@@ -778,6 +781,9 @@ class Model(JaxsimDataclass):
 
         if velocities.size != len(joint_names):
             raise ValueError("Wrong arguments size", velocities.size, len(joint_names))
+
+        if velocities.size == 0:
+            return
 
         # TODO: joint velocity limits
 

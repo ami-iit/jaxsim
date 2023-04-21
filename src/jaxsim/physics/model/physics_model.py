@@ -60,7 +60,7 @@ class PhysicsModel(JaxsimDataclass):
     def build_from(
         model_description: jaxsim.parsers.descriptions.model.ModelDescription,
         gravity: jtp.Vector = default_gravity(),
-    ):
+    ) -> "PhysicsModel":
 
         if gravity.size != 3:
             raise ValueError(gravity.size)
@@ -179,7 +179,7 @@ class PhysicsModel(JaxsimDataclass):
             gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
             gc=GroundContact.build_from(model_description=model_description),
-            description=(model_description),
+            description=model_description,
         )
 
         # Floating-base models

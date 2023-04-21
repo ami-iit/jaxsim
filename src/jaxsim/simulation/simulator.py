@@ -22,7 +22,7 @@ from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
-class SimulatorData:
+class SimulatorData(JaxsimDataclass):
 
     # Simulation time stored in ns in order to prevent floats approximation
     time_ns: jtp.Int = jnp.array(0, dtype=jnp.int64)
@@ -143,6 +143,7 @@ class JaxSim(JaxsimDataclass):
         considered_joints: List[str] = None,
     ) -> Model:
 
+        # Build the model from the input SDF resource
         model = jaxsim.high_level.model.Model.build_from_sdf(
             sdf=sdf,
             model_name=model_name,
@@ -150,13 +151,19 @@ class JaxSim(JaxsimDataclass):
             considered_joints=considered_joints,
         )
 
-        if model_name in self.model_names():
-            msg = f"Model '{model_name}' is already part of the simulation"
+        # Make sure the model is not already part of the simulation
+        if model.name() in self.model_names():
+            msg = f"Model '{model.name()}' is already part of the simulation"
             raise ValueError(msg)
 
+        # Insert the model
         self.data.models[model.name()] = model
+
+        # Propagate the current mutability property to make sure that also the
+        # newly inserted model matches the mutability of the simulator
         self._set_mutability(self._mutability())
 
+        # Return the newly inserted model
         return self.data.models[model.name()]
 
     def insert_model(

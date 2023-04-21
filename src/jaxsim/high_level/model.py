@@ -27,12 +27,26 @@ from .common import VelRepr
 
 @jax_dataclasses.pytree_dataclass
 class ModelData(JaxsimDataclass):
+    """
+    Class used to store the model state and input at a given time.
+    """
+
     model_state: jaxsim.physics.model.physics_model_state.PhysicsModelState
     model_input: jaxsim.physics.model.physics_model_state.PhysicsModelInput
     contact_state: jaxsim.physics.algos.soft_contacts.SoftContactsState
 
     @staticmethod
     def zero(physics_model: physics.model.physics_model.PhysicsModel) -> "ModelData":
+        """
+        Return a ModelData object with all fields set to zero and initialized with the right shape.
+
+        Args:
+            physics_model: The considered physics model.
+
+        Returns:
+            The zero ModelData object of the given physics model.
+        """
+
         return ModelData(
             model_state=jaxsim.physics.model.physics_model_state.PhysicsModelState.zero(
                 physics_model=physics_model
@@ -48,6 +62,10 @@ class ModelData(JaxsimDataclass):
 
 @jax_dataclasses.pytree_dataclass
 class StepData(JaxsimDataclass):
+    """
+    Class used to store the data computed at each step of the simulation.
+    """
+
     t0: float
     tf: float
     dt: float
@@ -77,6 +95,10 @@ class StepData(JaxsimDataclass):
 
 @jax_dataclasses.pytree_dataclass
 class Model(JaxsimDataclass):
+    """
+    High-level class to operate on a simulated model.
+    """
+
     model_name: str = jax_dataclasses.static_field()
     physics_model: physics.model.physics_model.PhysicsModel = dataclasses.field(
         repr=False

@@ -10,6 +10,10 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class Joint(JaxsimDataclass):
+    """
+    High-level class to operate on a single joint of a simulated model.
+    """
+
     joint_description: descriptions.JointDescription = jax_dataclasses.static_field()
     parent_model: "jaxsim.high_level.model.Model" = jax_dataclasses.field(
         default=None, repr=False, compare=False

@@ -32,6 +32,20 @@ def odeint_euler_one_step(
     tf: Time,
     num_sub_steps: int = 1,
 ) -> Tuple[State, Dict[str, Any]]:
+    """
+    Forward Euler integrator.
+
+    Args:
+        dx_dt: Callable that computes the state derivative.
+        x0: Initial state.
+        t0: Initial time.
+        tf: Final time.
+        num_sub_steps: Number of sub-steps to break the integration into.
+
+    Returns:
+        The final state and a dictionary including auxiliary data at t0.
+    """
+
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -79,6 +93,20 @@ def odeint_rk4_one_step(
     tf: Time,
     num_sub_steps: int = 1,
 ) -> Tuple[State, Dict[str, Any]]:
+    """
+    Runge-Kutta 4 integrator.
+
+    Args:
+        dx_dt: Callable that computes the state derivative.
+        x0: Initial state.
+        t0: Initial time.
+        tf: Final time.
+        num_sub_steps: Number of sub-steps to break the integration into.
+
+    Returns:
+        The final state and a dictionary including auxiliary data at t0.
+    """
+
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -135,6 +163,20 @@ def odeint_euler_semi_implicit_one_step(
     tf: Time,
     num_sub_steps: int = 1,
 ) -> Tuple[ODEState, Dict[str, Any]]:
+    """
+    Semi-implicit Euler integrator.
+
+    Args:
+        dx_dt: Callable that computes the state derivative.
+        x0: Initial state.
+        t0: Initial time.
+        tf: Final time.
+        num_sub_steps: Number of sub-steps to break the integration into.
+
+    Returns:
+        The final state and a dictionary including auxiliary data at t0.
+    """
+
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -245,6 +287,18 @@ def integrate_single_step_over_horizon(
     t: TimeHorizon,
     x0: State,
 ) -> Tuple[State, Dict[str, Any]]:
+    """
+    Integrate a single-step integrator over a given horizon.
+
+    Args:
+        integrator_single_step: A single-step integrator.
+        t: The vector of time instants of the integration horizon.
+        x0: The initial state of the integration horizon.
+
+    Returns:
+        The final state and auxiliary data produced by the integrator.
+    """
+
     # Initialize the carry
     carry_init = (x0, t)
 
@@ -286,6 +340,22 @@ def odeint_euler(
     num_sub_steps: int = 1,
     return_aux: bool = False
 ) -> Union[State, Tuple[State, Dict[str, Any]]]:
+    """
+    Integrate a system of ODEs using the Euler method.
+
+    Args:
+        func: A function that computes the time-derivative of the state.
+        y0: The initial state.
+        t: The vector of time instants of the integration horizon.
+        *args: Additional arguments to be passed to the function func.
+        num_sub_steps: The number of sub-steps to be performed within each integration step.
+        return_aux: Whether to return the auxiliary data produced by the integrator.
+
+    Returns:
+        The state of the system at the end of the integration horizon, and optionally
+        the auxiliary data produced by the integrator.
+    """
+
     # Close func over additional inputs and parameters
     dx_dt_closure_aux = lambda x, ts: func(x, ts, *args)
 
@@ -310,6 +380,22 @@ def odeint_euler_semi_implicit(
     num_sub_steps: int = 1,
     return_aux: bool = False
 ) -> Union[State, Tuple[State, Dict[str, Any]]]:
+    """
+    Integrate a system of ODEs using the Semi-Implicit Euler method.
+
+    Args:
+        func: A function that computes the time-derivative of the state.
+        y0: The initial state.
+        t: The vector of time instants of the integration horizon.
+        *args: Additional arguments to be passed to the function func.
+        num_sub_steps: The number of sub-steps to be performed within each integration step.
+        return_aux: Whether to return the auxiliary data produced by the integrator.
+
+    Returns:
+        The state of the system at the end of the integration horizon, and optionally
+        the auxiliary data produced by the integrator.
+    """
+
     # Close func over additional inputs and parameters
     dx_dt_closure_aux = lambda x, ts: func(x, ts, *args)
 
@@ -334,6 +420,22 @@ def odeint_rk4(
     num_sub_steps: int = 1,
     return_aux: bool = False
 ) -> Union[State, Tuple[State, Dict[str, Any]]]:
+    """
+    Integrate a system of ODEs using the Runge-Kutta 4 method.
+
+    Args:
+        func: A function that computes the time-derivative of the state.
+        y0: The initial state.
+        t: The vector of time instants of the integration horizon.
+        *args: Additional arguments to be passed to the function func.
+        num_sub_steps: The number of sub-steps to be performed within each integration step.
+        return_aux: Whether to return the auxiliary data produced by the integrator.
+
+    Returns:
+        The state of the system at the end of the integration horizon, and optionally
+        the auxiliary data produced by the integrator.
+    """
+
     # Close func over additional inputs and parameters
     dx_dt_closure = lambda x, ts: func(x, ts, *args)
 

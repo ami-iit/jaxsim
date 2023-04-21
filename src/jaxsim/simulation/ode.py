@@ -22,6 +22,22 @@ def compute_contact_forces(
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]:
+    """
+    Compute the contact forces acting on the collidable points of the model.
+
+    Args:
+        physics_model: The physics model to consider.
+        ode_state: The state of the ODE corresponding to the physics model.
+        soft_contacts_params: The parameters of the soft contacts model.
+        terrain: The terrain model.
+
+    Returns:
+        A tuple containing:
+        - The contact forces expressed in the world frame acting on the model's links.
+        - The derivative of the tangential deformation of the terrain dynamics.
+        - The contact forces expressed in the world frame acting on the model's collidable points.
+    """
+
     # Compute position and linear mixed velocity of all model's collidable points
     # collidable_points_kinematics
     pos_cp, vel_cp = collidable_points_pos_vel(
@@ -64,6 +80,23 @@ def dx_dt(
     ode_input: ode_data.ODEInput = None,
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[ode_data.ODEState, Dict[str, Any]]:
+    """
+    Compute the state derivative of the ODE corresponding to the physics model.
+
+    Args:
+        x: The state of the ODE.
+        t: The current time.
+        physics_model: The physics model to consider.
+        soft_contacts_params: The parameters of the soft contacts model.
+        ode_input: The input of the ODE.
+        terrain: The terrain model.
+
+    Returns:
+        A tuple containing:
+        - The state derivative of the ODE.
+        - A dictionary containing auxiliary information.
+    """
+
     if t is not None and isinstance(t, np.ndarray) and t.size != 1:
         raise ValueError(t.size)
 
@@ -152,6 +185,7 @@ def dx_dt(
     # Compute the joint torques to actuate
     tau = ode_input.physics_model.tau + tau_friction + tau_limit
 
+    # Compute forward dynamics with the ABA algorithm
     W_a_WB, qdd = algos.aba.aba(
         model=physics_model,
         xfb=ode_state.physics_model.xfb(),
@@ -198,11 +232,15 @@ def dx_dt(
     # =====================================
 
     def fix_one_dof(vector: jtp.Vector) -> Optional[jtp.Vector]:
+        """Fix the shape of computed quantities for models with just 1 DoF."""
+
         if vector is None:
             return None
 
         return jnp.array([vector]) if vector.shape == () else vector
 
+    # Fill the PhysicsModelState object included in the input ODEState to store the
+    # returned PhysicsModelState derivative
     physics_model_state_derivative = ode_state.physics_model.replace(
         joint_positions=fix_one_dof(ode_state.physics_model.joint_velocities.squeeze()),
         joint_velocities=fix_one_dof(qdd.squeeze()),
@@ -212,12 +250,14 @@ def dx_dt(
         base_linear_velocity=xd_fb.squeeze()[7:10],
     )
 
+    # Fill the SoftContactsState object included in the input ODEState to store the
+    # returned SoftContactsState derivative
     soft_contacts_state_derivative = ode_state.soft_contacts.replace(
         tangential_deformation=tangential_deformation_dot.squeeze(),
     )
 
     # We store the state derivative using the ODEState class so that the pytree
-    # structure remains consistent, and it allows using our generic pytree integrators
+    # structure remains consistent, allowing to use our generic pytree integrators
     state_derivative = ode_data.ODEState(
         physics_model=physics_model_state_derivative,
         soft_contacts=soft_contacts_state_derivative,

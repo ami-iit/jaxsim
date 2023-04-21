@@ -14,6 +14,10 @@ from .common import VelRepr
 
 @jax_dataclasses.pytree_dataclass
 class Link(JaxsimDataclass):
+    """
+    High-level class to operate on a single link of a simulated model.
+    """
+
     link_description: descriptions.LinkDescription = jax_dataclasses.static_field()
     parent_model: "jaxsim.high_level.model.Model" = jax_dataclasses.field(
         default=None, repr=False, compare=False

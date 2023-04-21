@@ -13,7 +13,7 @@ import jaxsim.typing as jtp
 from jaxsim.parsers.descriptions import JointDescriptor, JointType
 from jaxsim.physics import default_gravity
 from jaxsim.sixd import se3
-from jaxsim.utils import JaxsimDataclass, tracing
+from jaxsim.utils import JaxsimDataclass, not_tracing
 
 from .ground_contact import GroundContact
 from .physics_model_state import PhysicsModelState
@@ -60,7 +60,7 @@ class PhysicsModel(JaxsimDataclass):
     def build_from(
         model_description: jaxsim.parsers.descriptions.model.ModelDescription,
         gravity: jtp.Vector = default_gravity(),
-    ):
+    ) -> "PhysicsModel":
 
         if gravity.size != 3:
             raise ValueError(gravity.size)
@@ -179,7 +179,7 @@ class PhysicsModel(JaxsimDataclass):
             gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
             gc=GroundContact.build_from(model_description=model_description),
-            description=(model_description),
+            description=model_description,
         )
 
         # Floating-base models
@@ -277,8 +277,9 @@ class PhysicsModel(JaxsimDataclass):
 
         from jaxsim.math.joint import jcalc
 
-        if not tracing(q) and q.shape[0] != self.dofs():
-            raise ValueError(q.shape)
+        if not_tracing(q):
+            if q.shape[0] != self.dofs():
+                raise ValueError(q.shape)
 
         Xj = jnp.stack(
             [jnp.zeros(shape=(6, 6))]
@@ -294,8 +295,9 @@ class PhysicsModel(JaxsimDataclass):
 
         from jaxsim.math.joint import jcalc
 
-        if not tracing(q) and q.shape[0] != self.dofs():
-            raise ValueError(q.shape)
+        if not_tracing(var=q):
+            if q.shape[0] != self.dofs():
+                raise ValueError(q.shape)
 
         SS = jnp.stack(
             [jnp.vstack(jnp.zeros(6))]

@@ -49,7 +49,7 @@ def forward_kinematics_model(
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
-        W_X_i_i = W_X_i[λ[i]] @ jnp.linalg.inv(i_X_λi[i])
+        W_X_i_i = W_X_i[λ[i]] @ Adjoint.inverse(i_X_λi[i])
         W_X_i = W_X_i.at[i].set(W_X_i_i)
 
         return (i_X_λi, W_X_i), None

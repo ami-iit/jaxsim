@@ -23,8 +23,8 @@ def compute_contact_forces(
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]:
 
-    # Compute position and linear velocity (inertial representation)
-    # of all model's collidable points
+    # Compute position and linear mixed velocity of all model's collidable points
+    # collidable_points_kinematics
     pos_cp, vel_cp = collidable_points_pos_vel(
         model=physics_model,
         q=ode_state.physics_model.joint_positions,
@@ -109,35 +109,43 @@ def dx_dt(
     # Joint position limits
     # =====================
 
-    # Get the joint position limits
-    s_min, s_max = jnp.array(
-        [j.position_limit for j in physics_model.description.joints_dict.values()]
-    ).T
+    if physics_model.dofs() > 0:
 
-    # Get the spring/damper parameters of joint limits enforcement
-    # k_spring = jnp.array(list(physics_model._joint_limit_spring.values()))
-    k_damper = jnp.array(list(physics_model._joint_limit_damper.values()))
+        # Get the joint position limits
+        s_min, s_max = jnp.array(
+            [j.position_limit for j in physics_model.description.joints_dict.values()]
+        ).T
 
-    # Compute the joint torques that enforce joint limits
-    s = ode_state.physics_model.joint_positions
-    # sd = ode_state.physics_model.joint_velocities
-    tau_min = jnp.where(s <= s_min, k_damper * (s_min - s), 0)
-    tau_max = jnp.where(s >= s_max, k_damper * (s_max - s), 0)
-    tau_limit = tau_max + tau_min
+        # Get the spring/damper parameters of joint limits enforcement
+        k_damper = jnp.array(list(physics_model._joint_limit_damper.values()))
+
+        # Compute the joint torques that enforce joint limits
+        s = ode_state.physics_model.joint_positions
+        tau_min = jnp.where(s <= s_min, k_damper * (s_min - s), 0)
+        tau_max = jnp.where(s >= s_max, k_damper * (s_max - s), 0)
+        tau_limit = tau_max + tau_min
+
+    else:
+        tau_limit = jnp.zeros_like(ode_input.physics_model.tau)
 
     # ==============
     # Joint friction
     # ==============
 
-    # Static and viscous joint friction parameters
-    kc = jnp.array(list(physics_model._joint_friction_static.values()))
-    kv = jnp.array(list(physics_model._joint_friction_viscous.values()))
+    if physics_model.dofs() > 0:
 
-    # Compute the joint friction torque
-    tau_friction = -(
-        jnp.diag(kc) @ jnp.sign(ode_state.physics_model.joint_positions)
-        + jnp.diag(kv) @ ode_state.physics_model.joint_velocities
-    )
+        # Static and viscous joint friction parameters
+        kc = jnp.array(list(physics_model._joint_friction_static.values()))
+        kv = jnp.array(list(physics_model._joint_friction_viscous.values()))
+
+        # Compute the joint friction torque
+        tau_friction = -(
+            jnp.diag(kc) @ jnp.sign(ode_state.physics_model.joint_positions)
+            + jnp.diag(kv) @ ode_state.physics_model.joint_velocities
+        )
+
+    else:
+        tau_friction = jnp.zeros_like(ode_input.physics_model.tau)
 
     # ========================
     # Compute forward dynamics
@@ -241,6 +249,7 @@ def dx_dt(
         model_acceleration=W_nud_WB,
         ode_input=ode_input,
         ode_input_real=ode_input_real,
+        contact_forces_links=contact_forces_links,
         contact_forces_points=contact_forces_points,
         tangential_deformation_dot=tangential_deformation_dot,
     )

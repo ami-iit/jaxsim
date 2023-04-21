@@ -73,3 +73,16 @@ class Adjoint:
         )
 
         return H
+
+    @staticmethod
+    def inverse(adjoint: jtp.Matrix) -> jtp.Matrix:
+
+        A_X_B = adjoint
+        A_H_B = Adjoint.to_transform(adjoint=A_X_B)
+
+        A_R_B = A_H_B[0:3, 0:3]
+        A_o_B = A_H_B[0:3, 3]
+
+        return Adjoint.from_rotation_and_translation(
+            rotation=A_R_B, translation=A_o_B, inverse=True
+        )

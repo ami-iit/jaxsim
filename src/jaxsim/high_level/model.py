@@ -1,6 +1,6 @@
 import dataclasses
 import pathlib
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Any
 
 import jax.experimental.ode
 import jax.numpy as jnp
@@ -75,6 +75,7 @@ class StepData(JaxsimDataclass):
         dataclasses.field(repr=False)
     )
 
+    aux: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 @jax_dataclasses.pytree_dataclass
 class Model(JaxsimDataclass):
@@ -760,6 +761,9 @@ class Model(JaxsimDataclass):
         if positions.size != len(joint_names):
             raise ValueError("Wrong arguments size", positions.size, len(joint_names))
 
+        if positions.size == 0:
+            return
+
         # TODO: joint position limits
 
         self.data.model_state.joint_positions = (
@@ -777,6 +781,9 @@ class Model(JaxsimDataclass):
 
         if velocities.size != len(joint_names):
             raise ValueError("Wrong arguments size", velocities.size, len(joint_names))
+
+        if velocities.size == 0:
+            return
 
         # TODO: joint velocity limits
 
@@ -945,6 +952,16 @@ class Model(JaxsimDataclass):
             t0_joint_acceleration=t0_model_acceleration[6:],
             tf_model_state=tf_model_state,
             tf_contact_state=tf_contact_state,
+            aux={
+                "t0": jax.tree_util.tree_map(
+                    lambda l: l[0],
+                    aux,
+                ),
+                "tf": jax.tree_util.tree_map(
+                    lambda l: l[-1],
+                    aux,
+                ),
+            },
         )
 
     # ===============

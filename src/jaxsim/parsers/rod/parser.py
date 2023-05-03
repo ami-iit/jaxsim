@@ -64,6 +64,10 @@ def extract_model_data(
     # Log model name
     logging.debug(msg=f"Found model '{sdf_model.name}' in SDF resource")
 
+    # Jaxsim supports only models compatible with URDF, i.e. those having all links
+    # directly attached to their parent joint without additional roto-translations.
+    sdf_model.switch_frame_convention(frame_convention=rod.FrameConvention.Urdf)
+
     # Log type of base link
     logging.debug(
         msg="Model '{}' is {}".format(

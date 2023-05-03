@@ -10,6 +10,16 @@ from jaxsim.parsers import descriptions
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
+    """
+    Extract the 6D inertia matrix from an SDF inertial element.
+
+    Args:
+        inertial: The SDF inertial element.
+
+    Returns:
+        The 6D inertia matrix of the link expressed in the link frame.
+    """
+
     from jaxsim.math.inertia import Inertia
     from jaxsim.sixd import se3
 
@@ -36,7 +46,7 @@ def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
     )
 
     # Build the 6x6 generalized inertia at the CoM
-    I_generalized = Inertia.to_sixd(mass=m, com=np.zeros(3), I=I_CoM)
+    M_CoM = Inertia.to_sixd(mass=m, com=np.zeros(3), I=I_CoM)
 
     # Compute the transform from the inertial frame (CoM) to the link frame
     L_H_CoM = inertial.pose.transform() if inertial.pose is not None else np.eye(4)
@@ -45,15 +55,26 @@ def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
     CoM_H_L = se3.SE3.from_matrix(matrix=L_H_CoM).inverse()
     CoM_X_L: npt.NDArray = CoM_H_L.adjoint()
 
-    # Express the CoM inertia matrix in the link frame
-    I_expressed_in_link_frame = CoM_X_L.T @ I_generalized @ CoM_X_L
+    # Express the CoM inertia matrix in the link frame L
+    M_L = CoM_X_L.T @ M_CoM @ CoM_X_L
 
-    return jnp.array(I_expressed_in_link_frame)
+    return jnp.array(M_L)
 
 
 def axis_to_jtype(
     axis: rod.Axis, type: str
 ) -> Union[descriptions.JointType, descriptions.JointDescriptor]:
+    """
+    Convert an SDF axis to a joint type.
+
+    Args:
+        axis: The SDF axis.
+        type: The SDF joint type.
+
+    Returns:
+        The corresponding joint type description.
+    """
+
     if type == "fixed":
         return descriptions.JointType.F
 
@@ -96,6 +117,17 @@ def axis_to_jtype(
 def create_box_collision(
     collision: rod.Collision, link_description: descriptions.LinkDescription
 ) -> descriptions.BoxCollision:
+    """
+    Create a box collision from an SDF collision element.
+
+    Args:
+        collision: The SDF collision element.
+        link_description: The link description.
+
+    Returns:
+        The box collision description.
+    """
+
     x, y, z = collision.geometry.box.size
 
     center = np.array([x / 2, y / 2, z / 2])
@@ -140,6 +172,17 @@ def create_box_collision(
 def create_sphere_collision(
     collision: rod.Collision, link_description: descriptions.LinkDescription
 ) -> descriptions.SphereCollision:
+    """
+    Create a sphere collision from an SDF collision element.
+
+    Args:
+        collision: The SDF collision element.
+        link_description: The link description.
+
+    Returns:
+        The sphere collision description.
+    """
+
     # From https://stackoverflow.com/a/26127012
     def fibonacci_sphere(samples: int) -> npt.NDArray:
         points = []

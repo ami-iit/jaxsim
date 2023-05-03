@@ -1,6 +1,5 @@
 import dataclasses
 import pathlib
-from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Union
 
 import jax.numpy as jnp
@@ -15,6 +14,10 @@ from . import utils as utils
 
 
 class SDFData(NamedTuple):
+    """
+    Data extracted from an SDF resource useful to build a JaxSim model.
+    """
+
     model_name: str
 
     fixed_base: bool

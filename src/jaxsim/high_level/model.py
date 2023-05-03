@@ -1,6 +1,6 @@
 import dataclasses
 import pathlib
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import jax.experimental.ode
 import jax.numpy as jnp
@@ -15,7 +15,7 @@ import jaxsim.physics.algos.rnea
 import jaxsim.physics.model.physics_model
 import jaxsim.physics.model.physics_model_state
 import jaxsim.typing as jtp
-from jaxsim import high_level, physics, sixd
+from jaxsim import high_level, logging, physics, sixd
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.simulation import ode_data, ode_integration
@@ -122,20 +122,37 @@ class Model(JaxsimDataclass):
     # ========================
 
     @staticmethod
-    def build_from_sdf(
-        sdf: Union[str, pathlib.Path],
-        model_name: str = None,
+    def build_from_model_description(
+        model_description: Union[str, pathlib.Path],
+        model_name: Optional[str] = None,
         vel_repr: VelRepr = VelRepr.Mixed,
         gravity: jtp.Array = jaxsim.physics.default_gravity(),
-        is_urdf: bool = False,
-        considered_joints: List[str] = None,
+        is_urdf: Optional[bool] = None,
+        considered_joints: Optional[List[str]] = None,
     ) -> "Model":
-        import jaxsim.parsers.sdf
+        """
+        Build a Model object from a model description.
 
-        if is_urdf:
-            raise ValueError("Converting URDF to SDF is not yet supported")
+        Args:
+            model_description: Either a path to a file or a string containing the URDF/SDF description.
+            model_name: The optional name of the model that overrides the one in the description.
+            vel_repr: The velocity representation to use.
+            gravity: The 3D gravity vector.
+            is_urdf: Whether the model description is a URDF or an SDF. This is
+                automatically inferred if the model description is a path to a file.
+            considered_joints: The list of joints to consider. If None, all joints are considered.
 
-        model_description = jaxsim.parsers.sdf.build_model_from_sdf(sdf=sdf)
+        Returns:
+            The built Model object.
+        """
+
+        import jaxsim.parsers.rod
+
+        # Parse the input resource (either a path to file or a string with the URDF/SDF)
+        # and build the -intermediate- model description
+        model_description = jaxsim.parsers.rod.build_model_description(
+            model_description=model_description, is_urdf=is_urdf
+        )
 
         if considered_joints is not None:
             model_description = model_description.reduce(
@@ -153,11 +170,51 @@ class Model(JaxsimDataclass):
         )
 
     @staticmethod
+    def build_from_sdf(
+        sdf: Union[str, pathlib.Path],
+        model_name: Optional[str] = None,
+        vel_repr: VelRepr = VelRepr.Mixed,
+        gravity: jtp.Array = jaxsim.physics.default_gravity(),
+        is_urdf: Optional[bool] = None,
+        considered_joints: Optional[List[str]] = None,
+    ) -> "Model":
+        """
+        Build a Model object from an SDF description.
+        This is a deprecated method, use build_from_model_description instead.
+        """
+
+        msg = "Model.{} is deprecated, use Model.{} instead."
+        logging.warning(
+            msg=msg.format("build_from_sdf", "build_from_model_description")
+        )
+
+        return Model.build_from_model_description(
+            model_description=sdf,
+            model_name=model_name,
+            vel_repr=vel_repr,
+            gravity=gravity,
+            is_urdf=is_urdf,
+            considered_joints=considered_joints,
+        )
+
+    @staticmethod
     def build(
         physics_model: jaxsim.physics.model.physics_model.PhysicsModel,
-        model_name: str = None,
+        model_name: Optional[str] = None,
         vel_repr: VelRepr = VelRepr.Mixed,
     ) -> "Model":
+        """
+        Build a Model object from a physics model.
+
+        Args:
+            physics_model: The physics model.
+            model_name: The optional name of the model that overrides the one in the physics model.
+            vel_repr: The velocity representation to use.
+
+        Returns:
+            The built Model object.
+        """
+
         model_name = (
             model_name if model_name is not None else physics_model.description.name
         )

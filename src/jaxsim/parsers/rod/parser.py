@@ -28,11 +28,26 @@ class SDFData(NamedTuple):
     model_pose: kinematic_graph.RootPose = kinematic_graph.RootPose()
 
 
-def extract_data_from_sdf(
-    sdf: Union[pathlib.Path, str], model_name: Optional[str] = None
+def extract_model_data(
+    model_description: Union[pathlib.Path, str],
+    model_name: Optional[str] = None,
+    is_urdf: Optional[bool] = None,
 ) -> SDFData:
+    """
+    Extract data from an SDF/URDF resource useful to build a JaxSim model.
+
+    Args:
+        model_description: Either a path to an SDF/URDF file or a string containing its content.
+        model_name: The name of the model to extract from the SDF resource.
+        is_urdf: Whether the SDF resource is a URDF file. Needed only if model_description
+            is a URDF string.
+
+    Returns:
+        The extracted model data.
+    """
+
     # Parse the SDF resource
-    sdf_element = rod.Sdf.load(sdf=sdf)
+    sdf_element = rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
 
     if len(sdf_element.models()) == 0:
         raise RuntimeError("Failed to find any model in SDF resource")
@@ -275,9 +290,24 @@ def extract_data_from_sdf(
     )
 
 
-def build_model_from_sdf(sdf: Union[Path, str]) -> descriptions.ModelDescription:
-    # Parse data from the SDF
-    sdf_data = extract_data_from_sdf(sdf=sdf)
+def build_model_description(
+    model_description: Union[pathlib.Path, str], is_urdf: Optional[bool] = False
+) -> descriptions.ModelDescription:
+    """
+    Builds a model description from an SDF/URDF resource.
+
+    Args:
+        model_description: Either a path to an SDF/URDF file or a string containing its content.
+        is_urdf: Whether the SDF resource is a URDF file. Needed only if model_description
+            is a URDF string.
+    Returns:
+        The parsed model description.
+    """
+
+    # Parse data from the SDF assuming it contains a single model
+    sdf_data = extract_model_data(
+        model_description=model_description, model_name=None, is_urdf=is_urdf
+    )
 
     # Build the model description.
     # Note: if the model is fixed-base, the fixed joint between world and the first

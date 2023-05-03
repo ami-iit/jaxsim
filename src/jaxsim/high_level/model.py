@@ -154,15 +154,19 @@ class Model(JaxsimDataclass):
             model_description=model_description, is_urdf=is_urdf
         )
 
+        # Lump links together if not all joints are considered.
+        # Note: this procedure assigns a zero position to all joints not considered.
         if considered_joints is not None:
             model_description = model_description.reduce(
                 considered_joints=considered_joints
             )
 
+        # Create the physics model from the model description
         physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
             model_description=model_description, gravity=gravity
         )
 
+        # Build and return the high-level model
         return Model.build(
             physics_model=physics_model,
             model_name=model_name,
@@ -215,10 +219,12 @@ class Model(JaxsimDataclass):
             The built Model object.
         """
 
+        # Set the model name (if not provided, use the one from the model description)
         model_name = (
             model_name if model_name is not None else physics_model.description.name
         )
 
+        # Sort all the joints by their index
         sorted_links = {
             l.name: high_level.link.Link(link_description=l)
             for l in sorted(
@@ -226,6 +232,7 @@ class Model(JaxsimDataclass):
             )
         }
 
+        # Sort all the joints by their index
         sorted_joints = {
             j.name: high_level.joint.Joint(joint_description=j)
             for j in sorted(
@@ -234,6 +241,7 @@ class Model(JaxsimDataclass):
             )
         }
 
+        # Build the high-level model
         model = Model(
             physics_model=physics_model,
             model_name=model_name,
@@ -242,15 +250,20 @@ class Model(JaxsimDataclass):
             _joints=sorted_joints,
         )
 
+        # Zero the model data
         with model.editable(validate=False) as model:
             model.zero()
 
+        # Check model validity
         if not model.valid():
             raise RuntimeError
 
+        # Return the high-level model
         return model
 
     def __post_init__(self):
+        """Post-init logic. Use the static methods to build high-level models."""
+
         original_mutability = self._mutability()
         self._set_mutability(Mutability.MUTABLE_NO_VALIDATION)
 
@@ -271,21 +284,32 @@ class Model(JaxsimDataclass):
         self._set_mutability(original_mutability)
 
     def reduce(self, considered_joints: List[str]) -> None:
+        """
+        Reduce the model by lumping together the links connected by removed joints.
+
+        Args:
+            considered_joints: The list of joints to consider.
+        """
+
+        # Reduce the model description
         reduced_model_description = self.physics_model.description.reduce(
             considered_joints=considered_joints
         )
 
+        # Create the physics model from the reduced model description
         physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
             model_description=reduced_model_description,
             gravity=self.physics_model.gravity[0:3],
         )
 
+        # Build the reduced high-level model
         reduced_model = Model.build(
             physics_model=physics_model,
             model_name=self.name(),
             vel_repr=self.velocity_representation,
         )
 
+        # Replace the current model with the reduced one
         original_mutability = self._mutability()
         self._set_mutability(mutability=self._mutability().MUTABLE_NO_VALIDATION)
         self.physics_model = reduced_model.physics_model

@@ -12,6 +12,7 @@ import jaxsim.parsers.descriptions as descriptions
 import jaxsim.physics
 import jaxsim.simulation.simulator_callbacks as scb
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.high_level.common import VelRepr
 from jaxsim.high_level.model import Model, StepData
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
@@ -218,19 +219,18 @@ class JaxSim(JaxsimDataclass):
 
         self._set_mutability(self._mutability())
 
-    def insert_model_from_sdf(
+    def insert_model_from_description(
         self,
-        sdf: Union[pathlib.Path, str],
-        model_name: str = None,
-        considered_joints: List[str] = None,
+        model_description: Union[pathlib.Path, str],
+        model_name: Optional[str] = None,
+        considered_joints: Optional[List[str]] = None,
     ) -> Model:
         """
-        Insert a model from an SDF resource.
+        Insert a model from a model description.
 
         Args:
-            sdf: The SDF resource.
-            model_name: Optional name of the model to insert.
-                        It defaults to the name of the model found in the SDF resource.
+            model_description: Either a path to a file or a string containing the URDF/SDF description.
+            model_name: The optional name of the model that overrides the one in the description.
             considered_joints: Optional list of joints to consider.
                                It is also useful to specify the joint serialization.
 
@@ -238,9 +238,9 @@ class JaxSim(JaxsimDataclass):
             The newly inserted model.
         """
 
-        # Build the model from the input SDF resource
-        model = jaxsim.high_level.model.Model.build_from_sdf(
-            sdf=sdf,
+        # Build the model from the given model description
+        model = jaxsim.high_level.model.Model.build_from_model_description(
+            model_description=model_description,
             model_name=model_name,
             vel_repr=self.velocity_representation,
             considered_joints=considered_joints,
@@ -260,6 +260,27 @@ class JaxSim(JaxsimDataclass):
 
         # Return the newly inserted model
         return self.data.models[model.name()]
+
+    def insert_model_from_sdf(
+        self,
+        sdf: Union[pathlib.Path, str],
+        model_name: str = None,
+        considered_joints: List[str] = None,
+    ) -> Model:
+        """
+        Insert a model from an SDF resource.
+        """
+
+        msg = "JaxSim.{} is deprecated, use JaxSim.{} instead."
+        logging.warning(
+            msg=msg.format("insert_model_from_sdf", "insert_model_from_description")
+        )
+
+        return self.insert_model_from_description(
+            model_description=sdf,
+            model_name=model_name,
+            considered_joints=considered_joints,
+        )
 
     def insert_model(
         self, model_description: descriptions.ModelDescription, model_name: str = None

@@ -142,7 +142,7 @@ def extract_model_data(
             if j.type == "fixed"
             and j.parent == "world"
             and j.child in links_dict.keys()
-            and j.pose.relative_to in {"__model__", None}
+            and j.pose.relative_to in {"__model__", "world", None}
         ]
 
         logging.debug(
@@ -180,7 +180,7 @@ def extract_model_data(
             continue
 
         if j.parent == "world":
-            if j.pose.relative_to in {"__model__", None}:
+            if j.pose.relative_to in {"__model__", "world", None}:
                 continue
 
             raise ValueError("Pose of fixed joint connecting to 'world' link not valid")

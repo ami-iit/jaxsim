@@ -9,6 +9,7 @@ import gymnasium as gym
 import jax.random
 import numpy as np
 import stable_baselines3
+import numpy.typing as npt
 from gymnasium.experimental.vector.vector_env import VectorWrapper
 from sb3_contrib import TRPO
 from stable_baselines3 import PPO
@@ -21,8 +22,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 import jaxsim.typing as jtp
 from jaxgym.envs.ant import AntReachTargetFuncEnvV0
 from jaxgym.envs.cartpole import CartpoleSwingUpFuncEnvV0
-from jaxgym.jax import JaxEnv, PyTree
-from jaxgym.jax.dataclass_func_env import JaxDataclassEnv
+from jaxgym.jax import JaxDataclassEnv, JaxDataclassWrapper, JaxEnv, PyTree
 from jaxgym.vector.jax import FlattenSpacesVecWrapper, JaxVectorEnv
 from jaxgym.wrappers.jax import (  # TimeLimitStableBaselines,
     ClipActionWrapper,
@@ -88,11 +88,14 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
 
         self.actions = np.zeros_like(self.jax_vector_env.action_space.sample())
 
+        # Initialize the RNG seed
+        self._seed = None
+        self.seed()
+
     def reset(self) -> vec_env_sb.base_vec_env.VecEnvObs:
         """"""
 
-        # TODO seed
-        observations, state_infos = self.jax_vector_env.reset()
+        observations, state_infos = self.jax_vector_env.reset(seed=self._seed)
         return np.array(observations)
 
     def step_async(self, actions: np.ndarray) -> None:
@@ -119,7 +122,7 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
             step_infos,
         ) = self.jax_vector_env.step(actions=self.actions)
 
-        done = np.logical_and(terminals, truncated)
+        done = np.logical_or(terminals, truncated)
 
         # list_of_step_infos = [
         #     jax.tree_util.tree_map(lambda l: l[i], step_infos)
@@ -130,10 +133,14 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
             pytree=step_infos, batch_size=self.jax_vector_env.num_envs
         )
 
-        def pytree_to_numpy(pytree: jtp.PyTree) -> jtp.PyTree:
-            return jax.tree_util.tree_map(lambda leaf: np.array(leaf), pytree)
+        # def pytree_to_numpy(pytree: jtp.PyTree) -> jtp.PyTree:
+        #     return jax.tree_util.tree_map(lambda leaf: np.array(leaf), pytree)
+        #
+        # list_of_step_infos_numpy = [pytree_to_numpy(pt) for pt in list_of_step_infos]
 
-        list_of_step_infos_numpy = [pytree_to_numpy(pt) for pt in list_of_step_infos]
+        list_of_step_infos_numpy = [
+            ToNumPyWrapper.pytree_to_numpy(pytree=pt) for pt in list_of_step_infos
+        ]
 
         return (
             np.array(observations),
@@ -177,12 +184,21 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
     def seed(self, seed: Optional[int] = None) -> List[Union[None, int]]:
         """"""
 
-        _ = self.jax_vector_env.reset(seed=seed)
-        return [None]
+        if seed is None:
+            seed = np.random.default_rng().integers(0, 2**32 - 1, dtype="uint32")
+
+        if np.array(seed, dtype="uint32") != np.array(seed):
+            raise ValueError(f"seed must be compatible with 'uint32' casting")
+
+        self._seed = seed
+        return [seed]
+
+        # _ = self.jax_vector_env.reset(seed=seed)
+        # return [None]
 
 
 def make_vec_env_stable_baselines(
-    jax_dataclass_env: JaxDataclassEnv,
+    jax_dataclass_env: JaxDataclassEnv | JaxDataclassWrapper,
     n_envs: int = 1,
     seed: Optional[int] = None,
     # monitor_dir: Optional[str] = None,
@@ -208,6 +224,7 @@ def make_vec_env_stable_baselines(
 
     # Vectorize the environment.
     # Note: it automatically wraps the environment in a TimeLimit wrapper.
+    # Note: the space must be PyTree.
     vec_env = JaxVectorEnv(
         func_env=env,
         num_envs=n_envs,
@@ -217,10 +234,15 @@ def make_vec_env_stable_baselines(
     # Flatten the PyTree spaces to regular Box spaces
     vec_env = FlattenSpacesVecWrapper(env=vec_env)
 
-    if seed is not None:
-        vec_env.reset(seed=seed)
+    # if seed is not None:
+    # _ = vec_env.reset(seed=seed)
 
-    return CustomVecEnvSB(jax_vector_env=vec_env)
+    vec_env_sb = CustomVecEnvSB(jax_vector_env=vec_env)
+
+    if seed is not None:
+        _ = vec_env_sb.seed(seed=seed)
+
+    return vec_env_sb
 
 
 def visualizer(
@@ -312,18 +334,19 @@ def make_jax_env_cartpole(
 
     # TODO: single env -> time limit with stable_baselines?
 
-    import torch
     import os
+
+    import torch
 
     if not torch.cuda.is_available():
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         os.environ["NVIDIA_VISIBLE_DEVICES"] = ""
 
     import warnings
-    warnings.simplefilter(action='ignore', category=FutureWarning)
+
+    warnings.simplefilter(action="ignore", category=FutureWarning)
 
     env = NaNHandlerWrapper(env=CartpoleSwingUpFuncEnvV0())
-    # env = CartpoleSwingUpFuncEnvV0()
 
     if max_episode_steps is not None:
         env = TimeLimit(env=env, max_episode_steps=max_episode_steps)
@@ -351,15 +374,17 @@ def make_jax_env_ant(
 
     # TODO: single env -> time limit with stable_baselines?
 
-    import torch
     import os
+
+    import torch
 
     if not torch.cuda.is_available():
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         os.environ["NVIDIA_VISIBLE_DEVICES"] = ""
 
     import warnings
-    warnings.simplefilter(action='ignore', category=FutureWarning)
+
+    warnings.simplefilter(action="ignore", category=FutureWarning)
 
     env = NaNHandlerWrapper(env=AntReachTargetFuncEnvV0())
 
@@ -380,6 +405,437 @@ def make_jax_env_ant(
         ),
     )
 
+
+# =============================
+# Test JaxVecEnv vs DummyVecEnv
+# =============================
+
+if __name__ == "__main__?":
+    """"""
+
+    max_episode_steps = 200
+    func_env = NaNHandlerWrapper(env=CartpoleSwingUpFuncEnvV0())
+
+    if max_episode_steps is not None:
+        func_env = TimeLimit(env=func_env, max_episode_steps=max_episode_steps)
+
+    func_env = (
+        # ToNumPyWrapper(env=
+        # env=JaxTransformWrapper(
+        #     function=jax.jit,
+        # env=FlattenSpacesWrapper(
+        ClipActionWrapper(
+            env=SquashActionWrapper(env=func_env),
+        )
+        # ),
+        # ),
+        # )
+    )
+
+    vec_env = make_vec_env_stable_baselines(
+        jax_dataclass_env=func_env,
+        n_envs=10,
+        seed=42,
+        vec_env_kwargs=dict(
+            # max_episode_steps=5_000,
+            jit_compile=True,
+        ),
+    )
+
+    # Seed the environment
+    # vec_env.seed(seed=42)
+
+    # Reset the environment.
+    # This has to be done only once since the vectorized environment supports autoreset.
+    observations = vec_env.reset()
+
+    # Initialize a random policy
+    random_policy = lambda obs: vec_env.jax_vector_env.action_space.sample()
+
+    for _ in range(1):
+        # Sample random actions
+        actions = random_policy(observations)
+
+        # Step the environment
+        observations, rewards, dones, step_infos = vec_env.step(actions=actions)
+
+        print(observations, rewards, dones, step_infos)
+        # print()
+        # print(dones)
+
+
+def evaluate(
+    env: gym.Env | Callable[[...], gym.Env],
+    num_episodes: int = 1,
+    seed: int | None = None,
+    render: bool = False,
+    policy: Callable[[npt.NDArray], npt.NDArray] | None = None,
+) -> None:
+    """"""
+
+    # Create the environment if a callable is passed
+    env = env if isinstance(env, gym.Env) else env()
+
+    # Initialize a random policy if none is passed
+    policy = policy if policy is not None else lambda obs: env.action_space.sample()
+
+    episodes_length = []
+    cumulative_rewards = []
+
+    for e in range(num_episodes):
+        # Reset the environment
+        observation, step_info = env.reset(seed=seed)
+
+        # Initialize done flag
+        done = False
+
+        # Render the environment
+        if render:
+            env.render()
+
+        episodes_length += [0]
+        cumulative_rewards += [0]
+
+        # Evaluation loop
+        while not done:
+            # Increase episode length counter
+            episodes_length[-1] += 1
+
+            # Predict the action
+            action = policy(observation)
+
+            # Step the environment
+            observation, reward, terminal, truncated, step_info = env_eval.step(
+                action=action
+            )
+
+            # Determine if the episode is done
+            done = terminal or truncated
+
+            # Store the cumulative reward
+            cumulative_rewards[-1] += reward
+
+            # Render the environment
+            if render:
+                _ = env_eval.render()
+
+    print("ep_len_mean\t", np.array(episodes_length).mean())
+    print("ep_rew_mean\t", np.array(cumulative_rewards).mean())
+
+
+# Train with SB
+if __name__ == "__main__cartpole_cpu_vec_env":
+    """"""
+
+    max_episode_steps = 200
+    func_env = NaNHandlerWrapper(env=CartpoleSwingUpFuncEnvV0())
+
+    if max_episode_steps is not None:
+        func_env = TimeLimit(env=func_env, max_episode_steps=max_episode_steps)
+
+    func_env = ClipActionWrapper(
+        env=SquashActionWrapper(env=func_env),
+    )
+
+    vec_env_sb = make_vec_env_stable_baselines(
+        jax_dataclass_env=func_env,
+        n_envs=10,
+        seed=42,
+        vec_env_kwargs=dict(
+            jit_compile=True,
+        ),
+    )
+
+    import torch as th
+
+    model = PPO(
+        "MlpPolicy",
+        env=vec_env_sb,
+        # n_steps=2048,
+        n_steps=256,  # in the vector env -> real ones are x10
+        batch_size=256,
+        n_epochs=10,
+        gamma=0.95,
+        gae_lambda=0.9,
+        clip_range=0.1,
+        normalize_advantage=True,
+        # target_kl=0.010,
+        target_kl=0.025,
+        verbose=1,
+        learning_rate=0.000_300,
+        policy_kwargs=dict(
+            activation_fn=th.nn.ReLU,
+            net_arch=dict(pi=[512, 512], vf=[512, 512]),
+            log_std_init=np.log(0.05),
+            # squash_output=True,
+        ),
+    )
+
+    print(model.policy)
+
+    # Create the evaluation environment
+    env_eval = make_jax_env_cartpole(
+        render_mode="meshcat_viz",
+        max_episode_steps=500,
+    )
+
+    for _ in range(1):
+        # Train the model
+        model = model.learn(total_timesteps=50_000, progress_bar=False)
+
+        # Create the policy closure
+        policy = lambda observation: model.policy.predict(
+            observation=observation, deterministic=True
+        )[0]
+
+        # Evaluate the policy
+        print("Evaluating...")
+        evaluate(
+            env=env_eval,
+            num_episodes=10,
+            seed=None,
+            render=True,
+            policy=policy,
+        )
+
+# Train with SB
+if __name__ == "__main__cartpole_gpu_vec_env":
+    """"""
+
+    max_episode_steps = 200
+    func_env = NaNHandlerWrapper(env=CartpoleSwingUpFuncEnvV0())
+
+    if max_episode_steps is not None:
+        func_env = TimeLimit(env=func_env, max_episode_steps=max_episode_steps)
+
+    func_env = ClipActionWrapper(
+        env=SquashActionWrapper(env=func_env),
+    )
+
+    vec_env_sb = make_vec_env_stable_baselines(
+        jax_dataclass_env=func_env,
+        # n_envs=10,
+        n_envs=512,
+        # n_envs=2048,  # TODO
+        seed=42,
+        vec_env_kwargs=dict(
+            jit_compile=True,
+        ),
+    )
+
+    import torch as th
+
+    model = PPO(
+        "MlpPolicy",
+        env=vec_env_sb,
+        # n_steps=2048,
+        # n_steps=256,  # in the vector env -> real ones are x10
+        n_steps=5,  # in the vector env -> real ones are x10
+        batch_size=256,
+        # batch_size=512,  # TODO
+        n_epochs=10,
+        gamma=0.95,
+        gae_lambda=0.9,
+        clip_range=0.1,
+        normalize_advantage=True,
+        # target_kl=0.010,
+        target_kl=0.025,
+        verbose=1,
+        learning_rate=0.000_300,
+        policy_kwargs=dict(
+            activation_fn=th.nn.ReLU,
+            net_arch=dict(pi=[512, 512], vf=[512, 512]),
+            log_std_init=np.log(0.05),
+            # squash_output=True,
+        ),
+    )
+
+    print(model.policy)
+
+    # Create the evaluation environment
+    env_eval = make_jax_env_cartpole(
+        render_mode="meshcat_viz",
+        max_episode_steps=200,
+    )
+
+    for _ in range(10):
+        # Train the model
+        model = model.learn(total_timesteps=50_000, progress_bar=False)
+
+        # Create the policy closure
+        policy = lambda observation: model.policy.predict(
+            observation=observation, deterministic=True
+        )[0]
+
+        # Evaluate the policy
+        print("Evaluating...")
+        evaluate(
+            env=env_eval,
+            num_episodes=10,
+            seed=None,
+            render=True,
+            policy=policy,
+        )
+
+    # # Create the policy closure
+    # policy = lambda observation: model.policy.predict(
+    #     observation=observation, deterministic=True
+    # )[0]
+    #
+    # evaluate(
+    #     env=env_eval,
+    #     num_episodes=10,
+    #     seed=None,
+    #     render=True,
+    #     policy=policy,
+    # )
+
+    # =======================
+    # Evaluation environments
+    # =======================
+    #
+    # env_eval = make_jax_env_cartpole(render_mode="meshcat_viz", max_episode_steps=None)
+    #
+    # # observation, step_info = env_eval.reset(seed=42)
+    # observation, step_info = env_eval.reset()
+    #
+    # # Initialize done flag
+    # done = False
+    #
+    # env_eval.render()
+    #
+    # i = 0
+    # cum_reward = 0.0
+    #
+    # while not done:
+    #     i += 1
+    #
+    #     if i == 2000:
+    #         done = True
+    #
+    #     # Sample a random action
+    #     # action = 0.1* random_policy(env, observation)
+    #     action, _ = model.policy.predict(observation=observation, deterministic=False)
+    #
+    #     # Step the environment
+    #     observation, reward, terminal, truncated, step_info = env_eval.step(
+    #         action=action
+    #     )
+    #
+    #     print(reward)
+    #     cum_reward += reward
+    #
+    #     # Render the environment
+    #     _ = env_eval.render()
+    #
+    #     # print(observation, reward, terminal, truncated, step_info)
+    #     # print(env.state)
+    #
+    # print("reward =", cum_reward)
+    # print("episode length =", i)
+    #
+    # env_eval.close()
+
+
+# Train with SB
+if __name__ == "__main__ant_vec_gpu_env":
+    """"""
+
+    max_episode_steps = 1000
+    func_env = NaNHandlerWrapper(env=AntReachTargetFuncEnvV0())
+
+    if max_episode_steps is not None:
+        func_env = TimeLimit(env=func_env, max_episode_steps=max_episode_steps)
+
+    func_env = ClipActionWrapper(
+        env=SquashActionWrapper(env=func_env),
+    )
+
+    vec_env_sb = make_vec_env_stable_baselines(
+        jax_dataclass_env=func_env,
+        # n_envs=10,
+        # n_envs=2048,  # troppo -> JIT lungo
+        # n_envs=100,
+        # n_envs=1024,
+        n_envs=2048,
+        seed=42,
+        vec_env_kwargs=dict(
+            jit_compile=True,
+        ),
+    )
+
+    %time _ = vec_env_sb.reset()
+    %time _ = vec_env_sb.reset()
+    actions = vec_env_sb.jax_vector_env.action_space.sample()
+    %time _ = vec_env_sb.step(actions)
+    %time _ = vec_env_sb.step(actions)
+
+    import torch as th
+
+    # TODO: se ogni reset c'e' 1 sec di sim -> mega lento perche' ci sara' sempre
+    # un env che si sta resettando!
+
+    model = PPO(
+        "MlpPolicy",
+        env=vec_env_sb,
+        # n_steps=2048,
+        # n_steps=512,  # in the vector env -> real ones are x10
+        # n_steps=10,  # in the vector env -> real ones are x10
+        n_steps=2,  # in the vector env -> real ones are x2048
+        # batch_size=256,
+        batch_size=1024,
+        n_epochs=10,
+        gamma=0.95,
+        gae_lambda=0.9,
+        clip_range=0.1,
+        normalize_advantage=True,
+        # target_kl=0.010,
+        target_kl=0.025,
+        verbose=1,
+        learning_rate=0.000_300,
+        policy_kwargs=dict(
+            activation_fn=th.nn.ReLU,
+            net_arch=dict(pi=[2048, 1024], vf=[1024, 1024, 256]),
+            # net_arch=dict(pi=[2048, 2048], vf=[2048, 1024, 512]),
+            log_std_init=np.log(0.05),
+            # squash_output=True,
+        ),
+    )
+
+    print(model.policy)
+
+    # Create the evaluation environment
+    env_eval = make_jax_env_ant(
+        render_mode="meshcat_viz",
+        max_episode_steps=1000,
+    )
+
+    for _ in range(10):
+        # Train the model
+        model = model.learn(total_timesteps=500_000, progress_bar=False)
+
+        # Create the policy closure
+        policy = lambda observation: model.policy.predict(
+            observation=observation, deterministic=True
+        )[0]
+
+        # Evaluate the policy
+        print("Evaluating...")
+        evaluate(
+            env=env_eval,
+            num_episodes=10,
+            seed=None,
+            render=True,
+            policy=policy,
+        )
+
+    # evaluate(
+    #     env=env_eval,
+    #     num_episodes=10,
+    #     seed=None,
+    #     render=True,
+    #     # policy=policy,
+    # )
 
 # =============
 # RANDOM POLICY

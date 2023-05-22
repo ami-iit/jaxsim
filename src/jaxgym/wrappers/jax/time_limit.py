@@ -138,9 +138,15 @@ class TimeLimit(
         )
 
         # Return the extended step info
-        return info | dict(truncated=truncated)
-        # return info | dict(truncated=truncated) | {"TimeLimit.truncated": truncated}
-
+        # return info | dict(truncated=truncated)
+        return (
+            info
+            | dict(truncated=truncated)
+            | {"TimeLimit.truncated": truncated}
+            # the following has to be done in the vecwrapper because other wrappers
+            # might have changed the observation structure:
+            # | dict(terminal_observation=self.observation(state=next_state))
+        )
 
 # @jax.jit
 # def has_field(d) -> bool:

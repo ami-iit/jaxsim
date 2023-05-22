@@ -36,6 +36,9 @@ class AntObservation(JaxsimDataclass):
 
     contact_state: jtp.Array
 
+    distance_from_goal_x: jtp.Float
+    distance_from_goal_y: jtp.Float
+
     @staticmethod
     def build(
         base_height: jtp.Float,
@@ -45,6 +48,8 @@ class AntObservation(JaxsimDataclass):
         base_linear_velocity: jtp.Array,
         base_angular_velocity: jtp.Array,
         contact_state: jtp.Array,
+        distance_from_goal_x: jtp.Float,
+        distance_from_goal_y: jtp.Float,
     ) -> "AntObservation":
         """Build an AntObservation object."""
 
@@ -56,6 +61,8 @@ class AntObservation(JaxsimDataclass):
             base_linear_velocity=jnp.array(base_linear_velocity, dtype=float),
             base_angular_velocity=jnp.array(base_angular_velocity, dtype=float),
             contact_state=jnp.array(contact_state, dtype=bool),
+            distance_from_goal_x=jnp.array(distance_from_goal_x, dtype=float),
+            distance_from_goal_y=jnp.array(distance_from_goal_y, dtype=float),
         )
 
 
@@ -84,6 +91,16 @@ class MeshcatVizRenderState:
         self.world = MeshcatWorld()
         self.world.open()
 
+    def close(self) -> None:
+        """"""
+
+        if self.world is not None:
+            self.world.close()
+
+        if self._gui_process is not None:
+            self._gui_process.terminate()
+            self._gui_process.close()
+
     @staticmethod
     def open_window(web_url: str) -> None:
         """Open a new window with the given web url."""
@@ -107,12 +124,11 @@ class MeshcatVizRenderState:
         self._gui_process.start()
 
 
-StateType = SimulatorData
+StateType = dict[str, SimulatorData | jtp.Array]
 ActType = jnp.ndarray
 ObsType = AntObservation
 RewardType = float | jnp.ndarray
 TerminalType = bool | jnp.ndarray
-# RenderStateType = None
 RenderStateType = MeshcatVizRenderState
 
 
@@ -136,38 +152,47 @@ class AntReachTargetFuncEnvV0(
         # Dummy initialization (not needed here)
         with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             _ = self.jaxsim
+            model = self.jaxsim.get_model(model_name="ant")
 
         # simulator_data = self.initial(rng=jax.random.PRNGKey(seed=0))
         # dofs = simulator_data.models["ant"].dofs()
-        dofs = self.jaxsim.get_model(model_name="ant").dofs()
+        # dofs = model.dofs()
 
         # Create the action space (static attribute)
         with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-            high = jnp.array([50.0] * dofs, dtype=float)
+            high = jnp.array([25.0] * model.dofs(), dtype=float)
             self._action_space = spaces.PyTree(low=-high, high=high)
 
         # Get joint limits
-        s_min, s_max = self.jaxsim.get_model(model_name="ant").joint_limits()
+        s_min, s_max = model.joint_limits()
         s_range = s_max - s_min
 
         low = AntObservation.build(
             base_height=0.25,
             gravity_projection=-jnp.ones(3),
-            joint_positions=s_min - 0.05 * s_range,
-            joint_velocities=-4.0 * jnp.ones_like(s_min),
+            # joint_positions=s_min - 0.10 * s_range,
+            joint_positions=s_min,
+            # joint_velocities=-4.0 * jnp.ones_like(s_min),
+            joint_velocities=-50.0 * jnp.ones_like(s_min),
             base_linear_velocity=-5.0 * jnp.ones(3),
             base_angular_velocity=-10.0 * jnp.ones(3),
             contact_state=jnp.array([False] * 4),
+            distance_from_goal_x=-10.0,
+            distance_from_goal_y=-10.0,
         )
 
         high = AntObservation.build(
             base_height=1.0,
             gravity_projection=jnp.ones(3),
-            joint_positions=s_max + 0.05 * s_range,
-            joint_velocities=4.0 * jnp.ones_like(s_max),
+            # joint_positions=s_max + 0.10 * s_range,
+            joint_positions=s_max,
+            # joint_velocities=4.0 * jnp.ones_like(s_max),
+            joint_velocities=50.0 * jnp.ones_like(s_max),
             base_linear_velocity=5.0 * jnp.ones(3),
             base_angular_velocity=10.0 * jnp.ones(3),
             contact_state=jnp.array([True] * 4),
+            distance_from_goal_x=10.0,
+            distance_from_goal_y=10.0,
         )
 
         # Create the observation space (static attribute)
@@ -187,7 +212,8 @@ class AntReachTargetFuncEnvV0(
         simulator = JaxSim.build(
             # Note: any change of either 'step_size' or 'steps_per_run' requires
             # updating the number of integration steps in the 'transition' method.
-            step_size=0.000_500,
+            # step_size=0.000_500,
+            step_size=0.000_250,
             steps_per_run=1,
             # velocity_representation=VelRepr.Inertial,  # TODO
             velocity_representation=VelRepr.Body,
@@ -236,9 +262,17 @@ class AntReachTargetFuncEnvV0(
     def initial(self, rng: Any = None) -> StateType:
         """"""
 
+        # Split the key
+        subkey1, subkey2 = jax.random.split(rng, num=2)
+
         # Sample an initial observation
         initial_observation: AntObservation = self.observation_space.sample_with_key(
-            key=rng
+            key=subkey1
+        )
+
+        # Sample a goal position
+        goal_xy_position = jax.random.uniform(
+            key=subkey2, minval=-5.0, maxval=5.0, shape=(2,)
         )
 
         with self.jaxsim.editable(validate=False) as simulator:
@@ -277,12 +311,15 @@ class AntReachTargetFuncEnvV0(
 
             # Simulate for 1s so that the model starts from a
             # resting pose on the ground
-            simulator = simulator.step_over_horizon(
-                horizon_steps=2 * 1000, clear_inputs=True
-            )
+            # simulator = simulator.step_over_horizon(
+            #     horizon_steps=2 * 1000, clear_inputs=True
+            # )s
 
         # Return the simulation state
-        return simulator.data
+        return dict(
+            simulator_data=simulator.data,
+            goal=jnp.array(goal_xy_position, dtype=float),
+        )
 
     def transition(
         self, state: StateType, action: ActType, rng: Any = None
@@ -294,7 +331,7 @@ class AntReachTargetFuncEnvV0(
 
         # Initialize the simulator with the environment state (containing SimulatorData)
         with simulator.editable(validate=True) as simulator:
-            simulator.data = state
+            simulator.data = state["simulator_data"]
 
         @jax_dataclasses.pytree_dataclass
         class SetTorquesOverHorizon(simulator_callbacks.PreStepCallback):
@@ -317,7 +354,7 @@ class AntReachTargetFuncEnvV0(
         # )
 
         # number_of_integration_steps = 100  # 0.050
-        number_of_integration_steps = 10  # 0.010
+        number_of_integration_steps = 40  # 0.010  # TODO 20 for having 0.010
 
         # Stepping logic
         with simulator.editable(validate=True) as simulator:
@@ -329,7 +366,7 @@ class AntReachTargetFuncEnvV0(
             )
 
         # Return the new environment state (updated SimulatorData)
-        return simulator.data
+        return state | dict(simulator_data=simulator.data)
 
     def observation(self, state: StateType) -> ObsType:
         """"""
@@ -337,7 +374,7 @@ class AntReachTargetFuncEnvV0(
         # Initialize the simulator with the environment state (containing SimulatorData)
         # and get the simulated model
         with self.jaxsim.editable(validate=True) as simulator:
-            simulator.data = state
+            simulator.data = state["simulator_data"]
             model = simulator.get_model("ant")
 
         # Compute the normalized gravity projection in the body frame
@@ -345,6 +382,12 @@ class AntReachTargetFuncEnvV0(
         # W_gravity = state.simulator.gravity()
         W_gravity = self.jaxsim.gravity()
         B_gravity = W_R_B.T @ (W_gravity / jnp.linalg.norm(W_gravity))
+
+        W_p_B = model.base_position()
+        W_p_goal = jnp.hstack([state["goal"].squeeze(), 0])
+
+        # Compute the distance between the base and the goal in the body frame
+        B_p_distance = W_R_B.T @ (W_p_goal - W_p_B)
 
         # Build the observation from the state
         return AntObservation.build(
@@ -360,7 +403,9 @@ class AntReachTargetFuncEnvV0(
                     for name in model.link_names()
                     if name.startswith("leg_") and name.endswith("_lower")
                 ]
-            )
+            ),
+            distance_from_goal_x=B_p_distance[0],
+            distance_from_goal_y=B_p_distance[1],
             # contact_state=jnp.array(
             #     [
             #         model.get_link(name).in_contact()
@@ -376,32 +421,43 @@ class AntReachTargetFuncEnvV0(
     ) -> RewardType:
         """"""
 
-        with self.jaxsim.editable(validate=True) as simulator_pre:
-            simulator_pre.data = state
-            model_pre = simulator_pre.get_model("ant")
+        # with self.jaxsim.editable(validate=True) as simulator_pre:
+        #     simulator_pre.data = state["simulator_data"]
+        #     model_pre = simulator_pre.get_model("ant")
 
         with self.jaxsim.editable(validate=True) as simulator_next:
-            simulator_next.data = next_state
+            simulator_next.data = next_state["simulator_data"]
             model_next = simulator_next.get_model("ant")
 
-        W_p_B_pre = model_pre.base_position()
-        W_p_B_next = model_next.base_position()
+        # W_p_B_pre = model_pre.base_position()
+        # W_p_B_next = model_next.base_position()
+        # v_WB = (W_p_B_next - W_p_B_pre) / simulator_pre.dt()
 
-        v_WB = (W_p_B_next - W_p_B_pre) / simulator_pre.dt()
         terminal = self.terminal(state=state)
+        obs_in_space = jax.lax.select(
+            pred=self.observation_space.contains(x=self.observation(state=state)),
+            on_true=1.0,
+            on_false=0.0,
+        )
+
+        # Position of the base
+        W_p_B = model_next.base_position()
+        W_p_xy_goal = state["goal"]
 
         reward = 0.0
         reward += 1.0 * (1.0 - jnp.array(terminal, dtype=float))  # alive
-        reward += 100.0 * v_WB[0]  # forward velocity
-        # reward += 1.0 * model_next.in_contact(
-        #     link_names=[
-        #         name
-        #         for name in model_next.link_names()
-        #         if name.startswith("leg_") and name.endswith("_lower")
-        #     ]
-        # ).any().astype(
-        #     float
-        # )  # contact status
+        reward += 5.0 * obs_in_space  #
+        # reward += 100.0 * v_WB[0]  # forward velocity
+        reward -= jnp.linalg.norm(W_p_B[0:2] - W_p_xy_goal)  # distance from goal
+        reward += 1.0 * model_next.in_contact(
+            link_names=[
+                name
+                for name in model_next.link_names()
+                if name.startswith("leg_") and name.endswith("_lower")
+            ]
+        ).any().astype(
+            float
+        )  # contact status
         reward -= 0.1 * jnp.linalg.norm(action) / action.size  # control cost
 
         return reward
@@ -412,11 +468,11 @@ class AntReachTargetFuncEnvV0(
         # Get the current observation
         observation = self.observation(state=state)
 
-        # base_too_high = (
-        #     observation.base_height >= self.observation_space.high.base_height
-        # )
-
-        no_feet_in_contact = jnp.where(observation.contact_state.any(), False, True)
+        base_too_high = (
+            observation.base_height >= self.observation_space.high.base_height
+        )
+        #
+        # no_feet_in_contact = jnp.where(observation.contact_state.any(), False, True)
 
         # The state is terminal if the observation is outside is space
         # return jax.lax.select(
@@ -425,7 +481,8 @@ class AntReachTargetFuncEnvV0(
         #     on_false=True,
         # )
         # return jnp.array([base_too_high, no_feet_in_contact]).any()
-        return no_feet_in_contact
+        # return no_feet_in_contact
+        return base_too_high
 
     # =========
     # Rendering
@@ -441,7 +498,7 @@ class AntReachTargetFuncEnvV0(
         # Initialize the simulator with the environment state (containing SimulatorData)
         # and get the simulated model
         with self.jaxsim.editable(validate=False) as simulator:
-            simulator.data = state
+            simulator.data = state["simulator_data"]
             model = simulator.get_model(model_name=model_name)
 
         # Insert the model lazily in the visualizer if it is not already there
@@ -484,6 +541,7 @@ class AntReachTargetFuncEnvV0(
     def render_init(self, open_gui: bool = False, **kwargs) -> RenderStateType:
         """Initialize the render state."""
 
+        # Initialize the render state
         meshcat_viz_state = MeshcatVizRenderState()
 
         if open_gui:
@@ -494,11 +552,12 @@ class AntReachTargetFuncEnvV0(
     def render_close(self, render_state: RenderStateType) -> None:
         """Close the render state."""
 
-        render_state.world.close()
-
-        if render_state._gui_process is not None:
-            render_state._gui_process.terminate()
-            render_state._gui_process.close()
+        render_state.close()
+        # render_state.world.close()
+        #
+        # if render_state._gui_process is not None:
+        #     render_state._gui_process.terminate()
+        #     render_state._gui_process.close()
 
     # TODO: fare classe generica che dato un JaxSim visualizza tutti i modelli
     # -> vettorizzato?? metterlo dentro JaxSIm? Fare classe nuova in jaxsim?

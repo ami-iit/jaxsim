@@ -5,9 +5,11 @@ import jax.numpy as jnp
 import jax.random
 import jax_dataclasses
 import numpy as np
+import numpy.typing as npt
 
 import jaxgym.jax.pytree_space as spaces
 import jaxsim.typing as jtp
+from jaxgym.envs.ant import MeshcatVizRenderState
 from jaxgym.jax import JaxDataclassEnv, JaxEnv
 from jaxgym.vector.jax import JaxVectorEnv
 from jaxsim import JaxSim
@@ -26,13 +28,29 @@ class CartpoleObservation(JaxsimDataclass):
     pivot_pos: jtp.Float
     pivot_vel: jtp.Float
 
+    @staticmethod
+    def build(
+        linear_pos: jtp.Float,
+        linear_vel: jtp.Float,
+        pivot_pos: jtp.Float,
+        pivot_vel: jtp.Float,
+    ) -> "CartpoleObservation":
+        """"""
+
+        return CartpoleObservation(
+            linear_pos=jnp.array(linear_pos, dtype=float),
+            linear_vel=jnp.array(linear_vel, dtype=float),
+            pivot_pos=jnp.array(pivot_pos, dtype=float),
+            pivot_vel=jnp.array(pivot_vel, dtype=float),
+        )
+
 
 StateType = SimulatorData
 ActType = jnp.ndarray
 ObsType = CartpoleObservation
 RewardType = float | jnp.ndarray
 TerminalType = bool | jnp.ndarray
-RenderStateType = None
+RenderStateType = MeshcatVizRenderState
 
 
 @jax_dataclasses.pytree_dataclass
@@ -65,18 +83,18 @@ class CartpoleSwingUpFuncEnvV0(
                 low=jnp.array(-50.0, dtype=float), high=jnp.array(50.0, dtype=float)
             )
 
-        low = CartpoleObservation(
-            linear_pos=jnp.array(-2.4, dtype=float),
-            linear_vel=jnp.array(-10.0, dtype=float),
-            pivot_pos=jnp.array(-jnp.pi, dtype=float),
-            pivot_vel=jnp.array(-4 * jnp.pi, dtype=float),
+        low = CartpoleObservation.build(
+            linear_pos=-2.4,
+            linear_vel=-10.0,
+            pivot_pos=-jnp.pi,
+            pivot_vel=-4 * jnp.pi,
         )
 
-        high = CartpoleObservation(
-            linear_pos=jnp.array(2.4, dtype=float),
-            linear_vel=jnp.array(10.0, dtype=float),
-            pivot_pos=jnp.array(jnp.pi, dtype=float),
-            pivot_vel=jnp.array(4 * jnp.pi, dtype=float),
+        high = CartpoleObservation.build(
+            linear_pos=2.4,
+            linear_vel=10.0,
+            pivot_pos=jnp.pi,
+            pivot_vel=4 * jnp.pi,
         )
 
         # Create the observation space (static attribute)
@@ -221,7 +239,7 @@ class CartpoleSwingUpFuncEnvV0(
         linear_vel, pivot_vel = model.joint_velocities()
 
         # Build the observation from the state
-        return CartpoleObservation(
+        return CartpoleObservation.build(
             linear_pos=linear_pos,
             linear_vel=linear_vel,
             # Make sure that the pivot position is always in [-π, π]
@@ -273,19 +291,76 @@ class CartpoleSwingUpFuncEnvV0(
     # Rendering
     # =========
 
+    # =========
+    # Rendering
+    # =========
+
     def render_image(
         self, state: StateType, render_state: RenderStateType
-    ) -> tuple[RenderStateType, np.ndarray]:
+    ) -> tuple[RenderStateType, npt.NDArray]:
         """Show the state."""
-        raise NotImplementedError
 
-    def render_init(self, **kwargs) -> RenderStateType:
+        model_name = "cartpole"
+
+        # Initialize the simulator with the environment state (containing SimulatorData)
+        # and get the simulated model
+        with self.jaxsim.editable(validate=False) as simulator:
+            simulator.data = state
+            model = simulator.get_model(model_name=model_name)
+
+        # Insert the model lazily in the visualizer if it is not already there
+        if model_name not in render_state.world._meshcat_models.keys():
+            import rod
+            from rod.urdf.exporter import UrdfExporter
+
+            urdf_string = UrdfExporter.sdf_to_urdf_string(
+                sdf=rod.Sdf(
+                    version="1.7",
+                    model=model.physics_model.description.extra_info["sdf_model"],
+                ),
+                pretty=True,
+                gazebo_preserve_fixed_joints=False,
+            )
+
+            meshcat_viz_name = render_state.world.insert_model(
+                model_description=urdf_string, is_urdf=True, model_name=None
+            )
+
+            render_state._jaxsim_to_meshcat_viz_name[model_name] = meshcat_viz_name
+
+        # Check that the model is in the visualizer
+        if (
+            not render_state._jaxsim_to_meshcat_viz_name[model_name]
+            in render_state.world._meshcat_models.keys()
+        ):
+            raise ValueError(f"The '{model_name}' model is not in the meshcat world")
+
+        # Update the model in the visualizer
+        render_state.world.update_model(
+            model_name=render_state._jaxsim_to_meshcat_viz_name[model_name],
+            joint_names=model.joint_names(),
+            joint_positions=model.joint_positions(),
+            base_position=model.base_position(),
+            base_quaternion=model.base_orientation(dcm=False),
+        )
+
+        return render_state, np.empty(0)
+
+    def render_init(self, open_gui: bool = False, **kwargs) -> RenderStateType:
         """Initialize the render state."""
-        raise NotImplementedError
+
+        # Initialize the render state
+        meshcat_viz_state = MeshcatVizRenderState()
+
+        if open_gui:
+            meshcat_viz_state.open_window_in_process()
+
+        return meshcat_viz_state
 
     def render_close(self, render_state: RenderStateType) -> None:
         """Close the render state."""
-        raise NotImplementedError
+
+        render_state.close()
 
 
 class CartpoleSwingUpEnvV0(JaxEnv):
@@ -384,7 +459,7 @@ if __name__ == "__main__REGISTER":
     vec_env_wrapped = FlattenSpacesVecWrapper(env=vec_env)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__+":
     """"""
 
     # env = CartpoleFunctionalEnvV0()

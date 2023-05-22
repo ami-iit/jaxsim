@@ -45,9 +45,12 @@ class FlattenSpacesVecWrapper(VectorWrapper):
     ):
         """"""
 
-        observation, state_info = self.env.reset(**kwargs)
+        observations, state_infos = self.env.reset(**kwargs)
         # return self.env.observation_space.flatten_pytree(pytree=observation), state_info
-        return self.env.observation_space.flatten_sample(pytree=observation), state_info
+        return (
+            self.env.observation_space.flatten_sample(pytree=observations),
+            state_infos,
+        )
 
     def step(self, actions):
         # ) -> tuple[ObsType, ArrayType, ArrayType, ArrayType, dict]:
@@ -60,6 +63,13 @@ class FlattenSpacesVecWrapper(VectorWrapper):
         if "final_observation" in step_infos:
             step_infos["final_observation"] = self.env.observation_space.flatten_sample(
                 pytree=step_infos["final_observation"]
+            )
+
+        if "terminal_observation" in step_infos:
+            step_infos[
+                "terminal_observation"
+            ] = self.env.observation_space.flatten_sample(
+                pytree=step_infos["terminal_observation"]
             )
 
         return (

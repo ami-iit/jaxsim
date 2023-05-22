@@ -128,7 +128,7 @@ class NaNHandlerWrapper(
         )
 
         # Return the extended step info
-        return info | dict(truncated=truncated)
+        return info | dict(truncated=truncated) | {"TimeLimit.truncated": truncated}
 
     @staticmethod
     def pytree_has_nan_values(pytree: jtp.PyTree) -> jtp.Bool:

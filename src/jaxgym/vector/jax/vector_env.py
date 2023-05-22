@@ -1,4 +1,5 @@
 import copy
+from jaxsim import logging
 from typing import Any, Sequence
 
 import jax.flatten_util
@@ -77,15 +78,37 @@ class JaxVectorEnv(VectorEnv[ObsType, ActType, ArrayType]):
         self.spec = spec
         # self.time_limit = max_episode_steps
 
+        # Store the original functional environment
+        self.func_env_single = func_env
+
+        def has_wrapper(
+            func_env: JaxDataclassEnv | JaxDataclassWrapper,
+            wrapper_cls: type,
+        ) -> bool:
+            """"""
+
+            while not isinstance(func_env, JaxDataclassEnv):
+                if isinstance(func_env, wrapper_cls):
+                    return True
+
+                func_env = func_env.env
+
+            return False
+
         # Always wrap the environment in a TimeLimit wrapper, that automatically counts
         # the number of steps and issues a "truncated" flag.
         # Note: the TimeLimit wrapper is a no-op if max_episode_steps is 0.
         # Note: the state of the wrapped environment now is different. The state of
         #       the original environment is now encapsulated in a dictionary.
         # TODO: make this optional? Check if it is already wrapped?
-        self.func_env_single = TimeLimit(
-            env=self.func_env_single, max_episode_steps=max_episode_steps
-        )
+        # if max_episode_steps is not None:
+        if not has_wrapper(func_env=self.func_env_single, wrapper_cls=TimeLimit):
+            logging.debug(
+                "[JaxVectorEnv] Wrapping the environment in a 'TimeLimit' wrapper"
+            )
+            self.func_env_single = TimeLimit(
+                env=self.func_env_single, max_episode_steps=max_episode_steps
+            )
 
         # Initialize the attribute that will store the environments state
         self.states = None
@@ -112,7 +135,8 @@ class JaxVectorEnv(VectorEnv[ObsType, ActType, ArrayType]):
         # self.func_env = TransformWrapper(env=self.func_env, function=jax.vmap)
         self.func_env = JaxTransformWrapper(env=self.func_env_single, function=jax.vmap)
 
-        # Compile resources in JIT if requested
+        # Compile resources in JIT if requested.
+        # Note: this wrapper will override any other JIT wrapper already present.
         if jit_compile:
             self.step_autoreset_func = jax.jit(self.step_autoreset_func)
             self.func_env = JaxTransformWrapper(env=self.func_env, function=jax.jit)
@@ -266,16 +290,17 @@ class JaxVectorEnv(VectorEnv[ObsType, ActType, ArrayType]):
         step_infos |= (
             dict(
                 final_observation=env.observation(state=next_states),
-                final_info=copy.copy(step_infos),
+                terminal_observation=env.observation(state=next_states),  # sb3
+                final_info=copy.deepcopy(step_infos),
                 _final_observation=dones,
                 _final_info=dones,
                 is_done=dones,
             )
-            # Backward compatibility (?) -> SB3
-            | {
-                "TimeLimit.truncated": truncated,
-                "terminal_observation": env.observation(state=next_states),
-            }
+            # Backward compatibility (?) -> SB3 (TODO: done in TimeLimit)
+            # | {
+            #     "TimeLimit.truncated": truncated,
+            #     "terminal_observation": env.observation(state=next_states),
+            # }
         )
 
         # Compute the new state and new state_infos for all environments.

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--Create with rod using build_cartpole_model.py -->
+<robot name="cartpole">
+  <link name="world"/>
+  <link name="rail">
+    <inertial>
+      <origin xyz="0.0 0.0 1.2" rpy="1.5707963267948963 0.0 0.0"/>
+      <mass value="5.0"/>
+      <inertia ixx="10.416697916666665" ixy="0.0" ixz="0.0" iyy="10.416697916666665" iyz="0.0" izz="6.25e-05"/>
+    </inertial>
+    <visual name="rail_visual">
+      <origin xyz="0.0 0.0 1.2" rpy="1.5707963267948963 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.005" length="5.0"/>
+      </geometry>
+    </visual>
+    <collision name="rail_collision">
+      <origin xyz="0.0 0.0 1.2" rpy="1.5707963267948963 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.005" length="5.0"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="cart">
+    <inertial>
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.0035416666666666674" ixy="0.0" ixz="0.0" iyy="0.0010416666666666669" iyz="0.0" izz="0.0041666666666666675"/>
+    </inertial>
+    <visual name="cart_visual">
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.1 0.2 0.05"/>
+      </geometry>
+    </visual>
+    <collision name="cart_collision">
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.1 0.2 0.05"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="pole">
+    <inertial>
+      <origin xyz="0.0 0.0 0.5" rpy="0.0 0.0 0.0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.008333958333333334" ixy="0.0" ixz="0.0" iyy="0.008333958333333334" iyz="0.0" izz="1.25e-06"/>
+    </inertial>
+    <visual name="pole_visual">
+      <origin xyz="0.0 0.0 0.5" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.005" length="1.0"/>
+      </geometry>
+    </visual>
+    <collision name="pole_collision">
+      <origin xyz="0.0 0.0 0.5" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.005" length="1.0"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_rail" type="fixed">
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    <parent link="world"/>
+    <child link="rail"/>
+  </joint>
+  <joint name="linear" type="prismatic">
+    <origin xyz="0.0 0.0 1.2" rpy="0.0 0.0 0.0"/>
+    <parent link="rail"/>
+    <child link="cart"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="500.0" velocity="10.0" lower="-2.4" upper="2.4"/>
+  </joint>
+  <joint name="pivot" type="revolute">
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    <parent link="cart"/>
+    <child link="pole"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="500.0" velocity="10.0" lower="-3.4028234663852886e+38" upper="3.4028234663852886e+38"/>
+  </joint>
+</robot>

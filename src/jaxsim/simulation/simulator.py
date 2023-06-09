@@ -384,10 +384,7 @@ class JaxSim(JaxsimDataclass):
     def step_over_horizon(
         self,
         horizon_steps: jtp.Int,
-        callback_handler: Union[
-            "scb.SimulatorCallback",
-            "scb.CallbackHandler",
-        ] = None,
+        callback_handler: Union["scb.SimulatorCallback", "scb.CallbackHandler"] = None,
         clear_inputs: jtp.Bool = False,
     ) -> Union["JaxSim", Tuple["JaxSim", Tuple["scb.SimulatorCallback", jtp.PyTree]]]:
         """

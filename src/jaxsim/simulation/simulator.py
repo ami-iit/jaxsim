@@ -31,7 +31,7 @@ class SimulatorData(JaxsimDataclass):
     """
 
     # Simulation time stored in ns in order to prevent floats approximation
-    time_ns: jtp.Int = jnp.array(0, dtype=jnp.int64)
+    time_ns: jtp.Int = jnp.array(0, dtype=jnp.uint64)
 
     # Terrain and contact parameters
     terrain: Terrain = jax_dataclasses.field(default_factory=lambda: FlatTerrain())
@@ -54,7 +54,7 @@ class JaxSim(JaxsimDataclass):
 
     # Step size stored in ns in order to prevent floats approximation
     step_size_ns: jtp.Int = jax_dataclasses.field(
-        default_factory=lambda: jnp.array(1_000_000, dtype=jnp.int64)
+        default_factory=lambda: jnp.array(1_000_000, dtype=jnp.uint64)
     )
 
     # Number of sub-steps performed at each integration step.
@@ -95,7 +95,7 @@ class JaxSim(JaxsimDataclass):
         """
 
         return JaxSim(
-            step_size_ns=jnp.array(step_size * 1e9, dtype=jnp.int64),
+            step_size_ns=jnp.array(step_size * 1e9, dtype=jnp.uint64),
             steps_per_run=int(steps_per_run),
             velocity_representation=velocity_representation,
             integrator_type=integrator_type,
@@ -126,7 +126,7 @@ class JaxSim(JaxsimDataclass):
             step_size: The integration step size in seconds.
         """
 
-        self.step_size_ns = jnp.array(step_size * 1e9, dtype=jnp.int64)
+        self.step_size_ns = jnp.array(step_size * 1e9, dtype=jnp.uint64)
 
     def dt(self) -> jtp.Float:
         """
@@ -348,8 +348,8 @@ class JaxSim(JaxsimDataclass):
         """
 
         # Compute the initial and final time of the integration as integers
-        t0_ns = jnp.array(self.data.time_ns, dtype=jnp.int64)
-        dt_ns = jnp.array(self.step_size_ns * self.steps_per_run, dtype=jnp.int64)
+        t0_ns = jnp.array(self.data.time_ns, dtype=jnp.uint64)
+        dt_ns = jnp.array(self.step_size_ns * self.steps_per_run, dtype=jnp.uint64)
 
         # Compute the final time using integer arithmetics
         tf_ns = t0_ns + dt_ns
@@ -374,6 +374,7 @@ class JaxSim(JaxsimDataclass):
 
             self.data.models[model.name()].data = integrated_model.data
 
+        # Store the final time
         self.data.time_ns += dt_ns
 
         self._set_mutability(self._mutability())

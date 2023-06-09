@@ -241,4 +241,4 @@ class Link(JaxsimDataclass):
         )
 
     def in_contact(self) -> jtp.Bool:
-        return not jnp.allclose(self.external_force(), 0)
+        return self.parent_model.in_contact()[self.index()]

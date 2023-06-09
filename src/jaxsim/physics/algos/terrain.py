@@ -37,6 +37,12 @@ class FlatTerrain(Terrain):
 class PlaneTerrain(Terrain):
     plane_normal: jtp.Vector = jax_dataclasses.field(default=jnp.array([0, 0, 1.0]))
 
+    @staticmethod
+    def build(plane_normal: jtp.Vector) -> "PlaneTerrain":
+        """"""
+
+        return PlaneTerrain(plane_normal=jnp.array(plane_normal, dtype=float))
+
     def height(self, x: float, y: float) -> float:
         a, b, c = self.plane_normal
         return -(a * x + b * x) / c

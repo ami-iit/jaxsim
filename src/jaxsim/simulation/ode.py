@@ -1,14 +1,15 @@
 from typing import Any, Dict, Optional, Tuple
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 
 import jaxsim.typing as jtp
 from jaxsim.physics import algos
 from jaxsim.physics.algos.soft_contacts import (
+    SoftContacts,
     SoftContactsParams,
     collidable_points_pos_vel,
-    soft_contacts_model,
 )
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
@@ -48,14 +49,13 @@ def compute_contact_forces(
     )
 
     # Compute the forces acting on the collidable points due to contact with
-    # the compliant ground surface
-    contact_forces_points, tangential_deformation_dot, _ = soft_contacts_model(
-        positions=pos_cp,
-        velocities=vel_cp,
-        tangential_deformation=ode_state.soft_contacts.tangential_deformation,
-        soft_contacts_params=soft_contacts_params,
-        terrain=terrain,
-    )
+    # the compliant ground surface. Apply vmap to process all points together.
+    contact_forces_points, tangential_deformation_dot = jax.vmap(
+        SoftContacts(parameters=soft_contacts_params, terrain=terrain).contact_model
+    )(pos_cp.T, vel_cp.T, ode_state.soft_contacts.tangential_deformation.T)
+
+    contact_forces_points = contact_forces_points.T
+    tangential_deformation_dot = tangential_deformation_dot.T
 
     # Initialize the contact forces, one per body
     contact_forces_links = jnp.zeros_like(

@@ -1,16 +1,17 @@
-from typing import NamedTuple, Tuple
+import abc
 import dataclasses
+from typing import Tuple
 
 import jax
 import jax.experimental.loops
 import jax.flatten_util
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
 
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
 from jaxsim.math.adjoint import Adjoint
-from jaxsim.math.conv import Convert
 from jaxsim.math.skew import Skew
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
@@ -55,72 +56,128 @@ def collidable_points_pos_vel(
     qd: jtp.Vector,
     xfb: jtp.Vector = None,
 ) -> Tuple[jtp.Matrix, jtp.Matrix]:
+    # Make sure that shape and size are correct
     xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
 
-    Xa = jnp.array([jnp.eye(6)] * (model.NB))
-    vb = jnp.array([jnp.zeros([6, 1])] * (model.NB))
+    # Initialize buffers of link transforms (W_X_i) and 6D inertial velocities (W_v_Wi)
+    W_X_i = jnp.zeros(shape=[model.NB, 6, 6])
+    W_v_Wi = jnp.zeros(shape=[model.NB, 6, 1])
 
     # 6D transform of base velocity
-    Xa_0 = B_X_W = Adjoint.from_quaternion_and_translation(
-        quaternion=xfb[0:4], translation=xfb[4:7], inverse=True
+    W_X_0 = Adjoint.from_quaternion_and_translation(
+        quaternion=xfb[0:4], translation=xfb[4:7], normalize_quaternion=True
     )
-    Xa = Xa.at[0].set(Xa_0)
+    W_X_i = W_X_i.at[0].set(W_X_0)
 
-    vfb = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
-    vb_0 = Xa[0] @ vfb
-    vb = vb.at[0].set(vb_0)
+    # Store the 6D inertial velocity W_v_W0 of the base link
+    W_v_W0 = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
+    W_v_Wi = W_v_Wi.at[0].set(W_v_W0)
 
-    Xtree = model.tree_transforms
+    # Compute useful resources from the model
     S = model.motion_subspaces(q=q)
-    XJ = model.joint_transforms(q=q)
-    parent_link_of = model.parent_array()
 
-    with jax.experimental.loops.Scope() as s:
-        s.Xa = Xa
-        s.vb = vb
+    # Get the 6D transform between the parent link λi and the joint's predecessor frame
+    pre_X_λi = model.tree_transforms
 
-        for i in s.range(1, model.NB):
-            ii = i - 1
+    # Compute the 6D transform of the joints (from predecessor to successor)
+    i_X_pre = model.joint_transforms(q=q)
 
-            Xup = XJ[i] @ Xtree[i]
-            vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
+    # Parent array mapping: i -> λ(i).
+    # Exception: λ(0) must not be used, it's initialized to -1.
+    λ = model.parent_array()
 
-            Xa_i = Xup @ s.Xa[parent_link_of[i]]
-            s.Xa = s.Xa.at[i].set(Xa_i)
+    # ====================
+    # Propagate kinematics
+    # ====================
 
-            vb_i = jnp.vstack(Xup @ s.vb[parent_link_of[i]]) + vJ
-            s.vb = s.vb.at[i].set(vb_i)
+    PropagateTransformsCarry = Tuple[jtp.MatrixJax]
+    propagate_transforms_carry: PropagateTransformsCarry = (W_X_i,)
 
-        Xa = s.Xa
-        vb = s.vb
+    def propagate_transforms(
+        carry: PropagateTransformsCarry, i: jtp.Int
+    ) -> Tuple[PropagateTransformsCarry, None]:
+        # Unpack the carry
+        (W_X_i,) = carry
 
-    def process_collidable_points_of_link_with_index(i: int) -> jtp.VectorJax:
-        X = jnp.linalg.inv(Xa[i])
-        v = X @ vb[i]
+        # We need the inverse transforms (from parent to child direction)
+        pre_Xi_i = Adjoint.inverse(i_X_pre[i])
+        λi_Xi_pre = Adjoint.inverse(pre_X_λi[i])
 
-        pt = Convert.coordinates_tf(X=X, p=model.gc.point)
-        vpt = Convert.velocities_threed(v_6d=v, p=pt)
+        # Compute the parent to child 6D transform
+        λi_X_i = λi_Xi_pre @ pre_Xi_i
 
-        return jnp.vstack([pt, vpt])
+        # Compute the world to child 6D transform
+        W_Xi_i = W_X_i[λ[i]] @ λi_X_i
+        W_X_i = W_X_i.at[i].set(W_Xi_i)
 
-    parallel_processing = jax.vmap(process_collidable_points_of_link_with_index)
-    pos_vel_unpacked = parallel_processing(jnp.array(list(set(model.gc.body))))
+        # Pack and return the carry
+        return (W_X_i,), None
 
-    pos_vel = jnp.sum(
-        jnp.array(
-            [
-                jnp.where(
-                    model.gc.body == i,
-                    pos_vel_unpacked[idx],
-                    jnp.zeros_like(pos_vel_unpacked[0]),
-                )
-                for idx, i in enumerate(set(model.gc.body))
-            ]
-        ),
-        axis=0,
+    (W_X_i,), _ = jax.lax.scan(
+        f=propagate_transforms,
+        init=propagate_transforms_carry,
+        xs=np.arange(start=1, stop=model.NB),
     )
 
-    return pos_vel[0:3, :].squeeze(), pos_vel[3:6, :].squeeze()
+    # ====================
+    # Propagate velocities
+    # ====================
+
+    PropagateVelocitiesCarry = Tuple[jtp.MatrixJax]
+    propagate_velocities_carry: PropagateVelocitiesCarry = (W_v_Wi,)
+
+    def propagate_velocities(
+        carry: PropagateVelocitiesCarry, j_vel_and_j_idx: jtp.VectorJax
+    ) -> Tuple[PropagateVelocitiesCarry, None]:
+        # Unpack the scanned data
+        qd_ii = j_vel_and_j_idx[0]
+        ii = jnp.array(j_vel_and_j_idx[1], dtype=int)
+
+        # Given a joint whose velocity is qd[ii], the index of its parent link is ii + 1
+        i = ii + 1
+
+        # Unpack the carry
+        (W_v_Wi,) = carry
+
+        # Propagate the 6D velocity
+        W_vi_Wi = W_v_Wi[λ[i]] + W_X_i[i] @ (S[i] * qd_ii)
+        W_v_Wi = W_v_Wi.at[i].set(W_vi_Wi)
+
+        # Pack and return the carry
+        return (W_v_Wi,), None
+
+    (W_v_Wi,), _ = jax.lax.scan(
+        f=propagate_velocities,
+        init=propagate_velocities_carry,
+        xs=jnp.vstack([qd, jnp.arange(start=0, stop=qd.size)]).T,
+    )
+
+    # ==================================================
+    # Compute position and velocity of collidable points
+    # ==================================================
+
+    def process_point_kinematics(
+        Li_p_C: jtp.VectorJax, parent_body: jtp.Int
+    ) -> Tuple[jtp.VectorJax, jtp.VectorJax]:
+        # Compute the position of the collidable point
+        W_p_Ci = (
+            Adjoint.to_transform(adjoint=W_X_i[parent_body]) @ jnp.hstack([Li_p_C, 1])
+        )[0:3]
+
+        # Compute the linear part of the mixed velocity Ci[W]_v_{W,Ci}
+        CW_vl_WCi = (
+            jnp.block([jnp.eye(3), -Skew.wedge(vector=W_p_Ci).squeeze()])
+            @ W_v_Wi[parent_body].squeeze()
+        )
+
+        return W_p_Ci, CW_vl_WCi
+
+    # Process all the collidable points in parallel
+    W_p_Ci, CW_v_WC = jax.vmap(process_point_kinematics)(
+        model.gc.point.T, model.gc.body
+    )
+
+    return W_p_Ci.transpose(), CW_v_WC.transpose()
 
 
 @jax_dataclasses.pytree_dataclass
@@ -132,7 +189,9 @@ class SoftContactsParams:
     mu: float = dataclasses.field(default=jnp.array(0.5, dtype=float))
 
     @staticmethod
-    def build(K: float = 1e6, D: float = 2_000, mu: float= 0.5) -> "SoftContactsParams":
+    def build(
+        K: float = 1e6, D: float = 2_000, mu: float = 0.5
+    ) -> "SoftContactsParams":
         """"""
 
         return SoftContactsParams(
@@ -142,141 +201,166 @@ class SoftContactsParams:
         )
 
 
-def soft_contacts_model(
-    positions: jtp.Vector,
-    velocities: jtp.Vector,
-    tangential_deformation: jtp.Vector,
-    soft_contacts_params: SoftContactsParams = SoftContactsParams(),
-    terrain: Terrain = FlatTerrain(),
-) -> Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]:
-    p = jnp.array(positions).squeeze()
-    pd = jnp.array(velocities).squeeze()
-    u = jnp.array(tangential_deformation).squeeze()
+@jax_dataclasses.pytree_dataclass
+class SoftContacts:
+    parameters: SoftContactsParams = dataclasses.field(
+        default_factory=SoftContactsParams
+    )
 
-    K = soft_contacts_params.K
-    D = soft_contacts_params.D
-    mu = soft_contacts_params.mu
+    terrain: Terrain = dataclasses.field(default_factory=FlatTerrain)
 
-    # ========================
-    # Normal force computation
-    # ========================
+    def contact_model(
+        self,
+        position: jtp.Vector,
+        velocity: jtp.Vector,
+        tangential_deformation: jtp.Vector,
+    ) -> Tuple[jtp.Vector, jtp.Vector]:
+        # Short name of parameters
+        K = self.parameters.K
+        D = self.parameters.D
+        μ = self.parameters.mu
 
-    # Compute the terrain height and normal
-    terrain_height = jax.vmap(terrain.height)(p[0, :], p[1, :])
-    terrain_normal = jax.vmap(terrain.normal)(p[0, :], p[1, :])
+        # Material 3D tangential deformation and its derivative
+        m = tangential_deformation.squeeze()
+        ṁ = jnp.zeros_like(m)
 
-    # Boolean map to select points in contact
-    in_contact = jnp.where(p[2, :] <= terrain_height, True, False)
+        # ========================
+        # Normal force computation
+        # ========================
 
-    # Compute the penetration (<0 for contacts) normal to the terrain
-    penetration_vertical = jnp.zeros_like(p).at[2, :].set(p[2, :] - terrain_height)
-    penetration_normal = jax.vmap(jnp.dot)(penetration_vertical.T, terrain_normal).T
+        # Unpack the position of the collidable point
+        px, py, pz = W_p_C = position.squeeze()
+        vx, vy, vz = W_ṗ_C = velocity.squeeze()
 
-    # Compute the penetration depth δ (>0 for contacts) and its velocity δ̇
-    delta = -penetration_normal
-    delta_dot = jax.vmap(jnp.dot)(-pd.T, terrain_normal)
+        # Compute the terrain normal and the contact depth
+        n̂ = self.terrain.normal(x=px, y=py).squeeze()
+        h = jnp.array([0, 0, self.terrain.height(x=px, y=py) - pz])
 
-    # Filter only active contacts
-    delta = jnp.where(in_contact, delta, 0.0)
-    delta_dot = jnp.where(in_contact, delta_dot, 0.0)
-    sqrt_delta = jnp.sqrt(delta)
+        # Compute the penetration depth normal to the terrain
+        δ = jnp.maximum(0.0, jnp.dot(h, n̂))
 
-    # Non-linear spring-damper model.
-    # This is the force magnitude along the direction normal to the terrain.
-    forces_normal_mag = sqrt_delta * (K * delta + D * delta_dot)
+        # Compute the penetration normal velocity
+        δ̇ = -jnp.dot(W_ṗ_C, n̂)
 
-    # Compute the 3D linear force in C[W] frame
-    forces_normal = terrain_normal.T * forces_normal_mag
+        # Non-linear spring-damper model.
+        # This is the force magnitude along the direction normal to the terrain.
+        force_normal_mag = jnp.sqrt(δ) * (K * δ + D * δ̇)
 
-    # ====================================
-    # No friction and no tangential forces
-    # ====================================
+        # Prevent negative normal forces that might occur when δ̇ is largely negative
+        force_normal_mag = jnp.maximum(0.0, force_normal_mag)
 
-    # Compute the adjoint C[W]->W for transforming 6D forces from mixed to inertial.
-    # Note: this is equal to the 6D velocities transform: CW_X_W.transpose().
-    W_Xf_CW = jax.vmap(
-        lambda W_p_C: jnp.block(
+        # Compute the 3D linear force in C[W] frame
+        force_normal = force_normal_mag * n̂
+
+        # ====================================
+        # No friction and no tangential forces
+        # ====================================
+
+        # Compute the adjoint C[W]->W for transforming 6D forces from mixed to inertial.
+        # Note: this is equal to the 6D velocities transform: CW_X_W.transpose().
+        W_Xf_CW = jnp.block(
             [
                 [jnp.eye(3), jnp.zeros(shape=(3, 3))],
                 [Skew.wedge(W_p_C), jnp.eye(3)],
             ]
         )
-    )(p.T)
 
-    def with_no_friction():
-        # Compute 6D mixed forces in C[W]
-        CW_f_lin = forces_normal
-        CW_f = jnp.vstack([CW_f_lin, jnp.zeros_like(CW_f_lin)])
+        def with_no_friction():
+            # Compute 6D mixed force in C[W]
+            CW_f_lin = force_normal
+            CW_f = jnp.hstack([force_normal, jnp.zeros_like(CW_f_lin)])
 
-        # Compute lin-ang 6D forces (inertial representation)
-        W_f = jax.vmap(lambda X, f: X @ f)(W_Xf_CW, CW_f.T).T
+            # Compute lin-ang 6D forces (inertial representation)
+            W_f = W_Xf_CW @ CW_f
 
-        return W_f, jnp.zeros_like(u), jnp.zeros_like(forces_normal[0])
+            return W_f, ṁ
 
-    # =========================
-    # Compute tangential forces
-    # =========================
+        # =========================
+        # Compute tangential forces
+        # =========================
 
-    def with_friction():
-        # Initialize the tangential velocity of the point
-        v_perpendicular = jax.vmap(jnp.dot)(pd.T, terrain_normal) * terrain_normal.T
-        v_tangential = pd - v_perpendicular
-        v_tangential = jnp.where(in_contact, v_tangential, 0.0)
+        def with_friction():
+            # Initialize the tangential deformation rate ṁ.
+            # For inactive contacts with m≠0, this is the dynamics of the material
+            # relaxation converging exponentially to steady state.
+            ṁ = (-K / D) * m
 
-        # Initialize the tangential deformation rate u̇.
-        # For inactive contacts with u≠0, this is the dynamics of the material relaxation.
-        ud = -K / D * u
+            # Check if the collidable point is below ground.
+            # Note: when δ=0, we consider the point still not it contact such that
+            #       we prevent divisions by 0 in the computations below.
+            active_contact = pz < self.terrain.height(x=px, y=py)
 
-        # Assume all contacts are in sticking state
-        # -----------------------------------------
+            def above_terrain():
+                return jnp.zeros(6), ṁ
 
-        # Compute the contact forces
-        f_stick = -K * sqrt_delta * u - D * sqrt_delta * v_tangential
-        f_stick = jnp.where(in_contact, f_stick, 0.0)
+            def below_terrain():
+                # Decompose the velocity in normal and tangential components
+                v_normal = jnp.dot(W_ṗ_C, n̂) * n̂
+                v_tangential = W_ṗ_C - v_normal
 
-        # Use the tangential velocity of the contact points to update u̇
-        ud = jnp.where(in_contact, v_tangential, ud)
+                # Compute the tangential force. If inside the friction cone, the contact
+                f_tangential = -jnp.sqrt(δ) * (K * m + D * v_tangential)
 
-        # Correct forces for contacts in slipping state
-        # ---------------------------------------------
+                def sticking_contact():
+                    # Sum the normal and tangential forces, and create the 6D force
+                    CW_f_stick = force_normal + f_tangential
+                    CW_f = jnp.hstack([CW_f_stick, jnp.zeros(3)])
 
-        # Test for slipping
-        f_cone_boundary = mu * forces_normal_mag
-        f_stick_norm_sq = jnp.power(f_stick, 2).sum(axis=0)
-        slipping = jnp.where(
-            f_stick_norm_sq > jnp.power(f_cone_boundary, 2), True, False
+                    # In this case the 3D material deformation is the tangential velocity
+                    ṁ = v_tangential
+
+                    # Return the 6D force in the contact frame and
+                    # the deformation derivative
+                    return CW_f, ṁ
+
+                def slipping_contact():
+                    # Project the force to the friction cone boundary
+                    f_tangential_projected = (μ * force_normal_mag) * (
+                        f_tangential / jnp.linalg.norm(f_tangential)
+                    )
+
+                    # Sum the normal and tangential forces, and create the 6D force
+                    CW_f_slip = force_normal + f_tangential_projected
+                    CW_f = jnp.hstack([CW_f_slip, jnp.zeros(3)])
+
+                    # Correct the material deformation derivative for slipping contacts.
+                    # Basically we compute ṁ such that we get `f_tangential` on the cone
+                    # given the current (m, δ).
+                    ε = 1e-6
+                    α = -K * jnp.sqrt(δ)
+                    δε = jnp.maximum(δ, ε)
+                    βε = -D * jnp.sqrt(δε)
+                    ṁ = (f_tangential_projected - α * m) / βε
+
+                    # Return the 6D force in the contact frame and
+                    # the deformation derivative
+                    return CW_f, ṁ
+
+                CW_f, ṁ = jax.lax.cond(
+                    pred=jnp.linalg.norm(f_tangential) > μ * force_normal_mag,
+                    true_fun=lambda _: slipping_contact(),
+                    false_fun=lambda _: sticking_contact(),
+                    operand=None,
+                )
+
+                # Express the 6D force in the world frame
+                W_f = W_Xf_CW @ CW_f
+
+                # Return the 6D force in the world frame and the deformation derivative
+                return W_f, ṁ
+
+            # (W_f, ṁ)
+            return jax.lax.cond(
+                pred=active_contact,
+                true_fun=lambda _: below_terrain(),
+                false_fun=lambda _: above_terrain(),
+                operand=None,
+            )
+
+        # (W_f, ṁ)
+        return jax.lax.cond(
+            pred=(μ == 0.0),
+            true_fun=lambda _: with_no_friction(),
+            false_fun=lambda _: with_friction(),
+            operand=None,
         )
-
-        # Project forces outside the friction cone to the cone boundary
-        f_stick_norm_sq_eps = jnp.where(f_stick_norm_sq == 0.0, 1e-6, f_stick_norm_sq)
-        forces_tangential = jnp.where(
-            slipping,
-            f_cone_boundary * (f_stick / jnp.sqrt(f_stick_norm_sq_eps)),
-            f_stick,
-        )
-
-        # Correct u̇ for slipping contacts.
-        # Basically we compute u̇ s.t. we get f_slip on the cone given the current (u, δ).
-        sqrt_delta_eps = jnp.where(sqrt_delta == 0.0, 1e-6, sqrt_delta)
-        ud_slipping = -(forces_tangential + K * sqrt_delta * u) / (D * sqrt_delta_eps)
-        ud = jnp.where(slipping, ud_slipping, ud)
-
-        # Build the output variables
-        # --------------------------
-
-        # Compute 6D mixed forces in C[W]
-        CW_f_lin = forces_normal + forces_tangential
-        CW_f = jnp.vstack([CW_f_lin, jnp.zeros_like(CW_f_lin)])
-
-        # Compute lin-ang 6D forces (inertial representation)
-        W_f = jax.vmap(lambda X, f: X @ f)(W_Xf_CW, CW_f.T).T
-
-        return W_f, ud, jnp.zeros_like(f_cone_boundary)
-
-    # Return the forces according to the friction value
-    return jax.lax.cond(
-        pred=(mu == 0.0),
-        true_fun=lambda _: with_no_friction(),
-        false_fun=lambda _: with_friction(),
-        operand=None,
-    )

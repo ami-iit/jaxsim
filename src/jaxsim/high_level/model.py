@@ -476,6 +476,14 @@ class Model(JaxsimDataclass):
             self._joint_indices(joint_names=joint_names)
         ]
 
+    def joint_generalized_forces_targets(
+        self, joint_names: List[str] = None
+    ) -> jtp.Vector:
+        if self.dofs() == 0 and (joint_names is None or len(joint_names) == 0):
+            return jnp.array([])
+
+        return self.data.model_input.tau[self._joint_indices(joint_names=joint_names)]
+
     def joint_limits(
         self, joint_names: List[str] = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:

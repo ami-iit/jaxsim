@@ -6,7 +6,16 @@ import numpy.typing as npt
 
 # JAX types
 FloatJax = Union[jnp.float16, jnp.float32, jnp.float64]
-IntJax = Union[jnp.int8, jnp.int16, jnp.int32, jnp.int64]
+IntJax = Union[
+    jnp.int8,
+    jnp.int16,
+    jnp.int32,
+    jnp.int64,
+    jnp.uint8,
+    jnp.uint16,
+    jnp.uint32,
+    jnp.uint64,
+]
 ArrayJax = jnp.ndarray
 TensorJax = jnp.ndarray
 VectorJax = ArrayJax

@@ -1,4 +1,5 @@
 from typing import NamedTuple, Tuple
+import dataclasses
 
 import jax
 import jax.experimental.loops
@@ -124,9 +125,21 @@ def collidable_points_pos_vel(
 
 @jax_dataclasses.pytree_dataclass
 class SoftContactsParams:
-    K: float = jnp.array(1e6, dtype=float)
-    D: float = jnp.array(2000, dtype=float)
-    mu: float = jnp.array(0.5, dtype=float)
+    """"""
+
+    K: float = dataclasses.field(default=jnp.array(1e6, dtype=float))
+    D: float = dataclasses.field(default=jnp.array(2000, dtype=float))
+    mu: float = dataclasses.field(default=jnp.array(0.5, dtype=float))
+
+    @staticmethod
+    def build(K: float = 1e6, D: float = 2_000, mu: float= 0.5) -> "SoftContactsParams":
+        """"""
+
+        return SoftContactsParams(
+            K=jnp.array(K, dtype=float),
+            D=jnp.array(D, dtype=float),
+            mu=jnp.array(mu, dtype=float),
+        )
 
 
 def soft_contacts_model(

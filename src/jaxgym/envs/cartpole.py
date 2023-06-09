@@ -12,7 +12,7 @@ import jaxsim.typing as jtp
 from jaxgym.envs.ant import MeshcatVizRenderState
 from jaxgym.jax import JaxDataclassEnv, JaxEnv
 from jaxgym.vector.jax import JaxVectorEnv
-from jaxsim import JaxSim
+from jaxsim import JaxSim, logging
 from jaxsim.simulation.ode_integration import IntegratorType
 from jaxsim.simulation.simulator import SimulatorData, VelRepr
 from jaxsim.utils import JaxsimDataclass, Mutability
@@ -186,6 +186,11 @@ class CartpoleSwingUpFuncEnvV0(
                 ),
                 joint_names=["linear", "pivot"],
             )
+
+            # TODO: reset the joint velocities
+            # logging.error("ZEROOO")
+            # model.reset_joint_positions(positions=jnp.array([0, jnp.deg2rad(180.0)]))
+            # model.reset_joint_velocities(velocities=jnp.array([0, 0.0]))
 
         # Return the simulation state
         return simulator.data
@@ -409,7 +414,7 @@ class CartpoleSwingUpVectorEnvV0(JaxVectorEnv):
     ) -> None:
         """"""
 
-        print("+++", kwargs)
+        # print("+++", kwargs)
 
         env = CartpoleSwingUpFuncEnvV0()
 

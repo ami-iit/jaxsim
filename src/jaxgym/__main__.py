@@ -3,21 +3,25 @@ import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 import functools
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+import pathlib
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import gymnasium as gym
 import jax.random
+import matplotlib.pyplot as plt
+import mujoco
 import numpy as np
-import stable_baselines3
 import numpy.typing as npt
+import stable_baselines3
 from gymnasium.experimental.vector.vector_env import VectorWrapper
 from sb3_contrib import TRPO
+from scipy.spatial.transform import Rotation
 from stable_baselines3 import PPO
 from stable_baselines3.common import vec_env as vec_env_sb
 from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor, VecNormalize
 
 import jaxsim.typing as jtp
 from jaxgym.envs.ant import AntReachTargetFuncEnvV0
@@ -25,6 +29,7 @@ from jaxgym.envs.cartpole import CartpoleSwingUpFuncEnvV0
 from jaxgym.jax import JaxDataclassEnv, JaxDataclassWrapper, JaxEnv, PyTree
 from jaxgym.vector.jax import FlattenSpacesVecWrapper, JaxVectorEnv
 from jaxgym.wrappers.jax import (  # TimeLimitStableBaselines,
+    ActionNoiseWrapper,
     ClipActionWrapper,
     FlattenSpacesWrapper,
     JaxTransformWrapper,
@@ -33,6 +38,160 @@ from jaxgym.wrappers.jax import (  # TimeLimitStableBaselines,
     TimeLimit,
     ToNumPyWrapper,
 )
+
+#
+#
+#
+
+
+class MujocoModel:
+    """"""
+
+    def __init__(self, xml_path: pathlib.Path) -> None:
+        """"""
+
+        if not xml_path.exists():
+            raise FileNotFoundError(f"Could not find file '{xml_path}'")
+
+        self.model = mujoco.MjModel.from_xml_path(filename=str(xml_path), assets=None)
+
+        self.data = mujoco.MjData(self.model)
+
+        # Populate data
+        mujoco.mj_forward(self.model, self.data)
+
+        # print(self.model.opt)
+
+    def time(self) -> float:
+        """"""
+
+        return self.data.time
+
+    def gravity(self) -> npt.NDArray:
+        """"""
+
+        return self.model.opt.gravity
+
+    def number_of_joints(self) -> int:
+        """"""
+
+        return self.model.njnt
+
+    def number_of_geometries(self) -> int:
+        """"""
+
+        return self.model.ngeom
+
+    def number_of_bodies(self) -> int:
+        """"""
+
+        return self.model.nbody
+
+    def joint_names(self) -> List[str]:
+        """"""
+
+        return [
+            mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_JOINT, idx)
+            for idx in range(self.number_of_joints())
+        ]
+
+    def joint_dofs(self, joint_name: str) -> int:
+        """"""
+
+        if joint_name not in self.joint_names():
+            raise ValueError(f"Joint '{joint_name}' not found")
+
+        return self.data.joint(joint_name).qpos.size
+
+    def joint_position(self, joint_name: str) -> npt.NDArray:
+        """"""
+
+        if joint_name not in self.joint_names():
+            raise ValueError(f"Joint '{joint_name}' not found")
+
+        return self.data.joint(joint_name).qpos
+
+    def joint_velocity(self, joint_name: str) -> npt.NDArray:
+        """"""
+
+        if joint_name not in self.joint_names():
+            raise ValueError(f"Joint '{joint_name}' not found")
+
+        return self.data.joint(joint_name).qvel
+
+    def body_names(self) -> List[str]:
+        """"""
+
+        return [
+            mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, idx)
+            for idx in range(self.number_of_bodies())
+        ]
+
+    def body_position(self, body_name: str) -> npt.NDArray:
+        """"""
+
+        if body_name not in self.body_names():
+            raise ValueError(f"Body '{body_name}' not found")
+
+        return self.data.body(body_name).xpos
+
+    def body_orientation(self, body_name: str, dcm: bool = False) -> npt.NDArray:
+        """"""
+
+        if body_name not in self.body_names():
+            raise ValueError(f"Body '{body_name}' not found")
+
+        return (
+            self.data.body(body_name).xmat if dcm else self.data.body(body_name).xquat
+        )
+
+    def geometry_names(self) -> List[str]:
+        """"""
+
+        return [
+            mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, idx)
+            for idx in range(self.number_of_geometries())
+        ]
+
+    def geometry_position(self, geometry_name: str) -> npt.NDArray:
+        """"""
+
+        if geometry_name not in self.geometry_names():
+            raise ValueError(f"Geometry '{geometry_name}' not found")
+
+        return self.data.geom(geometry_name).xpos
+
+    def geometry_orientation(
+        self, geometry_name: str, dcm: bool = False
+    ) -> npt.NDArray:
+        """"""
+
+        if geometry_name not in self.geometry_names():
+            raise ValueError(f"Geometry '{geometry_name}' not found")
+
+        R = np.reshape(self.data.geom(geometry_name).xmat, (3, 3))
+
+        if dcm:
+            return R
+
+        q_xyzw = Rotation.from_matrix(R).as_quat()
+        return q_xyzw[[3, 0, 1, 2]]
+
+    def to_string(self) -> Tuple[str, str]:
+        """Convert a mujoco model to a string."""
+
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w+") as f:
+            mujoco.mj_saveLastXML(f.name, self.model)
+            mjcf_string = pathlib.Path(f.name).read_text()
+
+        with tempfile.NamedTemporaryFile(mode="w+") as f:
+            mujoco.mj_printModel(self.model, f.name)
+            compiled_model_string = pathlib.Path(f.name).read_text()
+
+        return mjcf_string, compiled_model_string
+
 
 # Full cartpole example with collection loop
 #
@@ -61,6 +220,7 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
     def __init__(
         self,
         jax_vector_env: JaxVectorEnv | VectorWrapper,
+        log_rewards: bool = False,
         # num_envs: int,
         # observation_space: spaces.Space,
         # action_space: spaces.Space,
@@ -91,6 +251,9 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
         # Initialize the RNG seed
         self._seed = None
         self.seed()
+
+        # Initialize the rewards logger
+        self.logger_rewards = [] if log_rewards else None
 
     def reset(self) -> vec_env_sb.base_vec_env.VecEnvObs:
         """"""
@@ -142,6 +305,9 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
             ToNumPyWrapper.pytree_to_numpy(pytree=pt) for pt in list_of_step_infos
         ]
 
+        if self.logger_rewards is not None:
+            self.logger_rewards.append(np.array(rewards).mean())
+
         return (
             np.array(observations),
             np.array(rewards),
@@ -179,7 +345,8 @@ class CustomVecEnvSB(vec_env_sb.VecEnv):
         wrapper_class: Type[gym.Wrapper],
         indices: vec_env_sb.base_vec_env.VecEnvIndices = None,
     ) -> List[bool]:
-        raise NotImplementedError
+        return [False] * self.num_envs
+        # raise NotImplementedError
 
     def seed(self, seed: Optional[int] = None) -> List[Union[None, int]]:
         """"""
@@ -237,7 +404,7 @@ def make_vec_env_stable_baselines(
     # if seed is not None:
     # _ = vec_env.reset(seed=seed)
 
-    vec_env_sb = CustomVecEnvSB(jax_vector_env=vec_env)
+    vec_env_sb = CustomVecEnvSB(jax_vector_env=vec_env, log_rewards=True)
 
     if seed is not None:
         _ = vec_env_sb.seed(seed=seed)
@@ -470,6 +637,7 @@ def evaluate(
     seed: int | None = None,
     render: bool = False,
     policy: Callable[[npt.NDArray], npt.NDArray] | None = None,
+    # vec_env_norm: Optional[VecNormalize] = None,
 ) -> None:
     """"""
 
@@ -478,6 +646,9 @@ def evaluate(
 
     # Initialize a random policy if none is passed
     policy = policy if policy is not None else lambda obs: env.action_space.sample()
+
+    # if vec_env_norm is not None and not isinstance(vec_env_norm, VecNormalize):
+    #     raise TypeError(vec_env_norm, VecNormalize)
 
     episodes_length = []
     cumulative_rewards = []
@@ -537,7 +708,7 @@ if __name__ == "__main__cartpole_cpu_vec_env":
         env=SquashActionWrapper(env=func_env),
     )
 
-    vec_env_sb = make_vec_env_stable_baselines(
+    vec_env = make_vec_env_stable_baselines(
         jax_dataclass_env=func_env,
         n_envs=10,
         seed=42,
@@ -550,7 +721,7 @@ if __name__ == "__main__cartpole_cpu_vec_env":
 
     model = PPO(
         "MlpPolicy",
-        env=vec_env_sb,
+        env=vec_env,
         # n_steps=2048,
         n_steps=256,  # in the vector env -> real ones are x10
         batch_size=256,
@@ -609,10 +780,13 @@ if __name__ == "__main__cartpole_gpu_vec_env":
         func_env = TimeLimit(env=func_env, max_episode_steps=max_episode_steps)
 
     func_env = ClipActionWrapper(
-        env=SquashActionWrapper(env=func_env),
+        env=SquashActionWrapper(
+            # env=func_env
+            env=ActionNoiseWrapper(env=func_env)
+        ),
     )
 
-    vec_env_sb = make_vec_env_stable_baselines(
+    vec_env = make_vec_env_stable_baselines(
         jax_dataclass_env=func_env,
         # n_envs=10,
         n_envs=512,
@@ -623,22 +797,51 @@ if __name__ == "__main__cartpole_gpu_vec_env":
         ),
     )
 
+    vec_env = VecMonitor(
+        venv=VecNormalize(
+            venv=vec_env,
+            training=True,
+            norm_obs=True,
+            norm_reward=True,
+            clip_obs=10.0,
+            clip_reward=10.0,
+            gamma=0.95,
+            epsilon=1e-8,
+        )
+    )
+
+    %time _ = vec_env.reset()
+    %time _ = vec_env.reset()
+    actions = vec_env.jax_vector_env.action_space.sample()
+    %time _ = vec_env.step(actions)
+    %time _ = vec_env.step(actions)
+
+    # 0: ok
+    # 1: ok
+    # 2: ok
+    # 3: ok
+    # 4: ok
+    # 5: ok
+    # 6: ok
+    # 7: -> now
+    # 8:
+    # 9:
+    vec_env.venv.venv.logger_rewards = []
+    seed = vec_env.seed(seed=7)[0]
+    _ = vec_env.reset()
+
     import torch as th
 
     model = PPO(
         "MlpPolicy",
-        env=vec_env_sb,
-        # n_steps=2048,
-        # n_steps=256,  # in the vector env -> real ones are x10
-        n_steps=5,  # in the vector env -> real ones are x10
+        env=vec_env,
+        n_steps=5,  # in the vector env -> real ones are x512
         batch_size=256,
-        # batch_size=512,  # TODO
         n_epochs=10,
         gamma=0.95,
         gae_lambda=0.9,
         clip_range=0.1,
         normalize_advantage=True,
-        # target_kl=0.010,
         target_kl=0.025,
         verbose=1,
         learning_rate=0.000_300,
@@ -658,13 +861,54 @@ if __name__ == "__main__cartpole_gpu_vec_env":
         max_episode_steps=200,
     )
 
-    for _ in range(10):
+    # from stable_baselines3.common.
+
+    # rewards = np.zeros((10, 982))  DO NOT EXEC
+    # rewards_7 = np.array(vec_env.venv.venv.logger_rewards)   CHANGE _X
+    # rewards[seed, :] = np.array(vec_env.venv.venv.logger_rewards)
+
+    # rewards = np.vstack([rewards, np.atleast_2d(vec_env.logger_rewards)])
+
+    # plt.plot(
+    #     # np.arange(start=1, stop=len(vec_env.venv.venv.logger_rewards) + 1) * 512,
+    #     # vec_env.venv.venv.logger_rewards,
+    #     np.arange(start=1, stop=len(vec_env.venv.venv.logger_rewards) + 3) * 512,
+    #     rewards.T,
+    #     label=r"$\hat{r}$"
+    # )
+    # # plt.plot(step_data[model_js.name()].tf, joint_positions_mj, label=["d", "theta"])
+    # plt.grid(True)
+    # plt.legend()
+    # plt.xlabel("Time steps")
+    # plt.ylabel("Average reward over 512 environments")
+    # # plt.title("Trajectory of the model's base")
+    # plt.show()
+
+    # import pickle
+    # with open(file=pathlib.Path.home()
+    #     / "git"
+    #     / "jaxsim"
+    #     / "scripts"
+    #     / f"ppo_cartpole_swingup_rewards.pickle", mode="w+b") as f:
+    #     pickle.dump(rewards, f)
+
+    # model.save(
+    #     path=pathlib.Path.home()
+    #     / "git"
+    #     / "jaxsim"
+    #     / "scripts"
+    #     / f"ppo_cartpole_swing_up_seed={seed}.zip"
+    # )
+
+    for _ in range(5):
         # Train the model
         model = model.learn(total_timesteps=50_000, progress_bar=False)
+        # %time model = model.learn(total_timesteps=500_000, progress_bar=False)
 
         # Create the policy closure
         policy = lambda observation: model.policy.predict(
-            observation=observation, deterministic=True
+            # observation=observation, deterministic=True
+            observation=vec_env.normalize_obs(observation), deterministic=True
         )[0]
 
         # Evaluate the policy
@@ -675,20 +919,49 @@ if __name__ == "__main__cartpole_gpu_vec_env":
             seed=None,
             render=True,
             policy=policy,
+            # vec_env_norm=vec_env,
         )
 
-    # # Create the policy closure
-    # policy = lambda observation: model.policy.predict(
-    #     observation=observation, deterministic=True
-    # )[0]
+    # for _ in range(n_steps):
+    #     observation = mj_observation(mujoco_model=m)
+    #     action = model.policy.predict(observation=observation, deterministic=True)[0]
+    #     m.data.ctrl = np.atleast_1d(action)
+    #     mujoco.mj_step(m.model, m.data)
+    #     # mujoco.mj_forward(m.model, m.data)
+
+    # import palettable
+    # # https://jiffyclub.github.io/palettable/cartocolors/diverging/
+    # colors = palettable.cartocolors.diverging.Geyser_5.mpl_colors
     #
-    # evaluate(
-    #     env=env_eval,
-    #     num_episodes=10,
-    #     seed=None,
-    #     render=True,
-    #     policy=policy,
+    # r = rewards.copy()
+    # mean = r.mean(axis=0)
+    # std = r.std(axis=0)
+    # std_up = mean + std/2
+    # std_down = mean - std/2
+    #
+    # fig, ax1 = plt.subplots(1, 1)
+    # ax1.fill_between(
+    #     np.arange(start=1, stop=mean.size + 1) * 512,
+    #     std_down,
+    #     std_up,
+    #     label=r"$\pm \sigma$",
+    #     color=colors[1],
     # )
+    # ax1.plot(
+    #     np.arange(start=1, stop=mean.size + 1) * 512,
+    #     mean,
+    #     color=colors[0],
+    # )
+    # ax1.grid()
+    # # ax1.legend(loc="lower right")
+    # ax1.set_title(r"\textbf{Average reward}")
+    # ax1.set_xlabel("Samples")
+    #
+    # # plt.show()
+    #
+    # import tikzplotlib
+    # tikzplotlib.clean_figure()
+    # print(tikzplotlib.get_tikz_code())
 
     # =======================
     # Evaluation environments
@@ -737,6 +1010,313 @@ if __name__ == "__main__cartpole_gpu_vec_env":
     # env_eval.close()
 
 
+# Comparison with mujoco
+if __name__ == "__main_comparison_mujoco":
+    """"""
+
+    model = PPO.load(
+        path=pathlib.Path.home()
+        / "git"
+        / "jaxsim"
+        / "scripts"
+        / "ppo_cartpole_swing_up_seed=7.zip"
+    )
+
+    # Create the evaluation environment
+    env_eval = make_jax_env_cartpole(
+        render_mode="meshcat_viz",
+        max_episode_steps=250,
+    )
+
+    # =================
+    # Mujoco evaluation
+    # =================
+
+    def mj_observation(mujoco_model: MujocoModel) -> npt.NDArray:
+        """"""
+
+        mujoco.mj_forward(mujoco_model.model, mujoco_model.data)
+
+        pivot_pos = mujoco_model.joint_position(joint_name="pivot")
+        # θ = np.arctan2(np.sin(pivot_pos), np.cos(pivot_pos))
+        θ = pivot_pos
+
+        return np.array(
+            [
+                mujoco_model.joint_position(joint_name="linear"),
+                mujoco_model.joint_velocity(joint_name="linear"),
+                θ,
+                mujoco_model.joint_velocity(joint_name="pivot"),
+            ]
+        ).squeeze().copy()
+
+    def mj_reset(
+        mujoco_model: MujocoModel, observation: Optional[npt.NDArray] = None
+    ) -> npt.NDArray:
+        """"""
+
+        observation = (
+            observation
+            if observation is not None
+            else np.array([0.0, 0.0, np.deg2rad(180), 0.0])
+        )
+
+        linear_pos = observation[0]
+        linear_vel = observation[1]
+        pivot_pos = observation[2]
+        pivot_vel = observation[3]
+
+        mujoco_model.data.qpos = np.array([linear_pos, pivot_pos])
+        mujoco_model.data.qvel = np.array([linear_vel, pivot_vel])
+        mujoco.mj_forward(mujoco_model.model, mujoco_model.data)
+
+        return mj_observation(mujoco_model=mujoco_model)
+
+    def mj_step(action: npt.NDArray, mujoco_model: MujocoModel) -> None:
+        """"""
+
+        n_steps = int(0.050 / mujoco_model.model.opt.timestep)
+        mujoco_model.data.ctrl = np.atleast_1d(action.squeeze()).copy()
+        mujoco.mj_step(mujoco_model.model, mujoco_model.data, n_steps)
+
+    # m.data.qpos = np.array([0.0, np.deg2rad(180)])
+    # m.data.qvel = np.array([0.0, 0.0])
+    # mujoco.mj_forward(m.model, m.data)
+
+    # # Create the policy closure
+    # policy = lambda observation: model.policy.predict(
+    #     # observation=observation, deterministic=True
+    #     observation=vec_env.normalize_obs(observation), deterministic=True
+    # )[0]
+
+    # ==============
+    # Mujoco regular
+    # ==============
+
+    model_xml_path = (
+        pathlib.Path.home()
+        / "git"
+        / "jaxsim"
+        / "examples"
+        / "resources"
+        / "cartpole_mj.xml"
+    )
+
+    self = m = MujocoModel(xml_path=model_xml_path)
+
+    mj_action = []
+    mj_pos_cart = []
+    mj_pos_pole = []
+
+    done = False
+    iterations = 0
+    mj_reset(mujoco_model=m)
+
+    while not done:
+        iterations += 1
+        observation = mj_observation(mujoco_model=m)
+        # action = model.policy.predict(observation=observation, deterministic=True)[0]
+        obs_policy = observation.copy()
+        obs_policy[2] = np.arctan2(np.sin(obs_policy[2]), np.cos(obs_policy[2]))
+        action = policy(obs_policy)
+
+        mj_step(action=action, mujoco_model=m)
+
+        mj_action.append(action * 50)
+        mj_pos_cart.append(observation[0])
+        mj_pos_pole.append(observation[2])
+
+        import time
+
+        time.sleep(0.050)
+
+        print(observation, "\t", action)
+
+        if iterations >= 201:
+            break
+
+    # ======
+    # Jaxsim
+    # ======
+
+    # js_action = []
+    # js_pos_cart = []
+    # js_pos_pole = []
+    #
+    # done = False
+    # iterations = 0
+    # observation, _ = env_eval.reset()
+    #
+    # while not done:
+    #     iterations += 1
+    #     action = policy(observation)
+    #     observation, _, _, _, _, = env_eval.step(action)
+    #
+    #     js_action.append(action * 50)
+    #     js_pos_cart.append(observation[0])
+    #     js_pos_pole.append(observation[2])
+    #
+    #     # import time
+    #     #
+    #     # time.sleep(0.050)
+    #
+    #     print(observation, "\t", action)
+    #
+    #     if iterations >= 201:
+    #         break
+
+    # ============
+    # Mujoco alt 1
+    # ============
+
+    model_xml_path = (
+            pathlib.Path.home()
+            / "git"
+            / "jaxsim"
+            / "examples"
+            / "resources"
+            / "cartpole_mj.xml"
+    )
+
+    m = MujocoModel(xml_path=model_xml_path)
+
+    mj_action_alt1 = []
+    mj_pos_cart_alt1 = []
+    mj_pos_pole_alt1 = []
+
+    done = False
+    iterations = 0
+    mj_reset(mujoco_model=m)
+
+    while not done:
+        iterations += 1
+        observation = mj_observation(mujoco_model=m)
+        # action = policy(observation)
+        obs_policy = observation.copy()
+        obs_policy[2] = np.arctan2(np.sin(obs_policy[2]), np.cos(obs_policy[2]))
+        action = policy(obs_policy)
+        mj_step(action=action, mujoco_model=m)
+
+        mj_action_alt1.append(action * 50)
+        mj_pos_cart_alt1.append(observation[0])
+        mj_pos_pole_alt1.append(observation[2])
+
+        import time
+
+        time.sleep(0.050)
+
+        print(observation, "\t", action)
+
+        if iterations >= 201:
+            break
+
+    mj_action_alt1 = np.array(mj_action_alt1)
+    mj_pos_cart_alt1 = np.array(mj_pos_cart_alt1)
+    mj_pos_pole_alt1 = np.array(mj_pos_pole_alt1)
+
+    # ============
+    # Mujoco alt 2
+    # ============
+
+    model_xml_path = (
+            pathlib.Path.home()
+            / "git"
+            / "jaxsim"
+            / "examples"
+            / "resources"
+            / "cartpole_mj.xml"
+    )
+
+    m = MujocoModel(xml_path=model_xml_path)
+
+    mj_action_alt2 = []
+    mj_pos_cart_alt2 = []
+    mj_pos_pole_alt2 = []
+
+    done = False
+    iterations = 0
+    mj_reset(mujoco_model=m)
+
+    while not done:
+        iterations += 1
+        observation = mj_observation(mujoco_model=m)
+        # action = policy(observation)
+        obs_policy = observation.copy()
+        obs_policy[2] = np.arctan2(np.sin(obs_policy[2]), np.cos(obs_policy[2]))
+        action = policy(obs_policy)
+        mj_step(action=action, mujoco_model=m)
+
+        mj_action_alt2.append(action * 50)
+        mj_pos_cart_alt2.append(observation[0])
+        mj_pos_pole_alt2.append(observation[2])
+
+        import time
+
+        time.sleep(0.050)
+
+        print(observation, "\t", action)
+
+        if iterations >= 201:
+            break
+
+    mj_action_alt2 = np.array(mj_action_alt2)
+    mj_pos_cart_alt2 = np.array(mj_pos_cart_alt2)
+    mj_pos_pole_alt2 = np.array(mj_pos_pole_alt2)
+
+    # ====
+    # Plot
+    # ====
+
+    import palettable
+    # https://jiffyclub.github.io/palettable/cartocolors/diverging/
+    # colors = palettable.cartocolors.diverging.Geyser_5.mpl_colors
+    colors = palettable.cartocolors.qualitative.Prism_8.mpl_colors
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+    time = np.arange(start=0, stop=len(mj_action)) * 0.050
+
+    # ax1.plot(time, js_pos_pole, label=r"Jaxsim", color=colors[1], linewidth=1)
+    # ax1.plot(time, mj_pos_pole, label=r"Mujoco", color=colors[7], linewidth=1)
+    # ax2.plot(time, js_pos_cart, label=r"Jaxsim", color=colors[1], linewidth=1)
+    # ax2.plot(time, mj_pos_cart, label=r"Mujoco", color=colors[7], linewidth=1)
+    # ax3.plot(time, js_action, label=r"Jaxsim", color=colors[1], linewidth=1)
+    # ax3.plot(time, mj_action, label=r"Mujoco", color=colors[7], linewidth=1)
+
+    ax1.plot(time, mj_pos_pole, label=r"nominal", color=colors[1], linewidth=1)
+    ax1.plot(time, mj_pos_pole_alt1, label=r"mass", color=colors[3], linewidth=1)
+    ax1.plot(time, mj_pos_pole_alt2, label=r"mass+friction", color=colors[7], linewidth=1)
+    ax2.plot(time, mj_pos_cart, label=r"nominal", color=colors[1], linewidth=1)
+    ax2.plot(time, mj_pos_cart_alt1, label=r"mass", color=colors[3], linewidth=1)
+    ax2.plot(time, mj_pos_cart_alt2, label=r"mass+friction", color=colors[7], linewidth=1)
+    ax3.plot(time, mj_action, label=r"nominal", color=colors[1], linewidth=1)
+    ax3.plot(time, mj_action_alt1, label=r"mass", color=colors[3], linewidth=1)
+    ax3.plot(time, mj_action_alt2, label=r"mass+friction", color=colors[7], linewidth=1)
+
+    ax1.grid()
+    ax1.set_ylabel(r"Pole angle $\theta$ [rad]")
+    ax2.grid()
+    ax2.set_ylabel(r"Cart position $d$ [m]")
+    ax3.grid()
+    ax3.set_ylabel(r"Force applied to cart $f$ [N]")
+
+    # ax1.set_title(r"Pole angle $\theta$")
+    # ax2.set_title(r"Cart position $d$")
+    # ax3.set_title(r"Force applied to cart $f$")
+
+    # ax1.legend()
+    # ax2.legend()
+    # ax3.legend()
+
+    # plt.legend()
+    # plt.title(r"\textbf{Comparison of cartpole swing-up performance}")
+    # fig.suptitle(r"\textbf{Comparison of cartpole swing-up performance}")
+    fig.supxlabel("Time [s]")
+    # plt.show()
+
+    import tikzplotlib
+    tikzplotlib.clean_figure()
+    print(tikzplotlib.get_tikz_code())
+
 # Train with SB
 if __name__ == "__main__ant_vec_gpu_env":
     """"""
@@ -751,24 +1331,26 @@ if __name__ == "__main__ant_vec_gpu_env":
         env=SquashActionWrapper(env=func_env),
     )
 
+    # TODO: rename _sb to prevent collision with module
     vec_env_sb = make_vec_env_stable_baselines(
         jax_dataclass_env=func_env,
         # n_envs=10,
         # n_envs=2048,  # troppo -> JIT lungo
         # n_envs=100,
         # n_envs=1024,
-        n_envs=2048,
+        # n_envs=2048,
+        n_envs=512,
         seed=42,
         vec_env_kwargs=dict(
             jit_compile=True,
         ),
     )
 
-    %time _ = vec_env_sb.reset()
-    %time _ = vec_env_sb.reset()
-    actions = vec_env_sb.jax_vector_env.action_space.sample()
-    %time _ = vec_env_sb.step(actions)
-    %time _ = vec_env_sb.step(actions)
+    # %time _ = vec_env_sb.reset()
+    # %time _ = vec_env_sb.reset()
+    # actions = vec_env_sb.jax_vector_env.action_space.sample()
+    # %time _ = vec_env_sb.step(actions)
+    # %time _ = vec_env_sb.step(actions)
 
     import torch as th
 
@@ -781,7 +1363,7 @@ if __name__ == "__main__ant_vec_gpu_env":
         # n_steps=2048,
         # n_steps=512,  # in the vector env -> real ones are x10
         # n_steps=10,  # in the vector env -> real ones are x10
-        n_steps=2,  # in the vector env -> real ones are x2048
+        n_steps=4,  # in the vector env -> real ones are x2048
         # batch_size=256,
         batch_size=1024,
         n_epochs=10,
@@ -826,7 +1408,7 @@ if __name__ == "__main__ant_vec_gpu_env":
             num_episodes=10,
             seed=None,
             render=True,
-            policy=policy,
+            # policy=policy,
         )
 
     # evaluate(

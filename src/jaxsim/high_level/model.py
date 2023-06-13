@@ -2,7 +2,7 @@ import dataclasses
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import jax.experimental.ode
+import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
@@ -721,7 +721,7 @@ class Model(JaxsimDataclass):
         return f_B, tau
 
     def forward_dynamics(
-        self, tau: jtp.Vector = None, prefer_aba: float = True
+        self, tau: jtp.Vector = None, prefer_aba: bool = True
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         return (
             self.forward_dynamics_aba(tau=tau)

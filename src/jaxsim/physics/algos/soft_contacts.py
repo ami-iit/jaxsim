@@ -3,7 +3,6 @@ import dataclasses
 from typing import Tuple
 
 import jax
-import jax.experimental.loops
 import jax.flatten_util
 import jax.numpy as jnp
 import jax_dataclasses

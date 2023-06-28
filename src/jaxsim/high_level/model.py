@@ -2,7 +2,6 @@ import dataclasses
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import jax.experimental.ode
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np

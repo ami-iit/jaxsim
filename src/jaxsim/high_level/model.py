@@ -757,7 +757,10 @@ class Model(JaxsimDataclass):
         sdd = jnp.atleast_1d(sdd.squeeze())
 
         # Express W_a_WB in the active representation
-        a_WB = self.inertial_to_active_representation(array=W_a_WB)
+        if self.floating_base():
+            a_WB = self.inertial_to_active_representation(array=W_a_WB)
+        else:
+            a_WB = jnp.zeros_like(W_a_WB).squeeze()
 
         return a_WB, sdd
 

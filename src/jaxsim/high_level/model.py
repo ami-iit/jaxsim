@@ -1072,12 +1072,12 @@ class Model(JaxsimDataclass):
             W_H_B = self.base_transform()
 
             if not is_force:
-                B_X_W: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
-                B_array = B_X_W @ W_array
+                B_Xv_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
+                B_array = B_Xv_W @ W_array
 
             else:
-                W_X_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
-                B_array = W_X_B.T @ W_array
+                B_Xf_W = sixd.se3.SE3.from_matrix(W_H_B).adjoint().T
+                B_array = B_Xf_W @ W_array
 
             return B_array
 
@@ -1085,12 +1085,12 @@ class Model(JaxsimDataclass):
             W_H_BW = jnp.eye(4).at[0:3, 3].set(self.base_position())
 
             if not is_force:
-                BW_X_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                BW_array = BW_X_W @ W_array
+                BW_Xv_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
+                BW_array = BW_Xv_W @ W_array
 
             else:
-                W_X_BW = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
-                BW_array = W_X_BW.transpose() @ W_array
+                BW_Xf_W = sixd.se3.SE3.from_matrix(W_H_BW).adjoint().T
+                BW_array = BW_Xf_W @ W_array
 
             return BW_array
 
@@ -1114,12 +1114,12 @@ class Model(JaxsimDataclass):
             W_H_B = self.base_transform()
 
             if not is_force:
-                W_X_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
-                W_array = W_X_B @ B_array
+                W_Xv_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
+                W_array = W_Xv_B @ B_array
 
             else:
-                B_X_W: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
-                W_array = B_X_W.T @ B_array
+                W_Xf_B = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint().T
+                W_array = W_Xf_B @ B_array
 
             return W_array
 
@@ -1128,12 +1128,12 @@ class Model(JaxsimDataclass):
             W_H_BW = jnp.eye(4).at[0:3, 3].set(self.base_position())
 
             if not is_force:
-                W_X_BW: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
-                W_array = W_X_BW @ BW_array
+                W_Xv_BW: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
+                W_array = W_Xv_BW @ BW_array
 
             else:
-                BW_X_W: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                W_array = BW_X_W.T @ BW_array
+                W_Xf_BW = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint().T
+                W_array = W_Xf_BW @ BW_array
 
             return W_array
 

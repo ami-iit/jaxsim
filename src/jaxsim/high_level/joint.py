@@ -1,9 +1,10 @@
-from typing import Tuple
+import dataclasses
+from typing import Any, Tuple
 
 import jax_dataclasses
+from jax_dataclasses import Static
 
-import jaxsim.high_level
-import jaxsim.parsers.descriptions as descriptions
+import jaxsim.parsers
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
 
@@ -14,10 +15,13 @@ class Joint(JaxsimDataclass):
     High-level class to operate on a single joint of a simulated model.
     """
 
-    joint_description: descriptions.JointDescription = jax_dataclasses.static_field()
-    parent_model: "jaxsim.high_level.model.Model" = jax_dataclasses.field(
-        default=None, repr=False, compare=False
-    )
+    joint_description: Static[jaxsim.parsers.descriptions.JointDescription]
+
+    _parent_model: Any = dataclasses.field(default=None, repr=False, compare=False)
+
+    @property
+    def parent_model(self) -> "jaxsim.high_level.model.Model":
+        return self._parent_model
 
     def valid(self) -> bool:
         return self.parent_model is not None

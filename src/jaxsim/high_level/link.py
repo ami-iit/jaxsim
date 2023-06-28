@@ -1,9 +1,12 @@
+import dataclasses
+from typing import Any
+
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
+from jax_dataclasses import Static
 
-import jaxsim.high_level
-import jaxsim.parsers.descriptions as descriptions
+import jaxsim.parsers
 import jaxsim.sixd as sixd
 import jaxsim.typing as jtp
 from jaxsim.physics.algos.jacobian import jacobian
@@ -18,10 +21,13 @@ class Link(JaxsimDataclass):
     High-level class to operate on a single link of a simulated model.
     """
 
-    link_description: descriptions.LinkDescription = jax_dataclasses.static_field()
-    parent_model: "jaxsim.high_level.model.Model" = jax_dataclasses.field(
-        default=None, repr=False, compare=False
-    )
+    link_description: Static[jaxsim.parsers.descriptions.LinkDescription]
+
+    _parent_model: Any = dataclasses.field(default=None, repr=False, compare=False)
+
+    @property
+    def parent_model(self) -> "jaxsim.high_level.model.Model":
+        return self._parent_model
 
     def valid(self) -> bool:
         return self.parent_model is not None

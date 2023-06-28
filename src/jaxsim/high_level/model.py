@@ -2,11 +2,12 @@ import dataclasses
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
+from jax_dataclasses import Static
 
-import jaxsim
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
@@ -22,6 +23,8 @@ from jaxsim.simulation.ode_integration import IntegratorType
 from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .common import VelRepr
+from .joint import Joint
+from .link import Link
 
 
 @jax_dataclasses.pytree_dataclass
@@ -98,23 +101,23 @@ class Model(JaxsimDataclass):
     High-level class to operate on a simulated model.
     """
 
-    model_name: str = jax_dataclasses.static_field()
+    model_name: Static[str]
+
     physics_model: physics.model.physics_model.PhysicsModel = dataclasses.field(
         repr=False
     )
 
-    velocity_representation: VelRepr = jax_dataclasses.static_field(
-        default=VelRepr.Mixed
-    )
+    velocity_representation: Static[VelRepr] = dataclasses.field(default=VelRepr.Mixed)
 
-    _links: Dict[str, "high_level.link.Link"] = jax_dataclasses.static_field(
-        default_factory=list, repr=False
-    )
-    _joints: Dict[str, "high_level.joint.Joint"] = jax_dataclasses.static_field(
+    _links: Static[Dict[str, Link]] = dataclasses.field(
         default_factory=list, repr=False
     )
 
-    data: ModelData = jax_dataclasses.field(default=None, repr=False)
+    _joints: Static[Dict[str, Joint]] = dataclasses.field(
+        default_factory=list, repr=False
+    )
+
+    data: ModelData = dataclasses.field(default=None, repr=False)
 
     # ========================
     # Initialization and state
@@ -267,10 +270,10 @@ class Model(JaxsimDataclass):
         self._set_mutability(Mutability.MUTABLE_NO_VALIDATION)
 
         for l in self._links.values():
-            l.mutable(validate=False).parent_model = self
+            l.mutable(validate=False)._parent_model = self
 
         for j in self._joints.values():
-            j.mutable(validate=False).parent_model = self
+            j.mutable(validate=False)._parent_model = self
 
         self._links: Dict[str, high_level.link.Link] = {
             k: v for k, v in sorted(self._links.items(), key=lambda kv: kv[1].index())

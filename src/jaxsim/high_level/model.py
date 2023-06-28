@@ -693,14 +693,6 @@ class Model(JaxsimDataclass):
         joint_accelerations: jtp.Vector = None,
         base_acceleration: jtp.Vector = jnp.zeros(6),
     ) -> Tuple[jtp.Vector, jtp.Vector]:
-        if (
-            self.velocity_representation is VelRepr.Mixed
-            and self.floating_base()
-            and not jnp.allclose(self.data.model_state.base_angular_velocity, 0)
-        ):
-            msg = "This method has to be fixed in Mixed representation"
-            raise ValueError(msg)
-
         # Build joint accelerations if not provided
         joint_accelerations = (
             joint_accelerations
@@ -748,14 +740,6 @@ class Model(JaxsimDataclass):
     def forward_dynamics_aba(
         self, tau: jtp.Vector = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
-        if (
-            self.velocity_representation is not VelRepr.Inertial
-            and (self.data.model_input.f_ext != 0).any()
-        ):
-            msg1 = "This method has to be fixed for Body and Mixed representation, "
-            msg2 = "use forward_dynamics_crb instead."
-            raise ValueError(msg1 + msg2)
-
         # Build joint torques if not provided
         tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
 

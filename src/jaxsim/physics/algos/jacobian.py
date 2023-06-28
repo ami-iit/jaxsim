@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import jaxsim.typing as jtp
+from jaxsim.math.adjoint import Adjoint
 from jaxsim.physics.model.physics_model import PhysicsModel
 
 from . import utils
@@ -37,9 +38,13 @@ def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Mat
     ) -> Tuple[PropagateKinematicsCarry, None]:
         i_X_λi, i_X_0 = carry
 
+        # For each body (i), compute the parent (λi) to body (i) adjoint matrix
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
+        # Compute the base (0) to body (i) adjoint matrix.
+        # This works fine since we traverse the kinematic tree following the link
+        # indices assigned with BFS.
         i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
 
@@ -67,7 +72,7 @@ def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Mat
     def compute_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> Tuple[jtp.MatrixJax, None]:
         def update_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> jtp.MatrixJax:
             ii = i - 1
-            Js_i = i_X_0[body_index] @ jnp.linalg.inv(i_X_0[i]) @ S[i]
+            Js_i = i_X_0[body_index] @ Adjoint.inverse(i_X_0[i]) @ S[i]
             J = J.at[0:6, 6 + ii].set(Js_i.squeeze())
 
             return J

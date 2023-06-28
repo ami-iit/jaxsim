@@ -544,6 +544,20 @@ class Model(JaxsimDataclass):
         return self.inertial_to_active_representation(array=W_v_WB)
 
     def external_forces(self) -> jtp.Matrix:
+        """
+        Return the active external forces acting on the robot.
+
+        The external forces are a user input and are not computed by the physics engine.
+        During the simulation, these external forces are summed to other terms like
+        the external forces due to the contact with the environment.
+
+        Returns:
+            A matrix of shape (n_links, 6) containing the external forces acting on the
+            robot links. The forces are expressed in the active representation.
+        """
+
+        # Get the active external forces that are always stored internally
+        # in Inertial representation
         W_f_ext = self.data.model_input.f_ext
 
         inertial_to_active = lambda f: self.inertial_to_active_representation(

@@ -149,22 +149,22 @@ class Link(JaxsimDataclass):
             raise ValueError(output_vel_repr)
 
     def external_force(self) -> jtp.Vector:
+        """
+        Return the active external force acting on the link.
+
+        This external force is a user input and is not computed by the physics engine.
+        During the simulation, this external force is summed to other terms like those
+        related to enforce contact constraints.
+
+        Returns:
+            The active external 6D force acting on the link in the active representation.
+        """
+
         W_f_ext = self.parent_model.data.model_input.f_ext[self.index()]
 
-        if self.parent_model.velocity_representation is VelRepr.Inertial:
-            return W_f_ext
-
-        elif self.parent_model.velocity_representation is VelRepr.Body:
-            W_H_B = self.parent_model.base_transform()
-            W_X_B = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
-
-            return W_X_B.transpose() @ W_f_ext
-
-        elif self.parent_model.velocity_representation is VelRepr.Mixed:
-            raise NotImplementedError
-
-        else:
-            raise ValueError(self.parent_model.velocity_representation)
+        return self.parent_model.inertial_to_active_representation(
+            array=W_f_ext, is_force=True
+        )
 
     def add_external_force(
         self, force: jtp.Array = None, torque: jtp.Array = None

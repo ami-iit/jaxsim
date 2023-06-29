@@ -653,7 +653,7 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(self.velocity_representation)
 
-    def free_floating_generalized_forces(self) -> jtp.Vector:
+    def free_floating_bias_forces(self) -> jtp.Vector:
         model_state = self.data.model_state
         model = self.copy().mutable(validate=True)
 

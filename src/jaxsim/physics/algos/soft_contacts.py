@@ -55,6 +55,10 @@ def collidable_points_pos_vel(
     qd: jtp.Vector,
     xfb: jtp.Vector = None,
 ) -> Tuple[jtp.Matrix, jtp.Matrix]:
+    """
+    Compute the position and linear velocity of collidable points in the world frame.
+    """
+
     # Make sure that shape and size are correct
     xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
 
@@ -181,11 +185,11 @@ def collidable_points_pos_vel(
 
 @jax_dataclasses.pytree_dataclass
 class SoftContactsParams:
-    """"""
+    """Parameters of the soft contacts model."""
 
-    K: float = dataclasses.field(default=jnp.array(1e6, dtype=float))
-    D: float = dataclasses.field(default=jnp.array(2000, dtype=float))
-    mu: float = dataclasses.field(default=jnp.array(0.5, dtype=float))
+    K: float = dataclasses.field(default_factory=lambda: jnp.array(1e6, dtype=float))
+    D: float = dataclasses.field(default_factory=lambda: jnp.array(2000, dtype=float))
+    mu: float = dataclasses.field(default_factory=lambda: jnp.array(0.5, dtype=float))
 
     @staticmethod
     def build(
@@ -202,6 +206,8 @@ class SoftContactsParams:
 
 @jax_dataclasses.pytree_dataclass
 class SoftContacts:
+    """Soft contacts model."""
+
     parameters: SoftContactsParams = dataclasses.field(
         default_factory=SoftContactsParams
     )

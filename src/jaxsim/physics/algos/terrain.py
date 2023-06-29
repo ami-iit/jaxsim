@@ -35,7 +35,9 @@ class FlatTerrain(Terrain):
 
 @jax_dataclasses.pytree_dataclass
 class PlaneTerrain(Terrain):
-    plane_normal: jtp.Vector = jax_dataclasses.field(default=jnp.array([0, 0, 1.0]))
+    plane_normal: jtp.Vector = jax_dataclasses.field(
+        default_factory=lambda: jnp.array([0, 0, 1.0])
+    )
 
     @staticmethod
     def build(plane_normal: jtp.Vector) -> "PlaneTerrain":

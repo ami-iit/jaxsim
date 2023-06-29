@@ -32,7 +32,9 @@ class SimulatorData(JaxsimDataclass):
     """
 
     # Simulation time stored in ns in order to prevent floats approximation
-    time_ns: jtp.Int = jnp.array(0, dtype=jnp.uint64)
+    time_ns: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
+    )
 
     # Terrain and contact parameters
     terrain: Terrain = dataclasses.field(default_factory=lambda: FlatTerrain())

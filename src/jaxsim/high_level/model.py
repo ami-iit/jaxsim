@@ -806,29 +806,28 @@ class Model(JaxsimDataclass):
         self, tau: jtp.Vector = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         # Build joint torques if not provided
-        tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
-        tau = jnp.atleast_1d(tau.squeeze())
-        tau = jnp.vstack(tau) if tau.size > 0 else jnp.empty(shape=(0, 1))
+        τ = tau if tau is not None else jnp.zeros_like(self.joint_positions())
+        τ = jnp.atleast_1d(τ.squeeze())
+        τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
 
         # Compute terms of the floating-base EoM
         M = self.free_floating_mass_matrix()
-        h = jnp.vstack(self.free_floating_generalized_forces())
-        J = self.generalized_jacobian()
+        h = jnp.vstack(self.free_floating_bias_forces())
+        J = self.generalized_free_floating_jacobian()
         f_ext = jnp.vstack(self.external_forces().flatten())
         S = jnp.block([jnp.zeros(shape=(self.dofs(), 6)), jnp.eye(self.dofs())]).T
 
-        if self.floating_base():
-            nu_dot = jnp.linalg.inv(M) @ (S @ tau - h + J.T @ f_ext)
-            sdd = nu_dot[6:]
-            a_WB = nu_dot[0:6]
+        # Configure the slice for fixed/floating base robots
+        sl = np.s_[0:] if self.floating_base() else np.s_[6:]
 
-        else:
-            hss = h[6:]
-            Jss = J[:, 6:]
-            Mss = M[6:, 6:]
+        # Compute the generalized acceleration by inverting the EoM
+        ν̇ = jnp.linalg.inv(M[sl, sl]) @ ((S @ τ)[sl] - h[sl] + J[:, sl].T @ f_ext)
 
-            a_WB = jnp.zeros(6)
-            sdd = jnp.linalg.inv(Mss) @ (tau - hss + Jss.T @ f_ext)
+        # Extract the base acceleration in the active representation
+        a_WB = ν̇[0:6] if self.floating_base() else jnp.zeros(6)
+
+        # Extract the joint accelerations
+        sdd = ν̇[6:] if self.floating_base() else ν̇
 
         # Adjust shape and convert to lin-ang serialization
         a_WB = a_WB.squeeze()

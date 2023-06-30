@@ -57,7 +57,7 @@ class JaxsimDataclass(abc.ABC):
     def mutable_context(self: T, mutability: Mutability) -> ContextManager[T]:
         """"""
 
-        original_mutability = self._mutability
+        original_mutability = self._mutability()
 
         self._set_mutability(mutability)
         yield self

@@ -285,15 +285,20 @@ class Model(JaxsimDataclass):
 
         self._set_mutability(original_mutability)
 
-    def reduce(self, considered_joints: List[str]) -> None:
+    def reduce(
+        self, considered_joints: List[str], keep_base_pose: bool = False
+    ) -> None:
         """
         Reduce the model by lumping together the links connected by removed joints.
 
         Args:
             considered_joints: The list of joints to consider.
+            keep_base_pose: A flag indicating whether to keep the base pose or not.
         """
 
-        # Reduce the model description
+        # Reduce the model description.
+        # If considered_joints contains joints not existing in the model, the method
+        # will raise an exception.
         reduced_model_description = self.physics_model.description.reduce(
             considered_joints=considered_joints
         )
@@ -311,14 +316,22 @@ class Model(JaxsimDataclass):
             vel_repr=self.velocity_representation,
         )
 
-        # Replace the current model with the reduced one
-        original_mutability = self._mutability()
-        self._set_mutability(mutability=self._mutability().MUTABLE_NO_VALIDATION)
-        self.physics_model = reduced_model.physics_model
-        self.data = reduced_model.data
-        self._links = reduced_model._links
-        self._joints = reduced_model._joints
-        self._set_mutability(original_mutability)
+        # Extract the base pose
+        W_p_B = self.base_position()
+        W_Q_B = self.base_orientation(dcm=False)
+
+        # Replace the current model with the reduced model.
+        # Since the structure of the PyTree changes, we disable validation.
+        with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            self.physics_model = reduced_model.physics_model
+            self.data = reduced_model.data
+            self._links = reduced_model._links
+            self._joints = reduced_model._joints
+
+        if keep_base_pose:
+            with self.mutable_context(mutability=Mutability.MUTABLE):
+                self.reset_base_position(position=W_p_B)
+                self.reset_base_orientation(orientation=W_Q_B, dcm=False)
 
     def zero(self) -> None:
         self.data = ModelData.zero(physics_model=self.physics_model)
@@ -993,10 +1006,13 @@ class Model(JaxsimDataclass):
 
         # TODO: joint position limits
 
-        self.data.model_state.joint_positions = (
-            self.data.model_state.joint_positions.at[
-                self._joint_indices(joint_names=joint_names)
-            ].set(positions)
+        self.data.model_state.joint_positions = jnp.atleast_1d(
+            jnp.array(
+                self.data.model_state.joint_positions.at[
+                    self._joint_indices(joint_names=joint_names)
+                ].set(positions),
+                dtype=float,
+            )
         )
 
     def reset_joint_velocities(
@@ -1013,14 +1029,17 @@ class Model(JaxsimDataclass):
 
         # TODO: joint velocity limits
 
-        self.data.model_state.joint_velocities = (
-            self.data.model_state.joint_velocities.at[
-                self._joint_indices(joint_names=joint_names)
-            ].set(velocities)
+        self.data.model_state.joint_velocities = jnp.atleast_1d(
+            jnp.array(
+                self.data.model_state.joint_velocities.at[
+                    self._joint_indices(joint_names=joint_names)
+                ].set(velocities),
+                dtype=float,
+            )
         )
 
     def reset_base_position(self, position: jtp.Vector) -> None:
-        self.data.model_state.base_position = position
+        self.data.model_state.base_position = jnp.array(position, dtype=float)
 
     def reset_base_orientation(self, orientation: jtp.Array, dcm: bool = False) -> None:
         if dcm:
@@ -1030,7 +1049,7 @@ class Model(JaxsimDataclass):
             ).as_quaternion_xyzw()
             orientation = orientation_xyzw[to_wxyz]
 
-        self.data.model_state.base_quaternion = orientation
+        self.data.model_state.base_quaternion = jnp.array(orientation, dtype=float)
 
     def reset_base_transform(self, transform: jtp.Matrix) -> None:
         if transform.shape != (4, 4):
@@ -1074,8 +1093,13 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(self.velocity_representation)
 
-        self.data.model_state.base_linear_velocity = base_velocity_inertial[0:3]
-        self.data.model_state.base_angular_velocity = base_velocity_inertial[3:6]
+        self.data.model_state.base_linear_velocity = jnp.array(
+            base_velocity_inertial[0:3], dtype=float
+        )
+
+        self.data.model_state.base_angular_velocity = jnp.array(
+            base_velocity_inertial[3:6], dtype=float
+        )
 
     # ===========
     # Integration

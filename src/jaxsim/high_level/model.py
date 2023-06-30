@@ -654,29 +654,39 @@ class Model(JaxsimDataclass):
             raise ValueError(self.velocity_representation)
 
     def free_floating_bias_forces(self) -> jtp.Vector:
-        model_state = self.data.model_state
-        model = self.copy().mutable(validate=True)
+        with self.editable(validate=True) as model:
+            model.zero()
 
-        model.zero()
-        model.data.model_state.base_position = model_state.base_position
-        model.data.model_state.base_quaternion = model_state.base_quaternion
-        model.data.model_state.joint_positions = model_state.joint_positions
-        model.data.model_state.base_linear_velocity = model_state.base_linear_velocity
-        model.data.model_state.base_angular_velocity = model_state.base_angular_velocity
-        model.data.model_state.joint_velocities = model_state.joint_velocities
+            state = self.data.model_state.copy()
+            model.data.model_state.base_position = state.base_position
+            model.data.model_state.base_quaternion = state.base_quaternion
+            model.data.model_state.joint_positions = state.joint_positions
+            model.data.model_state.base_linear_velocity = state.base_linear_velocity
+            model.data.model_state.base_angular_velocity = state.base_angular_velocity
+            model.data.model_state.joint_velocities = state.joint_velocities
 
-        return jnp.hstack(model.inverse_dynamics())
+        return jnp.hstack(
+            model.inverse_dynamics(
+                base_acceleration=jnp.zeros(6),
+                joint_accelerations=jnp.zeros(model.dofs()),
+            )
+        )
 
     def free_floating_gravity_forces(self) -> jtp.Vector:
-        model_state = self.data.model_state
-        model = self.copy().mutable(validate=True)
+        with self.editable(validate=True) as model:
+            model.zero()
 
-        model.zero()
-        model.data.model_state.base_position = model_state.base_position
-        model.data.model_state.base_quaternion = model_state.base_quaternion
-        model.data.model_state.joint_positions = model_state.joint_positions
+            state = self.data.model_state.copy()
+            model.data.model_state.base_position = state.base_position
+            model.data.model_state.base_quaternion = state.base_quaternion
+            model.data.model_state.joint_positions = state.joint_positions
 
-        return jnp.hstack(model.inverse_dynamics())
+        return jnp.hstack(
+            model.inverse_dynamics(
+                base_acceleration=jnp.zeros(6),
+                joint_accelerations=jnp.zeros(model.dofs()),
+            )
+        )
 
     def momentum(self) -> jtp.Vector:
         with self.editable(validate=True) as m:
@@ -731,6 +741,19 @@ class Model(JaxsimDataclass):
         joint_accelerations: jtp.Vector = None,
         base_acceleration: jtp.Vector = jnp.zeros(6),
     ) -> Tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute inverse dynamics with the RNEA algorithm.
+
+        Args:
+            joint_accelerations: the joint accelerations to consider.
+            base_acceleration:  the base acceleration in the active representation to consider.
+
+        Returns:
+            A tuple containing the 6D force in active representation applied to the base
+            to obtain the considered base acceleration, and the joint torques to apply
+            to obtain the considered joint accelerations.
+        """
+
         # Build joint accelerations if not provided
         joint_accelerations = (
             joint_accelerations
@@ -744,8 +767,43 @@ class Model(JaxsimDataclass):
         if base_acceleration.size != 6:
             raise ValueError(base_acceleration.size)
 
-        # Express base_acceleration in inertial representation
-        W_a_WB = self.active_to_inertial_representation(array=base_acceleration)
+        def to_inertial(C_vd_WB, W_H_C, C_v_WB, W_vl_WC):
+            W_X_C = sixd.se3.SE3.from_matrix(W_H_C).adjoint()
+            C_X_W = sixd.se3.SE3.from_matrix(W_H_C).inverse().adjoint()
+
+            if self.velocity_representation != VelRepr.Mixed:
+                return W_X_C @ C_vd_WB
+            else:
+                from jaxsim.math.cross import Cross
+
+                C_v_WC = C_X_W @ jnp.hstack([W_vl_WC, jnp.zeros(3)])
+                return W_X_C @ (C_vd_WB + Cross.vx(C_v_WC) @ C_v_WB)
+
+        if self.velocity_representation is VelRepr.Inertial:
+            W_H_C = W_H_W = jnp.eye(4)
+            W_vl_WC = W_vl_WW = jnp.zeros(3)
+
+        elif self.velocity_representation is VelRepr.Body:
+            W_H_C = W_H_B = self.base_transform()
+            W_vl_WC = W_vl_WB = self.base_velocity()[0:3]
+
+        elif self.velocity_representation is VelRepr.Mixed:
+            W_H_B = self.base_transform()
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_vl_WC = W_vl_W_BW = self.base_velocity()[0:3]
+
+        else:
+            raise ValueError(self.velocity_representation)
+
+        # We need to convert the derivative of the base acceleration to the Inertial
+        # representation. In Mixed representation, this conversion is not a plain
+        # transformation with just X, but it also involves a cross product in ℝ⁶.
+        W_v̇_WB = to_inertial(
+            C_vd_WB=base_acceleration,
+            W_H_C=W_H_C,
+            C_v_WB=self.base_velocity(),
+            W_vl_WC=W_vl_WC,
+        )
 
         # Compute RNEA
         W_f_B, tau = jaxsim.physics.algos.rnea.rnea(
@@ -754,7 +812,7 @@ class Model(JaxsimDataclass):
             q=self.data.model_state.joint_positions,
             qd=self.data.model_state.joint_velocities,
             qdd=joint_accelerations,
-            a0fb=W_a_WB,
+            a0fb=W_v̇_WB,
             f_ext=self.data.model_input.f_ext,
         )
 

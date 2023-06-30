@@ -840,7 +840,7 @@ class Model(JaxsimDataclass):
         tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
 
         # Compute ABA
-        W_a_WB, sdd = jaxsim.physics.algos.aba.aba(
+        W_v̇_WB, sdd = jaxsim.physics.algos.aba.aba(
             model=self.physics_model,
             xfb=self.data.model_state.xfb(),
             q=self.data.model_state.joint_positions,
@@ -849,16 +849,52 @@ class Model(JaxsimDataclass):
             f_ext=self.data.model_input.f_ext,
         )
 
+        def to_active(W_vd_WB, W_H_C, W_v_WB, W_vl_WC):
+            C_X_W = sixd.se3.SE3.from_matrix(W_H_C).inverse().adjoint()
+
+            if self.velocity_representation != VelRepr.Mixed:
+                return C_X_W @ W_vd_WB
+            else:
+                from jaxsim.math.cross import Cross
+
+                W_v_WC = jnp.hstack([W_vl_WC, jnp.zeros(3)])
+                return C_X_W @ (W_vd_WB - Cross.vx(W_v_WC) @ W_v_WB)
+
+        if self.velocity_representation is VelRepr.Inertial:
+            W_H_C = W_H_W = jnp.eye(4)
+            W_vl_WC = W_vl_WW = jnp.zeros(3)
+
+        elif self.velocity_representation is VelRepr.Body:
+            W_H_C = W_H_B = self.base_transform()
+            W_vl_WC = W_vl_WB = self.base_velocity()[0:3]
+
+        elif self.velocity_representation is VelRepr.Mixed:
+            W_H_B = self.base_transform()
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_vl_WC = W_vl_W_BW = self.base_velocity()[0:3]
+
+        else:
+            raise ValueError(self.velocity_representation)
+
+        # We need to convert the derivative of the base acceleration to the active
+        # representation. In Mixed representation, this conversion is not a plain
+        # transformation with just X, but it also involves a cross product in ℝ⁶.
+        C_v̇_WB = to_active(
+            W_vd_WB=W_v̇_WB.squeeze(),
+            W_H_C=W_H_C,
+            W_v_WB=jnp.hstack(
+                [
+                    self.data.model_state.base_linear_velocity,
+                    self.data.model_state.base_angular_velocity,
+                ]
+            ),
+            W_vl_WC=W_vl_WC,
+        )
+
         # Adjust shape
         sdd = jnp.atleast_1d(sdd.squeeze())
 
-        # Express W_a_WB in the active representation
-        if self.floating_base():
-            a_WB = self.inertial_to_active_representation(array=W_a_WB)
-        else:
-            a_WB = jnp.zeros_like(W_a_WB).squeeze()
-
-        return a_WB, sdd
+        return C_v̇_WB, sdd
 
     def forward_dynamics_crb(
         self, tau: jtp.Vector = None
@@ -881,7 +917,10 @@ class Model(JaxsimDataclass):
         # Compute the generalized acceleration by inverting the EoM
         ν̇ = jnp.linalg.inv(M[sl, sl]) @ ((S @ τ)[sl] - h[sl] + J[:, sl].T @ f_ext)
 
-        # Extract the base acceleration in the active representation
+        # Extract the base acceleration in the active representation.
+        # Note that this is an apparent acceleration (relevant in Mixed representation),
+        # therefore it cannot be always expressed in different frames with just a
+        # 6D transformation X.
         a_WB = ν̇[0:6] if self.floating_base() else jnp.zeros(6)
 
         # Extract the joint accelerations

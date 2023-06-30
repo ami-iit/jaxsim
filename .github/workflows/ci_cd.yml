@@ -76,6 +76,12 @@ jobs:
           path: dist
           name: dist
 
+      # Workaround: install iDynTree for Python 3.11
+      - name: iDynTree on Python 3.11
+        if: contains(matrix.os, 'ubuntu') && matrix.python == '3.11'
+        shell: bash
+        run: pip install --pre idyntree
+
       - name: Install wheel (ubuntu)
         if: contains(matrix.os, 'ubuntu')
         shell: bash

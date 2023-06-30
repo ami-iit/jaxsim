@@ -95,7 +95,7 @@ def aba(
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         # Propagate link velocity
-        vJ = S[i] * qd[ii]
+        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)

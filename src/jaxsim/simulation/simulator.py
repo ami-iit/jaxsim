@@ -65,7 +65,9 @@ class JaxSim(JaxsimDataclass):
     steps_per_run: Static[jtp.Int] = dataclasses.field(default=1)
 
     # Default velocity representation (could be overridden for individual models)
-    velocity_representation: VelRepr = dataclasses.field(default=VelRepr.Inertial)
+    velocity_representation: Static[VelRepr] = dataclasses.field(
+        default=VelRepr.Inertial
+    )
 
     # Integrator type
     integrator_type: Static[ode_integration.IntegratorType] = dataclasses.field(

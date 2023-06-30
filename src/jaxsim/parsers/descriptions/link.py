@@ -4,6 +4,7 @@ from typing import List, Optional
 
 import jax.numpy as jnp
 import jax_dataclasses
+from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
 from jaxsim.sixd import se3
@@ -12,13 +13,17 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class LinkDescription(JaxsimDataclass):
-    name: str = jax_dataclasses.static_field()
+    """
+    In-memory description of a robot link.
+    """
+
+    name: Static[str]
     mass: float
     inertia: jtp.Matrix
     index: Optional[int] = None
-    parent: "LinkDescription" = jax_dataclasses.static_field(default=None, repr=False)
+    parent: Static["LinkDescription"] = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
-    children: List["LinkDescription"] = jax_dataclasses.static_field(
+    children: Static[List["LinkDescription"]] = dataclasses.field(
         default_factory=list, repr=False
     )
 

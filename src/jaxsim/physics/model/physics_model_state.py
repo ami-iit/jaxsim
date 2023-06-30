@@ -113,7 +113,7 @@ class PhysicsModelState(JaxsimDataclass):
 
 
 @jax_dataclasses.pytree_dataclass
-class PhysicsModelInput:
+class PhysicsModelInput(JaxsimDataclass):
     tau: jtp.VectorJax
     f_ext: jtp.MatrixJax
 

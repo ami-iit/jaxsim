@@ -2,12 +2,12 @@ import dataclasses
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import jax.experimental.ode
+import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
+from jax_dataclasses import Static
 
-import jaxsim
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
@@ -23,6 +23,8 @@ from jaxsim.simulation.ode_integration import IntegratorType
 from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .common import VelRepr
+from .joint import Joint
+from .link import Link
 
 
 @jax_dataclasses.pytree_dataclass
@@ -99,23 +101,23 @@ class Model(JaxsimDataclass):
     High-level class to operate on a simulated model.
     """
 
-    model_name: str = jax_dataclasses.static_field()
+    model_name: Static[str]
+
     physics_model: physics.model.physics_model.PhysicsModel = dataclasses.field(
         repr=False
     )
 
-    velocity_representation: VelRepr = jax_dataclasses.static_field(
-        default=VelRepr.Mixed
-    )
+    velocity_representation: Static[VelRepr] = dataclasses.field(default=VelRepr.Mixed)
 
-    _links: Dict[str, "high_level.link.Link"] = jax_dataclasses.static_field(
-        default_factory=list, repr=False
-    )
-    _joints: Dict[str, "high_level.joint.Joint"] = jax_dataclasses.static_field(
+    _links: Static[Dict[str, Link]] = dataclasses.field(
         default_factory=list, repr=False
     )
 
-    data: ModelData = jax_dataclasses.field(default=None, repr=False)
+    _joints: Static[Dict[str, Joint]] = dataclasses.field(
+        default_factory=list, repr=False
+    )
+
+    data: ModelData = dataclasses.field(default=None, repr=False)
 
     # ========================
     # Initialization and state
@@ -268,10 +270,10 @@ class Model(JaxsimDataclass):
         self._set_mutability(Mutability.MUTABLE_NO_VALIDATION)
 
         for l in self._links.values():
-            l.mutable(validate=False).parent_model = self
+            l.mutable(validate=False)._parent_model = self
 
         for j in self._joints.values():
-            j.mutable(validate=False).parent_model = self
+            j.mutable(validate=False)._parent_model = self
 
         self._links: Dict[str, high_level.link.Link] = {
             k: v for k, v in sorted(self._links.items(), key=lambda kv: kv[1].index())
@@ -542,6 +544,20 @@ class Model(JaxsimDataclass):
         return self.inertial_to_active_representation(array=W_v_WB)
 
     def external_forces(self) -> jtp.Matrix:
+        """
+        Return the active external forces acting on the robot.
+
+        The external forces are a user input and are not computed by the physics engine.
+        During the simulation, these external forces are summed to other terms like
+        the external forces due to the contact with the environment.
+
+        Returns:
+            A matrix of shape (n_links, 6) containing the external forces acting on the
+            robot links. The forces are expressed in the active representation.
+        """
+
+        # Get the active external forces that are always stored internally
+        # in Inertial representation
         W_f_ext = self.data.model_input.f_ext
 
         inertial_to_active = lambda f: self.inertial_to_active_representation(
@@ -560,15 +576,53 @@ class Model(JaxsimDataclass):
     def generalized_velocity(self) -> jtp.Vector:
         return jnp.hstack([self.base_velocity(), self.joint_velocities()])
 
-    def generalized_jacobian(self, output_vel_repr: VelRepr = None) -> jtp.Matrix:
-        return jnp.vstack(
+    def generalized_free_floating_jacobian(
+        self, output_vel_repr: VelRepr = None
+    ) -> jtp.Matrix:
+        """"""
+
+        if output_vel_repr is None:
+            output_vel_repr = self.velocity_representation
+
+        # The body frame of the Link.jacobian method is the link frame L.
+        # In this method, we want instead to use the base link B as body frame.
+        # Therefore, we always get the link jacobian having Inertial as output
+        # representation, and then we convert it to the desired output representation.
+        if output_vel_repr is VelRepr.Inertial:
+            to_output = lambda J: J
+
+        elif output_vel_repr is VelRepr.Body:
+
+            def to_output(W_J_Wi):
+                W_H_B = self.base_transform()
+                B_X_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
+                return B_X_W @ W_J_Wi
+
+        elif output_vel_repr is VelRepr.Mixed:
+
+            def to_output(W_J_Wi):
+                W_H_B = self.base_transform()
+                W_H_BW = jnp.array(W_H_B).at[0:3, 0:3].set(jnp.eye(3))
+                BW_X_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
+                return BW_X_W @ W_J_Wi
+
+        else:
+            raise ValueError(output_vel_repr)
+
+        # Get the link jacobians in Inertial representation and convert them to the
+        # target output representation in which the body frame is the base link B
+        J_free_floating = jnp.vstack(
             [
-                self.get_link(link_name=link_name).jacobian(
-                    output_vel_repr=output_vel_repr
+                to_output(
+                    self.get_link(link_name=link_name).jacobian(
+                        output_vel_repr=VelRepr.Inertial
+                    )
                 )
                 for link_name in self.link_names()
             ]
         )
+
+        return J_free_floating
 
     def free_floating_mass_matrix(self) -> jtp.Matrix:
         M_body = jaxsim.physics.algos.crba.crba(
@@ -599,30 +653,40 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(self.velocity_representation)
 
-    def free_floating_generalized_forces(self) -> jtp.Vector:
-        model_state = self.data.model_state
-        model = self.copy().mutable(validate=True)
+    def free_floating_bias_forces(self) -> jtp.Vector:
+        with self.editable(validate=True) as model:
+            model.zero()
 
-        model.zero()
-        model.data.model_state.base_position = model_state.base_position
-        model.data.model_state.base_quaternion = model_state.base_quaternion
-        model.data.model_state.joint_positions = model_state.joint_positions
-        model.data.model_state.base_linear_velocity = model_state.base_linear_velocity
-        model.data.model_state.base_angular_velocity = model_state.base_angular_velocity
-        model.data.model_state.joint_velocities = model_state.joint_velocities
+            state = self.data.model_state.copy()
+            model.data.model_state.base_position = state.base_position
+            model.data.model_state.base_quaternion = state.base_quaternion
+            model.data.model_state.joint_positions = state.joint_positions
+            model.data.model_state.base_linear_velocity = state.base_linear_velocity
+            model.data.model_state.base_angular_velocity = state.base_angular_velocity
+            model.data.model_state.joint_velocities = state.joint_velocities
 
-        return jnp.hstack(model.inverse_dynamics())
+        return jnp.hstack(
+            model.inverse_dynamics(
+                base_acceleration=jnp.zeros(6),
+                joint_accelerations=jnp.zeros(model.dofs()),
+            )
+        )
 
     def free_floating_gravity_forces(self) -> jtp.Vector:
-        model_state = self.data.model_state
-        model = self.copy().mutable(validate=True)
+        with self.editable(validate=True) as model:
+            model.zero()
 
-        model.zero()
-        model.data.model_state.base_position = model_state.base_position
-        model.data.model_state.base_quaternion = model_state.base_quaternion
-        model.data.model_state.joint_positions = model_state.joint_positions
+            state = self.data.model_state.copy()
+            model.data.model_state.base_position = state.base_position
+            model.data.model_state.base_quaternion = state.base_quaternion
+            model.data.model_state.joint_positions = state.joint_positions
 
-        return jnp.hstack(model.inverse_dynamics())
+        return jnp.hstack(
+            model.inverse_dynamics(
+                base_acceleration=jnp.zeros(6),
+                joint_accelerations=jnp.zeros(model.dofs()),
+            )
+        )
 
     def momentum(self) -> jtp.Vector:
         with self.editable(validate=True) as m:
@@ -677,13 +741,18 @@ class Model(JaxsimDataclass):
         joint_accelerations: jtp.Vector = None,
         base_acceleration: jtp.Vector = jnp.zeros(6),
     ) -> Tuple[jtp.Vector, jtp.Vector]:
-        if (
-            self.velocity_representation is VelRepr.Mixed
-            and self.floating_base()
-            and not jnp.allclose(self.data.model_state.base_angular_velocity, 0)
-        ):
-            msg = "This method has to be fixed in Mixed representation"
-            raise ValueError(msg)
+        """
+        Compute inverse dynamics with the RNEA algorithm.
+
+        Args:
+            joint_accelerations: the joint accelerations to consider.
+            base_acceleration:  the base acceleration in the active representation to consider.
+
+        Returns:
+            A tuple containing the 6D force in active representation applied to the base
+            to obtain the considered base acceleration, and the joint torques to apply
+            to obtain the considered joint accelerations.
+        """
 
         # Build joint accelerations if not provided
         joint_accelerations = (
@@ -698,8 +767,43 @@ class Model(JaxsimDataclass):
         if base_acceleration.size != 6:
             raise ValueError(base_acceleration.size)
 
-        # Express base_acceleration in inertial representation
-        W_a_WB = self.active_to_inertial_representation(array=base_acceleration)
+        def to_inertial(C_vd_WB, W_H_C, C_v_WB, W_vl_WC):
+            W_X_C = sixd.se3.SE3.from_matrix(W_H_C).adjoint()
+            C_X_W = sixd.se3.SE3.from_matrix(W_H_C).inverse().adjoint()
+
+            if self.velocity_representation != VelRepr.Mixed:
+                return W_X_C @ C_vd_WB
+            else:
+                from jaxsim.math.cross import Cross
+
+                C_v_WC = C_X_W @ jnp.hstack([W_vl_WC, jnp.zeros(3)])
+                return W_X_C @ (C_vd_WB + Cross.vx(C_v_WC) @ C_v_WB)
+
+        if self.velocity_representation is VelRepr.Inertial:
+            W_H_C = W_H_W = jnp.eye(4)
+            W_vl_WC = W_vl_WW = jnp.zeros(3)
+
+        elif self.velocity_representation is VelRepr.Body:
+            W_H_C = W_H_B = self.base_transform()
+            W_vl_WC = W_vl_WB = self.base_velocity()[0:3]
+
+        elif self.velocity_representation is VelRepr.Mixed:
+            W_H_B = self.base_transform()
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_vl_WC = W_vl_W_BW = self.base_velocity()[0:3]
+
+        else:
+            raise ValueError(self.velocity_representation)
+
+        # We need to convert the derivative of the base acceleration to the Inertial
+        # representation. In Mixed representation, this conversion is not a plain
+        # transformation with just X, but it also involves a cross product in ℝ⁶.
+        W_v̇_WB = to_inertial(
+            C_vd_WB=base_acceleration,
+            W_H_C=W_H_C,
+            C_v_WB=self.base_velocity(),
+            W_vl_WC=W_vl_WC,
+        )
 
         # Compute RNEA
         W_f_B, tau = jaxsim.physics.algos.rnea.rnea(
@@ -708,7 +812,7 @@ class Model(JaxsimDataclass):
             q=self.data.model_state.joint_positions,
             qd=self.data.model_state.joint_velocities,
             qdd=joint_accelerations,
-            a0fb=W_a_WB,
+            a0fb=W_v̇_WB,
             f_ext=self.data.model_input.f_ext,
         )
 
@@ -732,19 +836,11 @@ class Model(JaxsimDataclass):
     def forward_dynamics_aba(
         self, tau: jtp.Vector = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
-        if (
-            self.velocity_representation is not VelRepr.Inertial
-            and (self.data.model_input.f_ext != 0).any()
-        ):
-            msg1 = "This method has to be fixed for Body and Mixed representation, "
-            msg2 = "use forward_dynamics_crb instead."
-            raise ValueError(msg1 + msg2)
-
         # Build joint torques if not provided
         tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
 
         # Compute ABA
-        W_a_WB, sdd = jaxsim.physics.algos.aba.aba(
+        W_v̇_WB, sdd = jaxsim.physics.algos.aba.aba(
             model=self.physics_model,
             xfb=self.data.model_state.xfb(),
             q=self.data.model_state.joint_positions,
@@ -753,41 +849,82 @@ class Model(JaxsimDataclass):
             f_ext=self.data.model_input.f_ext,
         )
 
+        def to_active(W_vd_WB, W_H_C, W_v_WB, W_vl_WC):
+            C_X_W = sixd.se3.SE3.from_matrix(W_H_C).inverse().adjoint()
+
+            if self.velocity_representation != VelRepr.Mixed:
+                return C_X_W @ W_vd_WB
+            else:
+                from jaxsim.math.cross import Cross
+
+                W_v_WC = jnp.hstack([W_vl_WC, jnp.zeros(3)])
+                return C_X_W @ (W_vd_WB - Cross.vx(W_v_WC) @ W_v_WB)
+
+        if self.velocity_representation is VelRepr.Inertial:
+            W_H_C = W_H_W = jnp.eye(4)
+            W_vl_WC = W_vl_WW = jnp.zeros(3)
+
+        elif self.velocity_representation is VelRepr.Body:
+            W_H_C = W_H_B = self.base_transform()
+            W_vl_WC = W_vl_WB = self.base_velocity()[0:3]
+
+        elif self.velocity_representation is VelRepr.Mixed:
+            W_H_B = self.base_transform()
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_vl_WC = W_vl_W_BW = self.base_velocity()[0:3]
+
+        else:
+            raise ValueError(self.velocity_representation)
+
+        # We need to convert the derivative of the base acceleration to the active
+        # representation. In Mixed representation, this conversion is not a plain
+        # transformation with just X, but it also involves a cross product in ℝ⁶.
+        C_v̇_WB = to_active(
+            W_vd_WB=W_v̇_WB.squeeze(),
+            W_H_C=W_H_C,
+            W_v_WB=jnp.hstack(
+                [
+                    self.data.model_state.base_linear_velocity,
+                    self.data.model_state.base_angular_velocity,
+                ]
+            ),
+            W_vl_WC=W_vl_WC,
+        )
+
         # Adjust shape
         sdd = jnp.atleast_1d(sdd.squeeze())
 
-        # Express W_a_WB in the active representation
-        a_WB = self.inertial_to_active_representation(array=W_a_WB)
-
-        return a_WB, sdd
+        return C_v̇_WB, sdd
 
     def forward_dynamics_crb(
         self, tau: jtp.Vector = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         # Build joint torques if not provided
-        tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
-        tau = jnp.atleast_1d(tau.squeeze())
-        tau = jnp.vstack(tau) if tau.size > 0 else jnp.empty(shape=(0, 1))
+        τ = tau if tau is not None else jnp.zeros_like(self.joint_positions())
+        τ = jnp.atleast_1d(τ.squeeze())
+        τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
 
         # Compute terms of the floating-base EoM
         M = self.free_floating_mass_matrix()
-        h = jnp.vstack(self.free_floating_generalized_forces())
-        J = self.generalized_jacobian()
+        h = jnp.vstack(self.free_floating_bias_forces())
+        J = self.generalized_free_floating_jacobian()
         f_ext = jnp.vstack(self.external_forces().flatten())
         S = jnp.block([jnp.zeros(shape=(self.dofs(), 6)), jnp.eye(self.dofs())]).T
 
-        if self.floating_base():
-            nu_dot = jnp.linalg.inv(M) @ (S @ tau - h + J.T @ f_ext)
-            sdd = nu_dot[6:]
-            a_WB = nu_dot[0:6]
+        # Configure the slice for fixed/floating base robots
+        sl = np.s_[0:] if self.floating_base() else np.s_[6:]
 
-        else:
-            hss = h[6:]
-            Jss = J[:, 6:]
-            Mss = M[6:, 6:]
+        # Compute the generalized acceleration by inverting the EoM
+        ν̇ = jnp.linalg.inv(M[sl, sl]) @ ((S @ τ)[sl] - h[sl] + J[:, sl].T @ f_ext)
 
-            a_WB = jnp.zeros(6)
-            sdd = jnp.linalg.inv(Mss) @ (tau - hss + Jss.T @ f_ext)
+        # Extract the base acceleration in the active representation.
+        # Note that this is an apparent acceleration (relevant in Mixed representation),
+        # therefore it cannot be always expressed in different frames with just a
+        # 6D transformation X.
+        a_WB = ν̇[0:6] if self.floating_base() else jnp.zeros(6)
+
+        # Extract the joint accelerations
+        sdd = ν̇[6:] if self.floating_base() else ν̇
 
         # Adjust shape and convert to lin-ang serialization
         a_WB = a_WB.squeeze()
@@ -1069,12 +1206,12 @@ class Model(JaxsimDataclass):
             W_H_B = self.base_transform()
 
             if not is_force:
-                B_X_W: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
-                B_array = B_X_W @ W_array
+                B_Xv_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
+                B_array = B_Xv_W @ W_array
 
             else:
-                W_X_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
-                B_array = W_X_B.T @ W_array
+                B_Xf_W = sixd.se3.SE3.from_matrix(W_H_B).adjoint().T
+                B_array = B_Xf_W @ W_array
 
             return B_array
 
@@ -1082,12 +1219,12 @@ class Model(JaxsimDataclass):
             W_H_BW = jnp.eye(4).at[0:3, 3].set(self.base_position())
 
             if not is_force:
-                BW_X_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                BW_array = BW_X_W @ W_array
+                BW_Xv_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
+                BW_array = BW_Xv_W @ W_array
 
             else:
-                W_X_BW = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
-                BW_array = W_X_BW.transpose() @ W_array
+                BW_Xf_W = sixd.se3.SE3.from_matrix(W_H_BW).adjoint().T
+                BW_array = BW_Xf_W @ W_array
 
             return BW_array
 
@@ -1111,12 +1248,12 @@ class Model(JaxsimDataclass):
             W_H_B = self.base_transform()
 
             if not is_force:
-                W_X_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
-                W_array = W_X_B @ B_array
+                W_Xv_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
+                W_array = W_Xv_B @ B_array
 
             else:
-                B_X_W: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
-                W_array = B_X_W.T @ B_array
+                W_Xf_B = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint().T
+                W_array = W_Xf_B @ B_array
 
             return W_array
 
@@ -1125,12 +1262,12 @@ class Model(JaxsimDataclass):
             W_H_BW = jnp.eye(4).at[0:3, 3].set(self.base_position())
 
             if not is_force:
-                W_X_BW: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
-                W_array = W_X_BW @ BW_array
+                W_Xv_BW: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
+                W_array = W_Xv_BW @ BW_array
 
             else:
-                BW_X_W: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                W_array = BW_X_W.T @ BW_array
+                W_Xf_BW = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint().T
+                W_array = W_Xf_BW @ BW_array
 
             return W_array
 

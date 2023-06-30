@@ -1,15 +1,22 @@
+import dataclasses
+
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
 import numpy.typing as npt
+from jax_dataclasses import Static
 
 from jaxsim.parsers.descriptions import ModelDescription
 
 
 @jax_dataclasses.pytree_dataclass
 class GroundContact:
-    point: npt.NDArray = jax_dataclasses.field(default_factory=lambda: jnp.array([]))
-    body: npt.NDArray = jax_dataclasses.static_field(
+    """
+    Class to store the collidable points of a robot model.
+    """
+
+    point: npt.NDArray = dataclasses.field(default_factory=lambda: jnp.array([]))
+    body: Static[npt.NDArray] = dataclasses.field(
         default_factory=lambda: np.array([], dtype=int)
     )
 

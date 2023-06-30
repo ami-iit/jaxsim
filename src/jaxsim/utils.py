@@ -96,7 +96,7 @@ class JaxsimDataclass(abc.ABC):
         return self
 
     def copy(self: T) -> T:
-        obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
+        obj = copy.deepcopy(self)
         obj._set_mutability(mutability=self._mutability())
         return obj
 

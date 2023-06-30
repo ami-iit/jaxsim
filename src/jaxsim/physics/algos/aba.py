@@ -1,8 +1,8 @@
 from typing import Tuple
 
 import jax
-import jax.experimental.loops
 import jax.numpy as jnp
+import numpy as np
 
 import jaxsim.typing as jtp
 from jaxsim.math.adjoint import Adjoint
@@ -20,6 +20,10 @@ def aba(
     tau: jtp.Vector,
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
+    """
+    Articulated Body Algorithm (ABA) algorithm for forward dynamics.
+    """
+
     x_fb, q, qd, _, tau, f_ext = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=qd, tau=tau, f_ext=f_ext
     )
@@ -65,110 +69,121 @@ def aba(
         # AB inertia (Mᴬ) and AB bias forces (pᴬ)
         MA_0 = M[0]
         MA = MA.at[0].set(MA_0)
-        pA_0 = Cross.vx_star(v[0]) @ MA_0 @ v[0] - jnp.linalg.inv(B_X_W).T @ jnp.vstack(
-            f_ext[0]
-        )
+        pA_0 = Cross.vx_star(v[0]) @ MA_0 @ v[0] - Adjoint.inverse(
+            B_X_W
+        ).T @ jnp.vstack(f_ext[0])
         pA = pA.at[0].set(pA_0)
 
-    with jax.experimental.loops.Scope() as s:  # Pass 1
-        s.qd = qd
-        s.f_ext = f_ext
+    Pass1Carry = Tuple[
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+    ]
 
-        s.i_X_λi = i_X_λi
-        s.v = v
-        s.c = c
-        s.MA = MA
-        s.pA = pA
+    pass_1_carry = (i_X_λi, v, c, MA, pA, i_X_0)
 
-        for i in range(1, model.NB):
-            ii = i - 1
+    # Pass 1
+    def loop_body_pass1(carry: Pass1Carry, i: jtp.Int) -> Tuple[Pass1Carry, None]:
+        ii = i - 1
+        i_X_λi, v, c, MA, pA, i_X_0 = carry
 
-            # Compute parent-to-child transform
-            i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
-            s.i_X_λi = s.i_X_λi.at[i].set(i_X_λi_i)
+        # Compute parent-to-child transform
+        i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
+        i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
-            # Propagate link velocity
-            vJ = S[i] * s.qd[ii] if s.qd.size != 0 else S[i] * 0
+        # Propagate link velocity
+        vJ = S[i] * qd[ii]
 
-            v_i = s.i_X_λi[i] @ s.v[λ[i]] + vJ
-            s.v = s.v.at[i].set(v_i)
+        v_i = i_X_λi[i] @ v[λ[i]] + vJ
+        v = v.at[i].set(v_i)
 
-            c_i = Cross.vx(s.v[i]) @ vJ
-            s.c = s.c.at[i].set(c_i)
+        c_i = Cross.vx(v[i]) @ vJ
+        c = c.at[i].set(c_i)
 
-            # Initialize articulated-body inertia
-            MA_i = jnp.array(M[i])
-            s.MA = s.MA.at[i].set(MA_i)
+        # Initialize articulated-body inertia
+        MA_i = jnp.array(M[i])
+        MA = MA.at[i].set(MA_i)
 
-            # Initialize articulated-body bias forces
-            i_X_0_i = s.i_X_λi[i] @ i_X_0[model.parent[i]]
-            i_X_0 = i_X_0.at[i].set(i_X_0_i)
-            i_X_W = jnp.linalg.inv(i_X_0[i] @ B_X_W).T
+        # Initialize articulated-body bias forces
+        i_X_0_i = i_X_λi[i] @ i_X_0[model.parent[i]]
+        i_X_0 = i_X_0.at[i].set(i_X_0_i)
+        i_Xf_W = Adjoint.inverse(i_X_0[i] @ B_X_W).T
 
-            pA_i = Cross.vx_star(s.v[i]) @ M[i] @ s.v[i] - i_X_W @ jnp.vstack(
-                s.f_ext[i]
-            )
-            s.pA = s.pA.at[i].set(pA_i)
+        pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
+        pA = pA.at[i].set(pA_i)
 
-        i_X_λi = s.i_X_λi
-        c = s.c
-        MA = s.MA
-        pA = s.pA
+        return (i_X_λi, v, c, MA, pA, i_X_0), None
+
+    (i_X_λi, v, c, MA, pA, i_X_0), _ = jax.lax.scan(
+        f=loop_body_pass1,
+        init=pass_1_carry,
+        xs=np.arange(start=1, stop=model.NB),
+    )
 
     U = jnp.zeros_like(S)
     d = jnp.zeros(shape=(model.NB, 1))
     u = jnp.zeros(shape=(model.NB, 1))
 
-    with jax.experimental.loops.Scope() as s:  # Pass 2
-        s.tau = tau
+    Pass2Carry = Tuple[
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+    ]
 
-        s.U = U
-        s.d = d
-        s.u = u
-        s.MA = MA
-        s.pA = pA
+    pass_2_carry = (U, d, u, MA, pA)
 
-        for i in s.range(model.NB - 1, 0, -1):
-            ii = i - 1
+    # Pass 2
+    def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> Tuple[Pass2Carry, None]:
+        ii = i - 1
+        U, d, u, MA, pA = carry
 
-            # Compute intermediate results
-            U_i = s.MA[i] @ S[i]
-            s.U = s.U.at[i].set(U_i)
+        # Compute intermediate results
+        U_i = MA[i] @ S[i]
+        U = U.at[i].set(U_i)
 
-            d_i = S[i].T @ s.U[i]
-            s.d = s.d.at[i].set(d_i.squeeze())
+        d_i = S[i].T @ U[i]
+        d = d.at[i].set(d_i.squeeze())
 
-            u_i = s.tau[ii] - S[i].T @ s.pA[i] if s.tau.size != 0 else -S[i].T @ s.pA[i]
-            s.u = s.u.at[i].set(u_i.squeeze())
+        u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
+        u = u.at[i].set(u_i.squeeze())
 
-            # Compute the articulated-body inertia and bias forces of this link
-            Ma = s.MA[i] - s.U[i] / s.d[i] @ s.U[i].T
-            pa = s.pA[i] + Ma @ c[i] + s.U[i] * s.u[i] / s.d[i]
+        # Compute the articulated-body inertia and bias forces of this link
+        Ma = MA[i] - U[i] / d[i] @ U[i].T
+        pa = pA[i] + Ma @ c[i] + U[i] * u[i] / d[i]
 
-            # Propagate them to the parent, handling the base link
-            def propagate(MA_pA):
-                MA, pA = MA_pA
+        # Propagate them to the parent, handling the base link
+        def propagate(
+            MA_pA: Tuple[jtp.MatrixJax, jtp.MatrixJax]
+        ) -> Tuple[jtp.MatrixJax, jtp.MatrixJax]:
+            MA, pA = MA_pA
 
-                MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
-                MA = MA.at[λ[i]].set(MA_λi)
+            MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
+            MA = MA.at[λ[i]].set(MA_λi)
 
-                pA_λi = pA[λ[i]] + i_X_λi[i].T @ pa
-                pA = pA.at[λ[i]].set(pA_λi)
+            pA_λi = pA[λ[i]] + i_X_λi[i].T @ pa
+            pA = pA.at[λ[i]].set(pA_λi)
 
-                return MA, pA
+            return MA, pA
 
-            s.MA, s.pA = jax.lax.cond(
-                pred=jnp.array([λ[i] != 0, model.is_floating_base]).any(),
-                true_fun=propagate,
-                false_fun=lambda MA_pA: MA_pA,
-                operand=(s.MA, s.pA),
-            )
+        MA, pA = jax.lax.cond(
+            pred=jnp.array([λ[i] != 0, model.is_floating_base]).any(),
+            true_fun=propagate,
+            false_fun=lambda MA_pA: MA_pA,
+            operand=(MA, pA),
+        )
 
-        U = s.U
-        d = s.d
-        u = s.u
-        MA = s.MA
-        pA = s.pA
+        return (U, d, u, MA, pA), None
+
+    (U, d, u, MA, pA), _ = jax.lax.scan(
+        f=loop_body_pass2,
+        init=pass_2_carry,
+        xs=np.flip(np.arange(start=1, stop=model.NB)),
+    )
 
     if model.is_floating_base:
         a0 = jnp.linalg.solve(-MA[0], pA[0])
@@ -179,25 +194,31 @@ def aba(
     a = a.at[0].set(a0)
     qdd = jnp.zeros_like(q)
 
-    with jax.experimental.loops.Scope() as s:  # Pass 3
-        s.a = a
-        s.qdd = qdd
+    Pass3Carry = Tuple[jtp.MatrixJax, jtp.VectorJax]
+    pass_3_carry = (a, qdd)
 
-        for i in s.range(1, model.NB):
-            ii = i - 1
+    # Pass 3
+    def loop_body_pass3(carry: Pass3Carry, i: jtp.Int) -> Tuple[Pass3Carry, None]:
+        ii = i - 1
+        a, qdd = carry
 
-            # Propagate link accelerations
-            a_i = i_X_λi[i] @ s.a[λ[i]] + c[i]
+        # Propagate link accelerations
+        a_i = i_X_λi[i] @ a[λ[i]] + c[i]
 
-            # Compute joint accelerations
-            qdd_ii = (u[i] - U[i].T @ a_i) / d[i]
-            s.qdd = s.qdd.at[ii].set(qdd_ii.squeeze()) if qdd.size != 0 else s.qdd
+        # Compute joint accelerations
+        qdd_ii = (u[i] - U[i].T @ a_i) / d[i]
+        qdd = qdd.at[i - 1].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
-            a_i = a_i + S[i] * s.qdd[ii] if qdd.size != 0 else a_i
-            s.a = s.a.at[i].set(a_i)
+        a_i = a_i + S[i] * qdd[ii] if qdd.size != 0 else a_i
+        a = a.at[i].set(a_i)
 
-        a = s.a
-        qdd = s.qdd
+        return (a, qdd), None
+
+    (a_, qdd), _ = jax.lax.scan(
+        f=loop_body_pass3,
+        init=pass_3_carry,
+        xs=np.arange(1, model.NB),
+    )
 
     # Handle 1 DoF models
     qdd = jnp.atleast_1d(qdd.squeeze())

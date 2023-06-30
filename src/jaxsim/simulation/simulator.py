@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+from jax_dataclasses import Static
 
 import jaxsim.high_level
 import jaxsim.parsers.descriptions as descriptions
@@ -31,19 +32,21 @@ class SimulatorData(JaxsimDataclass):
     """
 
     # Simulation time stored in ns in order to prevent floats approximation
-    time_ns: jtp.Int = jnp.array(0, dtype=jnp.uint64)
+    time_ns: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
+    )
 
     # Terrain and contact parameters
-    terrain: Terrain = jax_dataclasses.field(default_factory=lambda: FlatTerrain())
-    contact_parameters: SoftContactsParams = jax_dataclasses.field(
+    terrain: Terrain = dataclasses.field(default_factory=lambda: FlatTerrain())
+    contact_parameters: SoftContactsParams = dataclasses.field(
         default_factory=lambda: SoftContactsParams()
     )
 
     # Dictionary containing all handled models
-    models: Dict[str, Model] = jax_dataclasses.field(default_factory=dict)
+    models: Dict[str, Model] = dataclasses.field(default_factory=dict)
 
     # Default gravity vector (could be overridden for individual models)
-    gravity: jtp.Vector = jax_dataclasses.field(
+    gravity: jtp.Vector = dataclasses.field(
         default_factory=lambda: jaxsim.physics.default_gravity()
     )
 
@@ -53,19 +56,19 @@ class JaxSim(JaxsimDataclass):
     """The JaxSim simulator."""
 
     # Step size stored in ns in order to prevent floats approximation
-    step_size_ns: jtp.Int = jax_dataclasses.field(
+    step_size_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(1_000_000, dtype=jnp.uint64)
     )
 
     # Number of sub-steps performed at each integration step.
     # Note: there is no collision detection performed in sub-steps.
-    steps_per_run: jtp.Int = jax_dataclasses.static_field(default=1)
+    steps_per_run: Static[jtp.Int] = dataclasses.field(default=1)
 
     # Default velocity representation (could be overridden for individual models)
-    velocity_representation: VelRepr = jax_dataclasses.field(default=VelRepr.Inertial)
+    velocity_representation: VelRepr = dataclasses.field(default=VelRepr.Inertial)
 
     # Integrator type
-    integrator_type: ode_integration.IntegratorType = jax_dataclasses.static_field(
+    integrator_type: Static[ode_integration.IntegratorType] = dataclasses.field(
         default=ode_integration.IntegratorType.EulerForward
     )
 

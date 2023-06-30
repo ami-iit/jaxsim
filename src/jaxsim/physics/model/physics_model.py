@@ -5,7 +5,7 @@ import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
-from jax_dataclasses import pytree_dataclass, static_field
+from jax_dataclasses import Static
 
 import jaxsim.parsers
 import jaxsim.physics
@@ -19,25 +19,29 @@ from .ground_contact import GroundContact
 from .physics_model_state import PhysicsModelState
 
 
-@pytree_dataclass
+@jax_dataclasses.pytree_dataclass
 class PhysicsModel(JaxsimDataclass):
-    NB: int = static_field()
-    initial_state: PhysicsModelState = jax_dataclasses.field(default=None)
+    """
+    A read-only class to store all the information necessary to run RBDAs on a model.
+    """
+
+    NB: Static[int]
+    initial_state: PhysicsModelState = dataclasses.field(default=None)
     gravity: jtp.Vector = dataclasses.field(
         default_factory=lambda: jnp.hstack(
             [np.zeros(3), jaxsim.physics.default_gravity()]
         )
     )
-    is_floating_base: bool = static_field(default_factory=lambda: False)
+    is_floating_base: Static[bool] = dataclasses.field(default=False)
     gc: GroundContact = dataclasses.field(default_factory=lambda: GroundContact())
-    description: jaxsim.parsers.descriptions.model.ModelDescription = static_field(
-        default=None
-    )
+    description: Static[
+        jaxsim.parsers.descriptions.model.ModelDescription
+    ] = dataclasses.field(default=None)
 
-    _parent_array_dict: Dict[int, int] = static_field(default_factory=dict)
-    _jtype_dict: Dict[int, Union[JointType, JointDescriptor]] = static_field(
-        default_factory=dict
-    )
+    _parent_array_dict: Static[Dict[int, int]] = dataclasses.field(default_factory=dict)
+    _jtype_dict: Static[
+        Dict[int, Union[JointType, JointDescriptor]]
+    ] = dataclasses.field(default_factory=dict)
     _tree_transforms_dict: Dict[int, jtp.Matrix] = dataclasses.field(
         default_factory=dict
     )

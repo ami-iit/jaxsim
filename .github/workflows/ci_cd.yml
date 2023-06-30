@@ -61,7 +61,7 @@ jobs:
           - "3.8"
           - "3.9"
           - "3.10"
-          # - "3.11"
+          - "3.11"
 
     steps:
 
@@ -76,12 +76,34 @@ jobs:
           path: dist
           name: dist
 
-      - name: Install wheel
+      - name: Install wheel (ubuntu)
+        if: contains(matrix.os, 'ubuntu')
         shell: bash
-        run: pip install dist/*.whl
+        run: pip install "$(find dist/ -type f -name '*.whl')[all]"
+
+      - name: Install wheel (macos)
+        if: contains(matrix.os, 'macos')
+        shell: bash
+        run: pip install "$(find dist/ -type f -name '*.whl')"
 
       - name: Import the package
         run: python -c "import jaxsim"
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install Gazebo Classic
+        if: contains(matrix.os, 'ubuntu') && (matrix.python == '3.10' || matrix.python == '3.11')
+        run: |
+          sudo apt-get update
+          sudo apt-get install gazebo
+
+      - name: Run the Python tests
+        if: contains(matrix.os, 'ubuntu') && (matrix.python == '3.10' || matrix.python == '3.11')
+        run: pytest
+        env:
+          JAX_PLATFORM_NAME: cpu
 
   publish:
     name: Publish to PyPI

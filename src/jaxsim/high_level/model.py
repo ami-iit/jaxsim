@@ -1006,10 +1006,13 @@ class Model(JaxsimDataclass):
 
         # TODO: joint position limits
 
-        self.data.model_state.joint_positions = (
-            self.data.model_state.joint_positions.at[
-                self._joint_indices(joint_names=joint_names)
-            ].set(positions)
+        self.data.model_state.joint_positions = jnp.atleast_1d(
+            jnp.array(
+                self.data.model_state.joint_positions.at[
+                    self._joint_indices(joint_names=joint_names)
+                ].set(positions),
+                dtype=float,
+            )
         )
 
     def reset_joint_velocities(
@@ -1026,14 +1029,17 @@ class Model(JaxsimDataclass):
 
         # TODO: joint velocity limits
 
-        self.data.model_state.joint_velocities = (
-            self.data.model_state.joint_velocities.at[
-                self._joint_indices(joint_names=joint_names)
-            ].set(velocities)
+        self.data.model_state.joint_velocities = jnp.atleast_1d(
+            jnp.array(
+                self.data.model_state.joint_velocities.at[
+                    self._joint_indices(joint_names=joint_names)
+                ].set(velocities),
+                dtype=float,
+            )
         )
 
     def reset_base_position(self, position: jtp.Vector) -> None:
-        self.data.model_state.base_position = position
+        self.data.model_state.base_position = jnp.array(position, dtype=float)
 
     def reset_base_orientation(self, orientation: jtp.Array, dcm: bool = False) -> None:
         if dcm:
@@ -1043,7 +1049,7 @@ class Model(JaxsimDataclass):
             ).as_quaternion_xyzw()
             orientation = orientation_xyzw[to_wxyz]
 
-        self.data.model_state.base_quaternion = orientation
+        self.data.model_state.base_quaternion = jnp.array(orientation, dtype=float)
 
     def reset_base_transform(self, transform: jtp.Matrix) -> None:
         if transform.shape != (4, 4):
@@ -1087,8 +1093,13 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(self.velocity_representation)
 
-        self.data.model_state.base_linear_velocity = base_velocity_inertial[0:3]
-        self.data.model_state.base_angular_velocity = base_velocity_inertial[3:6]
+        self.data.model_state.base_linear_velocity = jnp.array(
+            base_velocity_inertial[0:3], dtype=float
+        )
+
+        self.data.model_state.base_angular_velocity = jnp.array(
+            base_velocity_inertial[3:6], dtype=float
+        )
 
     # ===========
     # Integration

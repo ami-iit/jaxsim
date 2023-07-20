@@ -102,6 +102,19 @@ class Joint(Vmappable):
 
         return jnp.array(low, dtype=float), jnp.array(high, dtype=float)
 
+    # =============
+    # Motor methods
+    # =============
+
+    def motor_inertia(self) -> float:
+        return self.joint_description.motor_inertia
+
+    def motor_gear_ratio(self) -> float:
+        return self.joint_description.motor_gear_ratio
+
+    def motor_viscous_friction(self) -> float:
+        return self.joint_description.motor_viscous_friction
+
     # =================
     # Multi-DoF methods
     # =================

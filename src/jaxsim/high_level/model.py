@@ -1479,6 +1479,69 @@ class Model(Vmappable):
             },
         )
 
+    # ==============
+    # Motor dynamics
+    # ==============
+
+    def set_motor_inertias(
+        self, inertias: jtp.Vector, joint_names: List[str] = None
+    ) -> None:
+        if joint_names is None:
+            joint_names = self.joint_names()
+
+        if inertias.size != len(joint_names):
+            raise ValueError("Wrong arguments size", inertias.size, len(joint_names))
+
+        self.physics_model._joint_motor_inertia.update(
+            dict(
+                map(
+                    lambda j, g: (j, g),
+                    self.physics_model._joint_motor_inertia.keys(),
+                    inertias,
+                )
+            )
+        )
+
+    def set_motor_gear_ratios(
+        self, gear_ratios: jtp.Vector, joint_names: List[str] = None
+    ) -> None:
+        if joint_names is None:
+            joint_names = self.joint_names()
+
+        if gear_ratios.size != len(joint_names):
+            raise ValueError("Wrong arguments size", gear_ratios.size, len(joint_names))
+
+        self.physics_model._joint_motor_gear_ratio.update(
+            dict(
+                map(
+                    lambda j, g: (j, g),
+                    self.physics_model._joint_motor_gear_ratio.keys(),
+                    gear_ratios,
+                )
+            )
+        )
+
+    def set_motor_viscous_friction(
+        self, viscous_frictions: jtp.Vector, joint_names: List[str] = None
+    ) -> None:
+        if joint_names is None:
+            joint_names = self.joint_names()
+
+        if viscous_frictions.size != len(joint_names):
+            raise ValueError(
+                "Wrong arguments size", viscous_frictions.size, len(joint_names)
+            )
+
+        self.physics_model._joint_motor_viscous_friction.update(
+            dict(
+                map(
+                    lambda j, g: (j, g),
+                    self.physics_model._joint_motor_viscous_friction.keys(),
+                    viscous_frictions,
+                )
+            )
+        )
+
     # ===============
     # Private methods
     # ===============

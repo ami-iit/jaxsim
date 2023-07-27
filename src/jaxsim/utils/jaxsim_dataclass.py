@@ -1,37 +1,18 @@
 import abc
 import contextlib
 import copy
-from typing import Any, ContextManager, TypeVar
+from typing import ContextManager, TypeVar
 
 import jax.abstract_arrays
 import jax.flatten_util
 import jax.interpreters.partial_eval
 import jax_dataclasses
-from jax_dataclasses._copy_and_mutate import _Mutability as Mutability
 
 import jaxsim.typing as jtp
 
+from . import Mutability
+
 T = TypeVar("T")
-
-
-def tracing(var: Any) -> bool:
-    """Returns True if the variable is being traced by JAX, False otherwise."""
-
-    return jax.numpy.array(
-        [
-            isinstance(var, t)
-            for t in (
-                jax.abstract_arrays.ShapedArray,
-                jax.interpreters.partial_eval.DynamicJaxprTracer,
-            )
-        ]
-    ).any()
-
-
-def not_tracing(var: Any) -> bool:
-    """Returns True if the variable is not being traced by JAX, False otherwise."""
-
-    return True if tracing(var) is False else False
 
 
 class JaxsimDataclass(abc.ABC):
@@ -47,11 +28,6 @@ class JaxsimDataclass(abc.ABC):
 
         with JaxsimDataclass.mutable_context(self.copy(), mutability=mutability) as obj:
             yield obj
-
-        # with jax_dataclasses.copy_and_mutate(self, validate=validate) as self_rw:
-        #     yield self_rw
-        #
-        # self_rw._set_mutability(self._mutability())
 
     @contextlib.contextmanager
     def mutable_context(self: T, mutability: Mutability) -> ContextManager[T]:

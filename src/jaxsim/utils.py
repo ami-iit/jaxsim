@@ -59,10 +59,14 @@ class JaxsimDataclass(abc.ABC):
 
         original_mutability = self._mutability()
 
-        self._set_mutability(mutability)
-        yield self
-
-        self._set_mutability(original_mutability)
+        try:
+            self._set_mutability(mutability)
+            yield self
+        except Exception as e:
+            self._set_mutability(original_mutability)
+            raise e
+        finally:
+            self._set_mutability(original_mutability)
 
     def is_mutable(self: T, validate: bool = False) -> bool:
         """"""

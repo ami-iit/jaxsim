@@ -21,6 +21,9 @@ except ImportError:
 class JaxsimDataclass(abc.ABC):
     """"""
 
+    # This attribute is set by jax_dataclasses
+    __mutability__ = None
+
     @contextlib.contextmanager
     def editable(self: Self, validate: bool = True) -> ContextManager[Self]:
         """"""

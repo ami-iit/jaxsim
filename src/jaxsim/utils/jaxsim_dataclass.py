@@ -1,7 +1,7 @@
 import abc
 import contextlib
 import copy
-from typing import ContextManager, TypeVar
+from typing import ContextManager
 
 import jax.abstract_arrays
 import jax.flatten_util
@@ -12,14 +12,17 @@ import jaxsim.typing as jtp
 
 from . import Mutability
 
-T = TypeVar("T")
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class JaxsimDataclass(abc.ABC):
     """"""
 
     @contextlib.contextmanager
-    def editable(self: T, validate: bool = True) -> ContextManager[T]:
+    def editable(self: Self, validate: bool = True) -> ContextManager[Self]:
         """"""
 
         mutability = (
@@ -30,7 +33,7 @@ class JaxsimDataclass(abc.ABC):
             yield obj
 
     @contextlib.contextmanager
-    def mutable_context(self: T, mutability: Mutability) -> ContextManager[T]:
+    def mutable_context(self: Self, mutability: Mutability) -> ContextManager[Self]:
         """"""
 
         original_mutability = self._mutability()
@@ -44,7 +47,7 @@ class JaxsimDataclass(abc.ABC):
         finally:
             self._set_mutability(original_mutability)
 
-    def is_mutable(self: T, validate: bool = False) -> bool:
+    def is_mutable(self, validate: bool = False) -> bool:
         """"""
 
         return (
@@ -71,21 +74,21 @@ class JaxsimDataclass(abc.ABC):
             self, mutable=mutability, visited=set()
         )
 
-    def mutable(self: T, mutable: bool = True, validate: bool = False) -> T:
+    def mutable(self: Self, mutable: bool = True, validate: bool = False) -> Self:
         self.set_mutability(mutable=mutable, validate=validate)
         return self
 
-    def copy(self: T) -> T:
+    def copy(self: Self) -> Self:
         obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
         obj._set_mutability(mutability=self._mutability())
         return obj
 
-    def replace(self: T, validate: bool = True, **kwargs) -> T:
+    def replace(self: Self, validate: bool = True, **kwargs) -> Self:
         with self.editable(validate=validate) as obj:
             _ = [obj.__setattr__(k, copy.copy(v)) for k, v in kwargs.items()]
 
         obj._set_mutability(mutability=self._mutability())
         return obj
 
-    def flatten(self: T) -> jtp.VectorJax:
+    def flatten(self) -> jtp.VectorJax:
         return jax.flatten_util.ravel_pytree(self)[0]

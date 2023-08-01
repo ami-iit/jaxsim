@@ -101,9 +101,6 @@ def aba(
         jtp.MatrixJax,
         jtp.MatrixJax,
         jtp.MatrixJax,
-        jtp.MatrixJax,
-        jtp.MatrixJax,
-        jtp.MatrixJax,
     ]
 
     pass_1_carry = (i_X_λi, v, c, MA, pA, i_X_0)

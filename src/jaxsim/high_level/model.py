@@ -1521,7 +1521,7 @@ class Model(Vmappable):
             )
         )
 
-    def set_motor_viscous_friction(
+    def set_motor_viscous_frictions(
         self, viscous_frictions: jtp.Vector, joint_names: List[str] = None
     ) -> None:
         if joint_names is None:

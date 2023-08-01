@@ -89,6 +89,9 @@ def aba(
         jtp.MatrixJax,
         jtp.MatrixJax,
         jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
     ]
 
     pass_1_carry = (i_X_λi, v, c, MA, pA, i_X_0)
@@ -103,7 +106,7 @@ def aba(
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         # Propagate link velocity
-        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
+        vJ = S[i] * qd[ii] / Γ[ii] if qd.size != 0 else S[i] * 0
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
@@ -121,6 +124,7 @@ def aba(
         i_Xf_W = Adjoint.inverse(i_X_0[i] @ B_X_W).T
 
         pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
+        pA_i = pA_i + I_m[ii] @ vJ
         pA = pA.at[i].set(pA_i)
 
         return (i_X_λi, v, c, MA, pA, i_X_0), None

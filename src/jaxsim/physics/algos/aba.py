@@ -21,7 +21,7 @@ def aba(
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
-    Articulated Body Algorithm (ABA) algorithm for forward dynamics.
+    Articulated Body Algorithm (ABA) algorithm with motor dynamics for forward dynamics.
     """
 
     x_fb, q, qd, _, tau, f_ext = utils.process_inputs(

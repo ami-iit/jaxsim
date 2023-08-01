@@ -161,7 +161,14 @@ def aba(
         d_i = S[i].T @ U[i]
         d = d.at[i].set(d_i.squeeze())
 
-        u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
+        # Compute joint velocities
+        vJ = S[i] * qd[ii] / Γ[ii] if qd.size != 0 else S[i] * 0
+
+        u_i = (
+            tau[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T @ vJ
+            if tau.size != 0
+            else -S[i].T @ pA[i] - K̅ᵥ[ii].T @ vJ
+        )
         u = u.at[i].set(u_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link

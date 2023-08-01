@@ -35,6 +35,14 @@ def aba(
     S = model.motion_subspaces(q=q)
     λ = model.parent_array()
 
+    # Extract motor parameters from the physics model
+    Γ = jnp.array(list(model._joint_motor_gear_ratio.values()))
+    I_m = jnp.array(list(model._joint_motor_inertia.values()))
+    K̅ᵥ = jnp.array(list(model._joint_motor_viscous_friction.values()))
+
+    I_m = jnp.einsum("i,jk->ijk", I_m, jnp.eye(6))
+    K̅ᵥ = jnp.einsum("i,jk->ijk", K̅ᵥ, jnp.ones((6, 1)))
+
     # Initialize buffers
     v = jnp.array([jnp.zeros([6, 1])] * model.NB)
     MA = jnp.array([jnp.zeros([6, 6])] * model.NB)

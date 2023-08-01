@@ -1137,12 +1137,35 @@ class Model(Vmappable):
         τ = jnp.atleast_1d(τ.squeeze())
         τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
 
+        # Extract motor parameters from the physics model
+        Γ = jnp.diag(
+            jnp.array(list(self.physics_model._joint_motor_gear_ratio.values()))
+        )
+        I_m = jnp.diag(
+            jnp.array(list(self.physics_model._joint_motor_inertia.values()))
+        )
+        K_v = jnp.diag(
+            jnp.array(list(self.physics_model._joint_motor_viscous_friction.values()))
+        )
+
+        Γ_inv = jnp.linalg.inv(Γ)
+        K̅ᵥ = Γ_inv.T @ K_v @ Γ_inv
+
         # Compute terms of the floating-base EoM
         M = self.free_floating_mass_matrix()
         h = jnp.vstack(self.free_floating_bias_forces())
         J = self.generalized_free_floating_jacobian()
         f_ext = jnp.vstack(self.external_forces().flatten())
         S = jnp.block([jnp.zeros(shape=(self.dofs(), 6)), jnp.eye(self.dofs())]).T
+
+        # Configure the slice for fixed/floating base robots
+        sl = np.s_[0:] if self.floating_base() else np.s_[6:]
+        sl_m = np.s_[6:]
+
+        # Add the motor related terms to the EoM
+        M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + Γ_inv @ I_m @ Γ_inv.T)
+        h = h.at[sl_m].set(h[sl_m] + K̅ᵥ @ (self.joint_velocities()[:, None]))
+        S = S.at[sl_m].set(S[sl_m] * Γ_inv.T)
 
         # Compute the generalized acceleration by inverting the EoM
         ν̇ = jax.lax.select(

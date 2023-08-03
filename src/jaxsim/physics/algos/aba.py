@@ -46,14 +46,13 @@ def aba(
         if hasattr(model, "_joint_motor_inertia")
         else jnp.zeros(model.dofs)
     )
-    K̅ᵥ = (
+    K_v = (
         jnp.array(list(model._joint_motor_viscous_friction.values()))
         if hasattr(model, "_joint_motor_viscous_friction")
         else jnp.zeros(model.dofs)
     )
 
-    I_m = jnp.einsum("i,jk->ijk", I_m, jnp.eye(6))
-    K̅ᵥ = jnp.einsum("i,jk->ijk", K̅ᵥ, jnp.ones((6, 1)))
+    K̅ᵥ = jnp.diag(1 / Γ.T * jnp.diag(K_v) * 1 / Γ)
 
     # Initialize buffers
     v = jnp.array([jnp.zeros([6, 1])] * model.NB)
@@ -115,7 +114,7 @@ def aba(
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         # Propagate link velocity
-        vJ = S[i] * qd[ii] / Γ[ii] if qd.size != 0 else S[i] * 0
+        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
@@ -133,7 +132,6 @@ def aba(
         i_Xf_W = Adjoint.inverse(i_X_0[i] @ B_X_W).T
 
         pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
-        pA_i = pA_i + I_m[ii] @ vJ
         pA = pA.at[i].set(pA_i)
 
         return (i_X_λi, v, c, MA, pA, i_X_0), None
@@ -171,17 +169,17 @@ def aba(
         d = d.at[i].set(d_i.squeeze())
 
         # Compute joint velocities
-        vJ = S[i] * qd[ii] / Γ[ii] if qd.size != 0 else S[i] * 0
+        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
 
         u_i = (
-            tau[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T @ vJ
+            tau[ii] / Γ[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii]
             if tau.size != 0
-            else -S[i].T @ pA[i] - K̅ᵥ[ii].T @ vJ
+            else -S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii]
         )
         u = u.at[i].set(u_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link
-        Ma = MA[i] - U[i] / d[i] @ U[i].T
+        Ma = MA[i] - U[i] / d[i] @ U[i].T + I_m[ii] / Γ[ii] ** 2
         pa = pA[i] + Ma @ c[i] + U[i] * u[i] / d[i]
 
         # Propagate them to the parent, handling the base link
@@ -235,7 +233,7 @@ def aba(
 
         # Compute joint accelerations
         qdd_ii = (u[i] - U[i].T @ a_i) / d[i]
-        qdd = qdd.at[i - 1].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
+        qdd = qdd.at[ii].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
         a_i = a_i + S[i] * qdd[ii] if qdd.size != 0 else a_i
         a = a.at[i].set(a_i)

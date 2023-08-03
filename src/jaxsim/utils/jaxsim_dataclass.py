@@ -1,7 +1,8 @@
 import abc
 import contextlib
 import copy
-from typing import ContextManager
+import dataclasses
+from typing import Generator
 
 import jax.abstract_arrays
 import jax.flatten_util
@@ -25,7 +26,7 @@ class JaxsimDataclass(abc.ABC):
     __mutability__ = None
 
     @contextlib.contextmanager
-    def editable(self: Self, validate: bool = True) -> ContextManager[Self]:
+    def editable(self: Self, validate: bool = True) -> Generator[Self, None, None]:
         """"""
 
         mutability = (
@@ -36,15 +37,27 @@ class JaxsimDataclass(abc.ABC):
             yield obj
 
     @contextlib.contextmanager
-    def mutable_context(self: Self, mutability: Mutability) -> ContextManager[Self]:
+    def mutable_context(
+        self: Self, mutability: Mutability, restore_after_exception: bool = True
+    ) -> Generator[Self, None, None]:
         """"""
 
+        if restore_after_exception:
+            self_copy = self.copy()
+
         original_mutability = self._mutability()
+
+        def restore_self():
+            self._set_mutability(mutability=Mutability.MUTABLE)
+            for f in dataclasses.fields(self_copy):
+                setattr(self, f.name, getattr(self_copy, f.name))
 
         try:
             self._set_mutability(mutability)
             yield self
         except Exception as e:
+            if restore_after_exception:
+                restore_self()
             self._set_mutability(original_mutability)
             raise e
         finally:

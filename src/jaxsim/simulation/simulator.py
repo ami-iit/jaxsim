@@ -175,7 +175,7 @@ class JaxSim(Vmappable):
             The current simulation time in seconds.
         """
 
-        return self.data.time_ns / 1e9
+        return jnp.array(self.data.time_ns / 1e9, dtype=float)
 
     @functools.partial(oop.jax_tf.method_ro)
     def gravity(self) -> jtp.Vector:
@@ -186,7 +186,7 @@ class JaxSim(Vmappable):
             The 3D gravity vector.
         """
 
-        return self.data.gravity
+        return jnp.array(self.data.gravity, dtype=float)
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def model_names(self) -> List[str]:
@@ -243,7 +243,7 @@ class JaxSim(Vmappable):
             gravity: The 3D gravity vector.
         """
 
-        gravity = jnp.array(gravity)
+        gravity = jnp.array(gravity, dtype=float)
 
         if gravity.size != 3:
             raise ValueError(gravity)

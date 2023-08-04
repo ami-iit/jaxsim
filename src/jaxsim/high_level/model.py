@@ -801,7 +801,12 @@ class Model(Vmappable):
         B_H_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().as_matrix()
 
         com_links = [
-            (l.mass() * B_H_W @ W_H_L[l.index()] @ jnp.hstack([l.com(), 1]))
+            (
+                l.mass()
+                * B_H_W
+                @ W_H_L[l.index()]
+                @ jnp.hstack([l.com_position(in_link_frame=True), 1])
+            )
             for l in self.links()
         ]
 

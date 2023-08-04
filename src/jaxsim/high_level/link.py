@@ -264,7 +264,7 @@ class Link(Vmappable):
             W_H_LW = jnp.eye(4).at[0:3, 3].set(W_p_L)
             LW_X_W = sixd.se3.SE3.from_matrix(W_H_LW).inverse().adjoint()
 
-            W_f_ext = LW_X_W @ LW_f_ext
+            W_f_ext = LW_X_W.transpose() @ LW_f_ext
 
         else:
             raise ValueError(self.parent_model.velocity_representation)

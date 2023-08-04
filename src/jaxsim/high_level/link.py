@@ -250,8 +250,9 @@ class Link(Vmappable):
 
         return f_ext
 
-    def add_external_force(
-        self, force: jtp.Array = None, torque: jtp.Array = None
+    @functools.partial(oop.jax_tf.method_rw, static_argnames=["additive"])
+    def apply_external_force(
+        self, force: jtp.Array = None, torque: jtp.Array = None, additive: bool = True
     ) -> None:
         """"""
 
@@ -282,16 +283,18 @@ class Link(Vmappable):
         else:
             raise ValueError(self.parent_model.velocity_representation)
 
+        # Compute the new 6D force
         W_f_ext_current = self.parent_model.data.model_input.f_ext[self.index(), :]
+        new_force = W_f_ext_current + W_f_ext if additive else W_f_ext
 
+        # Apply the new 6D force to the link frame
         self.parent_model.data.model_input.f_ext = (
-            self.parent_model.data.model_input.f_ext.at[self.index(), :].set(
-                W_f_ext_current + W_f_ext
-            )
+            self.parent_model.data.model_input.f_ext.at[self.index(), :].set(new_force)
         )
 
-    def add_com_external_force(
-        self, force: jtp.Array = None, torque: jtp.Array = None
+    @functools.partial(oop.jax_tf.method_rw, static_argnames=["additive"])
+    def apply_com_external_force(
+        self, force: jtp.Array = None, torque: jtp.Array = None, additive: bool = True
     ) -> None:
         """"""
 
@@ -326,12 +329,13 @@ class Link(Vmappable):
         else:
             raise ValueError(self.parent_model.velocity_representation)
 
+        # Compute the new 6D force
         W_f_ext_current = self.parent_model.data.model_input.f_ext[self.index(), :]
+        new_force = W_f_ext_current + W_f_ext if additive else W_f_ext
 
+        # Apply the new 6D force to the link frame
         self.parent_model.data.model_input.f_ext = (
-            self.parent_model.data.model_input.f_ext.at[self.index(), :].set(
-                W_f_ext_current + W_f_ext
-            )
+            self.parent_model.data.model_input.f_ext.at[self.index(), :].set(new_force)
         )
 
     @functools.partial(oop.jax_tf.method_ro)

@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import jax_dataclasses
 
+import jaxsim
 import jaxsim.typing as jtp
 from jaxsim import high_level
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
@@ -80,7 +81,7 @@ simulator = JaxSim.build(
     step_size=step_size,
     steps_per_run=steps_per_run,
     velocity_representation=high_level.model.VelRepr.Body,
-    integrator_type=high_level.model.IntegratorType.EulerSemiImplicit,
+    integrator_type=jaxsim.IntegratorType.EulerSemiImplicit,
     simulator_data=SimulatorData(
         # contact_parameters=SoftContactsParams(K=1e6, D=2e3, mu=0.5)
         contact_parameters=SoftContactsParams(K=10_000, D=20.0, mu=0.5)
@@ -89,7 +90,7 @@ simulator = JaxSim.build(
 ).mutable(validate=False)
 
 # Insert the model and get a mutable object
-model = simulator.insert_model_from_sdf(sdf=model_sdf_path).mutable(validate=True)
+model = simulator.insert_model_from_description(model_description=model_sdf_path)
 
 # Remove useless joints and lump inertial parameters of their connecting links
 model.reduce(
@@ -166,12 +167,14 @@ plt.show()
 #
 
 import time
+
 import numpy as np
-from jaxsim.sixd import se3
 from loop_rate_limiters import RateLimiter
 from meshcat_viz import MeshcatWorld
 from meshcat_viz.contacts import ModelContacts
+
 from jaxsim.physics.algos.soft_contacts import collidable_points_pos_vel
+from jaxsim.sixd import se3
 
 # Open the visualizer
 world = MeshcatWorld()
@@ -205,20 +208,21 @@ contacts = ModelContacts(meshcat_model=world._meshcat_models[model_name])
 
 import numpy.typing as npt
 
+
 def local_contact_6D_forces(model: high_level.model.Model, W_f_cp):
-
     W_HH_L = model.forward_kinematics()
-    L_HH_CL = jax.vmap(
-        lambda L_p_cp: jnp.eye(4).at[0:3, 3].set(L_p_cp.squeeze())
-    )(model.physics_model.gc.point.T)
+    L_HH_CL = jax.vmap(lambda L_p_cp: jnp.eye(4).at[0:3, 3].set(L_p_cp.squeeze()))(
+        model.physics_model.gc.point.T
+    )
 
-    W_HH_CL = jax.vmap(
-        lambda L_H_CL, idx: W_HH_L[idx] @ L_H_CL
-    )(L_HH_CL, model.physics_model.gc.body)
+    W_HH_CL = jax.vmap(lambda L_H_CL, idx: W_HH_L[idx] @ L_H_CL)(
+        L_HH_CL, model.physics_model.gc.body
+    )
 
     W_XXv_CL = jax.vmap(lambda W_H_CL: se3.SE3.from_matrix(W_H_CL).adjoint())(W_HH_CL)
 
     return jax.vmap(lambda W_Xv_CL, W_f: W_Xv_CL.T @ W_f)(W_XXv_CL, W_f_cp)
+
 
 # def local_contact_6D_forces(model: high_level.model.Model, W_f_cp):
 #
@@ -239,9 +243,9 @@ def local_contact_6D_forces(model: high_level.model.Model, W_f_cp):
 #
 #     return jax.vmap(lambda W_Xv_CW, W_f: W_Xv_CW.T @ W_f)(W_XXv_CW, W_f_cp)
 
+
 @jax.jit
 def world_to_viz_contact_forces(model, W_p_B, W_Q_B, s, W_f_cp):
-
     m = model.copy()
 
     m.zero()
@@ -256,9 +260,10 @@ index_to_link_name = {link.index(): link.name() for link in model.links()}
 parent_link_name = [index_to_link_name[idx] for idx in model.physics_model.gc.body]
 
 # for L_p_cp, idx in zip(model.physics_model.gc.point.T, model.physics_model.gc.body):
-for idx, (L_p_cp, name) in enumerate(zip(model.physics_model.gc.point.T, parent_link_name)):
-
-    L_H_CL = np.block([[np.eye(3), np.vstack(L_p_cp)],[0, 0, 0, 1]])
+for idx, (L_p_cp, name) in enumerate(
+    zip(model.physics_model.gc.point.T, parent_link_name)
+):
+    L_H_CL = np.block([[np.eye(3), np.vstack(L_p_cp)], [0, 0, 0, 1]])
 
     contacts.add_contact_frame(
         contact_name=f"{name}_{idx}",

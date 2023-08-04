@@ -74,17 +74,6 @@ class Joint(Vmappable):
         )
 
     @functools.partial(oop.jax_tf.method_ro)
-    def acceleration(self, dof: int = None) -> jtp.Float:
-        """"""
-
-        dof = dof if dof is not None else 0
-
-        return jnp.array(
-            self.parent_model.joint_accelerations(joint_names=[self.name()])[dof],
-            dtype=float,
-        )
-
-    @functools.partial(oop.jax_tf.method_ro)
     def force(self, dof: int = None) -> jtp.Float:
         """"""
 
@@ -124,12 +113,6 @@ class Joint(Vmappable):
         """"""
 
         return self.parent_model.joint_velocities(joint_names=(self.name(),))
-
-    @functools.partial(oop.jax_tf.method_ro)
-    def joint_acceleration(self) -> jtp.Vector:
-        """"""
-
-        return self.parent_model.joint_accelerations(joint_names=[self.name()])
 
     @functools.partial(oop.jax_tf.method_ro)
     def joint_force(self) -> jtp.Vector:

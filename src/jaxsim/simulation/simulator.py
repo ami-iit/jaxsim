@@ -144,6 +144,17 @@ class JaxSim(Vmappable):
 
         self.step_size_ns = jnp.array(step_size * 1e9, dtype=jnp.uint64)
 
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def step_size(self) -> jtp.Float:
+        """
+        Get the integration step size.
+
+        Returns:
+            The integration step size in seconds.
+        """
+
+        return jnp.array(self.step_size_ns / 1e9, dtype=float)
+
     @functools.partial(oop.jax_tf.method_ro)
     def dt(self) -> jtp.Float:
         """

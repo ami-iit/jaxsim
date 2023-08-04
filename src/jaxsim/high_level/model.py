@@ -579,10 +579,13 @@ class Model(Vmappable):
     def base_transform(self) -> jtp.MatrixJax:
         """"""
 
-        return jnp.block(
+        W_R_B = self.base_orientation(dcm=True)
+        W_p_B = jnp.vstack(self.base_position())
+
+        return jnp.vstack(
             [
-                [self.base_orientation(dcm=True), jnp.vstack(self.base_position())],
-                [0, 0, 0, 1],
+                jnp.block([W_R_B, W_p_B]),
+                jnp.array([0, 0, 0, 1]),
             ]
         )
 
@@ -704,7 +707,12 @@ class Model(Vmappable):
             zero_6n = jnp.zeros(shape=(6, self.dofs()))
             B_X_W = sixd.se3.SE3.from_matrix(self.base_transform()).inverse().adjoint()
 
-            invT = jnp.block([[B_X_W, zero_6n], [zero_6n.T, jnp.eye(self.dofs())]])
+            invT = jnp.vstack(
+                [
+                    jnp.block([B_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(self.dofs())]),
+                ]
+            )
 
             return invT.T @ M_body @ invT
 
@@ -713,7 +721,12 @@ class Model(Vmappable):
             W_H_BW = self.base_transform().at[0:3, 3].set(jnp.zeros(3))
             BW_X_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
 
-            invT = jnp.block([[BW_X_W, zero_6n], [zero_6n.T, jnp.eye(self.dofs())]])
+            invT = jnp.vstack(
+                [
+                    jnp.block([BW_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(self.dofs())]),
+                ]
+            )
 
             return invT.T @ M_body @ invT
 

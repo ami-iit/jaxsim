@@ -165,7 +165,14 @@ class Link(Vmappable):
 
             B_X_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
             zero_6n = jnp.zeros(shape=(6, dofs))
-            B_T_W = jnp.block([[B_X_W, zero_6n], [zero_6n.T, jnp.eye(dofs)]])
+
+            B_T_W = jnp.vstack(
+                [
+                    jnp.block([B_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(dofs)]),
+                ]
+            )
+
             L_J_WL_target = L_J_WL_B @ B_T_W
 
         elif self.parent_model.velocity_representation is VelRepr.Mixed:
@@ -175,7 +182,13 @@ class Link(Vmappable):
 
             B_X_BW = sixd.se3.SE3.from_matrix(BW_H_B).inverse().adjoint()
             zero_6n = jnp.zeros(shape=(6, dofs))
-            B_T_BW = jnp.block([[B_X_BW, zero_6n], [zero_6n.T, jnp.eye(dofs)]])
+
+            B_T_BW = jnp.vstack(
+                [
+                    jnp.block([B_X_BW, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(dofs)]),
+                ]
+            )
 
             L_J_WL_target = L_J_WL_B @ B_T_BW
 

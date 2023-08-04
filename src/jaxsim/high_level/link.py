@@ -212,11 +212,30 @@ class Link(Vmappable):
             The active external 6D force acting on the link in the active representation.
         """
 
+        # Get the external force stored in the inertial representation
         W_f_ext = self.parent_model.data.model_input.f_ext[self.index()]
 
-        return self.parent_model.inertial_to_active_representation(
-            array=W_f_ext, is_force=True
-        )
+        # Express it in the active representation
+        if self.parent_model.velocity_representation is VelRepr.Inertial:
+            f_ext = W_f_ext
+
+        elif self.parent_model.velocity_representation is VelRepr.Body:
+            W_H_L = self.transform()
+            W_X_L = sixd.se3.SE3.from_matrix(W_H_L).adjoint()
+
+            f_ext = L_f_ext = W_X_L.transpose() @ W_f_ext
+
+        elif self.parent_model.velocity_representation is VelRepr.Mixed:
+            W_p_L = self.transform()[0:3, 3]
+            W_H_LW = jnp.eye(4).at[0:3, 3].set(W_p_L)
+            W_X_LW = sixd.se3.SE3.from_matrix(W_H_LW).adjoint()
+
+            f_ext = LW_f_ext = W_X_LW.transpose() @ W_f_ext
+
+        else:
+            raise ValueError(self.parent_model.velocity_representation)
+
+        return f_ext
 
     def add_external_force(
         self, force: jtp.Array = None, torque: jtp.Array = None

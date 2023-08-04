@@ -556,14 +556,22 @@ class Model(Vmappable):
     def base_orientation(self, dcm: bool = False) -> jtp.Vector:
         """"""
 
+        # Normalize the quaternion before using it.
+        # Our integration logic has a Baumgarte stabilization term makes the quaternion
+        # norm converge to 1, but it does not enforce to be 1 at all the time instants.
+        base_unit_quaternion = (
+            self.data.model_state.base_quaternion.squeeze()
+            / jnp.linalg.norm(self.data.model_state.base_quaternion)
+        )
+
         # wxyz -> xyzw
         to_xyzw = np.array([1, 2, 3, 0])
 
         return (
-            self.data.model_state.base_quaternion
+            base_unit_quaternion
             if not dcm
             else sixd.so3.SO3.from_quaternion_xyzw(
-                self.data.model_state.base_quaternion[to_xyzw]
+                base_unit_quaternion[to_xyzw]
             ).as_matrix()
         )
 
@@ -1143,7 +1151,8 @@ class Model(Vmappable):
             ).as_quaternion_xyzw()
             orientation = orientation_xyzw[to_wxyz]
 
-        self.data.model_state.base_quaternion = jnp.array(orientation, dtype=float)
+        unit_quaternion = orientation / jnp.linalg.norm(orientation)
+        self.data.model_state.base_quaternion = jnp.array(unit_quaternion, dtype=float)
 
     @functools.partial(oop.jax_tf.method_rw)
     def reset_base_transform(self, transform: jtp.Matrix) -> None:

@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import rod
 from jax_dataclasses import Static
 
 import jaxsim.high_level
@@ -226,7 +227,7 @@ class JaxSim(JaxsimDataclass):
 
     def insert_model_from_description(
         self,
-        model_description: Union[pathlib.Path, str],
+        model_description: Union[pathlib.Path, str, rod.Model],
         model_name: Optional[str] = None,
         considered_joints: Optional[List[str]] = None,
     ) -> Model:
@@ -234,7 +235,8 @@ class JaxSim(JaxsimDataclass):
         Insert a model from a model description.
 
         Args:
-            model_description: Either a path to a file or a string containing the URDF/SDF description.
+            model_description: A path to an SDF/URDF file, a string containing its content,
+                or a pre-parsed/pre-built rod model.
             model_name: The optional name of the model that overrides the one in the description.
             considered_joints: Optional list of joints to consider.
                                It is also useful to specify the joint serialization.

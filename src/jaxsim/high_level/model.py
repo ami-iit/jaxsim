@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
+import rod
 from jax_dataclasses import Static
 
 import jaxsim.physics.algos.aba
@@ -125,7 +126,7 @@ class Model(JaxsimDataclass):
 
     @staticmethod
     def build_from_model_description(
-        model_description: Union[str, pathlib.Path],
+        model_description: Union[str, pathlib.Path, rod.Model],
         model_name: Optional[str] = None,
         vel_repr: VelRepr = VelRepr.Mixed,
         gravity: jtp.Array = jaxsim.physics.default_gravity(),
@@ -136,7 +137,8 @@ class Model(JaxsimDataclass):
         Build a Model object from a model description.
 
         Args:
-            model_description: Either a path to a file or a string containing the URDF/SDF description.
+            model_description: A path to an SDF/URDF file, a string containing its content,
+                or a pre-parsed/pre-built rod model.
             model_name: The optional name of the model that overrides the one in the description.
             vel_repr: The velocity representation to use.
             gravity: The 3D gravity vector.

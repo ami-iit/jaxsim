@@ -19,8 +19,6 @@ import jaxsim.typing as jtp
 from jaxsim import high_level, logging, physics, sixd
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
-from jaxsim.simulation import ode_data, ode_integration
-from jaxsim.simulation.ode_integration import IntegratorType
 from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .common import VelRepr
@@ -1112,11 +1110,19 @@ class Model(JaxsimDataclass):
         t0: jtp.Float,
         tf: jtp.Float,
         sub_steps: int = 1,
-        integrator_type: IntegratorType = IntegratorType.EulerForward,
+        integrator_type: Optional[
+            "jaxsim.simulation.ode_integration.IntegratorType"
+        ] = None,
         terrain: soft_contacts.Terrain = soft_contacts.FlatTerrain(),
         contact_parameters: soft_contacts.SoftContactsParams = soft_contacts.SoftContactsParams(),
         clear_inputs: bool = False,
     ) -> StepData:
+        from jaxsim.simulation import ode_data, ode_integration
+        from jaxsim.simulation.ode_integration import IntegratorType
+
+        if integrator_type is None:
+            integrator_type = IntegratorType.EulerForward
+
         x0 = ode_integration.ode.ode_data.ODEState(
             physics_model=self.data.model_state,
             soft_contacts=self.data.contact_state,

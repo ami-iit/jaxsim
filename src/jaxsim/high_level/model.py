@@ -798,7 +798,7 @@ class Model(Vmappable):
 
         W_H_L = self.forward_kinematics()
         W_H_B = self.base_transform()
-        B_H_W = jnp.linalg.inv(W_H_B)
+        B_H_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().as_matrix()
 
         com_links = [
             (l.mass() * B_H_W @ W_H_L[l.index()] @ jnp.hstack([l.com(), 1]))

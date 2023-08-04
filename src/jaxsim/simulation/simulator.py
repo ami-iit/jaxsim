@@ -189,7 +189,7 @@ class JaxSim(Vmappable):
         return jnp.array(self.data.gravity, dtype=float)
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
-    def model_names(self) -> List[str]:
+    def model_names(self) -> tuple[str, ...]:
         """
         Return the list of model names.
 
@@ -197,7 +197,7 @@ class JaxSim(Vmappable):
             The list of model names.
         """
 
-        return list(self.data.models.keys())
+        return tuple(self.data.models.keys())
 
     @functools.partial(
         oop.jax_tf.method_ro, static_argnames=["model_name"], jit=False, vmap=False
@@ -219,7 +219,7 @@ class JaxSim(Vmappable):
         return self.data.models[model_name]
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
-    def models(self, model_names: tuple[str, ...] = None) -> List[Model]:
+    def models(self, model_names: tuple[str, ...] = None) -> tuple[Model, ...]:
         """
         Return the simulated models.
 
@@ -232,7 +232,7 @@ class JaxSim(Vmappable):
         """
 
         model_names = model_names if model_names is not None else self.model_names()
-        return [self.data.models[name] for name in model_names]
+        return tuple(self.data.models[name] for name in model_names)
 
     @functools.partial(oop.jax_tf.method_rw)
     def set_gravity(self, gravity: jtp.Vector) -> None:

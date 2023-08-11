@@ -100,9 +100,12 @@ def aba(
         jtp.MatrixJax,
         jtp.MatrixJax,
         jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
     ]
 
-    pass_1_carry = (i_X_λi, v, c, MA, pA, i_X_0)
+    pass_1_carry = (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0)
 
     # Pass 1
     def loop_body_pass1(carry: Pass1Carry, i: jtp.Int) -> Tuple[Pass1Carry, None]:
@@ -119,8 +122,13 @@ def aba(
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
 
+        m_v_i = i_X_λi[i] @ v[λ[i]] + vJ * Γ[i]
+        m_v = m_v.at[i].set(v_i)
+
         c_i = Cross.vx(v[i]) @ vJ
         c = c.at[i].set(c_i)
+        m_c_i = Cross.vx(v[i]) @ vJ * Γ[i]
+        m_c = m_c.at[i].set(m_c_i)
 
         # Initialize articulated-body inertia
         MA_i = jnp.array(M[i])
@@ -134,9 +142,12 @@ def aba(
         pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
         pA = pA.at[i].set(pA_i)
 
-        return (i_X_λi, v, c, MA, pA, i_X_0), None
+        pR_i = Cross.vx_star(m_v[i]) @ I_m[i] @ m_v[i]
+        pR = pR.at[i].set(pR_i)
 
-    (i_X_λi, v, c, MA, pA, i_X_0), _ = jax.lax.scan(
+        return (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0), None
+
+    (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0), _ = jax.lax.scan(
         f=loop_body_pass1,
         init=pass_1_carry,
         xs=np.arange(start=1, stop=model.NB),
@@ -152,9 +163,11 @@ def aba(
         jtp.MatrixJax,
         jtp.MatrixJax,
         jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
     ]
 
-    pass_2_carry = (U, d, u, MA, pA)
+    pass_2_carry = (U, m_U, d, u, m_u, MA, pA)
 
     # Pass 2
     def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> Tuple[Pass2Carry, None]:
@@ -165,22 +178,32 @@ def aba(
         U_i = MA[i] @ S[i]
         U = U.at[i].set(U_i)
 
-        d_i = S[i].T @ U[i]
+        m_U_i = I_m[i] @ S[i] * Γ[i]
+        m_U = m_U.at[i].set(m_U_i)
+
+        d_i = S[i].T @ U[i] + S[i].T * Γ[i] @ m_U[i]
         d = d.at[i].set(d_i.squeeze())
 
         # Compute joint velocities
         vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
 
         u_i = (
+            tau[ii] - S[i].T @ pA[i] 
+            if tau.size != 0
+            else -S[i].T @ pA[i]
+        )
+        u = u.at[i].set(u_i.squeeze())
+
+        m_u_i = (
             tau[ii] / Γ[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii]
             if tau.size != 0
             else -S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii]
         )
-        u = u.at[i].set(u_i.squeeze())
+        m_u = m_u.at[i].set(m_u_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link
-        Ma = MA[i] - U[i] / d[i] @ U[i].T + I_m[ii] / Γ[ii] ** 2
-        pa = pA[i] + Ma @ c[i] + U[i] * u[i] / d[i]
+        Ma = MA[i] - U[i] / d[i] @ U[i].T - m_U[i] /d[i] @ m_U[i].T
+        pa = pA[i] + pR[i] + Ma @ c[i] + I_m[i] @ m_c[i] +  U[i] * u[i] / d[i] + m_U[i] * m_u[i] / d[i]
 
         # Propagate them to the parent, handling the base link
         def propagate(
@@ -188,10 +211,10 @@ def aba(
         ) -> Tuple[jtp.MatrixJax, jtp.MatrixJax]:
             MA, pA = MA_pA
 
-            MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
+            MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i] # + i_X_λi[i].T @ I_m[i] @ i_X_λi[i]
             MA = MA.at[λ[i]].set(MA_λi)
 
-            pA_λi = pA[λ[i]] + i_X_λi[i].T @ pa
+            pA_λi = pA[λ[i]] + i_X_λi[i].T @ (pa + pR)
             pA = pA.at[λ[i]].set(pA_λi)
 
             return MA, pA
@@ -203,9 +226,9 @@ def aba(
             operand=(MA, pA),
         )
 
-        return (U, d, u, MA, pA), None
+        return (U, m_U, d, u, m_u, MA, pA), None
 
-    (U, d, u, MA, pA), _ = jax.lax.scan(
+    (U, m_U, d, u, m_u, MA, pA), _ = jax.lax.scan(
         f=loop_body_pass2,
         init=pass_2_carry,
         xs=np.flip(np.arange(start=1, stop=model.NB)),
@@ -232,7 +255,7 @@ def aba(
         a_i = i_X_λi[i] @ a[λ[i]] + c[i]
 
         # Compute joint accelerations
-        qdd_ii = (u[i] - U[i].T @ a_i) / d[i]
+        qdd_ii = (u[i] - U[i].T @ a_i) / d[i] + (m_u[i] - m_U[i].T @ a_i * Γ[i]) / d[i]
         qdd = qdd.at[ii].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
         a_i = a_i + S[i] * qdd[ii] if qdd.size != 0 else a_i

@@ -1164,7 +1164,7 @@ class Model(Vmappable):
 
         # Add the motor related terms to the EoM
         M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + Γ_inv @ I_m @ Γ_inv.T)
-        h = h.at[sl_m].set(h[sl_m] + K̅ᵥ @ (self.joint_velocities()[:, None]))
+        h = h.at[sl_m].set(h[sl_m] + K̅ᵥ @ self.joint_velocities()[:, None])
         S = S.at[sl_m].set(S[sl_m] * Γ_inv.T)
 
         # Compute the generalized acceleration by inverting the EoM

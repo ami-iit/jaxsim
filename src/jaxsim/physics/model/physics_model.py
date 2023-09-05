@@ -33,6 +33,7 @@ class PhysicsModel(JaxsimDataclass):
         )
     )
     is_floating_base: Static[bool] = dataclasses.field(default=False)
+    has_motors: Static[bool] = dataclasses.field(default=False)
     gc: GroundContact = dataclasses.field(default_factory=lambda: GroundContact())
     description: Static[
         jaxsim.parsers.descriptions.model.ModelDescription
@@ -203,6 +204,7 @@ class PhysicsModel(JaxsimDataclass):
             _joint_motor_viscous_friction=joint_motor_viscous_friction,
             gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
+            has_motors=False,
             gc=GroundContact.build_from(model_description=model_description),
             description=model_description,
         )
@@ -339,6 +341,7 @@ class PhysicsModel(JaxsimDataclass):
             f"dofs: {self.dofs()},",
             f"links: {self.NB},",
             f"floating_base: {self.is_floating_base},",
+            f"has_motors: {self.has_motors},",
         ]
         attributes_string = "\n    ".join(attributes)
 

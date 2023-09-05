@@ -1525,6 +1525,9 @@ class Model(Vmappable):
             )
         )
 
+        self.physics_model.has_motors = True
+        logging.info("Setting attribute 'has_motors' to True")
+
     def set_motor_gear_ratios(
         self, gear_ratios: jtp.Vector, joint_names: List[str] = None
     ) -> None:
@@ -1543,6 +1546,9 @@ class Model(Vmappable):
                 )
             )
         )
+
+        self.physics_model.has_motors = True
+        logging.info("Setting attribute 'has_motors' to True")
 
     def set_motor_viscous_frictions(
         self, viscous_frictions: jtp.Vector, joint_names: List[str] = None
@@ -1564,6 +1570,9 @@ class Model(Vmappable):
                 )
             )
         )
+
+        self.physics_model.has_motors = True
+        logging.info("Setting attribute 'has_motors' to True")
 
     # ===============
     # Private methods

@@ -61,6 +61,10 @@ def aba(
     c = jnp.array([jnp.zeros([6, 1])] * model.NB)
     i_X_λi = jnp.zeros_like(i_X_pre)
 
+    m_v = jnp.array([jnp.zeros([6, 1])] * model.NB)
+    m_c = jnp.array([jnp.zeros([6, 1])] * model.NB)
+    pR = jnp.array([jnp.zeros([6, 1])] * model.NB)
+
     # Base pose B_X_W and velocity
     base_quat = jnp.vstack(x_fb[0:4])
     base_pos = jnp.vstack(x_fb[4:7])
@@ -110,7 +114,7 @@ def aba(
     # Pass 1
     def loop_body_pass1(carry: Pass1Carry, i: jtp.Int) -> Tuple[Pass1Carry, None]:
         ii = i - 1
-        i_X_λi, v, c, MA, pA, i_X_0 = carry
+        i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0 = carry
 
         # Compute parent-to-child transform
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
@@ -122,12 +126,12 @@ def aba(
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
 
-        m_v_i = i_X_λi[i] @ v[λ[i]] + vJ * Γ[i]
+        m_v_i = i_X_λi[i] @ v[λ[i]] + vJ / Γ[i]
         m_v = m_v.at[i].set(v_i)
 
         c_i = Cross.vx(v[i]) @ vJ
         c = c.at[i].set(c_i)
-        m_c_i = Cross.vx(v[i]) @ vJ * Γ[i]
+        m_c_i = Cross.vx(m_v[i]) @ vJ / Γ[i]
         m_c = m_c.at[i].set(m_c_i)
 
         # Initialize articulated-body inertia
@@ -142,7 +146,7 @@ def aba(
         pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
         pA = pA.at[i].set(pA_i)
 
-        pR_i = Cross.vx_star(m_v[i]) @ I_m[i] @ m_v[i]
+        pR_i = Cross.vx_star(m_v[i]) * I_m[i] @ m_v[i]
         pR = pR.at[i].set(pR_i)
 
         return (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0), None
@@ -156,6 +160,8 @@ def aba(
     U = jnp.zeros_like(S)
     d = jnp.zeros(shape=(model.NB, 1))
     u = jnp.zeros(shape=(model.NB, 1))
+    m_U = jnp.zeros_like(S)
+    m_u = jnp.zeros(shape=(model.NB, 1))
 
     Pass2Carry = Tuple[
         jtp.MatrixJax,
@@ -172,38 +178,54 @@ def aba(
     # Pass 2
     def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> Tuple[Pass2Carry, None]:
         ii = i - 1
-        U, d, u, MA, pA = carry
+        U, m_U, d, u, m_u, MA, pA = carry
 
         # Compute intermediate results
         U_i = MA[i] @ S[i]
         U = U.at[i].set(U_i)
 
-        m_U_i = I_m[i] @ S[i] * Γ[i]
-        m_U = m_U.at[i].set(m_U_i)
-
-        d_i = S[i].T @ U[i] + S[i].T * Γ[i] @ m_U[i]
+        d_i = S[i].T @ U[i] + S[i].T / Γ[i] @ m_U[i]
         d = d.at[i].set(d_i.squeeze())
 
         # Compute joint velocities
         vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
 
-        u_i = (
-            tau[ii] - S[i].T @ pA[i] 
-            if tau.size != 0
-            else -S[i].T @ pA[i]
-        )
+        u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
         u = u.at[i].set(u_i.squeeze())
 
-        m_u_i = (
-            tau[ii] / Γ[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii]
-            if tau.size != 0
-            else -S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii]
+        # Add motor dynamics to the articulated-body inertia and bias forces
+        def add_motors(
+            carry: Tuple[jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.VectorJax]
+        ) -> Tuple[jtp.VectorJax, jtp.MatrixJax, jtp.MatrixJax, jtp.VectorJax]:
+            MA, pA, m_U, m_u = carry
+
+            m_U_i = I_m[i] * S[i] / Γ[i]
+            m_U = m_U.at[i].set(m_U_i)
+            m_u_i = (
+                tau[ii] * Γ[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii] / Γ[i]
+                if tau.size != 0
+                else -S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii] / Γ[i]
+            )
+            m_u = m_u.at[i].set(m_u_i.squeeze())
+            # print(f"Adding {- m_U[i] / d[i] @ m_U[i].T} to MA")
+            MA_i = MA[i] - m_U[i] / d[i] @ m_U[i].T
+            MA = MA.at[i].set(MA_i)
+
+            pA_i = pA[i] + pR[i] + m_U[i] * m_u[i] / d[i] + I_m[i] * m_c[i]
+            pA = pA.at[i].set(pA_i)
+
+            return MA, pA, m_U, m_u
+
+        MA, pA, m_U, m_u = jax.lax.cond(
+            pred=model.has_motors,
+            true_fun=add_motors,
+            false_fun=lambda carry: carry,
+            operand=(MA, pA, m_U, m_u),
         )
-        m_u = m_u.at[i].set(m_u_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link
-        Ma = MA[i] - U[i] / d[i] @ U[i].T - m_U[i] /d[i] @ m_U[i].T
-        pa = pA[i] + pR[i] + Ma @ c[i] + I_m[i] @ m_c[i] +  U[i] * u[i] / d[i] + m_U[i] * m_u[i] / d[i]
+        Ma = MA[i] - U[i] / d[i] @ U[i].T
+        pa = pA[i] + Ma @ c[i] + U[i] * u[i] / d[i]
 
         # Propagate them to the parent, handling the base link
         def propagate(
@@ -211,10 +233,10 @@ def aba(
         ) -> Tuple[jtp.MatrixJax, jtp.MatrixJax]:
             MA, pA = MA_pA
 
-            MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i] # + i_X_λi[i].T @ I_m[i] @ i_X_λi[i]
+            MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
             MA = MA.at[λ[i]].set(MA_λi)
 
-            pA_λi = pA[λ[i]] + i_X_λi[i].T @ (pa + pR)
+            pA_λi = pA[λ[i]] + i_X_λi[i].T @ (pa + pR[i])
             pA = pA.at[λ[i]].set(pA_λi)
 
             return MA, pA

@@ -105,15 +105,23 @@ class Joint(Vmappable):
     # =============
     # Motor methods
     # =============
+    @functools.partial(oop.jax_tf.method_ro)
+    def motor_inertia(self) -> jtp.Vector:
+        """"""
 
-    def motor_inertia(self) -> float:
-        return self.joint_description.motor_inertia
+        return jnp.array(self.joint_description.motor_inertia, dtype=float)
 
-    def motor_gear_ratio(self) -> float:
-        return self.joint_description.motor_gear_ratio
+    @functools.partial(oop.jax_tf.method_ro)
+    def motor_gear_ratio(self) -> jtp.Vector:
+        """"""
 
-    def motor_viscous_friction(self) -> float:
-        return self.joint_description.motor_viscous_friction
+        return jnp.array(self.joint_description.motor_gear_ratio, dtype=float)
+
+    @functools.partial(oop.jax_tf.method_ro)
+    def motor_viscous_friction(self) -> jtp.Vector:
+        """"""
+
+        return jnp.array(self.joint_description.motor_viscous_friction, dtype=float)
 
     # =================
     # Multi-DoF methods

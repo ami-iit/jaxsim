@@ -1138,18 +1138,16 @@ class Model(Vmappable):
         τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
 
         # Extract motor parameters from the physics model
-        Γ = jnp.diag(
-            jnp.array(list(self.physics_model._joint_motor_gear_ratio.values()))
-        )
-        I_m = jnp.diag(
-            jnp.array(list(self.physics_model._joint_motor_inertia.values()))
-        )
-        K_v = jnp.diag(
+        GR = jnp.array(list(self.physics_model._joint_motor_gear_ratio.values()))
+        IM = jnp.diag(jnp.array(list(self.physics_model._joint_motor_inertia.values())))
+        KV = jnp.diag(
             jnp.array(list(self.physics_model._joint_motor_viscous_friction.values()))
         )
-
+        # ! The following line raises ArrayImpl -> bool conversion error in JIT
+        Γ = jnp.diag(GR) if ((jnp.diag(IM) != 0).any()).item() else jnp.eye(GR.size)
         Γ_inv = jnp.linalg.inv(Γ)
-        K̅ᵥ = Γ_inv.T @ K_v @ Γ_inv
+
+        K̅ᵥ = Γ.T @ KV @ Γ
 
         # Compute terms of the floating-base EoM
         M = self.free_floating_mass_matrix()
@@ -1163,22 +1161,15 @@ class Model(Vmappable):
         sl_m = np.s_[6:]
 
         # Add the motor related terms to the EoM
-        M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + Γ_inv @ I_m @ Γ_inv.T)
+        M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + Γ.T @ IM @ Γ)
         h = h.at[sl_m].set(h[sl_m] + K̅ᵥ @ self.joint_velocities()[:, None])
-        S = S.at[sl_m].set(S[sl_m] * Γ_inv.T)
+        S = S.at[sl_m].set(S[sl_m])  # + Γ_inv @ τ)
 
         # Compute the generalized acceleration by inverting the EoM
-        ν̇ = jax.lax.select(
-            pred=self.floating_base(),
-            on_true=jnp.linalg.inv(M) @ ((S @ τ) - h + J.T @ f_ext),
-            on_false=jnp.vstack(
-                [
-                    jnp.zeros(shape=(6, 1)),
-                    jnp.linalg.inv(M[6:, 6:])
-                    @ ((S @ τ)[6:] - h[6:] + J[:, 6:].T @ f_ext),
-                ]
-            ),
-        ).squeeze()
+        ν̇ = (
+            jnp.linalg.inv(M[sl, sl])
+            @ ((S @ τ)[sl] - h[sl] + J[:, sl].T @ f_ext).squeeze()
+        )
 
         # Extract the base acceleration in the active representation.
         # Note that this is an apparent acceleration (relevant in Mixed representation),

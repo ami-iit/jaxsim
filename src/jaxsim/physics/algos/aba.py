@@ -175,51 +175,33 @@ def aba(
         U, m_U, d, u, m_u, MA, pA = carry
 
         # Compute intermediate results
-        U_i = MA[i] @ S[i]
-        U = U.at[i].set(U_i)
-
-        d_i = S[i].T @ U[i] + S[i].T / Γ[i] @ m_U[i]
-        d = d.at[i].set(d_i.squeeze())
-
-        # Compute joint velocities
-        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
-
         u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
         u = u.at[i].set(u_i.squeeze())
 
-        # Add motor dynamics to the articulated-body inertia and bias forces
-        def add_motors(
-            carry: Tuple[jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.VectorJax]
-        ) -> Tuple[jtp.VectorJax, jtp.MatrixJax, jtp.MatrixJax, jtp.VectorJax]:
-            MA, pA, m_U, m_u = carry
-
-            m_U_i = I_m[i] * S[i] / Γ[i]
-            m_U = m_U.at[i].set(m_U_i)
-            m_u_i = (
-                tau[ii] * Γ[ii] - S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii] / Γ[i]
-                if tau.size != 0
-                else -S[i].T @ pA[i] - K̅ᵥ[ii].T * qd[ii] / Γ[i]
-            )
-            m_u = m_u.at[i].set(m_u_i.squeeze())
-            # print(f"Adding {- m_U[i] / d[i] @ m_U[i].T} to MA")
-            MA_i = MA[i] - m_U[i] / d[i] @ m_U[i].T
-            MA = MA.at[i].set(MA_i)
-
-            pA_i = pA[i] + pR[i] + m_U[i] * m_u[i] / d[i] + I_m[i] * m_c[i]
-            pA = pA.at[i].set(pA_i)
-
-            return MA, pA, m_U, m_u
-
-        MA, pA, m_U, m_u = jax.lax.cond(
-            pred=model.has_motors,
-            true_fun=add_motors,
-            false_fun=lambda carry: carry,
-            operand=(MA, pA, m_U, m_u),
+        m_u_i = (
+            tau[ii] / Γ[i] - m_S[i].T @ pR[i] if tau.size != 0 else -m_S[i].T @ pR[i]
         )
+        m_u = m_u.at[i].set(m_u_i.squeeze())
+
+        U_i = MA[i] @ S[i]
+        U = U.at[i].set(U_i)
+
+        m_U_i = IM[i] @ m_S[i]
+        m_U = m_U.at[i].set(m_U_i)
+
+        D_i = S[i].T @ MA[i] @ S[i] + m_S[i].T @ IM[i] @ m_S[i]
+        D = D.at[i].set(D_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link
-        Ma = MA[i] - U[i] / d[i] @ U[i].T
-        pa = pA[i] + Ma @ c[i] + U[i] * u[i] / d[i]
+        Ma = MA[i] + IM[i] - U[i] / D[i] @ U[i].T - m_U[i] / D[i] @ m_U[i].T
+        pa = (
+            pA[i]
+            + pR[i]
+            + Ma[i] @ c[i]
+            + IM[i] @ m_c[i]
+            + U[i] / D[i] * u[i]
+            + m_U[i] / D[i] * m_u[i]
+        )
 
         # Propagate them to the parent, handling the base link
         def propagate(
@@ -230,7 +212,7 @@ def aba(
             MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
             MA = MA.at[λ[i]].set(MA_λi)
 
-            pA_λi = pA[λ[i]] + i_X_λi[i].T @ (pa + pR[i])
+            pA_λi = pA[λ[i]] + i_X_λi[i].T @ pa
             pA = pA.at[λ[i]].set(pA_λi)
 
             return MA, pA
@@ -268,13 +250,13 @@ def aba(
         a, qdd = carry
 
         # Propagate link accelerations
-        a_i = i_X_λi[i] @ a[λ[i]] + c[i]
+        a_i = i_X_λi[i] @ a[λ[i]]
 
         # Compute joint accelerations
-        qdd_ii = (u[i] - U[i].T @ a_i) / d[i] + (m_u[i] - m_U[i].T @ a_i * Γ[i]) / d[i]
+        qdd_ii = (u[i] + m_u[i] - (U[i].T + m_U[i].T) @ a_i) / D[i]
         qdd = qdd.at[ii].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
-        a_i = a_i + S[i] * qdd[ii] if qdd.size != 0 else a_i
+        a_i = a_i + S[i] * qdd[ii] + c[i] if qdd.size != 0 else a_i
         a = a.at[i].set(a_i)
 
         return (a, qdd), None

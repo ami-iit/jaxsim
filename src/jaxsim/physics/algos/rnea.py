@@ -121,20 +121,21 @@ def rnea(
         i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m = carry
 
         vJ = S[i] * qd[ii]
+        vJ_m = S_m[i] * qd[ii]
+
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
 
-        vJ_m = S[i] * qd[ii] / Γ[i]
-        v_i_m = v_m[λ[i]] + vJ_m
+        v_i_m = i_X_λi[i] @ v_m[λ[i]] + vJ_m
         v_m = v_m.at[i].set(v_i_m)
 
         a_i = i_X_λi[i] @ a[λ[i]] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
         a = a.at[i].set(a_i)
 
-        a_i_m = S[i] * qdd[ii] / Γ[i] + Cross.vx(v_m[i]) @ vJ_m
+        a_i_m = i_X_λi[i] @ a_m[λ[i]] + S_m[i] * qdd[ii] + Cross.vx(v_m[i]) @ vJ_m
         a_m = a_m.at[i].set(a_i_m)
 
         i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]

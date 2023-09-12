@@ -36,23 +36,16 @@ def aba(
     λ = model.parent_array()
 
     # Extract motor parameters from the physics model
-    Γ = (
-        jnp.array(list(model._joint_motor_gear_ratio.values()))
-        if hasattr(model, "_joint_motor_gear_ratio")
-        else jnp.ones(model.dofs)
+    Γ = jnp.array(list(model._joint_motor_gear_ratio.values()))
+    IM = jnp.array(
+        [jnp.eye(6) * m for m in list(model._joint_motor_inertia.values())] * model.NB
     )
-    I_m = (
-        jnp.array(list(model._joint_motor_inertia.values()))
-        if hasattr(model, "_joint_motor_inertia")
-        else jnp.zeros(model.dofs)
+    K̅ᵥ = jnp.diag(
+        Γ.T
+        @ jnp.diag(jnp.array(list(model._joint_motor_viscous_friction.values())))
+        / Γ
     )
-    K_v = (
-        jnp.array(list(model._joint_motor_viscous_friction.values()))
-        if hasattr(model, "_joint_motor_viscous_friction")
-        else jnp.zeros(model.dofs)
-    )
-
-    K̅ᵥ = jnp.diag(1 / Γ.T * jnp.diag(K_v) * 1 / Γ)
+    m_S = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
 
     # Initialize buffers
     v = jnp.array([jnp.zeros([6, 1])] * model.NB)
@@ -121,17 +114,18 @@ def aba(
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         # Propagate link velocity
-        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
+        vJ = S[i] * qd[ii] * (qd.size != 0)
+        m_vJ = m_S[i] * qd[ii] * (qd.size != 0)
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
 
-        m_v_i = i_X_λi[i] @ v[λ[i]] + vJ / Γ[i]
+        m_v_i = i_X_λi[i] @ v[λ[i]] + m_vJ
         m_v = m_v.at[i].set(v_i)
 
         c_i = Cross.vx(v[i]) @ vJ
         c = c.at[i].set(c_i)
-        m_c_i = Cross.vx(m_v[i]) @ vJ / Γ[i]
+        m_c_i = Cross.vx(m_v[i]) @ m_vJ
         m_c = m_c.at[i].set(m_c_i)
 
         # Initialize articulated-body inertia
@@ -143,10 +137,10 @@ def aba(
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
         i_Xf_W = Adjoint.inverse(i_X_0[i] @ B_X_W).T
 
-        pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
+        pA_i = Cross.vx_star(v[i]) @ MA[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
         pA = pA.at[i].set(pA_i)
 
-        pR_i = Cross.vx_star(m_v[i]) * I_m[i] @ m_v[i]
+        pR_i = Cross.vx_star(m_v[i]) @ IM[i] @ m_v[i]
         pR = pR.at[i].set(pR_i)
 
         return (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0), None
@@ -158,9 +152,9 @@ def aba(
     )
 
     U = jnp.zeros_like(S)
-    d = jnp.zeros(shape=(model.NB, 1))
-    u = jnp.zeros(shape=(model.NB, 1))
     m_U = jnp.zeros_like(S)
+    D = jnp.zeros(shape=(model.NB, 1))
+    u = jnp.zeros(shape=(model.NB, 1))
     m_u = jnp.zeros(shape=(model.NB, 1))
 
     Pass2Carry = Tuple[

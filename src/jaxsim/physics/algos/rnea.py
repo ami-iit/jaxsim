@@ -46,7 +46,7 @@ def rnea(
         if hasattr(model, "_joint_motor_gear_ratio")
         else jnp.ones(model.dofs)
     )
-    I_m = (
+    IM = (
         jnp.array(list(model._joint_motor_inertia.values()))
         if hasattr(model, "_joint_motor_inertia")
         else jnp.zeros(model.dofs)
@@ -56,7 +56,8 @@ def rnea(
         if hasattr(model, "_joint_motor_viscous_friction")
         else jnp.zeros(model.dofs)
     )
-    K̅ᵥ = jnp.diag(1 / Γ.T * jnp.diag(K_v) * 1 / Γ)
+    K̅ᵥ = jnp.diag(Γ.T * jnp.diag(K_v) * Γ)
+    S_m = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
 
     i_X_0 = jnp.zeros_like(pre_X_λi)
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
@@ -147,7 +148,7 @@ def rnea(
         )
         f = f.at[i].set(f_i)
 
-        f_i_m = I_m[i] * a_m[i] + Cross.vx_star(v_m[i]) * I_m[i] @ v_m[i]
+        f_i_m = IM[i] * a_m[i] + Cross.vx_star(v_m[i]) * IM[i] @ v_m[i]
         f_m = f_m.at[i].set(f_i_m)
 
         return (i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m), None
@@ -169,7 +170,7 @@ def rnea(
         ii = i - 1
         tau, f, f_m = carry
 
-        value = S[i].T @ f[i] + S[i].T / Γ[i] @ f_m[i] + K̅ᵥ[i] / Γ[i] ** 2 * qd[ii]
+        value = S[i].T @ f[i] + S_m[i].T @ f_m[i]  # + K̅ᵥ[i] * qd[ii]
         tau = tau.at[ii].set(value.squeeze())
 
         def update_f(ffm: Tuple[jtp.MatrixJax, jtp.MatrixJax]) -> jtp.MatrixJax:

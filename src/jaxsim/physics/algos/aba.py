@@ -153,7 +153,7 @@ def aba(
 
     U = jnp.zeros_like(S)
     m_U = jnp.zeros_like(S)
-    D = jnp.zeros(shape=(model.NB, 1))
+    d = jnp.zeros(shape=(model.NB, 1))
     u = jnp.zeros(shape=(model.NB, 1))
     m_u = jnp.zeros(shape=(model.NB, 1))
 
@@ -189,18 +189,18 @@ def aba(
         m_U_i = IM[i] @ m_S[i]
         m_U = m_U.at[i].set(m_U_i)
 
-        D_i = S[i].T @ MA[i] @ S[i] + m_S[i].T @ IM[i] @ m_S[i]
-        D = D.at[i].set(D_i.squeeze())
+        d_i = S[i].T @ MA[i] @ S[i] + m_S[i].T @ IM[i] @ m_S[i]
+        d = d.at[i].set(d_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link
-        Ma = MA[i] + IM[i] - U[i] / D[i] @ U[i].T - m_U[i] / D[i] @ m_U[i].T
+        Ma = MA[i] + IM[i] - U[i] / d[i] @ U[i].T - m_U[i] / d[i] @ m_U[i].T
         pa = (
             pA[i]
             + pR[i]
             + Ma[i] @ c[i]
             + IM[i] @ m_c[i]
-            + U[i] / D[i] * u[i]
-            + m_U[i] / D[i] * m_u[i]
+            + U[i] / d[i] * u[i]
+            + m_U[i] / d[i] * m_u[i]
         )
 
         # Propagate them to the parent, handling the base link
@@ -253,7 +253,7 @@ def aba(
         a_i = i_X_λi[i] @ a[λ[i]]
 
         # Compute joint accelerations
-        qdd_ii = (u[i] + m_u[i] - (U[i].T + m_U[i].T) @ a_i) / D[i]
+        qdd_ii = (u[i] + m_u[i] - (U[i].T + m_U[i].T) @ a_i) / d[i]
         qdd = qdd.at[ii].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
         a_i = a_i + S[i] * qdd[ii] + c[i] if qdd.size != 0 else a_i

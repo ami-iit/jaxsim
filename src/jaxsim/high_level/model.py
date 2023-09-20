@@ -1143,8 +1143,16 @@ class Model(Vmappable):
         KV = jnp.diag(
             jnp.array(list(self.physics_model._joint_motor_viscous_friction.values()))
         )
-        # ! The following line raises ArrayImpl -> bool conversion error in JIT
-        Γ = jnp.diag(GR) if ((jnp.diag(IM) != 0).any()).item() else jnp.eye(GR.size)
+        Γ = jnp.diag(GR)
+
+        # Check on the motor parameters
+        jax.lax.cond(
+            pred=(jnp.diag(IM) != 0).any(),
+            operand=Γ,
+            true_fun=lambda Γ: jnp.diag(GR),
+            false_fun=lambda Γ: jnp.eye(GR.size),
+        )
+
         Γ_inv = jnp.linalg.inv(Γ)
 
         K̅ᵥ = Γ.T @ KV @ Γ
@@ -1163,7 +1171,7 @@ class Model(Vmappable):
         # Add the motor related terms to the EoM
         M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + Γ.T @ IM @ Γ)
         h = h.at[sl_m].set(h[sl_m] + K̅ᵥ @ self.joint_velocities()[:, None])
-        S = S.at[sl_m].set(S[sl_m])  # + Γ_inv @ τ)
+        S = S.at[sl_m].set(S[sl_m])
 
         # Compute the generalized acceleration by inverting the EoM
         ν̇ = (
@@ -1497,7 +1505,7 @@ class Model(Vmappable):
     # Motor dynamics
     # ==============
 
-    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
+    # @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_motor_inertias(
         self, inertias: jtp.Vector, joint_names: List[str] = None
     ) -> None:
@@ -1518,7 +1526,7 @@ class Model(Vmappable):
 
         logging.info("Setting attribute 'motor_inertias'")
 
-    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
+    # @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_motor_gear_ratios(
         self, gear_ratios: jtp.Vector, joint_names: List[str] = None
     ) -> None:
@@ -1527,6 +1535,16 @@ class Model(Vmappable):
 
         if gear_ratios.size != len(joint_names):
             raise ValueError("Wrong arguments size", gear_ratios.size, len(joint_names))
+
+        # Check on gear ratios if motor_inertias are not zero
+        jax.lax.cond(
+            pred=(jnp.diag(self.physics_model._joint_motor_inertia) != 0).any(),
+            operand=gear_ratios,
+            true_fun=lambda gr: gr,
+            false_fun=lambda: (_ for _ in _).throw(
+                ValueError("Motor inertias are zero")
+            ),
+        )
 
         self.physics_model._joint_motor_gear_ratio.update(
             {
@@ -1539,7 +1557,7 @@ class Model(Vmappable):
 
         logging.info("Setting attribute 'motor_gear_ratios'")
 
-    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
+    # @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_motor_viscous_frictions(
         self, viscous_frictions: Tuple, joint_names: List[str] = None
     ) -> None:

@@ -6,4 +6,4 @@ Physics
 
 .. automodule:: src.jaxsim.physics
     :members:
-    
+    :inherited-members:

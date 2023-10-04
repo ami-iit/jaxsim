@@ -6,3 +6,4 @@ High Level
 
 .. automodule:: src.jaxsim.high_level
     :members:
+    :inherited-members:

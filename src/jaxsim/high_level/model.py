@@ -472,9 +472,9 @@ class Model(Vmappable):
 
         return links_in_contact
 
-    # ==================
-    # Vectorized methods
-    # ==================
+    # =================
+    # Multi-DoF methods
+    # =================
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_positions(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
@@ -630,9 +630,9 @@ class Model(Vmappable):
 
         return jax.vmap(inertial_to_active, in_axes=0)(W_f_ext)
 
-    # ==================
-    # Dynamic properties
-    # ==================
+    # ================================================
+    # Generalized methods and free-floating quantities
+    # ================================================
 
     @functools.partial(oop.jax_tf.method_ro)
     def generalized_position(self) -> Tuple[jtp.Matrix, jtp.Vector]:
@@ -790,9 +790,9 @@ class Model(Vmappable):
         W_h = B_X_W.T @ B_h
         return self.inertial_to_active_representation(array=W_h, is_force=True)
 
-    # ==============================
-    # Quantities related to the CoM
-    # ==============================
+    # ===========
+    # CoM methods
+    # ===========
 
     @functools.partial(oop.jax_tf.method_ro)
     def com_position(self) -> jtp.Vector:

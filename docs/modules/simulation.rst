@@ -4,12 +4,12 @@
 Simulation 
 ==========
 
-.. automodule:: src.jaxsim.simulation
+.. automodule:: jaxsim.simulation
 
-.. autoclass:: src.jaxsim.simulation.SimulatorData
+.. autoclass:: jaxsim.simulation.simulator.SimulatorData
     :members:
     :inherited-members:
     
-.. autoclass:: src.jaxsim.simulation.JaxSim
-:members:
-:inherited-members:
+.. autoclass:: jaxsim.simulation.simulator.JaxSim
+    :members:
+    :inherited-members:

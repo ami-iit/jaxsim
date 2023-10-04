@@ -2,8 +2,8 @@
 
 
 Utils 
-==========
+=====
 
-.. automodule:: src.jaxsim.utils
+.. automodule:: jaxsim.utils
     :members:
     :inherited-members:

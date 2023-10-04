@@ -12,7 +12,7 @@ A scalable physics engine implemented with JAX. With JIT batteries 🔋
 Features
 --------
 
-- Physics engine in reduced coordinates implemented with `JAX`_ in Python.
+- Physics engine in reduced coordinates implemented with `JAX <https://github.com/google/jax>`_ in Python.
 - Supported JIT compilation of Python code for increased performance.
 - Transparent support to execute the simulation on CPUs, GPUs, and TPUs.
 - Possibility to run parallel multi-body simulations on hardware accelerators for significantly increased throughput.
@@ -38,7 +38,7 @@ Planned features:
    guide/install
 
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
     :caption: JAXsim API Reference
 
     modules/high_level
@@ -46,7 +46,6 @@ Planned features:
     modules/physics
     modules/parsers
     modules/simulation
-    modules/sixd
     modules/utils
 
 

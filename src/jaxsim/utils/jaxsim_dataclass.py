@@ -2,7 +2,7 @@ import abc
 import contextlib
 import copy
 import dataclasses
-from typing import Generator
+from typing import ClassVar, Generator
 
 import jax.flatten_util
 import jax_dataclasses
@@ -17,11 +17,12 @@ except ImportError:
     from typing_extensions import Self
 
 
+@jax_dataclasses.pytree_dataclass
 class JaxsimDataclass(abc.ABC):
     """"""
 
     # This attribute is set by jax_dataclasses
-    __mutability__ = None
+    __mutability__: ClassVar[Mutability] = Mutability.FROZEN
 
     @contextlib.contextmanager
     def editable(self: Self, validate: bool = True) -> Generator[Self, None, None]:

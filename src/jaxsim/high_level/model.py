@@ -131,8 +131,7 @@ class Model(Vmappable):
             model_name: The optional name of the model that overrides the one in the description.
             vel_repr: The velocity representation to use.
             gravity: The 3D gravity vector.
-            is_urdf: Whether the model description is a URDF or an SDF. This is
-                automatically inferred if the model description is a path to a file.
+            is_urdf: Whether the model description is a URDF or an SDF. This is automatically inferred if the model description is a path to a file.
             considered_joints: The list of joints to consider. If None, all joints are considered.
 
         Returns:

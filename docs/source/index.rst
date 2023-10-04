@@ -4,10 +4,10 @@ JAXsim
 A scalable physics engine implemented with JAX. With JIT batteries 🔋
 
 .. warning::
-   This project is still experimental, APIs could change without notice. ️⚠
+   This project is still experimental, APIs could change without notice. 
 
 .. warning::
-   This simulator currently focuses on locomotion applications. Only contacts with ground are supported. ️⚠
+   This simulator currently focuses on locomotion applications. Only contacts with ground are supported.
 
 Features
 --------
@@ -33,23 +33,6 @@ Planned features:
 
 .. _JAX: https://github.com/google/jax/
 
-Installation
-------------
-
-You can install the project with `pypa/pip`_, preferably in a `virtual environment`_:
-
-.. code-block:: bash
-
-   pip install jaxsim
-
-Have a look to `setup.cfg`_ for a complete list of optional dependencies.
-You can install all of them by specifying ``jaxsim[all]``.
-
-**Note:** if you need GPU support, please follow the official `installation instruction`_ of JAX.
-
-.. _pypa/pip: https://github.com/pypa/pip/
-.. _virtual environment: https://docs.python.org/3.8/tutorial/venv.html
-.. _installation instruction: https://github.com/google/jax/#installation
 
 Credits
 -------

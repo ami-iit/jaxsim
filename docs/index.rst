@@ -38,7 +38,7 @@ Planned features:
    guide/install
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 3
     :caption: JAXsim API Reference
 
     modules/high_level

@@ -4,6 +4,6 @@
 Physics 
 =======
 
-.. automodule:: jaxsim.physics
+.. automodule:: src.jaxsim.physics
     :members:
     

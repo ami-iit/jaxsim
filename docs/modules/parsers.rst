@@ -4,6 +4,6 @@
 Parsers 
 =======
 
-.. automodule:: jaxsim.parsers
+.. automodule:: src.jaxsim.parsers
     :members:
     

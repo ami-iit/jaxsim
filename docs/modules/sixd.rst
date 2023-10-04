@@ -4,6 +4,6 @@
 SixD 
 ==========
 
-.. automodule:: jaxsim.sixd
+.. automodule:: src.jaxsim.sixd
     :members:
     

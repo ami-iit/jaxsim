@@ -1,13 +1,16 @@
 # Configuration file for the Sphinx documentation builder.
 import pathlib
 import sys
+import os
 
 # -- Version information
 
-sys.path.insert(0, pathlib.Path(__file__).parents[2].absolute())
-version_file = (
-    pathlib.Path(__file__).parents[1].absolute() / "src" / "jaxsim" / "version.txt"
-)
+sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath("../"))
+
+module_path = pathlib.Path(__file__).parent.parent.absolute() / "src"
+sys.path.insert(0, str(module_path))
+version_file = str(module_path / "jaxsim" / "version.txt")
 
 with open(version_file) as file_handler:
     __version__ = file_handler.read().strip()

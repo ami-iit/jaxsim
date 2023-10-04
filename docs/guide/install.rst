@@ -9,7 +9,7 @@ Prerequisites
 JAXsim requires Python 3.10 or later. 
 
 Basic Installation
-------------
+------------------
 
 You can install the project with `pypa/pip`, preferably in a `virtual environment`_:
 

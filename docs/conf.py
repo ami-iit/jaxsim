@@ -4,7 +4,7 @@ import sys
 
 # -- Version information
 
-sys.path.insert(0, pathlib.Path(__file__).parents[1].absolute())
+sys.path.insert(0, pathlib.Path(__file__).parents[2].absolute())
 version_file = (
     pathlib.Path(__file__).parents[1].absolute() / "src" / "jaxsim" / "version.txt"
 )
@@ -39,8 +39,12 @@ extensions = [
 # -- Options for intersphinx extension
 
 language = "en"
+
 templates_path = ["_templates"]
+
 master_doc = "index"
+
+exclude_patterns = ["_build"]
 
 # -- Options for HTML output
 

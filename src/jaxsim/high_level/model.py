@@ -363,7 +363,7 @@ class Model(Vmappable):
 
         return jnp.sum(jnp.array([l.mass() for l in self.links()]), dtype=float)
 
-    @functools.partial(oop.jax_tf.method_ro, static_argnames=["link_name"], vmap=False)
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def get_link(self, link_name: str) -> high_level.link.Link:
         """"""
 
@@ -373,7 +373,7 @@ class Model(Vmappable):
 
         return self.links(link_names=(link_name,))[0]
 
-    @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_name"], vmap=False)
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def get_joint(self, joint_name: str) -> high_level.joint.Joint:
         """"""
 
@@ -395,7 +395,7 @@ class Model(Vmappable):
 
         return tuple(j.name() for j in self.joints())
 
-    @functools.partial(oop.jax_tf.method_ro, static_argnames=["link_names"], vmap=False)
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def links(
         self, link_names: tuple[str, ...] = None
     ) -> tuple[high_level.link.Link, ...]:
@@ -415,9 +415,7 @@ class Model(Vmappable):
 
         return tuple(all_links[name] for name in link_names)
 
-    @functools.partial(
-        oop.jax_tf.method_ro, static_argnames=["joint_names"], vmap=False
-    )
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def joints(
         self, joint_names: tuple[str, ...] = None
     ) -> tuple[high_level.joint.Joint, ...]:

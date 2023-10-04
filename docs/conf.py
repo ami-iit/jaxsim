@@ -4,9 +4,9 @@ import sys
 
 # -- Version information
 
-sys.path.insert(0, pathlib.Path(__file__).parents[2].absolute())
+sys.path.insert(0, pathlib.Path(__file__).parents[1].absolute())
 version_file = (
-    pathlib.Path(__file__).parents[2].absolute() / "src" / "jaxsim" / "version.txt"
+    pathlib.Path(__file__).parents[1].absolute() / "src" / "jaxsim" / "version.txt"
 )
 
 with open(version_file) as file_handler:

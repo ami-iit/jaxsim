@@ -4,6 +4,6 @@
 Utils 
 ==========
 
-.. automodule:: jaxsim.utils
+.. automodule:: src.jaxsim.utils
     :members:
     

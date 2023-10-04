@@ -4,6 +4,6 @@
 Math 
 ====
 
-.. automodule:: jaxsim.math
+.. automodule:: src.jaxsim.math
     :members:
     

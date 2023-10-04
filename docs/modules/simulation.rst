@@ -4,6 +4,6 @@
 Simulation 
 ==========
 
-.. automodule:: jaxsim.simulation
+.. automodule:: src.jaxsim.simulation
     :members:
     

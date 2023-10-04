@@ -4,5 +4,5 @@
 High Level 
 ==========
 
-.. automodule:: jaxsim.high_level
+.. automodule:: src.jaxsim.high_level
     :members:

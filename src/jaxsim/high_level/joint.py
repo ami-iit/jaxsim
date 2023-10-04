@@ -14,7 +14,7 @@ from jaxsim.utils import Vmappable, not_tracing, oop
 @jax_dataclasses.pytree_dataclass
 class Joint(Vmappable):
     """
-    High-level class to operate on a single joint of a simulated model.
+    High-level class to operate in r/o on a single joint of a simulated model.
     """
 
     joint_description: Static[jaxsim.parsers.descriptions.JointDescription]

@@ -20,7 +20,7 @@ from .common import VelRepr
 @jax_dataclasses.pytree_dataclass
 class Link(Vmappable):
     """
-    High-level class to operate on a single link of a simulated model.
+    High-level class to operate in r/o on a single link of a simulated model.
     """
 
     link_description: Static[jaxsim.parsers.descriptions.LinkDescription]

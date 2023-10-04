@@ -410,6 +410,10 @@ class Model(Vmappable):
                 key=lambda l: l.index,
             )
         }
+
+        for l in all_links.values():
+            l._set_mutability(self._mutability())
+
         if link_names is None:
             return tuple(all_links.values())
 
@@ -430,6 +434,9 @@ class Model(Vmappable):
                 key=lambda j: j.index,
             )
         }
+
+        for j in all_joints.values():
+            j._set_mutability(self._mutability())
 
         if joint_names is None:
             return tuple(all_joints.values())

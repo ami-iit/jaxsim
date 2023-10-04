@@ -14,6 +14,18 @@ from . import utils
 def forward_kinematics_model(
     model: PhysicsModel, q: jtp.Vector, xfb: jtp.Vector
 ) -> jtp.Array:
+    """
+    Compute the forward kinematics transformations for all links in an articulated body or robot.
+
+    Args:
+        model (PhysicsModel): The physics model of the articulated body or robot.
+        q (jtp.Vector): Joint positions (Generalized coordinates).
+        xfb (jtp.Vector): The base pose vector, including the quaternion (first 4 elements) and translation (last 3 elements).
+
+    Returns:
+        jtp.Array: A 3D array containing the forward kinematics transformations for all links.
+    """
+    
     x_fb, q, _, _, _, _ = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=None, tau=None, f_ext=None
     )

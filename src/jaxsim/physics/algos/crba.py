@@ -11,6 +11,17 @@ from . import utils
 
 
 def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
+    """
+    Compute the Composite Rigid-Body Inertia Matrix (CRBA) for an articulated body or robot given joint positions.
+
+    Args:
+        model (PhysicsModel): The physics model of the articulated body or robot.
+        q (jtp.Vector): Joint positions (Generalized coordinates).
+
+    Returns:
+        jtp.Matrix: The Composite Rigid-Body Inertia Matrix (CRBA) of the articulated body or robot.
+    """
+    
     _, q, _, _, _, _ = utils.process_inputs(
         physics_model=model, xfb=None, q=q, qd=None, tau=None, f_ext=None
     )

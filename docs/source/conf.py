@@ -15,8 +15,8 @@ with open(version_file) as file_handler:
 # -- Project information
 
 project = "JAXsim"
-copyright = "2022, Artifical and Mechanical Intelligence"
-author = "Artifical and Mechanical Intelligence"
+copyright = "2022, Artificial and Mechanical Intelligence"
+author = "Artificial and Mechanical Intelligence"
 
 release = "__version__"
 version = "main (" + __version__ + ")"
@@ -36,7 +36,11 @@ extensions = [
     "sphinx.ext.viewcode",
 ]
 
+# -- Options for intersphinx extension
+
+language = "en"
 templates_path = ["_templates"]
+master_doc = "index"
 
 # -- Options for HTML output
 

@@ -12,6 +12,21 @@ from .link import LinkDescription
 
 
 class JointType(enum.IntEnum):
+    """
+    Enumeration of joint types for robot joints.
+
+    Attributes:
+        F: Fixed joint (no movement).
+        R: Revolute joint (rotation).
+        P: Prismatic joint (translation).
+        Rx: Revolute joint with rotation about the X-axis.
+        Ry: Revolute joint with rotation about the Y-axis.
+        Rz: Revolute joint with rotation about the Z-axis.
+        Px: Prismatic joint with translation along the X-axis.
+        Py: Prismatic joint with translation along the Y-axis.
+        Pz: Prismatic joint with translation along the Z-axis.
+    """
+
     F = enum.auto()  # Fixed
     R = enum.auto()  # Revolute
     P = enum.auto()  # Prismatic
@@ -29,6 +44,14 @@ class JointType(enum.IntEnum):
 
 @dataclasses.dataclass
 class JointDescriptor:
+    """
+    Description of a joint type with a specific code.
+
+    Attributes:
+        code (JointType): The code representing the joint type.
+
+    """
+
     code: JointType
 
     def __hash__(self) -> int:
@@ -37,6 +60,14 @@ class JointDescriptor:
 
 @dataclasses.dataclass
 class JointGenericAxis(JointDescriptor):
+    """
+    Description of a joint type with a generic axis.
+
+    Attributes:
+        axis (npt.NDArray): The axis of rotation or translation for the joint.
+
+    """
+
     axis: npt.NDArray
 
     def __post_init__(self):

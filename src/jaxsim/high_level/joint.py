@@ -1,6 +1,6 @@
 import dataclasses
 import functools
-from typing import Any, Tuple
+from typing import Any
 
 import jax.numpy as jnp
 import jax_dataclasses
@@ -96,7 +96,7 @@ class Joint(Vmappable):
         )
 
     @functools.partial(oop.jax_tf.method_ro)
-    def position_limit(self, dof: int = None) -> Tuple[jtp.Float, jtp.Float]:
+    def position_limit(self, dof: int = None) -> tuple[jtp.Float, jtp.Float]:
         """"""
 
         dof = dof if dof is not None else 0

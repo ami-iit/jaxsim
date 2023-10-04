@@ -1,5 +1,5 @@
-JAXsim
-======
+JAXsim Docs - A Physics Engine in Reduced Coordinates for Control and Robot Learning
+====================================================================================
 
 A scalable physics engine implemented with JAX. With JIT batteries 🔋
 
@@ -31,7 +31,23 @@ Planned features:
 - Reinforcement Learning module developed in JAX.
 - Finalization of differentiable physics through the simulation.
 
-.. _JAX: https://github.com/google/jax/
+.. toctree::
+   :maxdepth: 2
+   :caption: User Guide
+
+   guide/install
+
+.. toctree::
+    :maxdepth: 1
+    :caption: JAXsim API Reference
+
+    modules/high_level
+    modules/math
+    modules/physics
+    modules/parsers
+    modules/simulation
+    modules/sixd
+    modules/utils
 
 
 Credits

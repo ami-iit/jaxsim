@@ -10,6 +10,7 @@ import jaxsim.typing as jtp
 from jaxsim.sixd import se3
 from jaxsim.utils import JaxsimDataclass
 
+
 @jax_dataclasses.pytree_dataclass
 class LinkDescription(JaxsimDataclass):
     """

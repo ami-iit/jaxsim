@@ -1,9 +1,13 @@
 from typing import Tuple, Union
+
 import jax.numpy as jnp
+
 import jaxsim.typing as jtp
 from jaxsim.parsers.descriptions import JointDescriptor, JointGenericAxis, JointType
+
 from .adjoint import Adjoint
 from .rotation import Rotation
+
 
 def jcalc(
     jtyp: Union[JointType, JointDescriptor], q: jtp.Float

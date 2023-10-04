@@ -1,9 +1,13 @@
 from typing import Tuple
+
 import jax
 import jax.numpy as jnp
+
 import jaxsim.typing as jtp
 from jaxsim.sixd import so3
+
 from .skew import Skew
+
 
 class Rotation:
     @staticmethod

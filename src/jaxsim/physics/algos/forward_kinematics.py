@@ -25,7 +25,7 @@ def forward_kinematics_model(
     Returns:
         jtp.Array: A 3D array containing the forward kinematics transformations for all links.
     """
-    
+
     x_fb, q, _, _, _, _ = utils.process_inputs(
         physics_model=model, xfb=xfb, q=q, qd=None, tau=None, f_ext=None
     )

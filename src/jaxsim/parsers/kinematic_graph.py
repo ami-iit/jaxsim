@@ -30,6 +30,7 @@ class RootPose(NamedTuple):
         root_position (npt.NDArray): A NumPy array of shape (3,) representing the root's position.
         root_quaternion (npt.NDArray): A NumPy array of shape (4,) representing the root's quaternion.
     """
+
     root_position: npt.NDArray = np.zeros(3)
     root_quaternion: npt.NDArray = np.array([1.0, 0, 0, 0])
 

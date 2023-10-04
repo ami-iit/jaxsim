@@ -20,7 +20,22 @@ from . import utils
 
 @jax_dataclasses.pytree_dataclass
 class SoftContactsState:
-    """State of the soft contacts model."""
+    """
+    State of the soft contacts model.
+
+    Attributes:
+        tangential_deformation (jtp.Matrix): The tangential deformation of the material at each collidable point.
+
+    Methods:
+        zero(physics_model: "jaxsim.physics.model.physics_model.PhysicsModel") -> SoftContactsState:
+            Modify the SoftContactsState instance imposing zero tangential deformation.
+
+        valid(physics_model: "jaxsim.physics.model.physics_model.PhysicsModel") -> bool:
+            Check if the soft contacts state has valid shape.
+
+        replace(validate: bool = True, kwargs) -> SoftContactsState:
+            Replace attributes of the soft contacts state.
+    """
 
     tangential_deformation: jtp.Matrix
 
@@ -37,7 +52,7 @@ class SoftContactsState:
         Returns:
             SoftContactsState: A SoftContactsState instance with zero tangential deformation.
         """
-        
+
         return SoftContactsState(
             tangential_deformation=jnp.zeros(shape=(3, physics_model.gc.body.size))
         )
@@ -54,7 +69,7 @@ class SoftContactsState:
         Returns:
             bool: True if the state has a valid shape, otherwise False.
         """
-        
+
         from jaxsim.simulation.utils import check_valid_shape
 
         return check_valid_shape(
@@ -70,7 +85,6 @@ class SoftContactsState:
 
         Args:
             validate (bool, optional): Whether to validate the state after replacement. Defaults to True.
-            **kwargs: Keyword arguments for attribute replacement.
 
         Returns:
             SoftContactsState: A new SoftContactsState instance with replaced attributes.

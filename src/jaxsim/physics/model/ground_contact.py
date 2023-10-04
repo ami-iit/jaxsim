@@ -19,8 +19,7 @@ class GroundContact:
 
     Attributes:
         point (npt.NDArray): An array of shape (3, N) representing the 3D positions of collidable points.
-        body (Static[npt.NDArray]): An array of integers representing the indices of the bodies (links)
-            associated with each collidable point.
+        body (Static[npt.NDArray]): An array of integers representing the indices of the bodies (links) associated with each collidable point.
 
     Methods:
         build_from(model_description: ModelDescription) -> GroundContact:

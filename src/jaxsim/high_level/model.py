@@ -126,8 +126,7 @@ class Model(Vmappable):
         Build a Model object from a model description.
 
         Args:
-            model_description: A path to an SDF/URDF file, a string containing its content,
-                or a pre-parsed/pre-built rod model.
+            model_description: A path to an SDF/URDF file, a string containing its content, or a pre-parsed/pre-built rod model.
             model_name: The optional name of the model that overrides the one in the description.
             vel_repr: The velocity representation to use.
             gravity: The 3D gravity vector.

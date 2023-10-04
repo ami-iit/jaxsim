@@ -10,6 +10,7 @@ import jaxsim.logging as logging
 
 from .link import LinkDescription
 
+
 @dataclasses.dataclass
 class CollidablePoint:
     """
@@ -58,6 +59,7 @@ class CollidablePoint:
             + ")"
         )
 
+
 @dataclasses.dataclass
 class CollisionShape(abc.ABC):
     """
@@ -78,6 +80,7 @@ class CollisionShape(abc.ABC):
             + "\n])"
         )
 
+
 @dataclasses.dataclass
 class BoxCollision(CollisionShape):
     """
@@ -89,6 +92,7 @@ class BoxCollision(CollisionShape):
     """
 
     center: npt.NDArray
+
 
 @dataclasses.dataclass
 class SphereCollision(CollisionShape):

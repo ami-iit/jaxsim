@@ -1,5 +1,7 @@
 import jax.numpy as jnp
+
 import jaxsim.typing as jtp
+
 
 class Skew:
     """

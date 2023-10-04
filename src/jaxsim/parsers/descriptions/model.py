@@ -3,11 +3,14 @@ import itertools
 from typing import List
 
 import numpy.typing as npt
+
 import jaxsim.logging as logging
+
 from ..kinematic_graph import KinematicGraph, RootPose
 from .collision import CollidablePoint, CollisionShape
 from .joint import JointDescription
 from .link import LinkDescription
+
 
 @dataclasses.dataclass(frozen=True)
 class ModelDescription(KinematicGraph):
@@ -30,7 +33,6 @@ class ModelDescription(KinematicGraph):
         update_collision_shape_of_link(...): Enable or disable collision shapes associated with a link.
         collision_shape_of_link(...): Get the collision shape associated with a specific link.
         all_enabled_collidable_points(...): Get all enabled collidable points in the model.
-
     """
 
     name: str = None
@@ -66,7 +68,6 @@ class ModelDescription(KinematicGraph):
 
         Raises:
             ValueError: If invalid or missing input data.
-
         """
 
         # Create the full kinematic graph
@@ -164,8 +165,8 @@ class ModelDescription(KinematicGraph):
 
         Raises:
             ValueError: If the specified joints are not part of the model.
-
         """
+
         msg = "The model reduction logic assumes that removed joints have zero angles"
         logging.info(msg=msg)
 

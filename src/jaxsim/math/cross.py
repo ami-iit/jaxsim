@@ -1,6 +1,9 @@
 import jax.numpy as jnp
+
 import jaxsim.typing as jtp
+
 from .skew import Skew
+
 
 class Cross:
     @staticmethod

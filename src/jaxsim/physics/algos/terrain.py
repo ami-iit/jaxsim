@@ -14,6 +14,17 @@ class Terrain(abc.ABC):
         pass
 
     def normal(self, x: float, y: float) -> jtp.Vector:
+        """
+        Compute the normal vector of the terrain at a specific (x, y) location.
+
+        Args:
+            x (float): The x-coordinate of the location.
+            y (float): The y-coordinate of the location.
+
+        Returns:
+            jtp.Vector: The normal vector of the terrain surface at the specified location.
+        """
+
         # https://stackoverflow.com/a/5282364
         h_xp = self.height(x=x + self.delta, y=y)
         h_xm = self.height(x=x - self.delta, y=y)
@@ -41,10 +52,29 @@ class PlaneTerrain(Terrain):
 
     @staticmethod
     def build(plane_normal: jtp.Vector) -> "PlaneTerrain":
-        """"""
+        """
+        Create a PlaneTerrain instance with a specified plane normal vector.
+
+        Args:
+            plane_normal (jtp.Vector): The normal vector of the terrain plane.
+
+        Returns:
+            PlaneTerrain: A PlaneTerrain instance.
+        """
 
         return PlaneTerrain(plane_normal=jnp.array(plane_normal, dtype=float))
 
     def height(self, x: float, y: float) -> float:
+        """
+        Compute the height of the terrain at a specific (x, y) location on a plane.
+
+        Args:
+            x (float): The x-coordinate of the location.
+            y (float): The y-coordinate of the location.
+
+        Returns:
+            float: The height of the terrain at the specified location on the plane.
+        """
+        
         a, b, c = self.plane_normal
         return -(a * x + b * y) / c

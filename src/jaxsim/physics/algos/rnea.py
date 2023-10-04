@@ -22,7 +22,23 @@ def rnea(
     f_ext: jtp.Matrix = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
-    Recursive Newton-Euler Algorithm (RNEA) algorithm for inverse dynamics.
+    Perform Inverse Dynamics Calculation using the Recursive Newton-Euler Algorithm (RNEA).
+
+    This function calculates the joint torques (forces) required to achieve a desired motion
+    given the robot's configuration, velocities, accelerations, and external forces.
+
+    Args:
+        model (PhysicsModel): The robot's physics model containing dynamic parameters.
+        xfb (jtp.Vector): The floating base state, including orientation and position.
+        q (jtp.Vector): Joint positions (angles).
+        qd (jtp.Vector): Joint velocities.
+        qdd (jtp.Vector): Joint accelerations.
+        a0fb (jtp.Vector, optional): Base acceleration. Defaults to zeros.
+        f_ext (jtp.Matrix, optional): External forces acting on the robot. Defaults to None.
+
+    Returns:
+        W_f0 (jtp.Vector): The base 6D force expressed in the world frame.
+        tau (jtp.Vector): Joint torques (forces) required for the desired motion.
     """
 
     xfb, q, qd, qdd, _, f_ext = utils.process_inputs(

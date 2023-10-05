@@ -65,7 +65,7 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
 
     kin_dyn = utils_idyntree.KinDynComputations.build(
         urdf=pathlib.Path(urdf_file_path),
-        considered_joints=model_jaxsim.joint_names(),
+        considered_joints=list(model_jaxsim.joint_names()),
         vel_repr=vel_repr,
         gravity=gravity,
     )
@@ -77,7 +77,7 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
         base_velocity=np.array(model_jaxsim.base_velocity()),
     )
 
-    assert kin_dyn.joint_names() == model_jaxsim.joint_names()
+    assert kin_dyn.joint_names() == list(model_jaxsim.joint_names())
     assert kin_dyn.gravity == pytest.approx(model_jaxsim.physics_model.gravity[0:3])
     assert kin_dyn.joint_positions() == pytest.approx(model_jaxsim.joint_positions())
     assert kin_dyn.joint_velocities() == pytest.approx(model_jaxsim.joint_velocities())

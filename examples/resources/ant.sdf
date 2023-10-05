@@ -1,0 +1,520 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sdf version="1.7">
+  <model name="ant" canonical_link="torso">
+    <link name="torso">
+      <inertial>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.025</ixx>
+          <iyy>0.025</iyy>
+          <izz>0.025</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+      </inertial>
+      <visual name="torso_visual">
+        <geometry>
+          <sphere>
+            <radius>0.25</radius>
+          </sphere>
+        </geometry>
+      </visual>
+      <collision name="torso_collision">
+        <geometry>
+          <box>
+            <size>0.2886751345948129 0.2886751345948129 0.2886751345948129</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <link name="leg_front_left_upper">
+      <pose relative_to="front_left_hip">-2.7755575615628914e-17 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.3</mass>
+        <inertia>
+          <ixx>0.0044800000000000005</ixx>
+          <iyy>0.0044800000000000005</iyy>
+          <izz>0.00096</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.28 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_front_left_upper_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="front_left_hip_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.07999999999999997 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </visual>
+      <visual name="front_left_knee_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08800000000000001</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4800000000000001 5.551115123125783e-17 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_front_left_upper_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+    </link>
+    <link name="leg_front_left_lower">
+      <pose relative_to="front_left_knee">5.551115123125783e-17 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.2</mass>
+        <inertia>
+          <ixx>0.002986666666666667</ixx>
+          <iyy>0.002986666666666667</iyy>
+          <izz>0.00064</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.20000000000000007 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_front_left_lower_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000007 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="front_left_foot_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4000000000000001 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_front_left_lower_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000007 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+      <collision name="front_left_foot_collision">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4000000000000001 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </collision>
+    </link>
+    <link name="leg_front_right_upper">
+      <pose relative_to="front_right_hip">-2.7755575615628914e-17 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.3</mass>
+        <inertia>
+          <ixx>0.0044800000000000005</ixx>
+          <iyy>0.0044800000000000005</iyy>
+          <izz>0.00096</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.28 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_front_right_upper_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="front_right_hip_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.07999999999999997 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </visual>
+      <visual name="front_right_knee_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08800000000000001</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4800000000000001 -5.551115123125783e-17 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_front_right_upper_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+    </link>
+    <link name="leg_front_right_lower">
+      <pose relative_to="front_right_knee">5.551115123125783e-17 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.2</mass>
+        <inertia>
+          <ixx>0.002986666666666667</ixx>
+          <iyy>0.002986666666666667</iyy>
+          <izz>0.00064</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.20000000000000007 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_front_right_lower_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000007 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="front_right_foot_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4000000000000001 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_front_right_lower_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000007 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+      <collision name="front_right_foot_collision">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4000000000000001 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </collision>
+    </link>
+    <link name="leg_back_left_upper">
+      <pose relative_to="back_left_hip">0.0 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.3</mass>
+        <inertia>
+          <ixx>0.0044800000000000005</ixx>
+          <iyy>0.0044800000000000005</iyy>
+          <izz>0.00096</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.28 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_back_left_upper_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="back_left_hip_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.08 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </visual>
+      <visual name="back_left_knee_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08800000000000001</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4800000000000001 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_back_left_upper_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+    </link>
+    <link name="leg_back_left_lower">
+      <pose relative_to="back_left_knee">1.1102230246251565e-16 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.2</mass>
+        <inertia>
+          <ixx>0.002986666666666667</ixx>
+          <iyy>0.002986666666666667</iyy>
+          <izz>0.00064</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.20000000000000012 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_back_left_lower_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000012 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="back_left_foot_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.40000000000000013 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_back_left_lower_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000012 0.0 0.0 -5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+      <collision name="back_left_foot_collision">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.40000000000000013 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      </collision>
+    </link>
+    <link name="leg_back_right_upper">
+      <pose relative_to="back_right_hip">0.0 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.3</mass>
+        <inertia>
+          <ixx>0.0044800000000000005</ixx>
+          <iyy>0.0044800000000000005</iyy>
+          <izz>0.00096</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.28 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_back_right_upper_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="back_right_hip_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.08 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </visual>
+      <visual name="back_right_knee_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08800000000000001</radius>
+          </sphere>
+        </geometry>
+        <pose>0.4800000000000001 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_back_right_upper_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.28 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+    </link>
+    <link name="leg_back_right_lower">
+      <pose relative_to="back_right_knee">1.1102230246251565e-16 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      <inertial>
+        <mass>0.2</mass>
+        <inertia>
+          <ixx>0.002986666666666667</ixx>
+          <iyy>0.002986666666666667</iyy>
+          <izz>0.00064</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+        <pose>0.20000000000000012 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </inertial>
+      <visual name="leg_back_right_lower_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000012 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </visual>
+      <visual name="back_right_foot_visual">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.40000000000000013 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </visual>
+      <collision name="leg_back_right_lower_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.08</radius>
+            <length>0.4</length>
+          </cylinder>
+        </geometry>
+        <pose>0.20000000000000012 0.0 0.0 5.551115123125783e-17 1.5707963267948966 0.0</pose>
+      </collision>
+      <collision name="back_right_foot_collision">
+        <geometry>
+          <sphere>
+            <radius>0.08</radius>
+          </sphere>
+        </geometry>
+        <pose>0.40000000000000013 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      </collision>
+    </link>
+    <joint name="front_left_hip" type="revolute">
+      <parent>torso</parent>
+      <child>leg_front_left_upper</child>
+      <pose relative_to="torso">0.1767766952966369 0.1767766952966369 0.0 0.0 0.0 0.7853981633974484</pose>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.5235987755982988</lower>
+          <upper>0.5235987755982988</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="front_left_knee" type="revolute">
+      <parent>leg_front_left_upper</parent>
+      <child>leg_front_left_lower</child>
+      <pose relative_to="leg_front_left_upper">0.48 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>0.5235987755982988</lower>
+          <upper>1.2217304763960306</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="front_right_hip" type="revolute">
+      <parent>torso</parent>
+      <child>leg_front_right_upper</child>
+      <pose relative_to="torso">0.1767766952966369 -0.1767766952966369 0.0 0.0 0.0 -0.7853981633974484</pose>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.5235987755982988</lower>
+          <upper>0.5235987755982988</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="front_right_knee" type="revolute">
+      <parent>leg_front_right_upper</parent>
+      <child>leg_front_right_lower</child>
+      <pose relative_to="leg_front_right_upper">0.48 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>0.5235987755982988</lower>
+          <upper>1.2217304763960306</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="back_left_hip" type="revolute">
+      <parent>torso</parent>
+      <child>leg_back_left_upper</child>
+      <pose relative_to="torso">-0.1767766952966369 0.1767766952966369 0.0 0.0 0.0 2.356194490192345</pose>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.5235987755982988</lower>
+          <upper>0.5235987755982988</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="back_left_knee" type="revolute">
+      <parent>leg_back_left_upper</parent>
+      <child>leg_back_left_lower</child>
+      <pose relative_to="leg_back_left_upper">0.48000000000000004 0.0 0.0 0.0 0.0 5.551115123125783e-17</pose>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>0.5235987755982988</lower>
+          <upper>1.2217304763960306</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="back_right_hip" type="revolute">
+      <parent>torso</parent>
+      <child>leg_back_right_upper</child>
+      <pose relative_to="torso">-0.1767766952966369 -0.1767766952966369 0.0 0.0 0.0 -2.356194490192345</pose>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.5235987755982988</lower>
+          <upper>0.5235987755982988</upper>
+        </limit>
+      </axis>
+    </joint>
+    <joint name="back_right_knee" type="revolute">
+      <parent>leg_back_right_upper</parent>
+      <child>leg_back_right_lower</child>
+      <pose relative_to="leg_back_right_upper">0.48000000000000004 0.0 0.0 0.0 0.0 -5.551115123125783e-17</pose>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>0.5235987755982988</lower>
+          <upper>1.2217304763960306</upper>
+        </limit>
+      </axis>
+    </joint>
+  </model>
+</sdf>

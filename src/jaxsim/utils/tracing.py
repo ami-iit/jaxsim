@@ -1,7 +1,6 @@
 from typing import Any
 
 import jax._src.core
-import jax.abstract_arrays
 import jax.flatten_util
 import jax.interpreters.partial_eval
 
@@ -14,7 +13,6 @@ def tracing(var: Any) -> bool | jax.Array:
             isinstance(var, t)
             for t in (
                 jax._src.core.Tracer,
-                jax.abstract_arrays.ShapedArray,
                 jax.interpreters.partial_eval.DynamicJaxprTracer,
             )
         ]

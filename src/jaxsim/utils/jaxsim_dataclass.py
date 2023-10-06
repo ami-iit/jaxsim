@@ -4,9 +4,7 @@ import copy
 import dataclasses
 from typing import Generator
 
-import jax.abstract_arrays
 import jax.flatten_util
-import jax.interpreters.partial_eval
 import jax_dataclasses
 
 import jaxsim.typing as jtp

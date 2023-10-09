@@ -6,8 +6,9 @@ import jax_dataclasses
 import rod
 from rod.builder.primitives import SphereBuilder
 
+import jaxsim
 import jaxsim.typing as jtp
-from jaxsim import high_level
+
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
 from jaxsim.simulation import simulator_callbacks
 from jaxsim.simulation.simulator import JaxSim, SimulatorData, StepData
@@ -29,22 +30,22 @@ model_sdf_string = rod.Sdf(
 ).serialize(pretty=True)
 
 # Simulation step parameters
-step_size = 0.001
+step_size = 0.000_500
 steps_per_run = 1
 
 # Create the simulator
 simulator = JaxSim.build(
     step_size=step_size,
     steps_per_run=steps_per_run,
-    velocity_representation=high_level.model.VelRepr.Body,
-    integrator_type=high_level.model.IntegratorType.EulerSemiImplicit,
+    velocity_representation=jaxsim.VelRepr.Body,
+    integrator_type=jaxsim.simulation.IntegratorType.EulerSemiImplicit,
     simulator_data=SimulatorData(
         contact_parameters=SoftContactsParams(K=1e6, D=2e3, mu=0.5),
     ),
-).mutable(validate=False)
+)
 
 # Insert the model in the simulator and extract a mutable object
-model = simulator.insert_model_from_sdf(sdf=model_sdf_string).mutable(validate=True)
+model = simulator.insert_model_from_description(model_description=model_sdf_string)
 
 # Zero the model data
 model.zero()
@@ -73,7 +74,7 @@ class SimulatorLogger(simulator_callbacks.PostStepCallback):
 x0 = model.data.model_state
 
 # Simulate 3.0 seconds
-simulator, (cb, step_data) = simulator.step_over_horizon(
+simulator, (cb, (pre_step_data, post_step_data)) = simulator.step_over_horizon(
     horizon_steps=int(3.0 / simulator.dt()),
     callback_handler=SimulatorLogger(),
     clear_inputs=True,
@@ -81,7 +82,7 @@ simulator, (cb, step_data) = simulator.step_over_horizon(
 
 # Extract the PhysicsModelState over the simulated horizon
 step_data: Dict[str, StepData]
-x = step_data[model.name()].tf_model_state
+x = post_step_data[model.name()].tf_model_state
 
 # Now you can inspect x and plot its data
 
@@ -89,22 +90,26 @@ x = step_data[model.name()].tf_model_state
 # Plot the simulation data
 # ========================
 
+# import matplotlib
 import matplotlib.pyplot as plt
 
-plt.plot(step_data[model.name()].tf, x.base_position, label=["x", "y", "z"])
+# matplotlib.use("TkAgg")
+
+plt.plot(post_step_data[model.name()].tf, x.base_position, label=["x", "y", "z"])
 plt.grid(True)
 plt.legend()
 plt.xlabel("Time [s]")
 plt.ylabel("Position [m]")
 plt.title("Trajectory of the model's base")
 plt.show()
+# raise
 
 # ================
 # 3D visualization
 # ================
 
 
-def local_contact_6D_forces(model: high_level.model.Model, W_f_cp):
+def local_contact_6D_forces(model: jaxsim.high_level.model.Model, W_f_cp):
     """Helper to convert contact forces from jaxsim to meshcat_viz."""
 
     # Compute with FK the pose of all model links
@@ -161,7 +166,7 @@ model_name = world.insert_model(model_description=model_sdf_string, is_urdf=Fals
 contacts = ModelContacts(meshcat_model=world._meshcat_models[model_name])
 
 # Extract information of collidable points
-index_to_link_name = {link.index(): link.name() for link in model.links()}
+index_to_link_name = {int(link.index()): link.name() for link in model.links()}
 parent_link_name = [index_to_link_name[idx] for idx in model.physics_model.gc.body]
 
 # Add all jaxsim contact forces to the visualizer
@@ -185,7 +190,7 @@ for idx, (L_p_cp, name) in enumerate(
 # Initialize the model state
 world.update_model(
     model_name=model_name,
-    joint_names=model.joint_names(),
+    joint_names=list(model.joint_names()),
     joint_positions=np.array(x0.joint_positions),
     base_position=np.array(x0.base_position),
     base_quaternion=np.array(x0.base_quaternion),
@@ -204,14 +209,14 @@ for s, W_p_B, W_Q_B, W_f_ext, W_fc_ext in list(
         x.joint_positions,
         x.base_position,
         x.base_quaternion,
-        step_data[model.name()].aux["t0"]["contact_forces_links"],
-        step_data[model.name()].aux["t0"]["contact_forces_points"],
+        post_step_data[model.name()].aux["t0"]["contact_forces_links"],
+        post_step_data[model.name()].aux["t0"]["contact_forces_points"],
     )
 )[::down_sampling]:
     # Update the visualized model state
     world.update_model(
         model_name=model_name,
-        joint_names=model.joint_names(),
+        joint_names=list(model.joint_names()),
         joint_positions=s,
         base_position=W_p_B,
         base_quaternion=W_Q_B,

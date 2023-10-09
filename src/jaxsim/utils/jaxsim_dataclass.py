@@ -1,44 +1,30 @@
 import abc
 import contextlib
 import copy
-from typing import Any, ContextManager, TypeVar
+import dataclasses
+from typing import Generator
 
-import jax.abstract_arrays
 import jax.flatten_util
-import jax.interpreters.partial_eval
 import jax_dataclasses
-from jax_dataclasses._copy_and_mutate import _Mutability as Mutability
 
 import jaxsim.typing as jtp
 
-T = TypeVar("T")
+from . import Mutability
 
-
-def tracing(var: Any) -> bool:
-    """Returns True if the variable is being traced by JAX, False otherwise."""
-
-    return jax.numpy.array(
-        [
-            isinstance(var, t)
-            for t in (
-                jax.abstract_arrays.ShapedArray,
-                jax.interpreters.partial_eval.DynamicJaxprTracer,
-            )
-        ]
-    ).any()
-
-
-def not_tracing(var: Any) -> bool:
-    """Returns True if the variable is not being traced by JAX, False otherwise."""
-
-    return True if tracing(var) is False else False
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 class JaxsimDataclass(abc.ABC):
     """"""
 
+    # This attribute is set by jax_dataclasses
+    __mutability__ = None
+
     @contextlib.contextmanager
-    def editable(self: T, validate: bool = True) -> ContextManager[T]:
+    def editable(self: Self, validate: bool = True) -> Generator[Self, None, None]:
         """"""
 
         mutability = (
@@ -48,23 +34,34 @@ class JaxsimDataclass(abc.ABC):
         with JaxsimDataclass.mutable_context(self.copy(), mutability=mutability) as obj:
             yield obj
 
-        # with jax_dataclasses.copy_and_mutate(self, validate=validate) as self_rw:
-        #     yield self_rw
-        #
-        # self_rw._set_mutability(self._mutability())
-
     @contextlib.contextmanager
-    def mutable_context(self: T, mutability: Mutability) -> ContextManager[T]:
+    def mutable_context(
+        self: Self, mutability: Mutability, restore_after_exception: bool = True
+    ) -> Generator[Self, None, None]:
         """"""
+
+        if restore_after_exception:
+            self_copy = self.copy()
 
         original_mutability = self._mutability()
 
-        self._set_mutability(mutability)
-        yield self
+        def restore_self():
+            self._set_mutability(mutability=Mutability.MUTABLE)
+            for f in dataclasses.fields(self_copy):
+                setattr(self, f.name, getattr(self_copy, f.name))
 
-        self._set_mutability(original_mutability)
+        try:
+            self._set_mutability(mutability)
+            yield self
+        except Exception as e:
+            if restore_after_exception:
+                restore_self()
+            self._set_mutability(original_mutability)
+            raise e
+        finally:
+            self._set_mutability(original_mutability)
 
-    def is_mutable(self: T, validate: bool = False) -> bool:
+    def is_mutable(self, validate: bool = False) -> bool:
         """"""
 
         return (
@@ -91,21 +88,21 @@ class JaxsimDataclass(abc.ABC):
             self, mutable=mutability, visited=set()
         )
 
-    def mutable(self: T, mutable: bool = True, validate: bool = False) -> T:
+    def mutable(self: Self, mutable: bool = True, validate: bool = False) -> Self:
         self.set_mutability(mutable=mutable, validate=validate)
         return self
 
-    def copy(self: T) -> T:
-        obj = copy.deepcopy(self)
+    def copy(self: Self) -> Self:
+        obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
         obj._set_mutability(mutability=self._mutability())
         return obj
 
-    def replace(self: T, validate: bool = True, **kwargs) -> T:
+    def replace(self: Self, validate: bool = True, **kwargs) -> Self:
         with self.editable(validate=validate) as obj:
             _ = [obj.__setattr__(k, copy.copy(v)) for k, v in kwargs.items()]
 
         obj._set_mutability(mutability=self._mutability())
         return obj
 
-    def flatten(self: T) -> jtp.VectorJax:
+    def flatten(self) -> jtp.VectorJax:
         return jax.flatten_util.ravel_pytree(self)[0]

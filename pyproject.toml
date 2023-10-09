@@ -15,3 +15,10 @@ line-length = 88
 [tool.isort]
 profile = "black"
 multi_line_output = 3
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-rsxX -v --strict-markers --forked"
+testpaths = [
+    "tests",
+]

@@ -47,4 +47,4 @@ class PlaneTerrain(Terrain):
 
     def height(self, x: float, y: float) -> float:
         a, b, c = self.plane_normal
-        return -(a * x + b * x) / c
+        return -(a * x + b * y) / c

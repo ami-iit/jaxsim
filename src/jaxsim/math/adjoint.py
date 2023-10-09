@@ -38,17 +38,17 @@ class Adjoint:
         A_o_B = translation.squeeze()
 
         if not inverse:
-            X = A_X_B = jnp.block(
+            X = A_X_B = jnp.vstack(
                 [
-                    [A_R_B, Skew.wedge(A_o_B) @ A_R_B],
-                    [jnp.zeros(shape=(3, 3)), A_R_B],
+                    jnp.block([A_R_B, Skew.wedge(A_o_B) @ A_R_B]),
+                    jnp.block([jnp.zeros(shape=(3, 3)), A_R_B]),
                 ]
             )
         else:
-            X = B_X_A = jnp.block(
+            X = B_X_A = jnp.vstack(
                 [
-                    [A_R_B.T, -A_R_B.T @ Skew.wedge(A_o_B)],
-                    [jnp.zeros(shape=(3, 3)), A_R_B.T],
+                    jnp.block([A_R_B.T, -A_R_B.T @ Skew.wedge(A_o_B)]),
+                    jnp.block([jnp.zeros(shape=(3, 3)), A_R_B.T]),
                 ]
             )
 
@@ -62,10 +62,10 @@ class Adjoint:
         R = X[0:3, 0:3]
         o_x_R = X[0:3, 3:6]
 
-        H = jnp.block(
+        H = jnp.vstack(
             [
-                [R, Skew.vee(matrix=o_x_R @ R.T)],
-                [0, 0, 0, 1],
+                jnp.block([R, Skew.vee(matrix=o_x_R @ R.T)]),
+                jnp.array([0, 0, 0, 1]),
             ]
         )
 

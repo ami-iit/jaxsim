@@ -15,10 +15,10 @@ class Inertia:
 
         c = Skew.wedge(vector=com)
 
-        M = jnp.block(
+        M = jnp.vstack(
             [
-                [mass * jnp.eye(3), mass * c.T],
-                [mass * c, I + mass * c @ c.T],
+                jnp.block([mass * jnp.eye(3), mass * c.T]),
+                jnp.block([mass * c, I + mass * c @ c.T]),
             ]
         )
 

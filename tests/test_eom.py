@@ -1,33 +1,32 @@
 import pathlib
 
-import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
+from pytest import param as p
 
 from jaxsim.high_level.common import VelRepr
 from jaxsim.high_level.model import Model
 
 from . import utils_idyntree, utils_models, utils_rng
+from .utils_models import Robot
 
 
 @pytest.mark.parametrize(
     "robot, vel_repr",
     [
-        (utils_models.Robot.DoublePendulum, VelRepr.Inertial),
-        (utils_models.Robot.DoublePendulum, VelRepr.Body),
-        (utils_models.Robot.DoublePendulum, VelRepr.Mixed),
-        (utils_models.Robot.Ur10, VelRepr.Inertial),
-        (utils_models.Robot.Ur10, VelRepr.Body),
-        (utils_models.Robot.Ur10, VelRepr.Mixed),
-        (utils_models.Robot.AnymalC, VelRepr.Inertial),
-        (utils_models.Robot.AnymalC, VelRepr.Body),
-        (utils_models.Robot.AnymalC, VelRepr.Mixed),
-        (utils_models.Robot.Cassie, VelRepr.Inertial),
-        (utils_models.Robot.Cassie, VelRepr.Body),
-        (utils_models.Robot.Cassie, VelRepr.Mixed),
-        # (utils_models.Robot.iCub, VelRepr.Inertial),
-        # (utils_models.Robot.iCub, VelRepr.Body),
-        # (utils_models.Robot.iCub, VelRepr.Mixed),
+        p(*[Robot.DoublePendulum, VelRepr.Inertial], id="DoublePendulum-Inertial"),
+        p(*[Robot.DoublePendulum, VelRepr.Body], id="DoublePendulum-Body"),
+        p(*[Robot.DoublePendulum, VelRepr.Mixed], id="DoublePendulum-Mixed"),
+        p(*[Robot.Ur10, VelRepr.Inertial], id="Ur10-Inertial"),
+        p(*[Robot.Ur10, VelRepr.Body], id="Ur10-Body"),
+        p(*[Robot.Ur10, VelRepr.Mixed], id="Ur10-Mixed"),
+        p(*[Robot.AnymalC, VelRepr.Inertial], id="AnymalC-Inertial"),
+        p(*[Robot.AnymalC, VelRepr.Body], id="AnymalC-Body"),
+        p(*[Robot.AnymalC, VelRepr.Mixed], id="AnymalC-Mixed"),
+        p(*[Robot.Cassie, VelRepr.Inertial], id="Cassie-Inertial"),
+        p(*[Robot.Cassie, VelRepr.Body], id="Cassie-Body"),
+        p(*[Robot.Cassie, VelRepr.Mixed], id="Cassie-Mixed"),
     ],
 )
 def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
@@ -66,7 +65,7 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
 
     kin_dyn = utils_idyntree.KinDynComputations.build(
         urdf=pathlib.Path(urdf_file_path),
-        considered_joints=model_jaxsim.joint_names(),
+        considered_joints=list(model_jaxsim.joint_names()),
         vel_repr=vel_repr,
         gravity=gravity,
     )
@@ -78,7 +77,7 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
         base_velocity=np.array(model_jaxsim.base_velocity()),
     )
 
-    assert kin_dyn.joint_names() == model_jaxsim.joint_names()
+    assert kin_dyn.joint_names() == list(model_jaxsim.joint_names())
     assert kin_dyn.gravity == pytest.approx(model_jaxsim.physics_model.gravity[0:3])
     assert kin_dyn.joint_positions() == pytest.approx(model_jaxsim.joint_positions())
     assert kin_dyn.joint_velocities() == pytest.approx(model_jaxsim.joint_velocities())
@@ -102,15 +101,14 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     # Test individual terms of the EoM
     # ================================
 
-    jit_enabled = True
-    fn = jax.jit if jit_enabled else lambda x: x
+    M_jaxsim = model_jaxsim.free_floating_mass_matrix()
+    g_jaxsim = model_jaxsim.free_floating_gravity_forces()
+    J_jaxsim = jnp.vstack([link.jacobian() for link in model_jaxsim.links()])
+    h_jaxsim = model_jaxsim.free_floating_bias_forces()
 
-    M_jaxsim = fn(model_jaxsim.free_floating_mass_matrix)()
-    g_jaxsim = fn(model_jaxsim.free_floating_gravity_forces)()
-    h_jaxsim = fn(model_jaxsim.free_floating_bias_forces)()
-    J_jaxsim = np.vstack([link.jacobian() for link in model_jaxsim.links()])
-
+    # Support both fixed-base and floating-base models by slicing the first six rows
     sl = np.s_[0:] if model_jaxsim.floating_base() else np.s_[6:]
+
     assert M_jaxsim[sl, sl] == pytest.approx(M_idt[sl, sl], abs=1e-3)
     assert g_jaxsim[sl] == pytest.approx(g_idt[sl], abs=1e-3)
     assert h_jaxsim[sl] == pytest.approx(h_idt[sl], abs=1e-3)
@@ -120,13 +118,13 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     # Test the forward dynamics computed with CRB
     # ===========================================
 
-    J_ff = fn(model_jaxsim.generalized_free_floating_jacobian)()
-    f_ext = fn(model_jaxsim.external_forces)().flatten()
-    nud = np.hstack(fn(model_jaxsim.forward_dynamics_crb)(tau=tau))
+    J_ff = model_jaxsim.generalized_free_floating_jacobian()
+    f_ext = model_jaxsim.external_forces().flatten()
+    ν̇ = np.hstack(model_jaxsim.forward_dynamics_crb(tau=tau))
     S = np.block(
         [np.zeros(shape=(model_jaxsim.dofs(), 6)), np.eye(model_jaxsim.dofs())]
     ).T
 
     assert h_jaxsim[sl] == pytest.approx(
-        (S @ tau + J_ff.T @ f_ext - M_jaxsim @ nud)[sl], abs=1e-3
+        (S @ tau + J_ff.T @ f_ext - M_jaxsim @ ν̇)[sl], abs=1e-3
     )

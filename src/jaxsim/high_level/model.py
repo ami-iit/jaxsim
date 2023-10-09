@@ -1,4 +1,5 @@
 import dataclasses
+import functools
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -19,13 +20,9 @@ import jaxsim.typing as jtp
 from jaxsim import high_level, logging, physics, sixd
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
-from jaxsim.simulation import ode_data, ode_integration
-from jaxsim.simulation.ode_integration import IntegratorType
-from jaxsim.utils import JaxsimDataclass, Mutability
+from jaxsim.utils import JaxsimDataclass, Mutability, Vmappable, oop
 
 from .common import VelRepr
-from .joint import Joint
-from .link import Link
 
 
 @jax_dataclasses.pytree_dataclass
@@ -97,7 +94,7 @@ class StepData(JaxsimDataclass):
 
 
 @jax_dataclasses.pytree_dataclass
-class Model(JaxsimDataclass):
+class Model(Vmappable):
     """
     High-level class to operate on a simulated model.
     """
@@ -109,14 +106,6 @@ class Model(JaxsimDataclass):
     )
 
     velocity_representation: Static[VelRepr] = dataclasses.field(default=VelRepr.Mixed)
-
-    _links: Static[Dict[str, Link]] = dataclasses.field(
-        default_factory=list, repr=False
-    )
-
-    _joints: Static[Dict[str, Joint]] = dataclasses.field(
-        default_factory=list, repr=False
-    )
 
     data: ModelData = dataclasses.field(default=None, repr=False)
 
@@ -228,81 +217,44 @@ class Model(JaxsimDataclass):
             model_name if model_name is not None else physics_model.description.name
         )
 
-        # Sort all the joints by their index
-        sorted_links = {
-            l.name: high_level.link.Link(link_description=l)
-            for l in sorted(
-                physics_model.description.links_dict.values(), key=lambda l: l.index
-            )
-        }
-
-        # Sort all the joints by their index
-        sorted_joints = {
-            j.name: high_level.joint.Joint(joint_description=j)
-            for j in sorted(
-                physics_model.description.joints_dict.values(),
-                key=lambda j: j.index,
-            )
-        }
-
         # Build the high-level model
         model = Model(
             physics_model=physics_model,
             model_name=model_name,
             velocity_representation=vel_repr,
-            _links=sorted_links,
-            _joints=sorted_joints,
         )
 
         # Zero the model data
-        with model.editable(validate=False) as model:
+        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.zero()
 
         # Check model validity
         if not model.valid():
-            raise RuntimeError
+            raise RuntimeError("The model is not valid.")
 
         # Return the high-level model
         return model
 
-    def __post_init__(self):
-        """Post-init logic. Use the static methods to build high-level models."""
-
-        original_mutability = self._mutability()
-        self._set_mutability(Mutability.MUTABLE_NO_VALIDATION)
-
-        for l in self._links.values():
-            l.mutable(validate=False)._parent_model = self
-
-        for j in self._joints.values():
-            j.mutable(validate=False)._parent_model = self
-
-        self._links: Dict[str, high_level.link.Link] = {
-            k: v for k, v in sorted(self._links.items(), key=lambda kv: kv[1].index())
-        }
-
-        self._joints: Dict[str, high_level.joint.Joint] = {
-            k: v for k, v in sorted(self._joints.items(), key=lambda kv: kv[1].index())
-        }
-
-        self._set_mutability(original_mutability)
-
+    @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)
     def reduce(
-        self, considered_joints: List[str], keep_base_pose: bool = False
+        self, considered_joints: tuple[str, ...], keep_base_pose: bool = False
     ) -> None:
         """
         Reduce the model by lumping together the links connected by removed joints.
 
         Args:
-            considered_joints: The list of joints to consider.
+            considered_joints: The sequence of joints to consider.
             keep_base_pose: A flag indicating whether to keep the base pose or not.
         """
+
+        if self.vectorized:
+            raise RuntimeError("Cannot reduce a vectorized model.")
 
         # Reduce the model description.
         # If considered_joints contains joints not existing in the model, the method
         # will raise an exception.
         reduced_model_description = self.physics_model.description.reduce(
-            considered_joints=considered_joints
+            considered_joints=list(considered_joints)
         )
 
         # Create the physics model from the reduced model description
@@ -324,36 +276,39 @@ class Model(JaxsimDataclass):
 
         # Replace the current model with the reduced model.
         # Since the structure of the PyTree changes, we disable validation.
-        with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-            self.physics_model = reduced_model.physics_model
-            self.data = reduced_model.data
-            self._links = reduced_model._links
-            self._joints = reduced_model._joints
+        self.physics_model = reduced_model.physics_model
+        self.data = reduced_model.data
 
         if keep_base_pose:
-            with self.mutable_context(mutability=Mutability.MUTABLE):
-                self.reset_base_position(position=W_p_B)
-                self.reset_base_orientation(orientation=W_Q_B, dcm=False)
+            self.reset_base_position(position=W_p_B)
+            self.reset_base_orientation(orientation=W_Q_B, dcm=False)
 
+    @functools.partial(oop.jax_tf.method_rw, jit=False)
     def zero(self) -> None:
-        self.data = ModelData.zero(physics_model=self.physics_model)
-        self.data._set_mutability(self._mutability())
+        """"""
 
+        self.data = ModelData.zero(physics_model=self.physics_model)
+
+    @functools.partial(oop.jax_tf.method_rw, jit=False)
     def zero_input(self) -> None:
+        """"""
+
         self.data.model_input = ModelData.zero(
             physics_model=self.physics_model
         ).model_input
 
-        self.data._set_mutability(self._mutability())
-
+    @functools.partial(oop.jax_tf.method_rw, jit=False)
     def zero_state(self) -> None:
+        """"""
+
         model_data_zero = ModelData.zero(physics_model=self.physics_model)
         self.data.model_state = model_data_zero.model_state
         self.data.contact_state = model_data_zero.contact_state
 
-        self.data._set_mutability(self._mutability())
-
+    @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False)
     def set_velocity_representation(self, vel_repr: VelRepr) -> None:
+        """"""
+
         if self.velocity_representation is vel_repr:
             return
 
@@ -363,72 +318,140 @@ class Model(JaxsimDataclass):
     # Properties
     # ==========
 
-    def valid(self) -> bool:
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def valid(self) -> jtp.Bool:
+        """"""
+
         valid = True
         valid = valid and all([l.valid() for l in self.links()])
         valid = valid and all([j.valid() for j in self.joints()])
-        return valid
+        return jnp.array(valid, dtype=bool)
 
-    def floating_base(self) -> bool:
-        return self.physics_model.is_floating_base
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def floating_base(self) -> jtp.Bool:
+        """"""
 
-    def dofs(self) -> int:
-        return self.physics_model.dofs()
+        return jnp.array(self.physics_model.is_floating_base, dtype=bool)
 
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def dofs(self) -> jtp.Int:
+        """"""
+
+        return self.joint_positions().size
+
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def name(self) -> str:
+        """"""
+
         return self.model_name
 
-    def nr_of_links(self) -> int:
-        return len(self._links)
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def nr_of_links(self) -> jtp.Int:
+        """"""
 
-    def nr_of_joints(self) -> int:
-        return len(self._joints)
+        return jnp.array(len(self.links()), dtype=int)
 
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def nr_of_joints(self) -> jtp.Int:
+        """"""
+
+        return jnp.array(len(self.joints()), dtype=int)
+
+    @functools.partial(oop.jax_tf.method_ro)
     def total_mass(self) -> jtp.Float:
-        return jnp.sum(jnp.array([l.mass() for l in self.links()]))
+        """"""
 
+        return jnp.sum(jnp.array([l.mass() for l in self.links()]), dtype=float)
+
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def get_link(self, link_name: str) -> high_level.link.Link:
+        """"""
+
         if link_name not in self.link_names():
             msg = f"Link '{link_name}' is not part of model '{self.name()}'"
             raise ValueError(msg)
 
-        return self.links(link_names=[link_name])[0]
+        return self.links(link_names=(link_name,))[0]
 
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def get_joint(self, joint_name: str) -> high_level.joint.Joint:
+        """"""
+
         if joint_name not in self.joint_names():
             msg = f"Joint '{joint_name}' is not part of model '{self.name()}'"
             raise ValueError(msg)
 
-        return self.joints(joint_names=[joint_name])[0]
+        return self.joints(joint_names=(joint_name,))[0]
 
-    def link_names(self) -> List[str]:
-        return list(self._links.keys())
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
+    def link_names(self) -> tuple[str, ...]:
+        """"""
 
-    def joint_names(self) -> List[str]:
-        return list(self._joints.keys())
+        return tuple(l.name() for l in self.links())
 
-    def links(self, link_names: List[str] = None) -> List[high_level.link.Link]:
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
+    def joint_names(self) -> tuple[str, ...]:
+        """"""
+
+        return tuple(j.name() for j in self.joints())
+
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
+    def links(
+        self, link_names: tuple[str, ...] = None
+    ) -> tuple[high_level.link.Link, ...]:
+        """"""
+
+        all_links = {
+            l.name: high_level.link.Link(
+                link_description=l, _parent_model=self, batch_size=self.batch_size
+            )
+            for l in sorted(
+                self.physics_model.description.links_dict.values(),
+                key=lambda l: l.index,
+            )
+        }
+
+        for l in all_links.values():
+            l._set_mutability(self._mutability())
+
         if link_names is None:
-            return list(self._links.values())
+            return tuple(all_links.values())
 
-        return [self._links[name] for name in link_names]
+        return tuple(all_links[name] for name in link_names)
 
-    def joints(self, joint_names: List[str] = None) -> List[high_level.joint.Joint]:
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
+    def joints(
+        self, joint_names: tuple[str, ...] = None
+    ) -> tuple[high_level.joint.Joint, ...]:
+        """"""
+
+        all_joints = {
+            j.name: high_level.joint.Joint(
+                joint_description=j, _parent_model=self, batch_size=self.batch_size
+            )
+            for j in sorted(
+                self.physics_model.description.joints_dict.values(),
+                key=lambda j: j.index,
+            )
+        }
+
+        for j in all_joints.values():
+            j._set_mutability(self._mutability())
+
         if joint_names is None:
-            return list(self._joints.values())
+            return tuple(all_joints.values())
 
-        return [self._joints[name] for name in joint_names]
+        return tuple(all_joints[name] for name in joint_names)
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["link_names", "terrain"])
     def in_contact(
-        self,
-        link_names: Optional[List[str]] = None,
-        terrain: Terrain = FlatTerrain(),
+        self, link_names: tuple[str, ...] = None, terrain: Terrain = FlatTerrain()
     ) -> jtp.Vector:
         """"""
 
         link_names = link_names if link_names is not None else self.link_names()
 
-        if set(link_names) - set(self._links.keys()) != set():
+        if set(link_names) - set(self.link_names()) != set():
             raise ValueError("One or more link names are not part of the model")
 
         from jaxsim.physics.algos.soft_contacts import collidable_points_pos_vel
@@ -454,25 +477,26 @@ class Model(JaxsimDataclass):
 
         return links_in_contact
 
-    # ==================
-    # Vectorized methods
-    # ==================
+    # =================
+    # Multi-DoF methods
+    # =================
 
-    def joint_positions(self, joint_names: List[str] = None) -> jtp.Vector:
-        if self.dofs() == 0 and (joint_names is None or len(joint_names) == 0):
-            return jnp.array([])
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
+    def joint_positions(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
+        """"""
 
         return self.data.model_state.joint_positions[
             self._joint_indices(joint_names=joint_names)
         ]
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_random_positions(
-        self,
-        joint_names: List[str] = None,
-        key: jax.random.PRNGKeyArray = jax.random.PRNGKey(seed=0),
+        self, joint_names: tuple[str, ...] = None, key: jax.random.PRNGKeyArray = None
     ) -> jtp.Vector:
-        if self.dofs() == 0 and (joint_names is None or len(joint_names) == 0):
-            return jnp.array([])
+        """"""
+
+        if key is None:
+            key = jax.random.PRNGKey(seed=0)
 
         s_min, s_max = self.joint_limits(joint_names=joint_names)
 
@@ -485,70 +509,99 @@ class Model(JaxsimDataclass):
 
         return s_random
 
-    def joint_velocities(self, joint_names: List[str] = None) -> jtp.Vector:
-        if self.dofs() == 0 and (joint_names is None or len(joint_names) == 0):
-            return jnp.array([])
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
+    def joint_velocities(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
+        """"""
 
         return self.data.model_state.joint_velocities[
             self._joint_indices(joint_names=joint_names)
         ]
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_generalized_forces_targets(
-        self, joint_names: List[str] = None
+        self, joint_names: tuple[str, ...] = None
     ) -> jtp.Vector:
-        if self.dofs() == 0 and (joint_names is None or len(joint_names) == 0):
-            return jnp.array([])
+        """"""
 
         return self.data.model_input.tau[self._joint_indices(joint_names=joint_names)]
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_limits(
-        self, joint_names: List[str] = None
+        self, joint_names: tuple[str, ...] = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
-        if self.dofs() == 0 and (joint_names is None or len(joint_names) == 0):
-            return jnp.array([])
+        """"""
 
+        # Consider all joints if not specified otherwise
         joint_names = joint_names if joint_names is not None else self.joint_names()
 
-        s_min = jnp.array(
-            [min(self.get_joint(name).position_limit()) for name in joint_names]
+        # Create a (Dofs, 2) matrix containing the joint limits
+        limits = jnp.vstack(
+            jnp.array([j.position_limit() for j in self.joints(joint_names)])
         )
 
-        s_max = jnp.array(
-            [max(self.get_joint(name).position_limit()) for name in joint_names]
-        )
+        # Get the limits, reordering them in case low > high
+        s_low = jnp.min(limits, axis=1)
+        s_high = jnp.max(limits, axis=1)
 
-        return s_min, s_max
+        return s_low, s_high
 
     # =========
     # Base link
     # =========
 
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def base_frame(self) -> str:
+        """"""
+
         return self.physics_model.description.root.name
 
+    @functools.partial(oop.jax_tf.method_ro)
     def base_position(self) -> jtp.Vector:
+        """"""
+
         return self.data.model_state.base_position.squeeze()
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["dcm"])
     def base_orientation(self, dcm: bool = False) -> jtp.Vector:
+        """"""
+
+        # Normalize the quaternion before using it.
+        # Our integration logic has a Baumgarte stabilization term makes the quaternion
+        # norm converge to 1, but it does not enforce to be 1 at all the time instants.
+        base_unit_quaternion = (
+            self.data.model_state.base_quaternion.squeeze()
+            / jnp.linalg.norm(self.data.model_state.base_quaternion)
+        )
+
+        # wxyz -> xyzw
         to_xyzw = np.array([1, 2, 3, 0])
 
         return (
-            self.data.model_state.base_quaternion
+            base_unit_quaternion
             if not dcm
             else sixd.so3.SO3.from_quaternion_xyzw(
-                self.data.model_state.base_quaternion[to_xyzw]
+                base_unit_quaternion[to_xyzw]
             ).as_matrix()
         )
 
+    @functools.partial(oop.jax_tf.method_ro)
     def base_transform(self) -> jtp.MatrixJax:
-        return jnp.block(
+        """"""
+
+        W_R_B = self.base_orientation(dcm=True)
+        W_p_B = jnp.vstack(self.base_position())
+
+        return jnp.vstack(
             [
-                [self.base_orientation(dcm=True), jnp.vstack(self.base_position())],
-                [0, 0, 0, 1],
+                jnp.block([W_R_B, W_p_B]),
+                jnp.array([0, 0, 0, 1]),
             ]
         )
 
+    @functools.partial(oop.jax_tf.method_ro)
     def base_velocity(self) -> jtp.Vector:
+        """"""
+
         W_v_WB = jnp.hstack(
             [
                 self.data.model_state.base_linear_velocity,
@@ -558,6 +611,7 @@ class Model(JaxsimDataclass):
 
         return self.inertial_to_active_representation(array=W_v_WB)
 
+    @functools.partial(oop.jax_tf.method_ro)
     def external_forces(self) -> jtp.Matrix:
         """
         Return the active external forces acting on the robot.
@@ -581,16 +635,141 @@ class Model(JaxsimDataclass):
 
         return jax.vmap(inertial_to_active, in_axes=0)(W_f_ext)
 
-    # ==================
-    # Dynamic properties
-    # ==================
+    # =======================
+    # Single link r/w methods
+    # =======================
 
+    @functools.partial(
+        oop.jax_tf.method_rw, jit=True, static_argnames=["link_name", "additive"]
+    )
+    def apply_external_force_to_link(
+        self,
+        link_name: str,
+        force: jtp.Array = None,
+        torque: jtp.Array = None,
+        additive: bool = True,
+    ) -> None:
+        """"""
+
+        # Get the target link with the correct mutability
+        link = self.get_link(link_name=link_name)
+        link._set_mutability(mutability=self._mutability())
+
+        # Initialize zero force components if not set
+        force = force if force is not None else jnp.zeros(3)
+        torque = torque if torque is not None else jnp.zeros(3)
+
+        # Build the target 6D force in the active representation
+        f_ext = jnp.hstack([force, torque])
+
+        # Convert the 6D force to the inertial representation
+        if self.velocity_representation is VelRepr.Inertial:
+            W_f_ext = f_ext
+
+        elif self.velocity_representation is VelRepr.Body:
+            L_f_ext = f_ext
+            W_H_L = link.transform()
+            L_X_W = sixd.se3.SE3.from_matrix(W_H_L).inverse().adjoint()
+
+            W_f_ext = L_X_W.transpose() @ L_f_ext
+
+        elif self.velocity_representation is VelRepr.Mixed:
+            LW_f_ext = f_ext
+
+            W_p_L = link.transform()[0:3, 3]
+            W_H_LW = jnp.eye(4).at[0:3, 3].set(W_p_L)
+            LW_X_W = sixd.se3.SE3.from_matrix(W_H_LW).inverse().adjoint()
+
+            W_f_ext = LW_X_W.transpose() @ LW_f_ext
+
+        else:
+            raise ValueError(self.velocity_representation)
+
+        # Obtain the new 6D force considering the 'additive' flag
+        W_f_ext_current = self.data.model_input.f_ext[link.index(), :]
+        new_force = W_f_ext_current + W_f_ext if additive else W_f_ext
+
+        # Update the model data
+        self.data.model_input.f_ext = self.data.model_input.f_ext.at[
+            link.index(), :
+        ].set(new_force)
+
+    @functools.partial(
+        oop.jax_tf.method_rw, jit=True, static_argnames=["link_name", "additive"]
+    )
+    def apply_external_force_to_link_com(
+        self,
+        link_name: str,
+        force: jtp.Array = None,
+        torque: jtp.Array = None,
+        additive: bool = True,
+    ) -> None:
+        """"""
+
+        # Get the target link with the correct mutability
+        link = self.get_link(link_name=link_name)
+        link._set_mutability(mutability=self._mutability())
+
+        # Initialize zero force components if not set
+        force = force if force is not None else jnp.zeros(3)
+        torque = torque if torque is not None else jnp.zeros(3)
+
+        # Build the target 6D force in the active representation
+        f_ext = jnp.hstack([force, torque])
+
+        # Convert the 6D force to the inertial representation
+        if self.velocity_representation is VelRepr.Inertial:
+            W_f_ext = f_ext
+
+        elif self.velocity_representation is VelRepr.Body:
+            GL_f_ext = f_ext
+
+            W_H_L = link.transform()
+            L_p_CoM = link.com_position(in_link_frame=True)
+            L_H_GL = jnp.eye(4).at[0:3, 3].set(L_p_CoM)
+            W_H_GL = W_H_L @ L_H_GL
+            GL_X_W = sixd.se3.SE3.from_matrix(W_H_GL).inverse().adjoint()
+
+            W_f_ext = GL_X_W.transpose() @ GL_f_ext
+
+        elif self.velocity_representation is VelRepr.Mixed:
+            GW_f_ext = f_ext
+
+            W_p_CoM = link.com_position(in_link_frame=False)
+            W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+            GW_X_W = sixd.se3.SE3.from_matrix(W_H_GW).inverse().adjoint()
+
+            W_f_ext = GW_X_W.transpose() @ GW_f_ext
+
+        else:
+            raise ValueError(self.velocity_representation)
+
+        # Obtain the new 6D force considering the 'additive' flag
+        W_f_ext_current = self.data.model_input.f_ext[link.index(), :]
+        new_force = W_f_ext_current + W_f_ext if additive else W_f_ext
+
+        # Update the model data
+        self.data.model_input.f_ext = self.data.model_input.f_ext.at[
+            link.index(), :
+        ].set(new_force)
+
+    # ================================================
+    # Generalized methods and free-floating quantities
+    # ================================================
+
+    @functools.partial(oop.jax_tf.method_ro)
     def generalized_position(self) -> Tuple[jtp.Matrix, jtp.Vector]:
+        """"""
+
         return self.base_transform(), self.joint_positions()
 
+    @functools.partial(oop.jax_tf.method_ro)
     def generalized_velocity(self) -> jtp.Vector:
+        """"""
+
         return jnp.hstack([self.base_velocity(), self.joint_velocities()])
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["output_vel_repr"])
     def generalized_free_floating_jacobian(
         self, output_vel_repr: VelRepr = None
     ) -> jtp.Matrix:
@@ -639,7 +818,10 @@ class Model(JaxsimDataclass):
 
         return J_free_floating
 
+    @functools.partial(oop.jax_tf.method_ro)
     def free_floating_mass_matrix(self) -> jtp.Matrix:
+        """"""
+
         M_body = jaxsim.physics.algos.crba.crba(
             model=self.physics_model,
             q=self.data.model_state.joint_positions,
@@ -652,7 +834,12 @@ class Model(JaxsimDataclass):
             zero_6n = jnp.zeros(shape=(6, self.dofs()))
             B_X_W = sixd.se3.SE3.from_matrix(self.base_transform()).inverse().adjoint()
 
-            invT = jnp.block([[B_X_W, zero_6n], [zero_6n.T, jnp.eye(self.dofs())]])
+            invT = jnp.vstack(
+                [
+                    jnp.block([B_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(self.dofs())]),
+                ]
+            )
 
             return invT.T @ M_body @ invT
 
@@ -661,49 +848,57 @@ class Model(JaxsimDataclass):
             W_H_BW = self.base_transform().at[0:3, 3].set(jnp.zeros(3))
             BW_X_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
 
-            invT = jnp.block([[BW_X_W, zero_6n], [zero_6n.T, jnp.eye(self.dofs())]])
+            invT = jnp.vstack(
+                [
+                    jnp.block([BW_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(self.dofs())]),
+                ]
+            )
 
             return invT.T @ M_body @ invT
 
         else:
             raise ValueError(self.velocity_representation)
 
+    @functools.partial(oop.jax_tf.method_ro)
     def free_floating_bias_forces(self) -> jtp.Vector:
-        with self.editable(validate=True) as model:
-            model.zero()
+        """"""
 
-            state = self.data.model_state.copy()
-            model.data.model_state.base_position = state.base_position
-            model.data.model_state.base_quaternion = state.base_quaternion
-            model.data.model_state.joint_positions = state.joint_positions
-            model.data.model_state.base_linear_velocity = state.base_linear_velocity
-            model.data.model_state.base_angular_velocity = state.base_angular_velocity
-            model.data.model_state.joint_velocities = state.joint_velocities
+        with self.editable(validate=True) as model:
+            model.zero_input()
 
         return jnp.hstack(
             model.inverse_dynamics(
-                base_acceleration=jnp.zeros(6),
-                joint_accelerations=jnp.zeros(model.dofs()),
+                base_acceleration=jnp.zeros(6), joint_accelerations=None
             )
         )
 
+    @functools.partial(oop.jax_tf.method_ro)
     def free_floating_gravity_forces(self) -> jtp.Vector:
-        with self.editable(validate=True) as model:
-            model.zero()
+        """"""
 
-            state = self.data.model_state.copy()
-            model.data.model_state.base_position = state.base_position
-            model.data.model_state.base_quaternion = state.base_quaternion
-            model.data.model_state.joint_positions = state.joint_positions
+        with self.editable(validate=True) as model:
+            model.zero_input()
+            model.data.model_state.joint_velocities = jnp.zeros_like(
+                model.data.model_state.joint_velocities
+            )
+            model.data.model_state.base_linear_velocity = jnp.zeros_like(
+                model.data.model_state.base_linear_velocity
+            )
+            model.data.model_state.base_angular_velocity = jnp.zeros_like(
+                model.data.model_state.base_angular_velocity
+            )
 
         return jnp.hstack(
             model.inverse_dynamics(
-                base_acceleration=jnp.zeros(6),
-                joint_accelerations=jnp.zeros(model.dofs()),
+                base_acceleration=jnp.zeros(6), joint_accelerations=None
             )
         )
 
+    @functools.partial(oop.jax_tf.method_ro)
     def momentum(self) -> jtp.Vector:
+        """"""
+
         with self.editable(validate=True) as m:
             m.set_velocity_representation(vel_repr=VelRepr.Body)
 
@@ -718,19 +913,27 @@ class Model(JaxsimDataclass):
         W_h = B_X_W.T @ B_h
         return self.inertial_to_active_representation(array=W_h, is_force=True)
 
-    # ==============================
-    # Quantities related to the CoM
-    # ==============================
+    # ===========
+    # CoM methods
+    # ===========
 
+    @functools.partial(oop.jax_tf.method_ro)
     def com_position(self) -> jtp.Vector:
+        """"""
+
         m = self.total_mass()
 
         W_H_L = self.forward_kinematics()
         W_H_B = self.base_transform()
-        B_H_W = jnp.linalg.inv(W_H_B)
+        B_H_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().as_matrix()
 
         com_links = [
-            (l.mass() * B_H_W @ W_H_L[l.index()] @ jnp.hstack([l.com(), 1]))
+            (
+                l.mass()
+                * B_H_W
+                @ W_H_L[l.index()]
+                @ jnp.hstack([l.com_position(in_link_frame=True), 1])
+            )
             for l in self.links()
         ]
 
@@ -742,7 +945,10 @@ class Model(JaxsimDataclass):
     # Algorithms
     # ==========
 
+    @functools.partial(oop.jax_tf.method_ro)
     def forward_kinematics(self) -> jtp.Array:
+        """"""
+
         W_H_i = jaxsim.physics.algos.forward_kinematics.forward_kinematics_model(
             model=self.physics_model,
             q=self.data.model_state.joint_positions,
@@ -751,10 +957,11 @@ class Model(JaxsimDataclass):
 
         return W_H_i
 
+    @functools.partial(oop.jax_tf.method_ro)
     def inverse_dynamics(
         self,
         joint_accelerations: jtp.Vector = None,
-        base_acceleration: jtp.Vector = jnp.zeros(6),
+        base_acceleration: jtp.Vector = None,
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         """
         Compute inverse dynamics with the RNEA algorithm.
@@ -776,8 +983,10 @@ class Model(JaxsimDataclass):
             else jnp.zeros_like(self.joint_positions())
         )
 
-        if joint_accelerations.size != self.dofs():
-            raise ValueError(joint_accelerations.size)
+        # Build base acceleration if not provided
+        base_acceleration = (
+            base_acceleration if base_acceleration is not None else jnp.zeros(6)
+        )
 
         if base_acceleration.size != 6:
             raise ValueError(base_acceleration.size)
@@ -839,23 +1048,29 @@ class Model(JaxsimDataclass):
 
         return f_B, tau
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["prefer_aba"])
     def forward_dynamics(
         self, tau: jtp.Vector = None, prefer_aba: float = True
     ) -> Tuple[jtp.Vector, jtp.Vector]:
+        """"""
+
         return (
             self.forward_dynamics_aba(tau=tau)
             if prefer_aba
             else self.forward_dynamics_crb(tau=tau)
         )
 
+    @functools.partial(oop.jax_tf.method_ro)
     def forward_dynamics_aba(
         self, tau: jtp.Vector = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
+        """"""
+
         # Build joint torques if not provided
         tau = tau if tau is not None else jnp.zeros_like(self.joint_positions())
 
         # Compute ABA
-        W_v̇_WB, sdd = jaxsim.physics.algos.aba.aba(
+        W_v̇_WB, s̈ = jaxsim.physics.algos.aba.aba(
             model=self.physics_model,
             xfb=self.data.model_state.xfb(),
             q=self.data.model_state.joint_positions,
@@ -907,15 +1122,18 @@ class Model(JaxsimDataclass):
         )
 
         # Adjust shape
-        sdd = jnp.atleast_1d(sdd.squeeze())
+        s̈ = jnp.atleast_1d(s̈.squeeze())
 
-        return C_v̇_WB, sdd
+        return C_v̇_WB, s̈
 
+    @functools.partial(oop.jax_tf.method_ro)
     def forward_dynamics_crb(
         self, tau: jtp.Vector = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
+        """"""
+
         # Build joint torques if not provided
-        τ = tau if tau is not None else jnp.zeros_like(self.joint_positions())
+        τ = tau if tau is not None else jnp.zeros(shape=(self.dofs(),))
         τ = jnp.atleast_1d(τ.squeeze())
         τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
 
@@ -926,38 +1144,47 @@ class Model(JaxsimDataclass):
         f_ext = jnp.vstack(self.external_forces().flatten())
         S = jnp.block([jnp.zeros(shape=(self.dofs(), 6)), jnp.eye(self.dofs())]).T
 
-        # Configure the slice for fixed/floating base robots
-        sl = np.s_[0:] if self.floating_base() else np.s_[6:]
-
         # Compute the generalized acceleration by inverting the EoM
-        ν̇ = jnp.linalg.inv(M[sl, sl]) @ ((S @ τ)[sl] - h[sl] + J[:, sl].T @ f_ext)
+        ν̇ = jax.lax.select(
+            pred=self.floating_base(),
+            on_true=jnp.linalg.inv(M) @ ((S @ τ) - h + J.T @ f_ext),
+            on_false=jnp.vstack(
+                [
+                    jnp.zeros(shape=(6, 1)),
+                    jnp.linalg.inv(M[6:, 6:])
+                    @ ((S @ τ)[6:] - h[6:] + J[:, 6:].T @ f_ext),
+                ]
+            ),
+        ).squeeze()
 
         # Extract the base acceleration in the active representation.
         # Note that this is an apparent acceleration (relevant in Mixed representation),
         # therefore it cannot be always expressed in different frames with just a
         # 6D transformation X.
-        a_WB = ν̇[0:6] if self.floating_base() else jnp.zeros(6)
+        v̇_WB = ν̇[0:6]
 
         # Extract the joint accelerations
-        sdd = ν̇[6:] if self.floating_base() else ν̇
+        s̈ = jnp.atleast_1d(ν̇[6:])
 
-        # Adjust shape and convert to lin-ang serialization
-        a_WB = a_WB.squeeze()
-        sdd = jnp.atleast_1d(sdd.squeeze())
-
-        return a_WB, sdd
+        return v̇_WB, s̈
 
     # ======
     # Energy
     # ======
 
+    @functools.partial(oop.jax_tf.method_ro)
     def mechanical_energy(self) -> jtp.Float:
+        """"""
+
         K = self.kinetic_energy()
         U = self.potential_energy()
 
         return K + U
 
+    @functools.partial(oop.jax_tf.method_ro)
     def kinetic_energy(self) -> jtp.Float:
+        """"""
+
         with self.editable(validate=True) as m:
             m.set_velocity_representation(vel_repr=VelRepr.Body)
 
@@ -966,7 +1193,10 @@ class Model(JaxsimDataclass):
 
         return 0.5 * nu.T @ M @ nu
 
+    @functools.partial(oop.jax_tf.method_ro)
     def potential_energy(self) -> jtp.Float:
+        """"""
+
         m = self.total_mass()
         W_p_CoM = jnp.hstack([self.com_position(), 1])
         gravity = self.physics_model.gravity[3:6].squeeze()
@@ -977,9 +1207,12 @@ class Model(JaxsimDataclass):
     # Set targets
     # ===========
 
+    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_joint_generalized_force_targets(
-        self, forces: jtp.Vector, joint_names: List[str] = None
+        self, forces: jtp.Vector, joint_names: tuple[str, ...] = None
     ) -> None:
+        """"""
+
         if joint_names is None:
             joint_names = self.joint_names()
 
@@ -994,9 +1227,12 @@ class Model(JaxsimDataclass):
     # Reset data
     # ==========
 
+    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def reset_joint_positions(
-        self, positions: jtp.Vector, joint_names: List[str] = None
+        self, positions: jtp.Vector, joint_names: tuple[str, ...] = None
     ) -> None:
+        """"""
+
         if joint_names is None:
             joint_names = self.joint_names()
 
@@ -1017,9 +1253,12 @@ class Model(JaxsimDataclass):
             )
         )
 
+    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def reset_joint_velocities(
-        self, velocities: jtp.Vector, joint_names: List[str] = None
+        self, velocities: jtp.Vector, joint_names: tuple[str, ...] = None
     ) -> None:
+        """"""
+
         if joint_names is None:
             joint_names = self.joint_names()
 
@@ -1040,10 +1279,16 @@ class Model(JaxsimDataclass):
             )
         )
 
+    @functools.partial(oop.jax_tf.method_rw)
     def reset_base_position(self, position: jtp.Vector) -> None:
+        """"""
+
         self.data.model_state.base_position = jnp.array(position, dtype=float)
 
+    @functools.partial(oop.jax_tf.method_rw, static_argnames=["dcm"])
     def reset_base_orientation(self, orientation: jtp.Array, dcm: bool = False) -> None:
+        """"""
+
         if dcm:
             to_wxyz = np.array([3, 0, 1, 2])
             orientation_xyzw = sixd.so3.SO3.from_matrix(
@@ -1051,16 +1296,23 @@ class Model(JaxsimDataclass):
             ).as_quaternion_xyzw()
             orientation = orientation_xyzw[to_wxyz]
 
-        self.data.model_state.base_quaternion = jnp.array(orientation, dtype=float)
+        unit_quaternion = orientation / jnp.linalg.norm(orientation)
+        self.data.model_state.base_quaternion = jnp.array(unit_quaternion, dtype=float)
 
+    @functools.partial(oop.jax_tf.method_rw)
     def reset_base_transform(self, transform: jtp.Matrix) -> None:
+        """"""
+
         if transform.shape != (4, 4):
             raise ValueError(transform.shape)
 
         self.reset_base_position(position=transform[0:3, 3])
         self.reset_base_orientation(orientation=transform[0:3, 0:3], dcm=True)
 
+    @functools.partial(oop.jax_tf.method_rw)
     def reset_base_velocity(self, base_velocity: jtp.VectorJax) -> None:
+        """"""
+
         if not self.physics_model.is_floating_base:
             msg = "Changing the base velocity of a fixed-based model is not allowed"
             raise RuntimeError(msg)
@@ -1107,16 +1359,31 @@ class Model(JaxsimDataclass):
     # Integration
     # ===========
 
+    @functools.partial(
+        oop.jax_tf.method_rw,
+        static_argnames=["sub_steps", "integrator_type", "terrain"],
+        vmap_in_axes=(0, 0, 0, None, None, None, 0, None),
+    )
     def integrate(
         self,
         t0: jtp.Float,
         tf: jtp.Float,
         sub_steps: int = 1,
-        integrator_type: IntegratorType = IntegratorType.EulerForward,
+        integrator_type: Optional[
+            "jaxsim.simulation.ode_integration.IntegratorType"
+        ] = None,
         terrain: soft_contacts.Terrain = soft_contacts.FlatTerrain(),
         contact_parameters: soft_contacts.SoftContactsParams = soft_contacts.SoftContactsParams(),
         clear_inputs: bool = False,
     ) -> StepData:
+        """"""
+
+        from jaxsim.simulation import ode_data, ode_integration
+        from jaxsim.simulation.ode_integration import IntegratorType
+
+        if integrator_type is None:
+            integrator_type = IntegratorType.EulerForward
+
         x0 = ode_integration.ode.ode_data.ODEState(
             physics_model=self.data.model_state,
             soft_contacts=self.data.contact_state,
@@ -1189,7 +1456,6 @@ class Model(JaxsimDataclass):
             contact_state=tf_contact_state,
             model_input=model_input,
         )
-        self._set_mutability(self._mutability())
 
         return StepData(
             t0=t0,
@@ -1217,9 +1483,12 @@ class Model(JaxsimDataclass):
     # Private methods
     # ===============
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["is_force"])
     def inertial_to_active_representation(
         self, array: jtp.Array, is_force: bool = False
     ) -> jtp.Array:
+        """"""
+
         W_array = array.squeeze()
 
         if W_array.size != 6:
@@ -1257,9 +1526,12 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(self.velocity_representation)
 
+    @functools.partial(oop.jax_tf.method_ro, static_argnames=["is_force"])
     def active_to_inertial_representation(
         self, array: jtp.Array, is_force: bool = False
     ) -> jtp.Array:
+        """"""
+
         array = array.squeeze()
 
         if array.size != 6:
@@ -1300,11 +1572,13 @@ class Model(JaxsimDataclass):
         else:
             raise ValueError(self.velocity_representation)
 
-    def _joint_indices(self, joint_names: List[str] = None) -> jtp.Vector:
+    def _joint_indices(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
+        """"""
+
         if joint_names is None:
             joint_names = self.joint_names()
 
-        if set(joint_names) - set(self._joints.keys()) != set():
+        if set(joint_names) - set(self.joint_names()) != set():
             raise ValueError("One or more joint names are not part of the model")
 
         # Note: joints share the same index as their child link, therefore the first
@@ -1314,4 +1588,4 @@ class Model(JaxsimDataclass):
             j.joint_description.index - 1 for j in self.joints(joint_names=joint_names)
         ]
 
-        return np.array(joint_indices)
+        return np.array(joint_indices, dtype=int)

@@ -10,10 +10,10 @@ class Cross:
     def vx(velocity_sixd: jtp.Vector) -> jtp.Matrix:
         v, ω = jnp.split(velocity_sixd.squeeze(), 2)
 
-        v_cross = jnp.block(
+        v_cross = jnp.vstack(
             [
-                [Skew.wedge(vector=ω), Skew.wedge(vector=v)],
-                [jnp.zeros(shape=(3, 3)), Skew.wedge(vector=ω)],
+                jnp.block([Skew.wedge(vector=ω), Skew.wedge(vector=v)]),
+                jnp.block([jnp.zeros(shape=(3, 3)), Skew.wedge(vector=ω)]),
             ]
         )
 

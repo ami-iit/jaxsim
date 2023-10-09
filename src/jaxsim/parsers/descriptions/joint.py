@@ -2,8 +2,11 @@ import dataclasses
 import enum
 from typing import Optional, Tuple, Union
 
+import jax_dataclasses
 import numpy as np
 import numpy.typing as npt
+
+from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .link import LinkDescription
 
@@ -47,12 +50,16 @@ class JointGenericAxis(JointDescriptor):
         return hash(self.__repr__())
 
 
-@dataclasses.dataclass
-class JointDescription:
-    name: str
+@jax_dataclasses.pytree_dataclass
+class JointDescription(JaxsimDataclass):
+    """
+    In-memory description of a robot link.
+    """
+
+    name: jax_dataclasses.Static[str]
     axis: npt.NDArray
     pose: npt.NDArray
-    jtype: Union[JointType, JointDescriptor]
+    jtype: jax_dataclasses.Static[Union[JointType, JointDescriptor]]
     child: LinkDescription = dataclasses.dataclass(repr=False)
     parent: LinkDescription = dataclasses.dataclass(repr=False)
 
@@ -69,8 +76,11 @@ class JointDescription:
 
     def __post_init__(self):
         if self.axis is not None:
-            norm_of_axis = np.linalg.norm(self.axis)
-            self.axis = self.axis / norm_of_axis
+            with self.mutable_context(
+                mutability=Mutability.MUTABLE, restore_after_exception=False
+            ):
+                norm_of_axis = np.linalg.norm(self.axis)
+                self.axis = self.axis / norm_of_axis
 
     def __hash__(self) -> int:
         return hash(self.__repr__())

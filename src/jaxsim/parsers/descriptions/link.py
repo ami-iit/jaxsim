@@ -48,8 +48,9 @@ class LinkDescription(JaxsimDataclass):
         I_removed_in_lumped_frame = r_X_l.transpose() @ I_removed @ r_X_l
 
         # Create the new combined link
-        lumped_link = copy.deepcopy(self)
-        lumped_link.mass = self.mass + link.mass
-        lumped_link.inertia = self.inertia + I_removed_in_lumped_frame
+        lumped_link = self.replace(
+            mass=self.mass + link.mass,
+            inertia=self.inertia + I_removed_in_lumped_frame,
+        )
 
         return lumped_link

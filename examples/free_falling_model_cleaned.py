@@ -87,19 +87,19 @@ simulator = JaxSim.build(
         contact_parameters=SoftContactsParams(K=10_000, D=20.0, mu=0.5)
         # contact_parameters=SoftContactsParams(K=5_000.0, D=10.0, mu=0.5)
     ),
-).mutable(validate=False)
+)
 
 # Insert the model and get a mutable object
 model = simulator.insert_model_from_description(model_description=model_sdf_path)
 
 # Remove useless joints and lump inertial parameters of their connecting links
-model.reduce(
-    considered_joints=[
-        name
-        for name in model.joint_names()
-        if "wrist" not in name and "neck" not in name
-    ]
-)
+# model.reduce(
+#     considered_joints=[
+#         name
+#         for name in model.joint_names()
+#         if "wrist" not in name and "neck" not in name
+#     ]
+# )
 
 # Zero the model data
 model.zero()
@@ -134,7 +134,7 @@ cb = SimulatorLogger()
 x0 = model.data.model_state
 
 # Simulate 3.0 seconds
-simulator, (cb, step_data) = simulator.step_over_horizon(
+simulator, (cb, (pre_step_data, post_step_data)) = simulator.step_over_horizon(
     horizon_steps=int(3.0 / simulator.dt()),
     callback_handler=cb,
     clear_inputs=True,
@@ -144,7 +144,7 @@ simulator, (cb, step_data) = simulator.step_over_horizon(
 
 # Extract the PhysicsModelState over the simulated horizon
 step_data: Dict[str, StepData]
-x = step_data[model.name()].tf_model_state
+x = post_step_data[model.name()].tf_model_state
 
 # Now you can inspect x and plot its data
 
@@ -152,15 +152,19 @@ x = step_data[model.name()].tf_model_state
 # Plot the simulation data
 # ========================
 
+# import matplotlib
 import matplotlib.pyplot as plt
 
-plt.plot(step_data[model.name()].tf, x.base_position, label=["x", "y", "z"])
+# matplotlib.use("TkAgg")
+
+plt.plot(post_step_data[model.name()].tf, x.base_position, label=["x", "y", "z"])
 plt.grid(True)
 plt.legend()
 plt.xlabel("Time [s]")
 plt.ylabel("Position [m]")
 plt.title("Trajectory of the model's base")
-plt.show()
+# plt.show()
+# raise
 
 #
 #
@@ -256,7 +260,7 @@ def world_to_viz_contact_forces(model, W_p_B, W_Q_B, s, W_f_cp):
     return local_contact_6D_forces(m, W_f_cp)
 
 
-index_to_link_name = {link.index(): link.name() for link in model.links()}
+index_to_link_name = {int(link.index()): link.name() for link in model.links()}
 parent_link_name = [index_to_link_name[idx] for idx in model.physics_model.gc.body]
 
 # for L_p_cp, idx in zip(model.physics_model.gc.point.T, model.physics_model.gc.body):
@@ -277,7 +281,7 @@ for idx, (L_p_cp, name) in enumerate(
 # Initialize the base position
 world.update_model(
     model_name=model_name,
-    joint_names=model.joint_names(),
+    joint_names=list(model.joint_names()),
     joint_positions=np.array(x0.joint_positions),
     base_position=np.array(x0.base_position),
     base_quaternion=np.array(x0.base_quaternion),
@@ -305,15 +309,15 @@ for s, W_p_B, W_Q_B, W_f_ext, W_fc_ext in list(
         x.joint_positions,
         x.base_position,
         x.base_quaternion,
-        step_data[model.name()].aux["t0"]["contact_forces_links"],
-        step_data[model.name()].aux["t0"]["contact_forces_points"],
+        post_step_data[model.name()].aux["t0"]["contact_forces_links"],
+        post_step_data[model.name()].aux["t0"]["contact_forces_points"],
     )
 )[::downsampling]:
     now = time.time()
 
     world.update_model(
         model_name=model_name,
-        joint_names=model.joint_names(),
+        joint_names=list(model.joint_names()),
         joint_positions=s,
         base_position=W_p_B,
         base_quaternion=W_Q_B,

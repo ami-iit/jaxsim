@@ -263,10 +263,10 @@ class SoftContacts:
 
         # Compute the adjoint C[W]->W for transforming 6D forces from mixed to inertial.
         # Note: this is equal to the 6D velocities transform: CW_X_W.transpose().
-        W_Xf_CW = jnp.block(
+        W_Xf_CW = jnp.vstack(
             [
-                [jnp.eye(3), jnp.zeros(shape=(3, 3))],
-                [Skew.wedge(W_p_C), jnp.eye(3)],
+                jnp.block([jnp.eye(3), jnp.zeros(shape=(3, 3))]),
+                jnp.block([Skew.wedge(W_p_C), jnp.eye(3)]),
             ]
         )
 

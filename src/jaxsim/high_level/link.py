@@ -25,7 +25,9 @@ class Link(Vmappable):
 
     link_description: Static[jaxsim.parsers.descriptions.LinkDescription]
 
-    _parent_model: Any = dataclasses.field(default=None, repr=False, compare=False)
+    _parent_model: Any = dataclasses.field(
+        default=None, repr=False, compare=False, hash=False
+    )
 
     @property
     def parent_model(self) -> "jaxsim.high_level.model.Model":

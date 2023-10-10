@@ -17,6 +17,7 @@ import numpy as np
 import numpy.typing as npt
 
 from jaxsim import logging
+from jaxsim.utils import Mutability
 
 from . import descriptions
 
@@ -82,7 +83,8 @@ class KinematicGraph:
         # Number joints so that their index matches their child link index
         links_dict = {l.name: l for l in iter(self)}
         for joint in self.joints:
-            joint.index = links_dict[joint.child.name].index
+            with joint.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+                joint.index = links_dict[joint.child.name].index
 
         # Check that joint indices are unique
         assert len([j.index for j in self.joints]) == len(
@@ -299,12 +301,13 @@ class KinematicGraph:
         for joint in joints_with_removed_parent_link:
             # Update the pose. Note that after the lumping process, the dict entry
             # links_dict[joint.parent.name] contains the final lumped link
-            joint.pose = full_graph.relative_transform(
-                relative_to=links_dict[joint.parent.name].name, name=joint.name
-            )
-
-            # Update the parent link
-            joint.parent = links_dict[joint.parent.name]
+            with joint.mutable_context(mutability=Mutability.MUTABLE):
+                joint.pose = full_graph.relative_transform(
+                    relative_to=links_dict[joint.parent.name].name, name=joint.name
+                )
+            with joint.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+                # Update the parent link
+                joint.parent = links_dict[joint.parent.name]
 
         # ===================================================================
         # 3. Create the reduced graph considering the removed links as frames

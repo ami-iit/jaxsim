@@ -19,7 +19,9 @@ class Joint(Vmappable):
 
     joint_description: Static[jaxsim.parsers.descriptions.JointDescription]
 
-    _parent_model: Any = dataclasses.field(default=None, repr=False, compare=False)
+    _parent_model: Any = dataclasses.field(
+        default=None, repr=False, compare=False, hash=False
+    )
 
     @property
     def parent_model(self) -> "jaxsim.high_level.model.Model":
@@ -74,24 +76,15 @@ class Joint(Vmappable):
         )
 
     @functools.partial(oop.jax_tf.method_ro)
-    def acceleration(self, dof: int = None) -> jtp.Float:
+    def force_target(self, dof: int = None) -> jtp.Float:
         """"""
 
         dof = dof if dof is not None else 0
 
         return jnp.array(
-            self.parent_model.joint_accelerations(joint_names=[self.name()])[dof],
-            dtype=float,
-        )
-
-    @functools.partial(oop.jax_tf.method_ro)
-    def force(self, dof: int = None) -> jtp.Float:
-        """"""
-
-        dof = dof if dof is not None else 0
-
-        return jnp.array(
-            self.parent_model.joint_generalized_forces(joint_names=(self.name(),))[dof],
+            self.parent_model.joint_generalized_forces_targets(
+                joint_names=(self.name(),)
+            )[dof],
             dtype=float,
         )
 
@@ -126,13 +119,9 @@ class Joint(Vmappable):
         return self.parent_model.joint_velocities(joint_names=(self.name(),))
 
     @functools.partial(oop.jax_tf.method_ro)
-    def joint_acceleration(self) -> jtp.Vector:
+    def joint_force_target(self) -> jtp.Vector:
         """"""
 
-        return self.parent_model.joint_accelerations(joint_names=[self.name()])
-
-    @functools.partial(oop.jax_tf.method_ro)
-    def joint_force(self) -> jtp.Vector:
-        """"""
-
-        return self.parent_model.joint_generalized_forces(joint_names=(self.name(),))
+        return self.parent_model.joint_generalized_forces_targets(
+            joint_names=(self.name(),)
+        )

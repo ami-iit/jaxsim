@@ -347,7 +347,7 @@ def integrate_single_step_over_horizon(
 
     # Integrate over the given horizon
     _, (x_horizon, aux_horizon) = jax.lax.scan(
-        f=body_fun, init=carry_init, xs=jnp.arange(start=0, stop=len(t))
+        f=body_fun, init=carry_init, xs=jnp.arange(start=0, stop=len(t), dtype=int)
     )
 
     return x_horizon, aux_horizon

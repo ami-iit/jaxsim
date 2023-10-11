@@ -227,10 +227,11 @@ def odeint_euler_semi_implicit_one_step(
         W_Qd_B = quaternion_derivative(
             W_Q_B=x_t0.physics_model.base_quaternion, W_omega_WB=vel_tf[3:6]
         )
+
         BW_v_WB = inertial_to_3d_mixed(
             W_pos_B=x_t0.physics_model.base_position,
-            W_v_lin_WB=x_t0.physics_model.base_linear_velocity,
-            W_v_ang_WB=x_t0.physics_model.base_angular_velocity,
+            W_v_lin_WB=vel_tf[0:3],
+            W_v_ang_WB=vel_tf[3:6],
         )
 
         # 3. Compute the derivative of the position

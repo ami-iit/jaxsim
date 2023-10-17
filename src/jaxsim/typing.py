@@ -1,5 +1,4 @@
 from typing import Any, Dict, Hashable, List, NamedTuple, Tuple, Union
-
 import jax.numpy as jnp
 import numpy as np
 import numpy.typing as npt

@@ -6,14 +6,6 @@ import jaxsim.typing as jtp
 class Skew:
     """
     A utility class for skew-symmetric matrix operations.
-
-    Methods:
-        wedge(vector: jtp.Vector) -> jtp.Matrix:
-            Compute the skew-symmetric matrix (wedge operator) of a 3D vector.
-
-        vee(matrix: jtp.Matrix) -> jtp.Vector:
-            Extract the 3D vector from a skew-symmetric matrix (vee operator).
-
     """
 
     @staticmethod

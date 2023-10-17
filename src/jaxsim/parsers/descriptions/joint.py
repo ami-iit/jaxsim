@@ -15,7 +15,7 @@ class JointType(enum.IntEnum):
     """
     Enumeration of joint types for robot joints.
 
-    Attributes:
+    Args:
         F: Fixed joint (no movement).
         R: Revolute joint (rotation).
         P: Prismatic joint (translation).
@@ -47,7 +47,7 @@ class JointDescriptor:
     """
     Description of a joint type with a specific code.
 
-    Attributes:
+    Args:
         code (JointType): The code representing the joint type.
 
     """

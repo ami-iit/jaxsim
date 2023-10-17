@@ -34,40 +34,6 @@ class PhysicsModel(JaxsimDataclass):
         is_floating_base (Static[bool]): A flag indicating whether the model has a floating base (default: False).
         gc (GroundContact): The ground contact points of the model (default: empty GroundContact instance).
         description (Static[jaxsim.parsers.descriptions.model.ModelDescription]): A description of the model (default: None).
-
-    Methods:
-        build_from(
-            model_description: jaxsim.parsers.descriptions.model.ModelDescription,
-            gravity: jtp.Vector = default_gravity()
-        ) -> PhysicsModel:
-            Create a PhysicsModel instance from a model description and gravity vector.
-
-        dofs() -> int:
-            Get the number of degrees of freedom (DOFs) in the model.
-
-        set_gravity(gravity: jtp.Vector) -> None:
-            Set the gravity vector for the model.
-
-        parent_array() -> jtp.Vector:
-            Get the parent array (λ(i)) for the model.
-
-        support_body_array(body_index: jtp.Int) -> jtp.Vector:
-            Get an array of body indices (κ(i)) that support the specified body.
-
-        tree_transforms() -> jtp.Array:
-            Get an array of tree transforms (pre(i)_X_λ(i)) for all bodies.
-
-        spatial_inertias() -> jtp.Array:
-            Get an array of spatial inertias (M_links) for all bodies.
-
-        jtype(joint_index: int) -> JointType:
-            Get the joint type for the specified joint index.
-
-        joint_transforms(q: jtp.Vector) -> jtp.Array:
-            Compute joint transforms (Xj) for the given joint positions (q).
-
-        motion_subspaces(q: jtp.Vector) -> jtp.Array:
-            Compute motion subspaces (SS) for the given joint positions (q).
     """
 
     NB: Static[int]

@@ -14,7 +14,6 @@ Algos
 .. autofunction:: jaxsim.physics.algos.aba.aba
 
 .. autofunction:: jaxsim.physics.algos.crba.crba
-    
 
 .. autofunction:: jaxsim.physics.algos.forward_kinematics.forward_kinematics
 
@@ -33,6 +32,8 @@ Algos
 .. automodule:: jaxsim.physics.algos.utils
     :members:
     :inherited-members:
+
+.. _model:
 
 Model
 -----

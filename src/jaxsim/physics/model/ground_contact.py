@@ -20,11 +20,6 @@ class GroundContact:
     Attributes:
         point (npt.NDArray): An array of shape (3, N) representing the 3D positions of collidable points.
         body (Static[npt.NDArray]): An array of integers representing the indices of the bodies (links) associated with each collidable point.
-
-    Methods:
-        build_from(model_description: ModelDescription) -> GroundContact:
-            A static method to build a GroundContact object from a ModelDescription instance.
-            It extracts collidable points' positions and their associated bodies from the model description.
     """
 
     point: npt.NDArray = dataclasses.field(default_factory=lambda: jnp.array([]))

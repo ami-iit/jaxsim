@@ -25,16 +25,6 @@ class SoftContactsState:
 
     Attributes:
         tangential_deformation (jtp.Matrix): The tangential deformation of the material at each collidable point.
-
-    Methods:
-        zero(physics_model: "jaxsim.physics.model.physics_model.PhysicsModel") -> SoftContactsState:
-            Modify the SoftContactsState instance imposing zero tangential deformation.
-
-        valid(physics_model: "jaxsim.physics.model.physics_model.PhysicsModel") -> bool:
-            Check if the soft contacts state has valid shape.
-
-        replace(validate: bool = True, kwargs) -> SoftContactsState:
-            Replace attributes of the soft contacts state.
     """
 
     tangential_deformation: jtp.Matrix

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Tuple
 
 import jax
@@ -24,15 +26,15 @@ def aba(
     Articulated Body Algorithm (ABA) algorithm for forward dynamics.
 
     Args:
-        model (PhysicsModel): The physics model of the articulated body or robot.
-        xfb (jtp.Vector): The floating base state vector containing quaternion (4D) and position (3D).
-        q (jtp.Vector): Joint positions (Generalized coordinates).
-        qd (jtp.Vector): Joint velocities.
-        tau (jtp.Vector): Joint torques or forces.
-        f_ext (jtp.Matrix, optional): External forces and torques acting on each link. Defaults to None.
+        model: The physics model of the articulated body or robot.
+        xfb: The floating base state vector containing quaternion (4D) and position (3D).
+        q: Joint positions (Generalized coordinates).
+        qd: Joint velocities.
+        tau: Joint torques or forces.
+        f_ext: External forces and torques acting on each link. Defaults to None.
 
     Returns:
-        Tuple[jtp.Vector, jtp.Vector]: A tuple containing the resulting base acceleration (in inertial-fixed representation)
+        A tuple containing the resulting base acceleration (in inertial-fixed representation)
         and joint accelerations.
 
     Note:

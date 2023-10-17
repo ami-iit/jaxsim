@@ -24,11 +24,6 @@ class LinkDescription(JaxsimDataclass):
         parent (Optional[LinkDescription]): The parent link of this link.
         pose (jtp.Matrix): The pose transformation matrix of the link.
         children (List[LinkDescription]): List of child links.
-
-    Methods:
-        lump_with(link: LinkDescription, lumped_H_removed: jtp.Matrix) -> LinkDescription:
-            Combine the current link with another link, preserving mass and inertia.
-
     """
 
     name: Static[str]

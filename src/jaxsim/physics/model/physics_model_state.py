@@ -21,23 +21,6 @@ class PhysicsModelState(JaxsimDataclass):
         base_quaternion (jtp.Vector): An array representing the base quaternion (default: [1.0, 0, 0, 0]).
         base_linear_velocity (jtp.Vector): An array representing the base linear velocity (default: zeros).
         base_angular_velocity (jtp.Vector): An array representing the base angular velocity (default: zeros).
-
-    Methods:
-        zero(physics_model: "jaxsim.physics.model.physics_model.PhysicsModel") -> PhysicsModelState:
-            Create a zero-initialized PhysicsModelState for the given physics model.
-
-        position() -> jtp.Vector:
-            Get the full state vector, including joint positions, joint velocities, base position, and base quaternion.
-
-        velocity() -> jtp.Vector:
-            Get the full velocity vector, including base linear velocity, base angular velocity, and joint velocities.
-
-        xfb() -> jtp.Vector:
-            Get the full state vector in the "xfb" format, which includes base quaternion, base position, base angular
-            velocity, and base linear velocity.
-
-        valid(physics_model: "jaxsim.physics.model.physics_model.PhysicsModel") -> bool:
-            Check if the state has valid shapes for the given physics model.
     """
 
     # Joint state

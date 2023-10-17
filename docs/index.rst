@@ -47,6 +47,7 @@ Planned features:
     modules/parsers
     modules/simulation
     modules/utils
+    modules/typing
 
 
 Credits

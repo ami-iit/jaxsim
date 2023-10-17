@@ -26,13 +26,6 @@ class ModelDescription(KinematicGraph):
         name (str): The name of the model.
         fixed_base (bool): Indicates whether the model has a fixed base.
         collision_shapes (List[CollisionShape]): List of collision shapes associated with the model.
-
-    Methods:
-        build_model_from(...): Build a model description from provided components.
-        reduce(...): Reduce the model by removing specified joints.
-        update_collision_shape_of_link(...): Enable or disable collision shapes associated with a link.
-        collision_shape_of_link(...): Get the collision shape associated with a specific link.
-        all_enabled_collidable_points(...): Get all enabled collidable points in the model.
     """
 
     name: str = None

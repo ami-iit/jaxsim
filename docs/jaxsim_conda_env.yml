@@ -1,0 +1,23 @@
+name: jaxsim
+channels:
+  - conda-forge
+  - nvidia
+dependencies:
+  - python=3.11
+  - jax
+  - jax-dataclasses
+  - jaxlib=*=*cuda*
+  - jaxlie
+  - cuda-nvcc
+  - rod
+  - coloredlogs
+  - sphinx
+  - sphinx-fontawesome
+  - sphinx-multiversion
+  - sphinx_rtd_theme
+  - pip
+  - pptree
+  - scipy
+  - pip:
+    - sphinx_autodoc_typehints
+    - sphinx_copybutton 

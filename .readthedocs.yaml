@@ -5,10 +5,9 @@ build:
   tools:
     python: "3.10"
 
-python:
-  install:
-    - requirements: docs/requirements.txt
-    
+conda:
+  environment: docs/jaxsim_conda_env.yml
+
 sphinx:
   configuration: docs/conf.py
 

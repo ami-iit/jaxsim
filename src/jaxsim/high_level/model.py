@@ -1518,9 +1518,9 @@ class Model(Vmappable):
             dict(zip(self.physics_model._joint_motor_inertia, inertias))
         )
 
-        logging.info("Setting attribute 'motor_inertias'")
+        logging.info("Setting attribute `motor_inertias`")
 
-    @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
+    @functools.partial(oop.jax_tf.method_rw, jit=False)
     def set_motor_gear_ratios(
         self, gear_ratios: jtp.Vector, joint_names: tuple[str, ...] = None
     ) -> None:
@@ -1530,7 +1530,7 @@ class Model(Vmappable):
             raise ValueError("Wrong arguments size", gear_ratios.size, len(joint_names))
 
         # Check on gear ratios if motor_inertias are not zero
-        for idx, gr in gear_ratios:
+        for idx, gr in enumerate(gear_ratios):
             if gr != 0 and self.motor_inertias()[idx] == 0:
                 raise ValueError(
                     f"Zero motor inertia with non-zero gear ratio found in position {idx}"
@@ -1540,7 +1540,7 @@ class Model(Vmappable):
             dict(zip(self.physics_model._joint_motor_gear_ratio, gear_ratios))
         )
 
-        logging.info("Setting attribute 'motor_gear_ratios'")
+        logging.info("Setting attribute `motor_gear_ratios`")
 
     @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_motor_viscous_frictions(
@@ -1569,7 +1569,7 @@ class Model(Vmappable):
         #     )
         # )
 
-        logging.info("Setting attribute 'motor_viscous_frictions'")
+        logging.info("Setting attribute `motor_viscous_frictions`")
 
     @functools.partial(oop.jax_tf.method_ro, jit=False)
     def motor_inertias(self) -> jtp.Vector:

@@ -63,7 +63,7 @@ class JaxSim(Vmappable):
     """The JaxSim simulator."""
 
     # Step size stored in ns in order to prevent floats approximation
-    step_size_ns: jtp.Int = dataclasses.field(
+    step_size_ns: Static[jtp.Int] = dataclasses.field(
         default_factory=lambda: jnp.array(1_000_000, dtype=jnp.uint64)
     )
 

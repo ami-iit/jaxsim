@@ -1143,18 +1143,10 @@ class Model(Vmappable):
         KV = jnp.diag(
             jnp.array(list(self.physics_model._joint_motor_viscous_friction.values()))
         )
+
+        # Compute auxiliary quantities
         Γ = jnp.diag(GR)
-
-        # Check on the motor parameters
-        jax.lax.cond(
-            pred=(jnp.diag(IM) != 0).any(),
-            operand=Γ,
-            true_fun=lambda Γ: jnp.diag(GR),
-            false_fun=lambda Γ: jnp.eye(GR.size),
-        )
-
         Γ_inv = jnp.linalg.inv(Γ)
-
         K̅ᵥ = Γ.T @ KV @ Γ
 
         # Compute terms of the floating-base EoM

@@ -1138,15 +1138,12 @@ class Model(Vmappable):
         τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
 
         # Extract motor parameters from the physics model
-        GR = jnp.array(list(self.physics_model._joint_motor_gear_ratio.values()))
-        IM = jnp.diag(jnp.array(list(self.physics_model._joint_motor_inertia.values())))
-        KV = jnp.diag(
-            jnp.array(list(self.physics_model._joint_motor_viscous_friction.values()))
-        )
+        GR = self.motor_gear_ratios()
+        IM = self.motor_inertias()
+        KV = jnp.diag(self.motor_viscous_frictions())
 
         # Compute auxiliary quantities
         Γ = jnp.diag(GR)
-        Γ_inv = jnp.linalg.inv(Γ)
         K̅ᵥ = Γ.T @ KV @ Γ
 
         # Compute terms of the floating-base EoM

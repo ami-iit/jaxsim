@@ -36,15 +36,11 @@ def aba(
     λ = model.parent_array()
 
     # Extract motor parameters from the physics model
-    Γ = jnp.array(list(model._joint_motor_gear_ratio.values()))
+    Γ = jnp.array([*model._joint_motor_gear_ratio.values()])
     IM = jnp.array(
-        [jnp.eye(6) * m for m in list(model._joint_motor_inertia.values())] * model.NB
+        [jnp.eye(6) * m for m in [*model._joint_motor_inertia.values()]] * model.NB
     )
-    K̅ᵥ = jnp.diag(
-        Γ.T
-        @ jnp.diag(jnp.array(list(model._joint_motor_viscous_friction.values())))
-        / Γ
-    )
+    K̅ᵥ = Γ.T * jnp.array([*model._joint_motor_viscous_friction.values()]) / Γ
     m_S = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
 
     # Initialize buffers
@@ -137,10 +133,10 @@ def aba(
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
         i_Xf_W = Adjoint.inverse(i_X_0[i] @ B_X_W).T
 
-        pA_i = Cross.vx_star(v[i]) @ MA[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
+        pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
         pA = pA.at[i].set(pA_i)
 
-        pR_i = Cross.vx_star(m_v[i]) @ IM[i] @ m_v[i]
+        pR_i = Cross.vx_star(m_v[i]) @ IM[i] @ m_v[i] + K̅ᵥ[i] * m_v[i]
         pR = pR.at[i].set(pR_i)
 
         return (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0), None
@@ -178,8 +174,12 @@ def aba(
         u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
         u = u.at[i].set(u_i.squeeze())
 
+        has_motors = (pR[i] != 0).any()
+
         m_u_i = (
-            tau[ii] / Γ[i] - m_S[i].T @ pR[i] if tau.size != 0 else -m_S[i].T @ pR[i]
+            tau[ii] / Γ[i] * has_motors - m_S[i].T @ pR[i]
+            if tau.size != 0
+            else -m_S[i].T @ pR[i]
         )
         m_u = m_u.at[i].set(m_u_i.squeeze())
 
@@ -250,13 +250,13 @@ def aba(
         a, qdd = carry
 
         # Propagate link accelerations
-        a_i = i_X_λi[i] @ a[λ[i]]
+        a_i = i_X_λi[i] @ a[λ[i]] + c[i]
 
         # Compute joint accelerations
         qdd_ii = (u[i] + m_u[i] - (U[i].T + m_U[i].T) @ a_i) / d[i]
         qdd = qdd.at[ii].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
-        a_i = a_i + S[i] * qdd[ii] + c[i] if qdd.size != 0 else a_i
+        a_i = a_i + S[i] * qdd[ii] if qdd.size != 0 else a_i
         a = a.at[i].set(a_i)
 
         return (a, qdd), None

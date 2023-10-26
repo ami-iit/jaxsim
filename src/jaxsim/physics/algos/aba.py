@@ -174,7 +174,7 @@ def aba(
         u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
         u = u.at[i].set(u_i.squeeze())
 
-        has_motors = (pR[i] != 0).any()
+        has_motors = (Γ[i] != 1).any()
 
         m_u_i = (
             tau[ii] / Γ[i] * has_motors - m_S[i].T @ pR[i]

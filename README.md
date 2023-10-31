@@ -90,8 +90,10 @@ For major changes, please open an issue first to discuss what you would like to 
 
 | [<img src="https://github.com/diegoferigo.png" width="40">][df] | [@diegoferigo][df] |
 |:---------------------------------------------------------------:|:------------------:|
+| [<img src="https://github.com/flferretti.png" width="40">][ff] | [@flferretti][ff] |
 
 [df]: https://github.com/diegoferigo
+[ff]: https://github.com/flferretti
 
 ## License
 

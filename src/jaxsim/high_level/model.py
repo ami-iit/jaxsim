@@ -1155,7 +1155,7 @@ class Model(Vmappable):
 
         # Configure the slice for fixed/floating base robots
         sl = np.s_[0:] if self.physics_model.is_floating_base else np.s_[6:]
-        sl_m = np.s_[6:]
+        sl_m = np.s_[6:] if self.physics_model.is_floating_base else np.s_[0:]
 
         # Add the motor related terms to the EoM
         M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + Γ.T @ IM @ Γ)

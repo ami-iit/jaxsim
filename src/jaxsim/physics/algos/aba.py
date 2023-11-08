@@ -40,7 +40,7 @@ def aba(
     IM = jnp.array(
         [jnp.eye(6) * m for m in [*model._joint_motor_inertia.values()]] * model.NB
     )
-    K̅ᵥ = Γ.T * jnp.array([*model._joint_motor_viscous_friction.values()]) / Γ
+    K̅ᵥ = Γ.T @ jnp.array([*model._joint_motor_viscous_friction.values()]) @ Γ
     m_S = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
 
     # Initialize buffers

@@ -43,7 +43,7 @@ Install all of them with `jaxsim[all]`.
 **Note:** For GPU support, follow the official [installation instruction][jax_gpu] of JAX.
 
 [pip]: https://github.com/pypa/pip/
-[venv]: https://docs.python.org/3.8/tutorial/venv.html
+[venv]: https://docs.python.org/3/tutorial/venv.html
 [jax_gpu]: https://github.com/google/jax/#installation
 
 ## Credits
@@ -83,7 +83,7 @@ For major changes, please open an issue first to discuss what you would like to 
 @software{ferigo_jaxsim_2022,
   author = {Diego Ferigo and Silvio Traversaro and Daniele Pucci},
   title = {{JAXsim}: A Physics Engine in Reduced Coordinates and Multibody Dynamics Library for Control and Robot Learning},
-  url = {http://github.com/ami-iit/jaxsin},
+  url = {http://github.com/ami-iit/jaxsim},
   year = {2022},
 }
 ```

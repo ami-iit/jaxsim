@@ -86,11 +86,11 @@ For major changes, please open an issue first to discuss what you would like to 
 }
 ```
 
-## Maintainers
+## People
 
-| [<img src="https://github.com/diegoferigo.png" width="40">][df] | [@diegoferigo][df] |
-|:---------------------------------------------------------------:|:------------------:|
-| [<img src="https://github.com/flferretti.png" width="40">][ff] | [@flferretti][ff] |
+| Author | Maintainers |
+|:------:|:-----------:|
+| [<img src="https://avatars.githubusercontent.com/u/469199?v=4" width="40">][df] | [<img src="https://avatars.githubusercontent.com/u/102977828?v=4" width="40">][ff] [<img src="https://avatars.githubusercontent.com/u/469199?v=4" width="40">][df] |
 
 [df]: https://github.com/diegoferigo
 [ff]: https://github.com/flferretti

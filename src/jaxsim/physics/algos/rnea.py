@@ -41,23 +41,11 @@ def rnea(
     S = model.motion_subspaces(q=q)
     i_X_λi = jnp.zeros_like(pre_X_λi)
 
-    Γ = (
-        jnp.array(list(model._joint_motor_gear_ratio.values()))
-        if hasattr(model, "_joint_motor_gear_ratio")
-        else jnp.ones(model.dofs)
-    )
-    IM = (
-        jnp.array(list(model._joint_motor_inertia.values()))
-        if hasattr(model, "_joint_motor_inertia")
-        else jnp.zeros(model.dofs)
-    )
-    K_v = (
-        jnp.array(list(model._joint_motor_viscous_friction.values()))
-        if hasattr(model, "_joint_motor_viscous_friction")
-        else jnp.zeros(model.dofs)
-    )
+    Γ = jnp.array([*model._joint_motor_gear_ratio.values()])
+    IM = jnp.array([*model._joint_motor_inertia.values()])
+    K_v = jnp.array([*model._joint_motor_viscous_friction.values()])
     K̅ᵥ = jnp.diag(Γ.T * jnp.diag(K_v) * Γ)
-    S_m = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
+    m_S = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
 
     i_X_0 = jnp.zeros_like(pre_X_λi)
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
@@ -121,7 +109,7 @@ def rnea(
         i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m = carry
 
         vJ = S[i] * qd[ii]
-        vJ_m = S_m[i] * qd[ii]
+        vJ_m = m_S[i] * qd[ii]
 
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
@@ -135,7 +123,7 @@ def rnea(
         a_i = i_X_λi[i] @ a[λ[i]] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
         a = a.at[i].set(a_i)
 
-        a_i_m = i_X_λi[i] @ a_m[λ[i]] + S_m[i] * qdd[ii] + Cross.vx(v_m[i]) @ vJ_m
+        a_i_m = i_X_λi[i] @ a_m[λ[i]] + m_S[i] * qdd[ii] + Cross.vx(v_m[i]) @ vJ_m
         a_m = a_m.at[i].set(a_i_m)
 
         i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]
@@ -171,7 +159,7 @@ def rnea(
         ii = i - 1
         tau, f, f_m = carry
 
-        value = S[i].T @ f[i] + S_m[i].T @ f_m[i]  # + K̅ᵥ[i] * qd[ii]
+        value = S[i].T @ f[i] + m_S[i].T @ f_m[i]  # + K̅ᵥ[i] * qd[ii]
         tau = tau.at[ii].set(value.squeeze())
 
         def update_f(ffm: Tuple[jtp.MatrixJax, jtp.MatrixJax]) -> jtp.MatrixJax:

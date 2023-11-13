@@ -40,7 +40,7 @@ def aba(
     IM = jnp.array(
         [jnp.eye(6) * m for m in [*model._joint_motor_inertia.values()]] * model.NB
     )
-    K̅ᵥ = Γ.T @ jnp.array([*model._joint_motor_viscous_friction.values()]) @ Γ
+    K̅ᵥ = Γ.T * jnp.array([*model._joint_motor_viscous_friction.values()]) * Γ
     m_S = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
 
     # Initialize buffers
@@ -136,7 +136,7 @@ def aba(
         pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(f_ext[i])
         pA = pA.at[i].set(pA_i)
 
-        pR_i = Cross.vx_star(m_v[i]) @ IM[i] @ m_v[i] + K̅ᵥ[i] * m_v[i]
+        pR_i = Cross.vx_star(m_v[i]) @ IM[i] @ m_v[i] - K̅ᵥ[i] * m_v[i]
         pR = pR.at[i].set(pR_i)
 
         return (i_X_λi, v, c, m_v, m_c, MA, pA, pR, i_X_0), None
@@ -174,7 +174,7 @@ def aba(
         u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
         u = u.at[i].set(u_i.squeeze())
 
-        has_motors = (Γ[i] != 1).any()
+        has_motors = Γ[i] != 1
 
         m_u_i = (
             tau[ii] / Γ[i] * has_motors - m_S[i].T @ pR[i]

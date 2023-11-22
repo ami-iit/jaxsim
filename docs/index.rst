@@ -41,14 +41,13 @@ Planned features:
     :maxdepth: 2
     :caption: JAXsim API Reference
 
+    modules/typing
     modules/high_level
     modules/math
     modules/physics
     modules/parsers
     modules/simulation
     modules/utils
-    modules/typing
-
 
 Credits
 -------

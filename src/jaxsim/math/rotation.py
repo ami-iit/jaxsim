@@ -1,29 +1,62 @@
 from typing import Tuple
-
 import jax
 import jax.numpy as jnp
-
 import jaxsim.typing as jtp
 from jaxsim.sixd import so3
-
 from .skew import Skew
-
 
 class Rotation:
     @staticmethod
     def x(theta: jtp.Float) -> jtp.Matrix:
+        """
+        Generate a 3D rotation matrix around the X-axis.
+
+        Args:
+            theta (jtp.Float): Rotation angle in radians.
+
+        Returns:
+            jtp.Matrix: 3D rotation matrix.
+        """
         return so3.SO3.from_x_radians(theta=theta).as_matrix()
 
     @staticmethod
     def y(theta: jtp.Float) -> jtp.Matrix:
+        """
+        Generate a 3D rotation matrix around the Y-axis.
+
+        Args:
+            theta (jtp.Float): Rotation angle in radians.
+
+        Returns:
+            jtp.Matrix: 3D rotation matrix.
+        """
         return so3.SO3.from_y_radians(theta=theta).as_matrix()
 
     @staticmethod
     def z(theta: jtp.Float) -> jtp.Matrix:
+        """
+        Generate a 3D rotation matrix around the Z-axis.
+
+        Args:
+            theta (jtp.Float): Rotation angle in radians.
+
+        Returns:
+            jtp.Matrix: 3D rotation matrix.
+        """
         return so3.SO3.from_z_radians(theta=theta).as_matrix()
 
     @staticmethod
     def from_axis_angle(vector: jtp.Vector) -> jtp.Matrix:
+        """
+        Generate a 3D rotation matrix from an axis-angle representation.
+
+        Args:
+            vector (jtp.Vector): Axis-angle representation as a 3D vector.
+
+        Returns:
+            jtp.Matrix: 3D rotation matrix.
+
+        """
         vector = vector.squeeze()
         theta = jnp.linalg.norm(vector)
 

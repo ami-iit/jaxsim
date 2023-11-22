@@ -16,9 +16,8 @@ dependencies:
   - sphinx
   - sphinx-autodoc-typehints
   - sphinx-copybutton
+  - sphinx_fontawesome
   - sphinx-multiversion
   - sphinx_rtd_theme
   - pip
   - pptree
-  pip:
-    - sphinx-fontawesome

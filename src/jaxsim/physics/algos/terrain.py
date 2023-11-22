@@ -75,6 +75,6 @@ class PlaneTerrain(Terrain):
         Returns:
             float: The height of the terrain at the specified location on the plane.
         """
-        
+
         a, b, c = self.plane_normal
         return -(a * x + b * y) / c

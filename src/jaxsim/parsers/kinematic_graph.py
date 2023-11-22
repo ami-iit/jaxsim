@@ -55,6 +55,40 @@ class KinematicGraph:
         joints_connection_dict (Dict[Tuple[str, str], descriptions.JointDescription]): A dictionary mapping pairs of parent and child link names to joint descriptions.
     """
 
+    root: descriptions.LinkDescription
+    frames: List[descriptions.LinkDescription] = dataclasses.field(default_factory=list)
+    joints: List[descriptions.JointDescription] = dataclasses.field(
+        default_factory=list
+    )
+
+    root_pose: RootPose = dataclasses.field(default_factory=RootPose)
+
+    transform_cache: Dict[str, npt.NDArray] = dataclasses.field(
+        repr=False, init=False, compare=False, default_factory=dict
+    )
+
+    extra_info: Dict[str, Any] = dataclasses.field(
+        repr=False, compare=False, default_factory=dict
+    )
+
+    @functools.cached_property
+    def links_dict(self) -> Dict[str, descriptions.LinkDescription]:
+        return {l.name: l for l in iter(self)}
+
+    @functools.cached_property
+    def frames_dict(self) -> Dict[str, descriptions.LinkDescription]:
+        return {f.name: f for f in self.frames}
+
+    @functools.cached_property
+    def joints_dict(self) -> Dict[str, descriptions.JointDescription]:
+        return {j.name: j for j in self.joints}
+
+    @functools.cached_property
+    def joints_connection_dict(
+        self,
+    ) -> Dict[Tuple[str, str], descriptions.JointDescription]:
+        return {(j.parent.name, j.child.name): j for j in self.joints}
+
     def __post_init__(self):
         """
         Post-initialization method to set various properties and validate the kinematic graph.
@@ -147,6 +181,7 @@ class KinematicGraph:
             Tuple[descriptions.LinkDescription, List[descriptions.JointDescription], List[descriptions.LinkDescription]]:
                 A tuple containing the root link, list of joints, and list of frames in the graph.
         """
+
         # Create a dict that maps link name to the link, for easy retrieval
         links_dict: Dict[str, descriptions.LinkDescription] = {
             l.name: l.mutable(validate=False) for l in links

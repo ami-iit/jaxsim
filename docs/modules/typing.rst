@@ -5,7 +5,6 @@ Typing
 ======
 
 .. autoclass:: jaxsim.typing.PyTree
-    :undoc-members:
 
 .. autoclass:: jaxsim.typing.Tensor
     :undoc-members:

@@ -945,11 +945,15 @@ class Model(Vmappable):
     # Algorithms
     # ==========
 
+    @functools.partial(oop.jax_tf.method_ro)
     def coriolis_matrix(self) -> jtp.Matrix:
+        from jaxsim.physics.algos.coriolis import coriolis
+
         H, H_dot, C = jaxsim.physics.algos.coriolis.coriolis(
             model=self.physics_model,
             q=self.data.model_state.joint_positions,
             qd=self.data.model_state.joint_velocities,
+            xfb=self.data.model_state.xfb(),
         )
 
         return H, H_dot, C

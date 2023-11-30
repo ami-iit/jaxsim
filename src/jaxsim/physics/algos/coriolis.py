@@ -26,6 +26,10 @@ def coriolis(model: PhysicsModel, q: jnp.ndarray, qd: jnp.ndarray) -> None:
     Ic = jnp.zeros([6, 6])
     Bc = jnp.zeros([6, 6])
 
+    Pass1Carry = Tuple[
+        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
+    ]
+
     def loop_pass_1(carry: Pass1Carry, i: jtp.Int) -> Tuple[Pass1Carry, None]:
         vJ = S[i] * qd[i]
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
@@ -41,15 +45,19 @@ def coriolis(model: PhysicsModel, q: jnp.ndarray, qd: jnp.ndarray) -> None:
 
         return (i_X_λi, v, Sd, BC, IC), None
 
-    jax.lax.scan(
+    (i_X_λi, v, Sd, BC, IC), _ = jax.lax.scan(
         loop_pass_1,
         (i_X_λi, v, Sd, BC, IC),
-        jnp.arange(1, n + 1),
+        jnp.arange(1, model.NB + 1),
     )
 
     F_1 = jnp.zeros([6, 6])
     F_2 = jnp.zeros([6, 6])
     F_3 = jnp.zeros([6, 6])
+
+    Pass2Carry = Tuple[
+        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
+    ]
 
     def loop_pass_2(carry: Pass2Carry, i: jtp.Int) -> Tuple[Pass2Carry, None]:
         ii = i - 1
@@ -103,10 +111,26 @@ def coriolis(model: PhysicsModel, q: jnp.ndarray, qd: jnp.ndarray) -> None:
         Bc = Bc + i_X_λi[i] @ BC[i] @ i_X_λi[i].T
         return (i_X_λi, v, Sd, BC, IC), None
 
-    jax.lax.scan(
+    (i_X_λi, v, Sd, BC, IC), _ = jax.lax.scan(
         loop_pass_2,
         (i_X_λi, v, Sd, BC, IC),
-        jnp.arange(1, n + 1),
+        jnp.arange(1, model.NB + 1),
     )
 
     return Ic, Bc
+
+
+# if __name__ == "__main__":
+#     import jax.numpy as jnp
+#     import jaxsim
+#     from jaxsim.high_level.model import Model
+#     from pathlib import Path
+
+#     urdf_path = Path(
+#         "/home/flferretti/git/element_rl-for-codesign/assets/model/Hopper.sdf"
+#     )
+
+#     model = Model.build_from_model_description(model_description=urdf_path)
+
+#     with jax.disable_jit():
+#         H, H_dot, C = model.coriolis_matrix()

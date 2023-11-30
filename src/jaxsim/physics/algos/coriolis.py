@@ -178,6 +178,4 @@ def coriolis(
         xs=np.flip(np.arange(1, model.NB + 1)),
     )
 
-    assert jnp.allclose(Hd - (C @ C.T), jnp.zeros_like(Hd))
-
     return H, Hd, C

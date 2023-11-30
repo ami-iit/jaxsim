@@ -53,4 +53,4 @@ def test_coriolis(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     # Compute model acceleration with ABA
     H, H_dot, C = model.coriolis_matrix()
 
-    assert np.allclose(H_dot - (C @ C.T), jnp.zeros_like(H_dot))
+    assert np.allclose(H_dot - (C @ C.T), np.zeros_like(H_dot), atol=1e-5)

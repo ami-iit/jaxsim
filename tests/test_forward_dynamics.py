@@ -67,5 +67,5 @@ def test_aba(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
 
     v̇_WB, s̈ = model.forward_dynamics_crb(tau=tau)
 
-    assert s̈.squeeze() == pytest.approx(s̈_aba.squeeze(), abs=0.5)
-    assert v̇_WB.squeeze() == pytest.approx(v̇_WB_aba.squeeze(), abs=0.2)
+    assert s̈.squeeze() == pytest.approx(s̈_aba.squeeze(), rel=5e-3)
+    assert v̇_WB.squeeze() == pytest.approx(v̇_WB_aba.squeeze(), rel=5e-3)

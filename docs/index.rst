@@ -1,77 +1,64 @@
-JAXsim Docs - A Physics Engine in Reduced Coordinates for Control and Robot Learning
-====================================================================================
+JAXsim
+#######
 
-A scalable physics engine implemented with JAX. With JIT batteries 🔋
-
-.. warning::
-   This project is still experimental, APIs could change without notice. 
+A scalable physics engine and multibody dynamics library implemented with JAX. With JIT batteries 🔋
 
 .. warning::
-   This simulator currently focuses on locomotion applications. Only contacts with ground are supported.
+    This project is still experimental, APIs could change without notice.
+
+.. note::
+    This simulator currently focuses on locomotion applications. Only contacts with ground are supported.
 
 Features
 --------
 
-- Physics engine in reduced coordinates implemented with `JAX <https://github.com/google/jax>`_ in Python.
-- Supported JIT compilation of Python code for increased performance.
-- Transparent support to execute the simulation on CPUs, GPUs, and TPUs.
-- Possibility to run parallel multi-body simulations on hardware accelerators for significantly increased throughput.
-- Support of SDF models (and, upon conversion, URDF models).
+- Physics engine in reduced coordinates implemented with `JAX <https://github.com/google/jax/>`_ in Python.
+- JIT compilation of Python code for increased performance.
+- Transparent support to execute logic on CPUs, GPUs, and TPUs.
+- Parallel multi-body simulations on hardware accelerators for significantly increased throughput.
+- Support for SDF models (and, upon conversion, URDF models).
 - Collision detection between bodies and uneven ground surface.
-- Continuous soft contacts model with no friction cone approximations.
-- Full support of inertial properties of bodies.
+- Soft contacts model supporting full friction cone and sticking / slipping transition.
+- Complete support for inertial properties of rigid bodies.
 - Revolute, prismatic, and fixed joints support.
 - Integrators: forward Euler, semi-implicit Euler, Runge-Kutta 4.
+- High-level classes for object-oriented programming.
 - High-level classes to compute multi-body dynamics quantities from simulation state.
-- High-level classes supporting both object-oriented and functional programming.
-- Optional validation of JAX pytrees to prevent JIT re-compilation. 
+- High-level classes wrapping the low-level functional RBDAs with support of `multiple velocities representations <https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2>`_.
+- Default validation of JAX pytrees to prevent JIT re-compilations.
+- Preliminary support for automatic differentiation of RBDAs.
 
-Planned features:
+Installation
+------------
 
-- Reinforcement Learning module developed in JAX.
-- Finalization of differentiable physics through the simulation.
+You can install the project with `pypa/pip <https://github.com/pypa/pip/>`_, preferably in a `virtual environment <https://docs.python.org/3/tutorial/venv.html>`_:
 
-.. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+.. code-block:: bash
 
-   guide/install
+    pip install jaxsim
 
-.. toctree::
-    :maxdepth: 2
-    :caption: JAXsim API Reference
+Check `setup.cfg` for the complete list of optional dependencies. Install all of them with ``jaxsim[all]``.
 
-    modules/typing
-    modules/high_level
-    modules/math
-    modules/physics
-    modules/parsers
-    modules/simulation
-    modules/utils
+**Note:** For GPU support, follow the official `installation instruction of JAX <https://github.com/google/jax/#installation>`_.
 
 Credits
 -------
 
-The physics module of JAXsim is based on the theory of the `Rigid Body Dynamics Algorithms`_ book authored by Roy Featherstone.
-We structured part of our logic following its accompanying `code`_.
-The physics engine is developed entirely in Python using `JAX`_.
+The physics module of JAXsim is based on the theory of the `Rigid Body Dynamics Algorithms <https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_ book by Roy Featherstone.
+We structured part of our logic following its accompanying `code <http://royfeatherstone.org/spatial/index.html#spatial-software>`_.
+The physics engine is developed entirely in Python using `JAX <https://github.com/google/jax/>`_.
 
-.. _Rigid Body Dynamics Algorithms: https://link.springer.com/book/10.1007/978-1-4899-7560-7
-.. _code: http://royfeatherstone.org/spatial/index.html#spatial-software
-
-The inspiration of developing JAXsim stems from `google/brax`_.
+The inspiration for developing JAXsim originally stemmed from early versions of `google/brax <https://github.com/google/brax>`_.
 Here below we summarize the differences between the projects:
 
-- JAXsim simulates multibody dynamics in reduced coordinates, while `brax` uses maximal coordinates.
-- The rigid body algorithms used in JAXsim allow to efficiently compute quantities based on the Euler-Poincarè
+- JAXsim simulates multibody dynamics in reduced coordinates, while brax v1 uses maximal coordinates.
+- The new v2 APIs of brax (and the new `MJX <https://mujoco.readthedocs.io/en/3.0.0/mjx.html>`_) were then implemented in reduced coordinates, following an approach comparable to JAXsim, with major differences in contact handling.
+- The rigid-body algorithms used in JAXsim allow to efficiently compute quantities based on the Euler-Poincarè
   formulation of the equations of motion, necessary for model-based robotics research.
-- JAXsim supports SDF (and, indirectly, URDF) models, under the assumption that the model is described with the
-  recent `Pose Frame Semantics`_.
-- Contrarily to `brax`, JAXsim only supports collision detection between bodies and a compliant ground surface.
-- While supported thanks to the usage of JAX, differentiating through the simulator has not yet been studied.
-
-.. _google/brax: https://github.com/google/brax
-.. _Pose Frame Semantics: http://sdformat.org/tutorials?tut=pose_frame_semantics
+- JAXsim supports SDF (and, indirectly, URDF) models, assuming the model is described with the
+  recent `Pose Frame Semantics <http://sdformat.org/tutorials?tut=pose_frame_semantics>`_.
+- Contrarily to brax, JAXsim only supports collision detection between bodies and a compliant ground surface.
+- The RBDAs of JAXsim support automatic differentiation, but this functionality has not being thoroughly tested.
 
 Contributing
 ------------
@@ -84,16 +71,25 @@ Citing
 
 .. code-block:: bibtex
 
-   @software{ferigo_jaxsim_2022,
-     author = {Diego Ferigo and Silvio Traversaro and Daniele Pucci},
-     title = {{JAXsim}: A Physics Engine in Reduced Coordinates for Control and Robot Learning},
-     url = {http://github.com/ami-iit/jaxsin},
-     year = {2022},
-   }
+    @software{ferigo_jaxsim_2022,
+      author = {Diego Ferigo and Silvio Traversaro and Daniele Pucci},
+      title = {{JAXsim}: A Physics Engine in Reduced Coordinates and Multibody Dynamics Library for Control and Robot Learning},
+      url = {http://github.com/ami-iit/jaxsim},
+      year = {2022},
+    }
 
-Maintainers
------------
+People
+------
 
+Author and Maintainer
+'''''''''''''''''''''
+
+`Diego Ferigo <https://github.com/diegoferigo>`_
+
+Maintainer
+''''''''''
+
+`Filippo Luca Ferretti <https://github.com/flferretti>`_
 
 License
 -------

@@ -491,7 +491,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_random_positions(
-        self, joint_names: tuple[str, ...] = None, key: jax.random.PRNGKeyArray = None
+        self, joint_names: tuple[str, ...] = None, key: jax.Array = None
     ) -> jtp.Vector:
         """"""
 

@@ -1,7 +1,6 @@
 from typing import Any, Dict, Hashable, List, NamedTuple, Tuple, Union
 
 import jax.numpy as jnp
-import numpy as np
 import numpy.typing as npt
 
 # JAX types
@@ -35,6 +34,6 @@ Array = Union[npt.NDArray, ArrayJax]
 Tensor = Union[npt.NDArray, ArrayJax]
 Vector = Array
 Matrix = Array
-Bool = bool
+Bool = Union[bool, ArrayJax]
 Int = Union[int, IntJax]
 Float = Union[float, FloatJax]

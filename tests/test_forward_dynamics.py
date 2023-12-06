@@ -1,31 +1,29 @@
-import jax
 import numpy as np
 import pytest
+from pytest import param as p
 
 from jaxsim.high_level.common import VelRepr
 from jaxsim.high_level.model import Model
 
 from . import utils_models, utils_rng
+from .utils_models import Robot
 
 
 @pytest.mark.parametrize(
     "robot, vel_repr",
     [
-        (utils_models.Robot.DoublePendulum, VelRepr.Inertial),
-        (utils_models.Robot.DoublePendulum, VelRepr.Body),
-        (utils_models.Robot.DoublePendulum, VelRepr.Mixed),
-        (utils_models.Robot.Ur10, VelRepr.Inertial),
-        (utils_models.Robot.Ur10, VelRepr.Body),
-        (utils_models.Robot.Ur10, VelRepr.Mixed),
-        (utils_models.Robot.AnymalC, VelRepr.Inertial),
-        (utils_models.Robot.AnymalC, VelRepr.Body),
-        (utils_models.Robot.AnymalC, VelRepr.Mixed),
-        (utils_models.Robot.Cassie, VelRepr.Inertial),
-        (utils_models.Robot.Cassie, VelRepr.Body),
-        (utils_models.Robot.Cassie, VelRepr.Mixed),
-        # (utils_models.Robot.iCub, VelRepr.Inertial),
-        # (utils_models.Robot.iCub, VelRepr.Body),
-        # (utils_models.Robot.iCub, VelRepr.Mixed),
+        p(*[Robot.DoublePendulum, VelRepr.Inertial], id="DoublePendulum-Inertial"),
+        p(*[Robot.DoublePendulum, VelRepr.Body], id="DoublePendulum-Body"),
+        p(*[Robot.DoublePendulum, VelRepr.Mixed], id="DoublePendulum-Mixed"),
+        p(*[Robot.Ur10, VelRepr.Inertial], id="Ur10-Inertial"),
+        p(*[Robot.Ur10, VelRepr.Body], id="Ur10-Body"),
+        p(*[Robot.Ur10, VelRepr.Mixed], id="Ur10-Mixed"),
+        p(*[Robot.AnymalC, VelRepr.Inertial], id="AnymalC-Inertial"),
+        p(*[Robot.AnymalC, VelRepr.Body], id="AnymalC-Body"),
+        p(*[Robot.AnymalC, VelRepr.Mixed], id="AnymalC-Mixed"),
+        p(*[Robot.Cassie, VelRepr.Inertial], id="Cassie-Inertial"),
+        p(*[Robot.Cassie, VelRepr.Body], id="Cassie-Body"),
+        p(*[Robot.Cassie, VelRepr.Mixed], id="Cassie-Mixed"),
     ],
 )
 def test_aba(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
@@ -61,15 +59,13 @@ def test_aba(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     tau = model.joint_generalized_forces_targets()
 
     # Compute model acceleration with ABA
-    jit_enabled = True
-    fn = jax.jit if jit_enabled else lambda x: x
-    a_WB_aba, sdd_aba = fn(model.forward_dynamics_aba)(tau=tau)
+    v̇_WB_aba, s̈_aba = model.forward_dynamics_aba(tau=tau)
 
     # ==============================================
     # Compute forward dynamics with dedicated method
     # ==============================================
 
-    a_WB, sdd = model.forward_dynamics_crb(tau=tau)
+    v̇_WB, s̈ = model.forward_dynamics_crb(tau=tau)
 
-    assert sdd.squeeze() == pytest.approx(sdd_aba.squeeze(), abs=0.5)
-    assert a_WB.squeeze() == pytest.approx(a_WB_aba.squeeze(), abs=0.2)
+    assert s̈.squeeze() == pytest.approx(s̈_aba.squeeze(), abs=0.5)
+    assert v̇_WB.squeeze() == pytest.approx(v̇_WB_aba.squeeze(), abs=0.2)

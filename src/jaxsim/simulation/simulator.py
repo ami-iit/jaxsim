@@ -1,7 +1,12 @@
 import dataclasses
 import functools
 import pathlib
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 import jax
 import jax.numpy as jnp
@@ -12,7 +17,6 @@ from jax_dataclasses import Static
 import jaxsim.high_level
 import jaxsim.parsers.descriptions as descriptions
 import jaxsim.physics
-import jaxsim.simulation.simulator_callbacks as scb
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.high_level.common import VelRepr
@@ -20,12 +24,14 @@ from jaxsim.high_level.model import Model, StepData
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
-from jaxsim.simulation import ode_integration
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.utils import Mutability, Vmappable, oop
+
+from . import simulator_callbacks as scb
+from .ode_integration import IntegratorType
 
 
 @jax_dataclasses.pytree_dataclass
-class SimulatorData(JaxsimDataclass):
+class SimulatorData(Vmappable):
     """
     Data used by the simulator.
 
@@ -53,11 +59,11 @@ class SimulatorData(JaxsimDataclass):
 
 
 @jax_dataclasses.pytree_dataclass
-class JaxSim(JaxsimDataclass):
+class JaxSim(Vmappable):
     """The JaxSim simulator."""
 
     # Step size stored in ns in order to prevent floats approximation
-    step_size_ns: jtp.Int = dataclasses.field(
+    step_size_ns: Static[jtp.Int] = dataclasses.field(
         default_factory=lambda: jnp.array(1_000_000, dtype=jnp.uint64)
     )
 
@@ -71,8 +77,8 @@ class JaxSim(JaxsimDataclass):
     )
 
     # Integrator type
-    integrator_type: Static[ode_integration.IntegratorType] = dataclasses.field(
-        default=ode_integration.IntegratorType.EulerForward
+    integrator_type: Static[IntegratorType] = dataclasses.field(
+        default=IntegratorType.EulerForward
     )
 
     # Simulator data
@@ -83,7 +89,7 @@ class JaxSim(JaxsimDataclass):
         step_size: jtp.Float,
         steps_per_run: jtp.Int = 1,
         velocity_representation: VelRepr = VelRepr.Inertial,
-        integrator_type: ode_integration.IntegratorType = ode_integration.IntegratorType.EulerSemiImplicit,
+        integrator_type: IntegratorType = IntegratorType.EulerSemiImplicit,
         simulator_data: SimulatorData = None,
     ) -> "JaxSim":
         """
@@ -108,6 +114,9 @@ class JaxSim(JaxsimDataclass):
             data=simulator_data if simulator_data is not None else SimulatorData(),
         )
 
+    @functools.partial(
+        oop.jax_tf.method_rw, static_argnames=["remove_models"], validate=False
+    )
     def reset(self, remove_models: bool = True) -> None:
         """
         Reset the simulator.
@@ -124,6 +133,7 @@ class JaxSim(JaxsimDataclass):
         else:
             _ = [m.zero() for m in self.models()]
 
+    @functools.partial(oop.jax_tf.method_rw, jit=False)
     def set_step_size(self, step_size: float) -> None:
         """
         Set the integration step size.
@@ -134,6 +144,18 @@ class JaxSim(JaxsimDataclass):
 
         self.step_size_ns = jnp.array(step_size * 1e9, dtype=jnp.uint64)
 
+    @functools.partial(oop.jax_tf.method_ro, jit=False)
+    def step_size(self) -> jtp.Float:
+        """
+        Get the integration step size.
+
+        Returns:
+            The integration step size in seconds.
+        """
+
+        return jnp.array(self.step_size_ns / 1e9, dtype=float)
+
+    @functools.partial(oop.jax_tf.method_ro)
     def dt(self) -> jtp.Float:
         """
         Return the integration step size in seconds.
@@ -142,8 +164,9 @@ class JaxSim(JaxsimDataclass):
             The integration step size in seconds.
         """
 
-        return (self.step_size_ns * self.steps_per_run) / 1e9
+        return jnp.array((self.step_size_ns * self.steps_per_run) / 1e9, dtype=float)
 
+    @functools.partial(oop.jax_tf.method_ro)
     def time(self) -> jtp.Float:
         """
         Return the current simulation time in seconds.
@@ -152,8 +175,9 @@ class JaxSim(JaxsimDataclass):
             The current simulation time in seconds.
         """
 
-        return self.data.time_ns / 1e9
+        return jnp.array(self.data.time_ns / 1e9, dtype=float)
 
+    @functools.partial(oop.jax_tf.method_ro)
     def gravity(self) -> jtp.Vector:
         """
         Return the 3D gravity vector.
@@ -162,9 +186,10 @@ class JaxSim(JaxsimDataclass):
             The 3D gravity vector.
         """
 
-        return self.data.gravity
+        return jnp.array(self.data.gravity, dtype=float)
 
-    def model_names(self) -> List[str]:
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
+    def model_names(self) -> tuple[str, ...]:
         """
         Return the list of model names.
 
@@ -172,8 +197,11 @@ class JaxSim(JaxsimDataclass):
             The list of model names.
         """
 
-        return list(self.data.models.keys())
+        return tuple(self.data.models.keys())
 
+    @functools.partial(
+        oop.jax_tf.method_ro, static_argnames=["model_name"], jit=False, vmap=False
+    )
     def get_model(self, model_name: str) -> Model:
         """
         Return the model with the given name.
@@ -190,7 +218,8 @@ class JaxSim(JaxsimDataclass):
 
         return self.data.models[model_name]
 
-    def models(self, model_names: List[str] = None) -> List[Model]:
+    @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
+    def models(self, model_names: tuple[str, ...] = None) -> tuple[Model, ...]:
         """
         Return the simulated models.
 
@@ -203,8 +232,9 @@ class JaxSim(JaxsimDataclass):
         """
 
         model_names = model_names if model_names is not None else self.model_names()
-        return [self.data.models[name] for name in model_names]
+        return tuple(self.data.models[name] for name in model_names)
 
+    @functools.partial(oop.jax_tf.method_rw)
     def set_gravity(self, gravity: jtp.Vector) -> None:
         """
         Set the gravity vector to all the simulated models.
@@ -213,7 +243,7 @@ class JaxSim(JaxsimDataclass):
             gravity: The 3D gravity vector.
         """
 
-        gravity = jnp.array(gravity)
+        gravity = jnp.array(gravity, dtype=float)
 
         if gravity.size != 3:
             raise ValueError(gravity)
@@ -223,13 +253,12 @@ class JaxSim(JaxsimDataclass):
         for model_name, model in self.data.models.items():
             model.physics_model.set_gravity(gravity=gravity)
 
-        self._set_mutability(self._mutability())
-
+    @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)
     def insert_model_from_description(
         self,
         model_description: Union[pathlib.Path, str, rod.Model],
         model_name: Optional[str] = None,
-        considered_joints: Optional[List[str]] = None,
+        considered_joints: List[str] = None,
     ) -> Model:
         """
         Insert a model from a model description.
@@ -244,6 +273,9 @@ class JaxSim(JaxsimDataclass):
         Returns:
             The newly inserted model.
         """
+
+        if self.vectorized:
+            raise RuntimeError("Cannot insert a model in a vectorized simulation")
 
         # Build the model from the given model description
         model = jaxsim.high_level.model.Model.build_from_model_description(
@@ -261,13 +293,10 @@ class JaxSim(JaxsimDataclass):
         # Insert the model
         self.data.models[model.name()] = model
 
-        # Propagate the current mutability property to make sure that also the
-        # newly inserted model matches the mutability of the simulator
-        self._set_mutability(self._mutability())
-
         # Return the newly inserted model
         return self.data.models[model.name()]
 
+    @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)
     def insert_model_from_sdf(
         self,
         sdf: Union[pathlib.Path, str],
@@ -289,6 +318,7 @@ class JaxSim(JaxsimDataclass):
             considered_joints=considered_joints,
         )
 
+    @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)
     def insert_model(
         self, model_description: descriptions.ModelDescription, model_name: str = None
     ) -> Model:
@@ -302,6 +332,9 @@ class JaxSim(JaxsimDataclass):
         Returns:
             The newly inserted model.
         """
+
+        if self.vectorized:
+            raise RuntimeError("Cannot insert a model in a vectorized simulation")
 
         model_name = model_name if model_name is not None else model_description.name
 
@@ -323,11 +356,16 @@ class JaxSim(JaxsimDataclass):
 
         # Insert the model into the simulators
         self.data.models[model.name()] = model
-        self._set_mutability(self._mutability())
 
         # Return the newly inserted model
         return self.data.models[model.name()]
 
+    @functools.partial(
+        oop.jax_tf.method_rw,
+        jit=False,
+        validate=False,
+        static_argnames=["model_name"],
+    )
     def remove_model(self, model_name: str) -> None:
         """
         Remove a model from the simulator.
@@ -341,8 +379,8 @@ class JaxSim(JaxsimDataclass):
             raise ValueError(msg)
 
         _ = self.data.models.pop(model_name)
-        self._set_mutability(self._mutability())
 
+    @functools.partial(oop.jax_tf.method_rw, vmap_in_axes=(0, None))
     def step(self, clear_inputs: bool = False) -> Dict[str, StepData]:
         """
         Advance the simulation by one step.
@@ -384,16 +422,22 @@ class JaxSim(JaxsimDataclass):
         # Store the final time
         self.data.time_ns += dt_ns
 
-        self._set_mutability(self._mutability())
         return step_data
 
-    @functools.partial(jax.jit, static_argnames=["horizon_steps"])
+    @functools.partial(
+        oop.jax_tf.method_ro,
+        static_argnames=["horizon_steps"],
+        vmap_in_axes=(0, None, 0, None),
+    )
     def step_over_horizon(
         self,
         horizon_steps: jtp.Int,
         callback_handler: Union["scb.SimulatorCallback", "scb.CallbackHandler"] = None,
         clear_inputs: jtp.Bool = False,
-    ) -> Union["JaxSim", Tuple["JaxSim", Tuple["scb.SimulatorCallback", jtp.PyTree]]]:
+    ) -> Union[
+        "JaxSim",
+        tuple["JaxSim", tuple["scb.SimulatorCallback", tuple[jtp.PyTree, jtp.PyTree]]],
+    ]:
         """
         Advance the simulation by a given number of steps.
 
@@ -404,8 +448,9 @@ class JaxSim(JaxsimDataclass):
 
         Returns:
             The updated simulator if no callback handler is provided, otherwise a tuple
-            containing the updated simulator and a tuple with the updated callback object
-            and the optional output it produced.
+            containing the updated simulator and a tuple containing callback data.
+            The optional callback data is a tuple containing the updated callback object,
+            the produced pre-step output, and the produced post-step output.
         """
 
         # Process a mutable copy of the simulator
@@ -434,18 +479,21 @@ class JaxSim(JaxsimDataclass):
         sim = configure_cb(sim) if configure_cb is not None else sim
 
         # Initialize the carry
-        Carry = Tuple[JaxSim, scb.CallbackHandler]
+        Carry = tuple[JaxSim, scb.CallbackHandler]
         carry_init: Carry = (sim, callback_handler)
 
-        def body_fun(carry: Carry, xs: None) -> Tuple[Carry, jtp.PyTree]:
+        def body_fun(
+            carry: Carry, xs: None
+        ) -> tuple[Carry, tuple[jtp.PyTree, jtp.PyTree]]:
             sim, callback_handler = carry
 
             # Make sure to pass a mutable version of the simulator to the callbacks
             sim = sim.mutable(validate=True)
 
             # Callback: pre-step
-            # TODO: should we allow also producing a pre-step output?
-            sim = pre_step_cb(sim) if pre_step_cb is not None else sim
+            sim, out_pre_step = (
+                pre_step_cb(sim) if pre_step_cb is not None else (sim, None)
+            )
 
             # Integrate all models
             step_data = sim.step(clear_inputs=clear_inputs)
@@ -460,12 +508,13 @@ class JaxSim(JaxsimDataclass):
             # Pack the carry
             carry = (sim, callback_handler)
 
-            return carry, out_post_step
+            return carry, (out_pre_step, out_post_step)
 
         # Integrate over the given horizon
-        (sim, callback_handler), out_cb_horizon = jax.lax.scan(
-            f=body_fun, init=carry_init, xs=None, length=horizon_steps
-        )
+        (sim, callback_handler), (
+            out_pre_step_horizon,
+            out_post_step_horizon,
+        ) = jax.lax.scan(f=body_fun, init=carry_init, xs=None, length=horizon_steps)
 
         # Enforce original mutability of the entire simulator
         sim._set_mutability(original_mutability)
@@ -473,5 +522,22 @@ class JaxSim(JaxsimDataclass):
         return (
             sim
             if callback_handler is None
-            else (sim, (callback_handler, out_cb_horizon))
+            else (
+                sim,
+                (callback_handler, (out_pre_step_horizon, out_post_step_horizon)),
+            )
         )
+
+    def vectorize(self: Self, batch_size: int) -> Self:
+        """
+        Inherit docs.
+        """
+
+        jaxsim_vec: JaxSim = super().vectorize(batch_size=batch_size)  # noqa
+
+        # We need to manually specify the batch size of the handled models
+        with jaxsim_vec.mutable_context(mutability=Mutability.MUTABLE):
+            for model in jaxsim_vec.models():
+                model.batch_size = batch_size
+
+        return jaxsim_vec

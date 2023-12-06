@@ -100,20 +100,22 @@ class PhysicsModel(JaxsimDataclass):
         # Dicts from the joint index to the static and viscous friction.
         # Note: the joint index is equal to its child link index.
         joint_friction_static = {
-            joint.index: joint.friction_static for joint in model_description.joints
+            joint.index: jnp.array(joint.friction_static, dtype=float)
+            for joint in model_description.joints
         }
         joint_friction_viscous = {
-            joint.index: joint.friction_viscous for joint in model_description.joints
+            joint.index: jnp.array(joint.friction_viscous, dtype=float)
+            for joint in model_description.joints
         }
 
         # Dicts from the joint index to the spring and damper joint limits parameters.
         # Note: the joint index is equal to its child link index.
         joint_limit_spring = {
-            joint.index: joint.position_limit_spring
+            joint.index: jnp.array(joint.position_limit_spring, dtype=float)
             for joint in model_description.joints
         }
         joint_limit_damper = {
-            joint.index: joint.position_limit_damper
+            joint.index: jnp.array(joint.position_limit_damper, dtype=float)
             for joint in model_description.joints
         }
 

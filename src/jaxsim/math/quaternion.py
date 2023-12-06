@@ -33,7 +33,7 @@ class Quaternion:
         omega_in_body_fixed: bool = False,
         K: float = 0.1,
     ) -> jtp.Vector:
-        w = omega.squeeze()
+        ω = omega.squeeze()
         quaternion = quaternion.squeeze()
 
         def Q_body(q: jtp.Vector) -> jtp.Matrix:
@@ -67,10 +67,20 @@ class Quaternion:
             operand=quaternion,
         )
 
+        norm_ω = jax.lax.cond(
+            pred=ω.dot(ω) < (1e-6) ** 2,
+            true_fun=lambda _: 1e-6,
+            false_fun=lambda _: jnp.linalg.norm(ω),
+            operand=None,
+        )
+
         qd = 0.5 * (
             Q
             @ jnp.hstack(
-                [K * jnp.linalg.norm(w) * (1 - jnp.linalg.norm(quaternion)), w]
+                [
+                    K * norm_ω * (1 - jnp.linalg.norm(quaternion)),
+                    ω,
+                ]
             )
         )
 

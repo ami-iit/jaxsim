@@ -1155,7 +1155,7 @@ class Model(Vmappable):
 
         # Configure the slice for fixed/floating base robots
         sl = np.s_[0:] if self.physics_model.is_floating_base else np.s_[6:]
-        sl_m = np.s_[-self.dofs() :]
+        sl_m = np.s_[M.shape[0] - self.dofs() :]
 
         # Add the motor related terms to the EoM
         M = M.at[sl_m, sl_m].set(M[sl_m, sl_m] + jnp.diag(Γ.T @ IM @ Γ))
@@ -1163,10 +1163,17 @@ class Model(Vmappable):
         S = S.at[sl_m].set(S[sl_m])
 
         # Compute the generalized acceleration by inverting the EoM
-        ν̇ = (
-            jnp.linalg.inv(M[sl, sl])
-            @ ((S @ τ)[sl] - h[sl] + J[:, sl].T @ f_ext).squeeze()
-        )
+        ν̇ = jax.lax.select(
+            pred=self.floating_base(),
+            on_true=jnp.linalg.inv(M) @ ((S @ τ) - h + J.T @ f_ext),
+            on_false=jnp.vstack(
+                [
+                    jnp.zeros(shape=(6, 1)),
+                    jnp.linalg.inv(M[6:, 6:])
+                    @ ((S @ τ)[6:] - h[6:] + J[:, 6:].T @ f_ext),
+                ]
+            ),
+        ).squeeze()
 
         # Extract the base acceleration in the active representation.
         # Note that this is an apparent acceleration (relevant in Mixed representation),

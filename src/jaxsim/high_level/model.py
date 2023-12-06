@@ -1558,26 +1558,25 @@ class Model(Vmappable):
             )
         )
 
-        # self.physics_model._joint_motor_viscous_friction |= dict(
-        #     zip(
-        #         self.physics_model._joint_motor_viscous_friction.keys(),
-        #         viscous_frictions,
-        #     )
-        # )
-
         logging.info("Setting attribute `motor_viscous_frictions`")
 
     @functools.partial(oop.jax_tf.method_ro, jit=False)
     def motor_inertias(self) -> jtp.Vector:
-        return jnp.array([*self.physics_model._joint_motor_inertia.values()])
+        return jnp.array(
+            [*self.physics_model._joint_motor_inertia.values()], dtype=float
+        )
 
     @functools.partial(oop.jax_tf.method_ro, jit=False)
     def motor_gear_ratios(self) -> jtp.Vector:
-        return jnp.array([*self.physics_model._joint_motor_gear_ratio.values()])
+        return jnp.array(
+            [*self.physics_model._joint_motor_gear_ratio.values()], dtype=float
+        )
 
     @functools.partial(oop.jax_tf.method_ro, jit=False)
     def motor_viscous_frictions(self) -> jtp.Vector:
-        return jnp.array([*self.physics_model._joint_motor_viscous_friction.values()])
+        return jnp.array(
+            [*self.physics_model._joint_motor_viscous_friction.values()], dtype=float
+        )
 
     # ===============
     # Private methods

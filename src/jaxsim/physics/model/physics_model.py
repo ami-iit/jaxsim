@@ -53,6 +53,12 @@ class PhysicsModel(JaxsimDataclass):
     _joint_limit_spring: Dict[int, float] = dataclasses.field(default_factory=dict)
     _joint_limit_damper: Dict[int, float] = dataclasses.field(default_factory=dict)
 
+    _joint_motor_inertia: Dict[int, float] = dataclasses.field(default_factory=dict)
+    _joint_motor_gear_ratio: Dict[int, float] = dataclasses.field(default_factory=dict)
+    _joint_motor_viscous_friction: Dict[int, float] = dataclasses.field(
+        default_factory=dict
+    )
+
     def __post_init__(self):
         if self.initial_state is None:
             initial_state = PhysicsModelState.zero(physics_model=self)
@@ -119,6 +125,21 @@ class PhysicsModel(JaxsimDataclass):
             for joint in model_description.joints
         }
 
+        # Dicts from the joint index to the motor inertia, gear ratio and viscous friction.
+        # Note: the joint index is equal to its child link index.
+        joint_motor_inertia = {
+            joint.index: jnp.array(joint.motor_inertia, dtype=float)
+            for joint in model_description.joints
+        }
+        joint_motor_gear_ratio = {
+            joint.index: jnp.array(joint.motor_gear_ratio, dtype=float)
+            for joint in model_description.joints
+        }
+        joint_motor_viscous_friction = {
+            joint.index: jnp.array(joint.motor_viscous_friction, dtype=float)
+            for joint in model_description.joints
+        }
+
         # Transform between model's root and model's base link
         # (this is just the pose of the base link in the SDF description)
         base_link = model_description.links_dict[model_description.link_names()[0]]
@@ -179,6 +200,9 @@ class PhysicsModel(JaxsimDataclass):
             _joint_friction_viscous=joint_friction_viscous,
             _joint_limit_spring=joint_limit_spring,
             _joint_limit_damper=joint_limit_damper,
+            _joint_motor_gear_ratio=joint_motor_gear_ratio,
+            _joint_motor_inertia=joint_motor_inertia,
+            _joint_motor_viscous_friction=joint_motor_viscous_friction,
             gravity=jnp.hstack([gravity.squeeze(), np.zeros(3)]),
             is_floating_base=True,
             gc=GroundContact.build_from(model_description=model_description),

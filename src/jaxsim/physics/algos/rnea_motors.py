@@ -41,6 +41,12 @@ def rnea(
     S = model.motion_subspaces(q=q)
     i_X_λi = jnp.zeros_like(pre_X_λi)
 
+    Γ = jnp.array([*model._joint_motor_gear_ratio.values()])
+    IM = jnp.array([*model._joint_motor_inertia.values()])
+    K_v = jnp.array([*model._joint_motor_viscous_friction.values()])
+    K̅ᵥ = jnp.diag(Γ.T * jnp.diag(K_v) * Γ)
+    m_S = jnp.concatenate([S[:1], S[1:] * Γ[:, None, None]], axis=0)
+
     i_X_0 = jnp.zeros_like(pre_X_λi)
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
 
@@ -51,6 +57,10 @@ def rnea(
     v = jnp.array([jnp.zeros([6, 1])] * model.NB)
     a = jnp.array([jnp.zeros([6, 1])] * model.NB)
     f = jnp.array([jnp.zeros([6, 1])] * model.NB)
+
+    v_m = jnp.array([jnp.zeros([6, 1])] * model.NB)
+    a_m = jnp.array([jnp.zeros([6, 1])] * model.NB)
+    f_m = jnp.array([jnp.zeros([6, 1])] * model.NB)
 
     # 6D transform of base velocity
     B_X_W = Adjoint.from_quaternion_and_translation(
@@ -81,25 +91,40 @@ def rnea(
         f = f.at[0].set(f_0)
 
     ForwardPassCarry = Tuple[
-        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
+        jtp.MatrixJax,
     ]
-    forward_pass_carry = (i_X_λi, v, a, i_X_0, f)
+    forward_pass_carry = (i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m)
 
     def forward_pass(
         carry: ForwardPassCarry, i: jtp.Int
     ) -> Tuple[ForwardPassCarry, None]:
         ii = i - 1
-        i_X_λi, v, a, i_X_0, f = carry
+        i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m = carry
 
         vJ = S[i] * qd[ii]
+        vJ_m = m_S[i] * qd[ii]
+
         i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
 
+        v_i_m = i_X_λi[i] @ v_m[λ[i]] + vJ_m
+        v_m = v_m.at[i].set(v_i_m)
+
         a_i = i_X_λi[i] @ a[λ[i]] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
         a = a.at[i].set(a_i)
+
+        a_i_m = i_X_λi[i] @ a_m[λ[i]] + m_S[i] * qdd[ii] + Cross.vx(v_m[i]) @ vJ_m
+        a_m = a_m.at[i].set(a_i_m)
 
         i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
@@ -112,9 +137,12 @@ def rnea(
         )
         f = f.at[i].set(f_i)
 
-        return (i_X_λi, v, a, i_X_0, f), None
+        f_i_m = IM[i] * a_m[i] + Cross.vx_star(v_m[i]) * IM[i] @ v_m[i]
+        f_m = f_m.at[i].set(f_i_m)
 
-    (i_X_λi, v, a, i_X_0, f), _ = jax.lax.scan(
+        return (i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m), None
+
+    (i_X_λi, v, v_m, a, a_m, i_X_0, f, f_m), _ = jax.lax.scan(
         f=forward_pass,
         init=forward_pass_carry,
         xs=np.arange(start=1, stop=model.NB),
@@ -122,33 +150,37 @@ def rnea(
 
     tau = jnp.zeros_like(q)
 
-    BackwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
-    backward_pass_carry = (tau, f)
+    BackwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax]
+    backward_pass_carry = (tau, f, f_m)
 
     def backward_pass(
         carry: BackwardPassCarry, i: jtp.Int
     ) -> Tuple[BackwardPassCarry, None]:
         ii = i - 1
-        tau, f = carry
+        tau, f, f_m = carry
 
-        value = S[i].T @ f[i]
+        value = S[i].T @ f[i] + m_S[i].T @ f_m[i]  # + K̅ᵥ[i] * qd[ii]
         tau = tau.at[ii].set(value.squeeze())
 
-        def update_f(f: jtp.MatrixJax) -> jtp.MatrixJax:
+        def update_f(ffm: Tuple[jtp.MatrixJax, jtp.MatrixJax]) -> jtp.MatrixJax:
+            f, f_m = ffm
             f_λi = f[λ[i]] + i_X_λi[i].T @ f[i]
             f = f.at[λ[i]].set(f_λi)
-            return f
 
-        f = jax.lax.cond(
+            f_m_λi = f_m[λ[i]] + i_X_λi[i].T @ f_m[i]
+            f_m = f_m.at[λ[i]].set(f_m_λi)
+            return f, f_m
+
+        f, f_m = jax.lax.cond(
             pred=jnp.array([λ[i] != 0, model.is_floating_base]).any(),
             true_fun=update_f,
             false_fun=lambda f: f,
-            operand=f,
+            operand=(f, f_m),
         )
 
-        return (tau, f), None
+        return (tau, f, f_m), None
 
-    (tau, f), _ = jax.lax.scan(
+    (tau, f, f_m), _ = jax.lax.scan(
         f=backward_pass,
         init=backward_pass_carry,
         xs=np.flip(np.arange(start=1, stop=model.NB)),

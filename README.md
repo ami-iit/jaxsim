@@ -29,6 +29,10 @@
 [jax]: https://github.com/google/jax/
 [notation]: https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2
 
+## Documentation
+
+The JAXsim API documentation is available at [kaxsim.readthedocs.io](https://jaxsim.readthedocs.io/).
+
 ## Installation
 
 You can install the project with [`pypa/pip`][pip], preferably in a [virtual environment][venv]:

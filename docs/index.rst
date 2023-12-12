@@ -58,7 +58,7 @@ Here below we summarize the differences between the projects:
 - JAXsim supports SDF (and, indirectly, URDF) models, assuming the model is described with the
   recent `Pose Frame Semantics <http://sdformat.org/tutorials?tut=pose_frame_semantics>`_.
 - Contrarily to brax, JAXsim only supports collision detection between bodies and a compliant ground surface.
-- The RBDAs of JAXsim support automatic differentiation, but this functionality has not being thoroughly tested.
+- The RBDAs of JAXsim support automatic differentiation, but this functionality has not been thoroughly tested.
 
 Contributing
 ------------

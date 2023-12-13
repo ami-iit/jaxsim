@@ -76,6 +76,8 @@
         <parent link="cart"/> 
         <child link="pole"/> 
         <axis xyz="1 0 0"/> 
-        <limit effort="500.0" velocity="10.0" lower="-3.4028234663852886e+38" upper="3.4028234663852886e+38"/> 
+        <!-- We avoid to use -3.4028234663852886e+38 as limits as mujoco parser have some problems with this,
+             TODO(traversaro) report issue in mujoco upstream -->
+        <limit effort="500.0" velocity="10.0" lower="-100000000" upper="100000000"/> 
     </joint>
 </robot>

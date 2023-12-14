@@ -74,6 +74,10 @@ class JointDescription(JaxsimDataclass):
     position_limit: Tuple[float, float] = (0.0, 0.0)
     initial_position: Union[float, npt.NDArray] = 0.0
 
+    motor_inertia: float = 0.0
+    motor_viscous_friction: float = 0.0
+    motor_gear_ratio: float = 1.0
+
     def __post_init__(self):
         if self.axis is not None:
             with self.mutable_context(

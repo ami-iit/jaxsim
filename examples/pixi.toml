@@ -1,10 +1,13 @@
 [project]
 authors = ["Filippo Luca Ferretti <filippoluca.ferretti@outlook.com>"]
-channels = ["conda-forge"]
+channels = ["conda-forge", "nvidia"]
 description = "JAXsim PD controller notebook"
 name = "JAXsim examples"
-platforms = ["linux-64", "osx-64"]
+platforms = ["linux-64"]
 version = "0.1.0"
+
+[system-requirements]
+cuda = "12"
 
 [tasks]
 install = "python -m pip install git+https://github.com/ami-iit/jaxsim.git"
@@ -22,14 +25,7 @@ pptree = "*"
 rod = "*"
 typing-extensions = "*"
 
-[target.osx-64.dependencies]
-ml_dtypes = "*"
-numpy = "*"
-wheel = "*"
-
-[target.osx-64.pypi-dependencies]
-jax-metal = "*"
-
 [target.linux-64.dependencies]
-jax = "*"
-jaxlib = "*"
+cuda-nvcc = "12.*"
+# jax = "*"
+# jaxlib = "*"

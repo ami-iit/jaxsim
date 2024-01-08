@@ -41,6 +41,11 @@ Check `setup.cfg` for the complete list of optional dependencies. Install all of
 
 **Note:** For GPU support, follow the official `installation instruction of JAX <https://github.com/google/jax/#installation>`_.
 
+Examples
+--------
+
+Explore and learn how to use the library through practical demonstrations available in the `examples <https://github.com/ami-iit/jaxsim/tree/main/examples>`__ folder.
+
 Credits
 -------
 

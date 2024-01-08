@@ -11,8 +11,8 @@ cuda = "12"
 unix = true
 
 [tasks]
+PD_controller = {cmd = "jupyter notebook PD_controller.ipynb", depends_on = ["install"]}
 install = "python -m pip install git+https://github.com/ami-iit/jaxsim.git"
-notebook = {cmd = "jupyter notebook PD_controller.ipynb", depends_on = ["install"]}
 
 [dependencies]
 cuda-nvcc = {channel = "nvidia", version = ">=12.3,<12.4"}

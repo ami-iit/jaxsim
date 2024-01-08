@@ -4,7 +4,7 @@ This folder includes a Jupyter Notebook demonstrating practical usage of JAXsim 
 
 ### Examples
 
-- [PD_controller](./PD_controller.ipynb) - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
+- [PD_controller](https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/PD_controller.ipynb) - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
 
 > [!TIP]
 > Stay tuned for more examples!

@@ -9,8 +9,8 @@ import numpy as np
 from jax_dataclasses import Static
 
 import jaxsim.parsers
-import jaxsim.sixd as sixd
 import jaxsim.typing as jtp
+from jaxsim import sixd
 from jaxsim.physics.algos.jacobian import jacobian
 from jaxsim.utils import Vmappable, oop
 

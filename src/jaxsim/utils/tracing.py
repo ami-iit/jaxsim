@@ -22,4 +22,4 @@ def tracing(var: Any) -> bool | jax.Array:
 def not_tracing(var: Any) -> bool | jax.Array:
     """Returns True if the variable is not being traced by JAX, False otherwise."""
 
-    return not tracing(var)
+    return True if tracing(var) is False else False

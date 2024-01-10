@@ -77,7 +77,7 @@ def dx_dt(
     t: Optional[jtp.Float],
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
-    ode_input: ode_data.ODEInput = None,
+    ode_input: Optional[ode_data.ODEInput] = None,
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[ode_data.ODEState, Dict[str, Any]]:
     """

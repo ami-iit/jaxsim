@@ -1,6 +1,6 @@
 import dataclasses
 import functools
-from typing import Any
+from typing import Any, Optional
 
 import jax.lax
 import jax.numpy as jnp
@@ -122,7 +122,7 @@ class Link(Vmappable):
         return self.parent_model.forward_kinematics()[self.index()]
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["vel_repr"])
-    def velocity(self, vel_repr: VelRepr = None) -> jtp.Vector:
+    def velocity(self, vel_repr: Optional[VelRepr] = None) -> jtp.Vector:
         """"""
 
         v_WL = (
@@ -133,19 +133,19 @@ class Link(Vmappable):
         return v_WL
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["vel_repr"])
-    def linear_velocity(self, vel_repr: VelRepr = None) -> jtp.Vector:
+    def linear_velocity(self, vel_repr: Optional[VelRepr] = None) -> jtp.Vector:
         """"""
 
         return self.velocity(vel_repr=vel_repr)[0:3]
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["vel_repr"])
-    def angular_velocity(self, vel_repr: VelRepr = None) -> jtp.Vector:
+    def angular_velocity(self, vel_repr: Optional[VelRepr] = None) -> jtp.Vector:
         """"""
 
         return self.velocity(vel_repr=vel_repr)[3:6]
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["output_vel_repr"])
-    def jacobian(self, output_vel_repr: VelRepr = None) -> jtp.Matrix:
+    def jacobian(self, output_vel_repr: Optional[VelRepr] = None) -> jtp.Matrix:
         """"""
 
         if output_vel_repr is None:

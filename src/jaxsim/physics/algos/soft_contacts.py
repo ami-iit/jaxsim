@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Tuple
+from typing import Optional, Tuple
 
 import jax
 import jax.flatten_util
@@ -52,7 +52,7 @@ def collidable_points_pos_vel(
     model: PhysicsModel,
     q: jtp.Vector,
     qd: jtp.Vector,
-    xfb: jtp.Vector = None,
+    xfb: Optional[jtp.Vector] = None,
 ) -> Tuple[jtp.Matrix, jtp.Matrix]:
     """
     Compute the position and linear velocity of collidable points in the world frame.

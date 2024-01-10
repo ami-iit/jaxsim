@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -18,7 +18,7 @@ def aba(
     q: jtp.Vector,
     qd: jtp.Vector,
     tau: jtp.Vector,
-    f_ext: jtp.Matrix = None,
+    f_ext: Optional[jtp.Matrix] = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Articulated Body Algorithm (ABA) algorithm for forward dynamics.

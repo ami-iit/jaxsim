@@ -397,7 +397,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def links(
-        self, link_names: tuple[str, ...] = None
+        self, link_names: Optional[tuple[str, ...]] = None
     ) -> tuple[high_level.link.Link, ...]:
         """"""
 
@@ -421,7 +421,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def joints(
-        self, joint_names: tuple[str, ...] = None
+        self, joint_names: Optional[tuple[str, ...]] = None
     ) -> tuple[high_level.joint.Joint, ...]:
         """"""
 
@@ -445,7 +445,9 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["link_names", "terrain"])
     def in_contact(
-        self, link_names: tuple[str, ...] = None, terrain: Terrain = FlatTerrain()
+        self,
+        link_names: Optional[tuple[str, ...]] = None,
+        terrain: Terrain = FlatTerrain(),
     ) -> jtp.Vector:
         """"""
 
@@ -482,7 +484,9 @@ class Model(Vmappable):
     # =================
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
-    def joint_positions(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
+    def joint_positions(
+        self, joint_names: Optional[tuple[str, ...]] = None
+    ) -> jtp.Vector:
         """"""
 
         return self.data.model_state.joint_positions[
@@ -491,7 +495,9 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_random_positions(
-        self, joint_names: tuple[str, ...] = None, key: jax.Array = None
+        self,
+        joint_names: Optional[tuple[str, ...]] = None,
+        key: Optional[jax.Array] = None,
     ) -> jtp.Vector:
         """"""
 
@@ -510,7 +516,9 @@ class Model(Vmappable):
         return s_random
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
-    def joint_velocities(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
+    def joint_velocities(
+        self, joint_names: Optional[tuple[str, ...]] = None
+    ) -> jtp.Vector:
         """"""
 
         return self.data.model_state.joint_velocities[
@@ -519,7 +527,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_generalized_forces_targets(
-        self, joint_names: tuple[str, ...] = None
+        self, joint_names: Optional[tuple[str, ...]] = None
     ) -> jtp.Vector:
         """"""
 
@@ -527,7 +535,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["joint_names"])
     def joint_limits(
-        self, joint_names: tuple[str, ...] = None
+        self, joint_names: Optional[tuple[str, ...]] = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         """"""
 
@@ -645,8 +653,8 @@ class Model(Vmappable):
     def apply_external_force_to_link(
         self,
         link_name: str,
-        force: jtp.Array = None,
-        torque: jtp.Array = None,
+        force: Optional[jtp.Array] = None,
+        torque: Optional[jtp.Array] = None,
         additive: bool = True,
     ) -> None:
         """"""
@@ -700,8 +708,8 @@ class Model(Vmappable):
     def apply_external_force_to_link_com(
         self,
         link_name: str,
-        force: jtp.Array = None,
-        torque: jtp.Array = None,
+        force: Optional[jtp.Array] = None,
+        torque: Optional[jtp.Array] = None,
         additive: bool = True,
     ) -> None:
         """"""
@@ -771,7 +779,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["output_vel_repr"])
     def generalized_free_floating_jacobian(
-        self, output_vel_repr: VelRepr = None
+        self, output_vel_repr: Optional[VelRepr] = None
     ) -> jtp.Matrix:
         """"""
 
@@ -960,8 +968,8 @@ class Model(Vmappable):
     @functools.partial(oop.jax_tf.method_ro)
     def inverse_dynamics(
         self,
-        joint_accelerations: jtp.Vector = None,
-        base_acceleration: jtp.Vector = None,
+        joint_accelerations: Optional[jtp.Vector] = None,
+        base_acceleration: Optional[jtp.Vector] = None,
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         """
         Compute inverse dynamics with the RNEA algorithm.
@@ -1050,7 +1058,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro, static_argnames=["prefer_aba"])
     def forward_dynamics(
-        self, tau: jtp.Vector = None, prefer_aba: float = True
+        self, tau: Optional[jtp.Vector] = None, prefer_aba: float = True
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         """"""
 
@@ -1062,7 +1070,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro)
     def forward_dynamics_aba(
-        self, tau: jtp.Vector = None
+        self, tau: Optional[jtp.Vector] = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         """"""
 
@@ -1128,7 +1136,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_ro)
     def forward_dynamics_crb(
-        self, tau: jtp.Vector = None
+        self, tau: Optional[jtp.Vector] = None
     ) -> Tuple[jtp.Vector, jtp.Vector]:
         """"""
 
@@ -1226,7 +1234,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_joint_generalized_force_targets(
-        self, forces: jtp.Vector, joint_names: tuple[str, ...] = None
+        self, forces: jtp.Vector, joint_names: Optional[tuple[str, ...]] = None
     ) -> None:
         """"""
 
@@ -1246,7 +1254,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def reset_joint_positions(
-        self, positions: jtp.Vector, joint_names: tuple[str, ...] = None
+        self, positions: jtp.Vector, joint_names: Optional[tuple[str, ...]] = None
     ) -> None:
         """"""
 
@@ -1272,7 +1280,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def reset_joint_velocities(
-        self, velocities: jtp.Vector, joint_names: tuple[str, ...] = None
+        self, velocities: jtp.Vector, joint_names: Optional[tuple[str, ...]] = None
     ) -> None:
         """"""
 
@@ -1502,7 +1510,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_motor_inertias(
-        self, inertias: jtp.Vector, joint_names: tuple[str, ...] = None
+        self, inertias: jtp.Vector, joint_names: Optional[tuple[str, ...]] = None
     ) -> None:
         joint_names = joint_names or self.joint_names()
 
@@ -1517,7 +1525,7 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, jit=False)
     def set_motor_gear_ratios(
-        self, gear_ratios: jtp.Vector, joint_names: tuple[str, ...] = None
+        self, gear_ratios: jtp.Vector, joint_names: Optional[tuple[str, ...]] = None
     ) -> None:
         joint_names = joint_names or self.joint_names()
 
@@ -1539,7 +1547,9 @@ class Model(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, static_argnames=["joint_names"])
     def set_motor_viscous_frictions(
-        self, viscous_frictions: jtp.Vector, joint_names: tuple[str, ...] = None
+        self,
+        viscous_frictions: jtp.Vector,
+        joint_names: Optional[tuple[str, ...]] = None,
     ) -> None:
         joint_names = joint_names or self.joint_names()
 
@@ -1670,7 +1680,9 @@ class Model(Vmappable):
         else:
             raise ValueError(self.velocity_representation)
 
-    def _joint_indices(self, joint_names: tuple[str, ...] = None) -> jtp.Vector:
+    def _joint_indices(
+        self, joint_names: Optional[tuple[str, ...]] = None
+    ) -> jtp.Vector:
         """"""
 
         if joint_names is None:

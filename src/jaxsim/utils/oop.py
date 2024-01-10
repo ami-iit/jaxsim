@@ -225,10 +225,12 @@ class jax_tf:
 
                     try:
                         setattr(instance, f.name, getattr(obj, f.name))
-                    except AssertionError:
+                    except AssertionError as exc:
                         logging.debug(f"Old object:\n{getattr(instance, f.name)}")
                         logging.debug(f"New object:\n{getattr(obj, f.name)}")
-                        raise RuntimeError(f"Failed to update field '{f.name}'")
+                        raise RuntimeError(
+                            f"Failed to update field '{f.name}'"
+                        ) from exc
 
             return out
 

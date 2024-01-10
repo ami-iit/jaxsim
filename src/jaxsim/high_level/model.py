@@ -1153,8 +1153,7 @@ class Model(Vmappable):
         f_ext = jnp.vstack(self.external_forces().flatten())
         S = jnp.block([jnp.zeros(shape=(self.dofs(), 6)), jnp.eye(self.dofs())]).T
 
-        # Configure the slice for fixed/floating base robots
-        sl = np.s_[0:] if self.physics_model.is_floating_base else np.s_[6:]
+        # Configure the slice for motors
         sl_m = np.s_[M.shape[0] - self.dofs() :]
 
         # Add the motor related terms to the EoM

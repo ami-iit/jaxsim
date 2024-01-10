@@ -214,7 +214,7 @@ def aba(
 
         return (a, qdd), None
 
-    (a_, qdd), _ = jax.lax.scan(
+    (a, qdd), _ = jax.lax.scan(
         f=loop_body_pass3,
         init=pass_3_carry,
         xs=np.arange(1, model.NB),

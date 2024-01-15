@@ -98,7 +98,7 @@ class KinematicGraph:
     def build_from(
         links: List[descriptions.LinkDescription],
         joints: List[descriptions.JointDescription],
-        root_link_name: Optional[str] = None,
+        root_link_name: str | None = None,
         root_pose: RootPose = RootPose(),
     ) -> "KinematicGraph":
         if root_link_name is None:

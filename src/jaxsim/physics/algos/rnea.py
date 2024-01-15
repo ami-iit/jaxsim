@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +19,7 @@ def rnea(
     qd: jtp.Vector,
     qdd: jtp.Vector,
     a0fb: jtp.Vector = jnp.zeros(6),
-    f_ext: Optional[jtp.Matrix] = None,
+    f_ext: jtp.Matrix | None = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Recursive Newton-Euler Algorithm (RNEA) algorithm for inverse dynamics.

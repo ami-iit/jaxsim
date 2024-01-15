@@ -74,10 +74,10 @@ def compute_contact_forces(
 
 def dx_dt(
     x: ode_data.ODEState,
-    t: Optional[jtp.Float],
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
-    ode_input: Optional[ode_data.ODEInput] = None,
+    t: jtp.Float | None = None,
+    ode_input: ode_data.ODEInput | None = None,
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[ode_data.ODEState, Dict[str, Any]]:
     """
@@ -231,7 +231,7 @@ def dx_dt(
     # Build the full derivative of ODEState
     # =====================================
 
-    def fix_one_dof(vector: jtp.Vector) -> Optional[jtp.Vector]:
+    def fix_one_dof(vector: jtp.Vector) -> jtp.Vector | None:
         """Fix the shape of computed quantities for models with just 1 DoF."""
 
         if vector is None:

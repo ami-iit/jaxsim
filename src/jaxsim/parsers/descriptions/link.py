@@ -1,5 +1,5 @@
 import dataclasses
-from typing import List, Optional
+from typing import List
 
 import jax.numpy as jnp
 import jax_dataclasses
@@ -19,7 +19,7 @@ class LinkDescription(JaxsimDataclass):
     name: Static[str]
     mass: float
     inertia: jtp.Matrix
-    index: Optional[int] = None
+    index: int | None = None
     parent: Static["LinkDescription"] = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
     children: Static[List["LinkDescription"]] = dataclasses.field(

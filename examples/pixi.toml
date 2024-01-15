@@ -12,6 +12,7 @@ unix = true
 
 [tasks]
 PD_controller = {cmd = "jupyter notebook PD_controller.ipynb", depends_on = ["install"]}
+Parallel_computing = {cmd = "jupyter notebook Parallel_computing.ipynb", depends_on = ["install"]}
 install = "python -m pip install git+https://github.com/ami-iit/jaxsim.git"
 
 [dependencies]

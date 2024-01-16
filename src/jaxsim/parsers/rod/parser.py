@@ -27,14 +27,14 @@ class SDFData(NamedTuple):
     joint_descriptions: List[descriptions.JointDescription]
     collision_shapes: List[descriptions.CollisionShape]
 
-    sdf_model: Optional[rod.Model] = None
+    sdf_model: rod.Model | None = None
     model_pose: kinematic_graph.RootPose = kinematic_graph.RootPose()
 
 
 def extract_model_data(
     model_description: Union[pathlib.Path, str, rod.Model],
-    model_name: Optional[str] = None,
-    is_urdf: Optional[bool] = None,
+    model_name: str | None = None,
+    is_urdf: bool | None = None,
 ) -> SDFData:
     """
     Extract data from an SDF/URDF resource useful to build a JaxSim model.

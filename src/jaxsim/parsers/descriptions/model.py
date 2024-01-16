@@ -2,9 +2,7 @@ import dataclasses
 import itertools
 from typing import List
 
-import numpy.typing as npt
-
-import jaxsim.logging as logging
+from jaxsim import logging
 
 from ..kinematic_graph import KinematicGraph, RootPose
 from .collision import CollidablePoint, CollisionShape
@@ -25,8 +23,8 @@ class ModelDescription(KinematicGraph):
         joints: List[JointDescription],
         collisions: List[CollisionShape] = (),
         fixed_base: bool = False,
-        base_link_name: str = None,
-        considered_joints: List[str] = None,
+        base_link_name: str | None = None,
+        considered_joints: List[str] | None = None,
         model_pose: RootPose = RootPose(),
     ) -> "ModelDescription":
         # Create the full kinematic graph
@@ -49,7 +47,7 @@ class ModelDescription(KinematicGraph):
         # Move and express the collision shapes of the removed link to the lumped link
         for collision_shape in collisions:
             # Get all the collidable points of the shape
-            coll_points = [cp for cp in collision_shape.collidable_points]
+            coll_points = list(collision_shape.collidable_points)
 
             # Assume they have an unique parent link
             if not len(set({cp.parent_link.name for cp in coll_points})) == 1:

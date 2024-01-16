@@ -1,6 +1,6 @@
 import dataclasses
 import pathlib
-from typing import List, Optional, Union
+from typing import List, Union
 
 import idyntree.bindings as idt
 import numpy as np
@@ -66,11 +66,11 @@ class KinDynComputations:
 
     def set_robot_state(
         self,
-        joint_positions: Optional[npt.NDArray] = None,
-        joint_velocities: Optional[npt.NDArray] = None,
+        joint_positions: npt.NDArray | None = None,
+        joint_velocities: npt.NDArray | None = None,
         base_transform: npt.NDArray = np.eye(4),
         base_velocity: npt.NDArray = np.zeros(6),
-        world_gravity: Optional[npt.NDArray] = None,
+        world_gravity: npt.NDArray | None = None,
     ) -> None:
         joint_positions = (
             joint_positions if joint_positions is not None else np.zeros(self.dofs())

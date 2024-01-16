@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpy.typing as npt
 
-import jaxsim.logging as logging
+from jaxsim import logging
 
 from .link import LinkDescription
 

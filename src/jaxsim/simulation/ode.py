@@ -74,9 +74,9 @@ def compute_contact_forces(
 
 def dx_dt(
     x: ode_data.ODEState,
+    t: jtp.Float | None,
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
-    t: jtp.Float | None = None,
     ode_input: ode_data.ODEInput | None = None,
     terrain: Terrain = FlatTerrain(),
 ) -> Tuple[ode_data.ODEState, Dict[str, Any]]:

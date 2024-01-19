@@ -31,7 +31,7 @@
 
 ## Documentation
 
-The JAXsim API documentation is available at [kaxsim.readthedocs.io](https://jaxsim.readthedocs.io/).
+The JAXsim API documentation is available at [jaxsim.readthedocs.io](https://jaxsim.readthedocs.io/).
 
 ## Installation
 
@@ -49,6 +49,10 @@ Install all of them with `jaxsim[all]`.
 [pip]: https://github.com/pypa/pip/
 [venv]: https://docs.python.org/3/tutorial/venv.html
 [jax_gpu]: https://github.com/google/jax/#installation
+
+## Quickstart
+
+Explore and learn how to use the library through practical demonstrations available in the [examples](./examples) folder.
 
 ## Credits
 

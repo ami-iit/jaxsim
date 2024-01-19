@@ -1,7 +1,6 @@
 name: jaxsim
 channels:
   - conda-forge
-  # - nvidia
 dependencies:
   - coloredlogs
   - python=3.11
@@ -10,7 +9,6 @@ dependencies:
   - jaxlib
   - jaxlie
   - jinja2
-  # - cuda-nvcc
   - rod
   - coloredlogs
   - sphinx

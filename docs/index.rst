@@ -28,18 +28,24 @@ Features
 - Default validation of JAX pytrees to prevent JIT re-compilations.
 - Preliminary support for automatic differentiation of RBDAs.
 
-Installation
-------------
+.. toctree::
+   :maxdepth: 2
+   :caption: User Guide
 
-You can install the project with `pypa/pip <https://github.com/pypa/pip/>`_, preferably in a `virtual environment <https://docs.python.org/3/tutorial/venv.html>`_:
+   guide/install
 
-.. code-block:: bash
+.. toctree::
+   :maxdepth: 2
+   :caption: JAXsim API
 
-    pip install jaxsim
+   modules/typing
+   modules/high_level
+   modules/math
+   modules/physics
+   modules/parsers
+   modules/simulation
+   modules/utils
 
-Check `setup.cfg` for the complete list of optional dependencies. Install all of them with ``jaxsim[all]``.
-
-**Note:** For GPU support, follow the official `installation instruction of JAX <https://github.com/google/jax/#installation>`_.
 
 Examples
 --------

@@ -570,15 +570,34 @@ class KinematicGraph:
                 yield child
 
     def __iter__(self) -> Iterable[descriptions.LinkDescription]:
-        return self.breadth_first_search(root=self.root)
+        yield from KinematicGraph.breadth_first_search(root=self.root)
 
-    def __getitem__(self, name: str) -> descriptions.LinkDescription:
-        if name not in self.links_dict:
-            raise KeyError(f"Link '{name}' not found in the kinematic graph.")
-        return self.links_dict[name]
+    def __reversed__(self) -> Iterable[descriptions.LinkDescription]:
+        yield from reversed(list(iter(self)))
 
     def __len__(self) -> int:
-        return len(self.links_dict)
+        return len(list(iter(self)))
 
-    def __contains__(self, name: str) -> bool:
-        return name in self.links_dict or name in self.frames_dict
+    def __contains__(self, item: Union[str, descriptions.LinkDescription]) -> bool:
+        if isinstance(item, str):
+            return item in self.link_names()
+
+        if isinstance(item, descriptions.LinkDescription):
+            return item in set(iter(self))
+
+        raise TypeError(type(item).__name__)
+
+    def __getitem__(self, key: Union[int, str]) -> descriptions.LinkDescription:
+        if isinstance(key, str):
+            if key not in self.link_names():
+                raise KeyError(key)
+
+            return self.links_dict[key]
+
+        if isinstance(key, int):
+            if key > len(self):
+                raise KeyError(key)
+
+            return list(iter(self))[key]
+
+        raise TypeError(type(key).__name__)

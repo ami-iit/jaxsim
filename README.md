@@ -21,13 +21,17 @@
 - Revolute, prismatic, and fixed joints support.
 - Integrators: forward Euler, semi-implicit Euler, Runge-Kutta 4.
 - High-level classes for object-oriented programming.
-- High-level classes to compute multi-body dynamics quantities from simulation state.
+- High-level classes to compute multi-body dynamics quantities from the simulation state.
 - High-level classes wrapping the low-level functional RBDAs with support of [multiple velocities representations][notation].
 - Default validation of JAX pytrees to prevent JIT re-compilations.
 - Preliminary support for automatic differentiation of RBDAs.
 
 [jax]: https://github.com/google/jax/
 [notation]: https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2
+
+## Documentation
+
+The JAXsim API documentation is available at [kaxsim.readthedocs.io](https://jaxsim.readthedocs.io/).
 
 ## Installation
 
@@ -66,7 +70,7 @@ Here below we summarize the differences between the projects:
 - JAXsim supports SDF (and, indirectly, URDF) models, assuming the model is described with the
   recent [Pose Frame Semantics][PFS].
 - Contrarily to brax, JAXsim only supports collision detection between bodies and a compliant ground surface.
-- The RBDAs of JAXsim support automatic differentiation, but this functionality has not being thoroughly tested.
+- The RBDAs of JAXsim support automatic differentiation, but this functionality has not been thoroughly tested.
 
 [brax]: https://github.com/google/brax
 [mjx]: https://mujoco.readthedocs.io/en/3.0.0/mjx.html

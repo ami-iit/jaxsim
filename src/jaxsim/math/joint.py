@@ -12,6 +12,19 @@ from .rotation import Rotation
 def jcalc(
     jtyp: Union[JointType, JointDescriptor], q: jtp.Float
 ) -> Tuple[jtp.Matrix, jtp.Vector]:
+    """
+    Compute the spatial transformation matrix and motion subspace vector for a joint.
+
+    Args:
+        jtyp (Union[JointType, JointDescriptor]): The type or descriptor of the joint.
+        q (jtp.Float): The joint configuration parameter.
+
+    Returns:
+        Tuple[jtp.Matrix, jtp.Vector]: A tuple containing the spatial transformation matrix (6x6) and the motion subspace vector (6x1).
+
+    Raises:
+        ValueError: If the joint type or descriptor is not recognized.
+    """
     if isinstance(jtyp, JointType):
         code = jtyp
     elif isinstance(jtyp, JointDescriptor):

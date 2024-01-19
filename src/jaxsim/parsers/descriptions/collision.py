@@ -13,6 +13,16 @@ from .link import LinkDescription
 
 @dataclasses.dataclass
 class CollidablePoint:
+    """
+    Represents a collidable point associated with a parent link.
+
+    Attributes:
+        parent_link (LinkDescription): The parent link to which the collidable point is attached.
+        position (npt.NDArray): The position of the collidable point relative to the parent link.
+        enabled (bool): A flag indicating whether the collidable point is enabled for collision detection.
+
+    """
+
     parent_link: LinkDescription
     position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
     enabled: bool = True
@@ -20,6 +30,17 @@ class CollidablePoint:
     def change_link(
         self, new_link: LinkDescription, new_H_old: npt.NDArray
     ) -> "CollidablePoint":
+        """
+        Move the collidable point to a new parent link.
+
+        Args:
+            new_link (LinkDescription): The new parent link to which the collidable point is moved.
+            new_H_old (npt.NDArray): The transformation matrix from the new link's frame to the old link's frame.
+
+        Returns:
+            CollidablePoint: A new collidable point associated with the new parent link.
+
+        """
         msg = f"Moving collidable point: {self.parent_link.name} -> {new_link.name}"
         logging.debug(msg=msg)
 
@@ -41,6 +62,14 @@ class CollidablePoint:
 
 @dataclasses.dataclass
 class CollisionShape(abc.ABC):
+    """
+    Abstract base class for representing collision shapes.
+
+    Attributes:
+        collidable_points (List[CollidablePoint]): A list of collidable points associated with the collision shape.
+
+    """
+
     collidable_points: List[CollidablePoint]
 
     def __str__(self):
@@ -54,9 +83,25 @@ class CollisionShape(abc.ABC):
 
 @dataclasses.dataclass
 class BoxCollision(CollisionShape):
+    """
+    Represents a box-shaped collision shape.
+
+    Attributes:
+        center (npt.NDArray): The center of the box in the local frame of the collision shape.
+
+    """
+
     center: npt.NDArray
 
 
 @dataclasses.dataclass
 class SphereCollision(CollisionShape):
+    """
+    Represents a spherical collision shape.
+
+    Attributes:
+        center (npt.NDArray): The center of the sphere in the local frame of the collision shape.
+
+    """
+
     center: npt.NDArray

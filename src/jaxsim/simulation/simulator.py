@@ -264,11 +264,9 @@ class JaxSim(Vmappable):
         Insert a model from a model description.
 
         Args:
-            model_description: A path to an SDF/URDF file, a string containing its content,
-                or a pre-parsed/pre-built rod model.
+            model_description: A path to an SDF/URDF file, a string containing its content, or a pre-parsed/pre-built rod model.
             model_name: The optional name of the model that overrides the one in the description.
-            considered_joints: Optional list of joints to consider.
-                               It is also useful to specify the joint serialization.
+            considered_joints: Optional list of joints to consider. It is also useful to specify the joint serialization.
 
         Returns:
             The newly inserted model.

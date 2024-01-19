@@ -19,12 +19,29 @@ from . import utils
 
 @jax_dataclasses.pytree_dataclass
 class SoftContactsState:
+    """
+    State of the soft contacts model.
+
+    Attributes:
+        tangential_deformation (jtp.Matrix): The tangential deformation of the material at each collidable point.
+    """
+
     tangential_deformation: jtp.Matrix
 
     @staticmethod
     def zero(
         physics_model: jaxsim.physics.model.physics_model.PhysicsModel,
     ) -> "SoftContactsState":
+        """
+        Modify the SoftContactsState instance imposing zero tangential deformation.
+
+        Args:
+            physics_model (jaxsim.physics.model.physics_model.PhysicsModel): The physics model.
+
+        Returns:
+            SoftContactsState: A SoftContactsState instance with zero tangential deformation.
+        """
+
         return SoftContactsState(
             tangential_deformation=jnp.zeros(shape=(3, physics_model.gc.body.size))
         )
@@ -32,6 +49,16 @@ class SoftContactsState:
     def valid(
         self, physics_model: jaxsim.physics.model.physics_model.PhysicsModel
     ) -> bool:
+        """
+        Check if the soft contacts state has valid shape.
+
+        Args:
+            physics_model (jaxsim.physics.model.physics_model.PhysicsModel): The physics model.
+
+        Returns:
+            bool: True if the state has a valid shape, otherwise False.
+        """
+
         from jaxsim.simulation.utils import check_valid_shape
 
         return check_valid_shape(
@@ -42,6 +69,16 @@ class SoftContactsState:
         )
 
     def replace(self, validate: bool = True, **kwargs) -> "SoftContactsState":
+        """
+        Replace attributes of the soft contacts state.
+
+        Args:
+            validate (bool, optional): Whether to validate the state after replacement. Defaults to True.
+
+        Returns:
+            SoftContactsState: A new SoftContactsState instance with replaced attributes.
+        """
+
         with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_state:
             _ = [updated_state.__setattr__(k, v) for k, v in kwargs.items()]
 
@@ -56,6 +93,15 @@ def collidable_points_pos_vel(
 ) -> Tuple[jtp.Matrix, jtp.Matrix]:
     """
     Compute the position and linear velocity of collidable points in the world frame.
+
+    Args:
+        model (PhysicsModel): The physics model.
+        q (jtp.Vector): The joint positions.
+        qd (jtp.Vector): The joint velocities.
+        xfb (jtp.Vector, optional): The floating base state. Defaults to None.
+
+    Returns:
+        Tuple[jtp.Matrix, jtp.Matrix]: A tuple containing the position and velocity of collidable points.
     """
 
     # Make sure that shape and size are correct
@@ -194,7 +240,17 @@ class SoftContactsParams:
     def build(
         K: float = 1e6, D: float = 2_000, mu: float = 0.5
     ) -> "SoftContactsParams":
-        """"""
+        """
+        Create a SoftContactsParams instance with specified parameters.
+
+        Args:
+            K (float, optional): The stiffness parameter. Defaults to 1e6.
+            D (float, optional): The damping parameter. Defaults to 2000.
+            mu (float, optional): The friction coefficient. Defaults to 0.5.
+
+        Returns:
+            SoftContactsParams: A SoftContactsParams instance with the specified parameters.
+        """
 
         return SoftContactsParams(
             K=jnp.array(K, dtype=float),
@@ -219,6 +275,18 @@ class SoftContacts:
         velocity: jtp.Vector,
         tangential_deformation: jtp.Vector,
     ) -> Tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact forces and material deformation rate.
+
+        Args:
+            position (jtp.Vector): The position of the collidable point.
+            velocity (jtp.Vector): The linear velocity of the collidable point.
+            tangential_deformation (jtp.Vector): The tangential deformation.
+
+        Returns:
+            Tuple[jtp.Vector, jtp.Vector]: A tuple containing the contact force and material deformation rate.
+        """
+
         # Short name of parameters
         K = self.parameters.K
         D = self.parameters.D

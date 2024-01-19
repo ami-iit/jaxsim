@@ -23,12 +23,38 @@ from . import descriptions
 
 
 class RootPose(NamedTuple):
+    """
+    Represents the root pose in a kinematic graph.
+
+    Attributes:
+        root_position (npt.NDArray): A NumPy array of shape (3,) representing the root's position.
+        root_quaternion (npt.NDArray): A NumPy array of shape (4,) representing the root's quaternion.
+    """
+
     root_position: npt.NDArray = np.zeros(3)
     root_quaternion: npt.NDArray = np.array([1.0, 0, 0, 0])
 
 
 @dataclasses.dataclass(frozen=True)
 class KinematicGraph:
+    """
+    Represents a kinematic graph of links and joints.
+
+    Args:
+        root (descriptions.LinkDescription): The root link of the kinematic graph.
+        frames (List[descriptions.LinkDescription]): A list of frame links in the graph.
+        joints (List[descriptions.JointDescription]): A list of joint descriptions in the graph.
+        root_pose (RootPose): The root pose of the graph.
+        transform_cache (Dict[str, npt.NDArray]): A dictionary to cache transformation matrices.
+        extra_info (Dict[str, Any]): Additional information associated with the graph.
+
+    Attributes:
+        links_dict (Dict[str, descriptions.LinkDescription]): A dictionary mapping link names to link descriptions.
+        frames_dict (Dict[str, descriptions.LinkDescription]): A dictionary mapping frame names to frame link descriptions.
+        joints_dict (Dict[str, descriptions.JointDescription]): A dictionary mapping joint names to joint descriptions.
+        joints_connection_dict (Dict[Tuple[str, str], descriptions.JointDescription]): A dictionary mapping pairs of parent and child link names to joint descriptions.
+    """
+
     root: descriptions.LinkDescription
     frames: List[descriptions.LinkDescription] = dataclasses.field(default_factory=list)
     joints: List[descriptions.JointDescription] = dataclasses.field(
@@ -64,6 +90,9 @@ class KinematicGraph:
         return {(j.parent.name, j.child.name): j for j in self.joints}
 
     def __post_init__(self):
+        """
+        Post-initialization method to set various properties and validate the kinematic graph.
+        """
         # Assign the link index traversing the graph with BFS.
         # Here we assume the model is fixed-base, therefore the base link will
         # have index 0. We will deal with the floating base in a later stage,
@@ -101,12 +130,24 @@ class KinematicGraph:
         root_link_name: str | None = None,
         root_pose: RootPose = RootPose(),
     ) -> "KinematicGraph":
+        """
+        Build a KinematicGraph from a list of links and joints.
+
+        Args:
+            links (List[descriptions.LinkDescription]): A list of link descriptions.
+            joints (List[descriptions.JointDescription]): A list of joint descriptions.
+            root_link_name (str, optional): The name of the root link. If not provided, it's assumed to be the first link's name.
+            root_pose (RootPose, optional): The root pose of the kinematic graph.
+
+        Returns:
+            KinematicGraph: The constructed kinematic graph.
+        """
         if root_link_name is None:
             root_link_name = links[0].name
 
         # Couple links and joints and create the graph of links.
-        # Note that the pose of the frames is not updated, it's callers
-        # responsibility updating their pose if they want to use them.
+        # Note that the pose of the frames is not updated; it's the caller's
+        # responsibility to update their pose if they want to use them.
         graph_root_node, graph_joints, graph_frames = KinematicGraph.create_graph(
             links=links, joints=joints, root_link_name=root_link_name
         )
@@ -128,6 +169,19 @@ class KinematicGraph:
         List[descriptions.JointDescription],
         List[descriptions.LinkDescription],
     ]:
+        """
+        Create a kinematic graph from lists of links and joints.
+
+        Args:
+            links (List[descriptions.LinkDescription]): A list of link descriptions.
+            joints (List[descriptions.JointDescription]): A list of joint descriptions.
+            root_link_name (str): The name of the root link.
+
+        Returns:
+            Tuple[descriptions.LinkDescription, List[descriptions.JointDescription], List[descriptions.LinkDescription]]:
+                A tuple containing the root link, list of joints, and list of frames in the graph.
+        """
+
         # Create a dict that maps link name to the link, for easy retrieval
         links_dict: Dict[str, descriptions.LinkDescription] = {
             l.name: l.mutable(validate=False) for l in links
@@ -190,6 +244,15 @@ class KinematicGraph:
         )
 
     def reduce(self, considered_joints: List[str]) -> "KinematicGraph":
+        """
+        Reduce the kinematic graph by removing specified joints and lumping the mass and inertia of removed links into their parent links.
+
+        Args:
+            considered_joints (List[str]): A list of joint names to consider.
+
+        Returns:
+            KinematicGraph: The reduced kinematic graph.
+        """
         # The current object represents the complete kinematic graph
         full_graph = self
 
@@ -368,15 +431,42 @@ class KinematicGraph:
         return reduced_graph
 
     def link_names(self) -> List[str]:
+        """
+        Get the names of all links in the kinematic graph.
+
+        Returns:
+            List[str]: A list of link names.
+        """
         return list(self.links_dict.keys())
 
     def joint_names(self) -> List[str]:
+        """
+        Get the names of all joints in the kinematic graph.
+
+        Returns:
+            List[str]: A list of joint names.
+        """
         return list(self.joints_dict.keys())
 
     def frame_names(self) -> List[str]:
+        """
+        Get the names of all frames in the kinematic graph.
+
+        Returns:
+            List[str]: A list of frame names.
+        """
         return list(self.frames_dict.keys())
 
     def transform(self, name: str) -> npt.NDArray:
+        """
+        Compute the transformation matrix for a given link, joint, or frame.
+
+        Args:
+            name (str): The name of the link, joint, or frame.
+
+        Returns:
+            npt.NDArray: The transformation matrix.
+        """
         if name in self.transform_cache:
             return self.transform_cache[name]
 
@@ -412,11 +502,24 @@ class KinematicGraph:
         return self.transform_cache[name]
 
     def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
+        """
+        Compute the relative transformation matrix between two elements in the kinematic graph.
+
+        Args:
+            relative_to (str): The name of the reference element.
+            name (str): The name of the element to compute the relative transformation for.
+
+        Returns:
+            npt.NDArray: The relative transformation matrix.
+        """
         return np.linalg.inv(self.transform(name=relative_to)) @ self.transform(
             name=name
         )
 
     def print_tree(self) -> None:
+        """
+        Print the tree structure of the kinematic graph.
+        """
         import pptree
 
         root_node = self.root
@@ -433,10 +536,20 @@ class KinematicGraph:
         root: descriptions.LinkDescription,
         sort_children: Optional[Callable[[Any], Any]] = lambda link: link.name,
     ) -> Iterable[descriptions.LinkDescription]:
+        """
+        Perform a breadth-first search (BFS) traversal of the kinematic graph.
+
+        Args:
+            root (descriptions.LinkDescription): The root link for BFS.
+            sort_children (Optional[Callable[[Any], Any]]): A function to sort children of a node.
+
+        Yields:
+            Iterable[descriptions.LinkDescription]: An iterable of link descriptions.
+        """
         queue = [root]
 
-        # We assume that nodes have unique name, and mark a link as visited using
-        # its name. This speeds up considerably objects comparison.
+        # We assume that nodes have unique names, and mark a link as visited using
+        # its name. This speeds up considerably object comparison.
         visited = []
         visited.append(root.name)
 
@@ -446,7 +559,7 @@ class KinematicGraph:
             l = queue.pop(0)
 
             # Note: sorting the links with their name so that the order of children
-            #       insertion does not matter when assigning the link index
+            # insertion does not matter when assigning the link index
             for child in sorted(l.children, key=sort_children):
                 if child.name in visited:
                     continue

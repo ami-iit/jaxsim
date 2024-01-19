@@ -12,6 +12,20 @@ from .link import LinkDescription
 
 @dataclasses.dataclass(frozen=True)
 class ModelDescription(KinematicGraph):
+    """
+    Description of a robotic model including links, joints, and collision shapes.
+
+    Args:
+        name (str): The name of the model.
+        fixed_base (bool): Indicates whether the model has a fixed base.
+        collision_shapes (List[CollisionShape]): List of collision shapes associated with the model.
+
+    Attributes:
+        name (str): The name of the model.
+        fixed_base (bool): Indicates whether the model has a fixed base.
+        collision_shapes (List[CollisionShape]): List of collision shapes associated with the model.
+    """
+
     name: str = None
     fixed_base: bool = True
     collision_shapes: List[CollisionShape] = dataclasses.field(default_factory=list)
@@ -27,6 +41,26 @@ class ModelDescription(KinematicGraph):
         considered_joints: List[str] | None = None,
         model_pose: RootPose = RootPose(),
     ) -> "ModelDescription":
+        """
+        Build a model description from provided components.
+
+        Args:
+            name (str): The name of the model.
+            links (List[LinkDescription]): List of link descriptions.
+            joints (List[JointDescription]): List of joint descriptions.
+            collisions (List[CollisionShape]): List of collision shapes associated with the model.
+            fixed_base (bool): Indicates whether the model has a fixed base.
+            base_link_name (str): Name of the base link.
+            considered_joints (List[str]): List of joint names to consider.
+            model_pose (RootPose): Pose of the model's root.
+
+        Returns:
+            ModelDescription: A ModelDescription instance representing the model.
+
+        Raises:
+            ValueError: If invalid or missing input data.
+        """
+
         # Create the full kinematic graph
         kinematic_graph = KinematicGraph.build_from(
             links=links,
@@ -111,6 +145,19 @@ class ModelDescription(KinematicGraph):
         return model
 
     def reduce(self, considered_joints: List[str]) -> "ModelDescription":
+        """
+        Reduce the model by removing specified joints.
+
+        Args:
+            considered_joints (List[str]): List of joint names to consider.
+
+        Returns:
+            ModelDescription: A reduced ModelDescription instance.
+
+        Raises:
+            ValueError: If the specified joints are not part of the model.
+        """
+
         msg = "The model reduction logic assumes that removed joints have zero angles"
         logging.info(msg=msg)
 
@@ -131,6 +178,18 @@ class ModelDescription(KinematicGraph):
         )
 
     def update_collision_shape_of_link(self, link_name: str, enabled: bool) -> None:
+        """
+        Enable or disable collision shapes associated with a link.
+
+        Args:
+            link_name (str): Name of the link.
+            enabled (bool): Enable or disable collision shapes associated with the link.
+
+        Raises:
+            ValueError: If the link name is not found in the model.
+
+        """
+
         if link_name not in self.link_names():
             raise ValueError(link_name)
 
@@ -140,6 +199,20 @@ class ModelDescription(KinematicGraph):
             point.enabled = enabled
 
     def collision_shape_of_link(self, link_name: str) -> CollisionShape:
+        """
+        Get the collision shape associated with a specific link.
+
+        Args:
+            link_name (str): Name of the link.
+
+        Returns:
+            CollisionShape: The collision shape associated with the link.
+
+        Raises:
+            ValueError: If the link name is not found in the model.
+
+        """
+
         if link_name not in self.link_names():
             raise ValueError(link_name)
 
@@ -153,6 +226,13 @@ class ModelDescription(KinematicGraph):
         )
 
     def all_enabled_collidable_points(self) -> List[CollidablePoint]:
+        """
+        Get all enabled collidable points in the model.
+
+        Returns:
+            List[CollidablePoint]: A list of all enabled collidable points.
+
+        """
         # Get iterator of all collidable points
         all_collidable_points = itertools.chain.from_iterable(
             [shape.collidable_points for shape in self.collision_shapes]

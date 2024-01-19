@@ -8,10 +8,23 @@ from .skew import Skew
 class Convert:
     @staticmethod
     def coordinates_tf(X: jtp.Matrix, p: jtp.Matrix) -> jtp.Matrix:
+        """
+        Transform coordinates from one frame to another using a transformation matrix.
+
+        Args:
+            X (jtp.Matrix): The transformation matrix (4x4 or 6x6).
+            p (jtp.Matrix): The coordinates to be transformed (3xN).
+
+        Returns:
+            jtp.Matrix: Transformed coordinates (3xN).
+
+        Raises:
+            ValueError: If the input matrix p does not have shape (3, N).
+        """
         X = X.squeeze()
         p = p.squeeze()
 
-        # If p has shape (X,), transform it to column vector
+        # If p has shape (X,), transform it to a column vector
         p = jnp.vstack(p) if len(p.shape) == 1 else p
         rows_p, cols_p = p.shape
 
@@ -31,6 +44,19 @@ class Convert:
 
     @staticmethod
     def velocities_threed(v_6d: jtp.Matrix, p: jtp.Matrix) -> jtp.Matrix:
+        """
+        Compute 3D velocities based on 6D velocities and positions.
+
+        Args:
+            v_6d (jtp.Matrix): The 6D velocities (6xN).
+            p (jtp.Matrix): The positions (3xN).
+
+        Returns:
+            jtp.Matrix: 3D velocities (3xN).
+
+        Raises:
+            ValueError: If the input matrices have incompatible shapes.
+        """
         v = v_6d.squeeze()
         p = p.squeeze()
 
@@ -53,6 +79,19 @@ class Convert:
 
     @staticmethod
     def forces_sixd(f_3d: jtp.Matrix, p: jtp.Matrix) -> jtp.Matrix:
+        """
+        Compute 6D forces based on 3D forces and positions.
+
+        Args:
+            f_3d (jtp.Matrix): The 3D forces (3xN).
+            p (jtp.Matrix): The positions (3xN).
+
+        Returns:
+            jtp.Matrix: 6D forces (6xN).
+
+        Raises:
+            ValueError: If the input matrices have incompatible shapes.
+        """
         f = f_3d.squeeze()
         p = p.squeeze()
 

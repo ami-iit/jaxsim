@@ -54,7 +54,7 @@ class Joint(Vmappable):
         return self.joint_description.name
 
     @functools.partial(oop.jax_tf.method_ro)
-    def position(self, dof: int = None) -> jtp.Float:
+    def position(self, dof: int | None = None) -> jtp.Float:
         """"""
 
         dof = dof if dof is not None else 0
@@ -65,7 +65,7 @@ class Joint(Vmappable):
         )
 
     @functools.partial(oop.jax_tf.method_ro)
-    def velocity(self, dof: int = None) -> jtp.Float:
+    def velocity(self, dof: int | None = None) -> jtp.Float:
         """"""
 
         dof = dof if dof is not None else 0
@@ -76,7 +76,7 @@ class Joint(Vmappable):
         )
 
     @functools.partial(oop.jax_tf.method_ro)
-    def force_target(self, dof: int = None) -> jtp.Float:
+    def force_target(self, dof: int | None = None) -> jtp.Float:
         """"""
 
         dof = dof if dof is not None else 0
@@ -89,7 +89,7 @@ class Joint(Vmappable):
         )
 
     @functools.partial(oop.jax_tf.method_ro)
-    def position_limit(self, dof: int = None) -> tuple[jtp.Float, jtp.Float]:
+    def position_limit(self, dof: int | None = None) -> tuple[jtp.Float, jtp.Float]:
         """"""
 
         dof = dof if dof is not None else 0

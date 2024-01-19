@@ -127,7 +127,7 @@ class KinematicGraph:
     def build_from(
         links: List[descriptions.LinkDescription],
         joints: List[descriptions.JointDescription],
-        root_link_name: str = None,
+        root_link_name: str | None = None,
         root_pose: RootPose = RootPose(),
     ) -> "KinematicGraph":
         """
@@ -267,7 +267,7 @@ class KinematicGraph:
             return copy.deepcopy(self)
 
         # Check if all considered joints are part of the full kinematic graph
-        if len(set(considered_joints) - set([j.name for j in full_graph.joints])) != 0:
+        if len(set(considered_joints) - set(j.name for j in full_graph.joints)) != 0:
             extra_j = set(considered_joints) - set([j.name for j in full_graph.joints])
             msg = f"Not all joints to consider are part of the graph ({{{extra_j}}})"
             raise ValueError(msg)
@@ -550,7 +550,7 @@ class KinematicGraph:
 
         # We assume that nodes have unique names, and mark a link as visited using
         # its name. This speeds up considerably object comparison.
-        visited = list()
+        visited = []
         visited.append(root.name)
 
         yield root

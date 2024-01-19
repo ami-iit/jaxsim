@@ -1,6 +1,6 @@
 import dataclasses
 import enum
-from typing import Optional, Tuple, Union
+from typing import Tuple, Union
 
 import jax_dataclasses
 import numpy as np
@@ -110,7 +110,7 @@ class JointDescription(JaxsimDataclass):
     child: LinkDescription = dataclasses.dataclass(repr=False)
     parent: LinkDescription = dataclasses.dataclass(repr=False)
 
-    index: Optional[int] = None
+    index: int | None = None
 
     friction_static: float = 0.0
     friction_viscous: float = 0.0

@@ -20,7 +20,7 @@ def aba(
     q: jtp.Vector,
     qd: jtp.Vector,
     tau: jtp.Vector,
-    f_ext: jtp.Matrix = None,
+    f_ext: jtp.Matrix | None = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Articulated Body Algorithm (ABA) algorithm for forward dynamics.
@@ -233,7 +233,7 @@ def aba(
 
         return (a, qdd), None
 
-    (a_, qdd), _ = jax.lax.scan(
+    (a, qdd), _ = jax.lax.scan(
         f=loop_body_pass3,
         init=pass_3_carry,
         xs=np.arange(1, model.NB),

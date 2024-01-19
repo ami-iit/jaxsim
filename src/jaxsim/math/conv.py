@@ -65,7 +65,7 @@ class Convert:
         p = jnp.vstack(p) if len(p.shape) == 1 else p
 
         rows_v, cols_v = v.shape
-        rows_p, cols_p = p.shape
+        _, cols_p = p.shape
 
         if cols_v == 1 and cols_p > 1:
             v = jnp.repeat(v, cols_p, axis=1)
@@ -99,7 +99,7 @@ class Convert:
         fp = jnp.vstack(f) if len(f.shape) == 1 else f
         p = jnp.vstack(p) if len(p.shape) == 1 else p
 
-        rows_p, cols_p = p.shape
+        _, cols_p = p.shape
         rows_fp, cols_fp = fp.shape
 
         # Number of columns must match

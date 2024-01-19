@@ -19,7 +19,7 @@ def rnea(
     qd: jtp.Vector,
     qdd: jtp.Vector,
     a0fb: jtp.Vector = jnp.zeros(6),
-    f_ext: jtp.Matrix = None,
+    f_ext: jtp.Matrix | None = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Perform Inverse Dynamics Calculation using the Recursive Newton-Euler Algorithm (RNEA).

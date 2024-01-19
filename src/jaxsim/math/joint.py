@@ -35,11 +35,11 @@ def jcalc(
     if code is JointType.F:
         raise ValueError("Fixed joints shouldn't be here")
 
-    elif code is JointType.R:
+    if code is JointType.R:
         jtyp: JointGenericAxis
 
         Xj = Adjoint.from_rotation_and_translation(
-            rotation=Rotation.from_axis_angle(vector=(q * jtyp.axis)), inverse=True
+            rotation=Rotation.from_axis_angle(vector=q * jtyp.axis), inverse=True
         )
 
         S = jnp.vstack(jnp.hstack([jnp.zeros(3), jtyp.axis.squeeze()]))

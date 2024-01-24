@@ -3,6 +3,8 @@ import os
 import pathlib
 import sys
 
+from pkg_resources import get_distribution
+
 # -- Version information
 
 sys.path.insert(0, os.path.abspath("."))
@@ -11,10 +13,8 @@ sys.path.insert(0, os.path.abspath("../../"))
 
 module_path = os.path.abspath("../src/")
 sys.path.insert(0, module_path)
-version_file = os.path.abspath("../src/jaxsim/version.txt")
 
-with open(version_file) as file_handler:
-    __version__ = file_handler.read().strip()
+__version__ = get_distribution("jaxsim").version
 
 # -- Project information
 

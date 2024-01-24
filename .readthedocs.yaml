@@ -8,6 +8,11 @@ build:
 conda:
   environment: docs/jaxsim_conda_env.yml
 
+python:
+  install:
+    - method: pip
+      path: .
+      
 sphinx:
   configuration: docs/conf.py
 

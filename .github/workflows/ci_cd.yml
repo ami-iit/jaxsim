@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install Python tools
         run: pip install build twine
@@ -55,11 +55,10 @@ jobs:
         os:
           - ubuntu-22.04
           - macos-latest
-          # https://github.com/google/jax/issues/5795
-          # - windows-latest
+          - windows-latest
         python:
-          - "3.10"
           - "3.11"
+          - "3.12"
 
     steps:
 
@@ -74,19 +73,13 @@ jobs:
           path: dist
           name: dist
 
-      # Workaround: install iDynTree for Python 3.11
-      - name: iDynTree on Python 3.11
-        if: contains(matrix.os, 'ubuntu') && matrix.python == '3.11'
-        shell: bash
-        run: pip install --pre idyntree
-
       - name: Install wheel (ubuntu)
         if: contains(matrix.os, 'ubuntu')
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')[all]"
 
-      - name: Install wheel (macos)
-        if: contains(matrix.os, 'macos')
+      - name: Install wheel (macos|windows)
+        if: contains(matrix.os, 'macos') || contains(matrix.os, 'windows')
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')"
 
@@ -98,13 +91,13 @@ jobs:
           fetch-depth: 0
 
       - name: Install Gazebo Classic
-        if: contains(matrix.os, 'ubuntu') && (matrix.python == '3.10' || matrix.python == '3.11')
+        if: contains(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install gazebo
 
       - name: Run the Python tests
-        if: contains(matrix.os, 'ubuntu') && (matrix.python == '3.10' || matrix.python == '3.11')
+        if: contains(matrix.os, 'ubuntu')
         run: pytest
         env:
           JAX_PLATFORM_NAME: cpu

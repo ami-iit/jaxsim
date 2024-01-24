@@ -55,8 +55,7 @@ jobs:
         os:
           - ubuntu-22.04
           - macos-latest
-          # https://github.com/google/jax/issues/5795
-          # - windows-latest
+          - windows-latest
         python:
           - "3.11"
           - "3.12"

@@ -8,6 +8,7 @@ requires = [
 
 [tool.setuptools_scm]
 local_scheme = "dirty-tag"
+version_file = "src/jaxsim/_version.py"
 
 [tool.black]
 line-length = 88

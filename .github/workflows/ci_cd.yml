@@ -78,8 +78,8 @@ jobs:
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')[all]"
 
-      - name: Install wheel (macos)
-        if: contains(matrix.os, 'macos')
+      - name: Install wheel (macos|windows)
+        if: contains(matrix.os, 'macos') || contains(matrix.os, 'windows')
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')"
 

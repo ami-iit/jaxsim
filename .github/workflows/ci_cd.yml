@@ -58,8 +58,8 @@ jobs:
           # https://github.com/google/jax/issues/5795
           # - windows-latest
         python:
-          - "3.10"
           - "3.11"
+          - "3.12"
 
     steps:
 

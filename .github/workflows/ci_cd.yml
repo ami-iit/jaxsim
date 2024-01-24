@@ -91,13 +91,13 @@ jobs:
           fetch-depth: 0
 
       - name: Install Gazebo Classic
-        if: contains(matrix.os, 'ubuntu') && (matrix.python == '3.10' || matrix.python == '3.11')
+        if: contains(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install gazebo
 
       - name: Run the Python tests
-        if: contains(matrix.os, 'ubuntu') && (matrix.python == '3.10' || matrix.python == '3.11')
+        if: contains(matrix.os, 'ubuntu')
         run: pytest
         env:
           JAX_PLATFORM_NAME: cpu

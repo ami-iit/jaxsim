@@ -135,11 +135,13 @@ def extract_model_data(
                 parent=world_link,
                 child=links_dict[j.child],
                 jtype=utils.axis_to_jtype(axis=j.axis, type=j.type),
-                axis=np.array(j.axis.xyz.xyz)
-                if j.axis is not None
-                and j.axis.xyz is not None
-                and j.axis.xyz.xyz is not None
-                else None,
+                axis=(
+                    np.array(j.axis.xyz.xyz)
+                    if j.axis is not None
+                    and j.axis.xyz is not None
+                    and j.axis.xyz.xyz is not None
+                    else None
+                ),
                 pose=j.pose.transform() if j.pose is not None else np.eye(4),
             )
             for j in sdf_model.joints()
@@ -200,41 +202,55 @@ def extract_model_data(
             parent=links_dict[j.parent],
             child=links_dict[j.child],
             jtype=utils.axis_to_jtype(axis=j.axis, type=j.type),
-            axis=np.array(j.axis.xyz.xyz)
-            if j.axis is not None
-            and j.axis.xyz is not None
-            and j.axis.xyz.xyz is not None
-            else None,
+            axis=(
+                np.array(j.axis.xyz.xyz)
+                if j.axis is not None
+                and j.axis.xyz is not None
+                and j.axis.xyz.xyz is not None
+                else None
+            ),
             pose=j.pose.transform() if j.pose is not None else np.eye(4),
             initial_position=0.0,
             position_limit=(
-                float(j.axis.limit.lower)
-                if j.axis is not None and j.axis.limit is not None
-                else np.finfo(float).min,
-                float(j.axis.limit.upper)
-                if j.axis is not None and j.axis.limit is not None
-                else np.finfo(float).max,
+                (
+                    float(j.axis.limit.lower)
+                    if j.axis is not None and j.axis.limit is not None
+                    else np.finfo(float).min
+                ),
+                (
+                    float(j.axis.limit.upper)
+                    if j.axis is not None and j.axis.limit is not None
+                    else np.finfo(float).max
+                ),
             ),
-            friction_static=j.axis.dynamics.friction
-            if j.axis is not None
-            and j.axis.dynamics is not None
-            and j.axis.dynamics.friction is not None
-            else 0.0,
-            friction_viscous=j.axis.dynamics.damping
-            if j.axis is not None
-            and j.axis.dynamics is not None
-            and j.axis.dynamics.damping is not None
-            else 0.0,
-            position_limit_damper=j.axis.limit.dissipation
-            if j.axis is not None
-            and j.axis.limit is not None
-            and j.axis.limit.dissipation is not None
-            else 0.0,
-            position_limit_spring=j.axis.limit.stiffness
-            if j.axis is not None
-            and j.axis.limit is not None
-            and j.axis.limit.stiffness is not None
-            else 0.0,
+            friction_static=(
+                j.axis.dynamics.friction
+                if j.axis is not None
+                and j.axis.dynamics is not None
+                and j.axis.dynamics.friction is not None
+                else 0.0
+            ),
+            friction_viscous=(
+                j.axis.dynamics.damping
+                if j.axis is not None
+                and j.axis.dynamics is not None
+                and j.axis.dynamics.damping is not None
+                else 0.0
+            ),
+            position_limit_damper=(
+                j.axis.limit.dissipation
+                if j.axis is not None
+                and j.axis.limit is not None
+                and j.axis.limit.dissipation is not None
+                else 0.0
+            ),
+            position_limit_spring=(
+                j.axis.limit.stiffness
+                if j.axis is not None
+                and j.axis.limit is not None
+                and j.axis.limit.stiffness is not None
+                else 0.0
+            ),
         )
         for j in sdf_model.joints()
         if j.type in {"revolute", "prismatic", "fixed"}

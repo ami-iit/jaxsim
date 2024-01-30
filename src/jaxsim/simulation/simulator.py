@@ -432,8 +432,9 @@ class JaxSim(Vmappable):
     def step_over_horizon(
         self,
         horizon_steps: jtp.Int,
-        callback_handler: Union["scb.SimulatorCallback", "scb.CallbackHandler"]
-        | None = None,
+        callback_handler: (
+            Union["scb.SimulatorCallback", "scb.CallbackHandler"] | None
+        ) = None,
         clear_inputs: jtp.Bool = False,
     ) -> Union[
         "JaxSim",
@@ -459,10 +460,8 @@ class JaxSim(Vmappable):
         sim = self.copy().mutable(validate=True)
 
         # Helper to get callbacks from the handler
-        get_cb = (
-            lambda h, cb_name: getattr(h, cb_name)
-            if h is not None and hasattr(h, cb_name)
-            else None
+        get_cb = lambda h, cb_name: (
+            getattr(h, cb_name) if h is not None and hasattr(h, cb_name) else None
         )
 
         # Get the callbacks

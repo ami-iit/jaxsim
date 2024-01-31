@@ -3,15 +3,19 @@ import dataclasses
 import functools
 import inspect
 import os
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, TypeVar
 
 import jax
 import jax.flatten_util
+from typing_extensions import ParamSpec
 
 from jaxsim import logging
 from jaxsim.utils import tracing
 
 from . import Mutability, Vmappable
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 class jax_tf:
@@ -27,13 +31,13 @@ class jax_tf:
 
     @staticmethod
     def method_ro(
-        fn: Callable,
+        fn: Callable[_P, _R],
         jit: bool = True,
         static_argnames: tuple[str, ...] | list[str] = (),
         vmap: bool | None = None,
         vmap_in_axes: tuple[int, ...] | int | None = None,
         vmap_out_axes: tuple[int, ...] | int | None = None,
-    ):
+    ) -> Callable[_P, _R]:
         """
         Decorator for r/o methods of classes inheriting from Vmappable.
         """
@@ -51,14 +55,14 @@ class jax_tf:
 
     @staticmethod
     def method_rw(
-        fn: Callable,
+        fn: Callable[_P, _R],
         validate: bool = True,
         jit: bool = True,
         static_argnames: tuple[str, ...] | list[str] = (),
         vmap: bool | None = None,
         vmap_in_axes: tuple[int, ...] | int | None = None,
         vmap_out_axes: tuple[int, ...] | int | None = None,
-    ):
+    ) -> Callable[_P, _R]:
         """
         Decorator for r/w methods of classes inheriting from Vmappable.
         """
@@ -76,7 +80,7 @@ class jax_tf:
 
     @staticmethod
     def method(
-        fn: Callable,
+        fn: Callable[_P, _R],
         read_only: bool = True,
         validate: bool = True,
         jit_enabled: bool = True,
@@ -109,7 +113,7 @@ class jax_tf:
         """
 
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: _P.args, **kwargs: _P.kwargs):
             """The wrapper function that is returned by this decorator."""
 
             # Methods of classes inheriting from Vmappable decorated by this wrapper
@@ -202,9 +206,9 @@ class jax_tf:
             mutability_dict = {
                 Mutability.MUTABLE_NO_VALIDATION: Mutability.MUTABLE_NO_VALIDATION,
                 Mutability.MUTABLE: Mutability.MUTABLE,
-                Mutability.FROZEN: Mutability.MUTABLE
-                if validate
-                else Mutability.MUTABLE_NO_VALIDATION,
+                Mutability.FROZEN: (
+                    Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
+                ),
             }
 
             # We need to replace all the dynamic leafs of the original instance with those

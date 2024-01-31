@@ -385,13 +385,13 @@ class Model(Vmappable):
     def link_names(self) -> tuple[str, ...]:
         """"""
 
-        return tuple(l.name() for l in self.links())
+        return tuple(self.physics_model.description.links_dict.keys())
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def joint_names(self) -> tuple[str, ...]:
         """"""
 
-        return tuple(j.name() for j in self.joints())
+        return tuple(self.physics_model.description.joints_dict.keys())
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
     def links(

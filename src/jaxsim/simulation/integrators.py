@@ -5,6 +5,7 @@ import jax.numpy as jnp
 from jax.tree_util import tree_map
 
 import jaxsim.typing as jtp
+from jaxsim.math.quaternion import Quaternion
 from jaxsim.physics.algos.soft_contacts import SoftContactsState
 from jaxsim.physics.model.physics_model_state import PhysicsModelState
 from jaxsim.simulation.ode_data import ODEState
@@ -168,13 +169,14 @@ def odeint_euler_semi_implicit_one_step(
 
     Args:
         dx_dt: Callable that computes the state derivative.
-        x0: Initial state.
+        x0: Initial state as ODEState object.
         t0: Initial time.
         tf: Final time.
         num_sub_steps: Number of sub-steps to break the integration into.
 
     Returns:
-        The final state and a dictionary including auxiliary data at t0.
+        A tuple having as first element the final state as ODEState object,
+        and as second element a dictionary including auxiliary data at t0.
     """
 
     # Compute the sub-step size.
@@ -186,64 +188,88 @@ def odeint_euler_semi_implicit_one_step(
     Carry = Tuple[ODEState, Time]
     carry_init: Carry = (x0, t0)
 
-    def quaternion_derivative(W_Q_B: jtp.Vector, W_omega_WB: jtp.Vector) -> jtp.Vector:
-        from jaxsim.math.quaternion import Quaternion
-
-        return Quaternion.derivative(
-            quaternion=W_Q_B, omega=W_omega_WB, omega_in_body_fixed=False
-        ).squeeze()
-
-    def inertial_to_3d_mixed(
-        W_v_lin_WB: jtp.Vector, W_v_ang_WB: jtp.Vector, W_pos_B: jtp.Vector
-    ) -> jtp.Vector:
-        from jaxsim.math.conv import Convert
-
-        # Compute linear component of mixed velocity BW_v_WB
-        return Convert.velocities_threed(
-            v_6d=jnp.hstack([W_v_lin_WB, W_v_ang_WB]), p=W_pos_B.squeeze()
-        ).squeeze()
-
     def body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
         # Unpack the carry
         x_t0, t0 = carry
 
-        # Extract the initial position and velocity
-        pos_t0 = x_t0.physics_model.position()
-        vel_t0 = x_t0.physics_model.velocity()
-
-        # Compute the state derivative
+        # Compute the state derivative.
+        # We only keep the quantities related to the acceleration and discard those
+        # related to the velocity since we are going to use those implicitly integrated
+        # from the accelerations.
         StateDerivative = ODEState
         dxdt_t0: StateDerivative = dx_dt(x_t0, t0)[0]
+
+        # Extract the initial position ∈ ℝ⁷⁺ⁿ and initial velocity ∈ ℝ⁶⁺ⁿ.
+        # This integrator, contrarily to most of the other ones, is not generic.
+        # It expects to operate on an x object of class ODEState.
+        pos_t0 = x_t0.physics_model.position()
+        vel_t0 = x_t0.physics_model.velocity()
 
         # Extract the velocity derivative
         d_vel_dt = dxdt_t0.physics_model.velocity()
 
-        # Perform semi-implicit Euler integration [1-4].
+        # =============================================
+        # Perform semi-implicit Euler integration [1-4]
+        # =============================================
 
-        # 1. Integrate the velocities
+        # 1. Integrate the accelerations obtaining the implicit velocities
+        # 2. Compute the derivative of the generalized position
+        # 3. Integrate the implicit velocities
+        # 4. Integrate the remaining state
+
+        # ----------------------------------------------------------------
+        # 1. Integrate the accelerations obtaining the implicit velocities
+        # ----------------------------------------------------------------
+
         vel_tf = vel_t0 + sub_step_dt * d_vel_dt
 
-        # 2. Compute the quaternion derivative and the base position derivative
-        W_Qd_B = quaternion_derivative(
-            W_Q_B=x_t0.physics_model.base_quaternion, W_omega_WB=vel_tf[3:6]
+        # -----------------------------------------------------
+        # 2. Compute the derivative of the generalized position
+        # -----------------------------------------------------
+
+        # Extract the implicit angular velocity and the initial base quaternion
+        W_ω_WB = vel_tf[3:6]
+        W_Q_B = x_t0.physics_model.base_quaternion
+
+        # Compute the quaternion derivative and the base position derivative
+        W_Qd_B = Quaternion.derivative(
+            quaternion=W_Q_B, omega=W_ω_WB, omega_in_body_fixed=False
+        ).squeeze()
+
+        # Compute the transform of the mixed base frame at t0
+        W_H_BW = jnp.vstack(
+            [
+                jnp.block([jnp.eye(3), jnp.vstack(x_t0.physics_model.base_position)]),
+                jnp.array([0, 0, 0, 1]),
+            ]
         )
-        BW_v_WB = inertial_to_3d_mixed(
-            W_pos_B=x_t0.physics_model.base_position,
-            W_v_lin_WB=x_t0.physics_model.base_linear_velocity,
-            W_v_ang_WB=x_t0.physics_model.base_angular_velocity,
-        )
 
-        # 3. Compute the derivative of the position
-        posd_tf = jnp.hstack([BW_v_WB, W_Qd_B, vel_tf[6:]])
+        # The derivative W_ṗ_B of the base position is the linear component of the
+        # mixed velocity B[W]_v_WB. We need to compute it from the velocity in
+        # inertial-fixed representation W_vl_WB.
+        W_v_WB = vel_tf[0:6]
+        BW_Xv_W = se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
+        BW_vl_WB = (BW_Xv_W @ W_v_WB)[0:3]
 
-        # 4. Integrate the positions
-        pos_tf = pos_t0 + sub_step_dt * posd_tf
+        # Compute the derivative of the generalized position
+        d_pos_tf = jnp.hstack([BW_vl_WB, W_Qd_B, vel_tf[6:]])
 
-        # Integrate the remaining state
-        u = x_t0.soft_contacts.tangential_deformation
-        ud = dxdt_t0.soft_contacts.tangential_deformation
-        tangential_deformation_tf = u + sub_step_dt * ud
+        # ------------------------------------
+        # 3. Integrate the implicit velocities
+        # ------------------------------------
 
+        pos_tf = pos_t0 + sub_step_dt * d_pos_tf
+
+        # ---------------------------------
+        # 4. Integrate the remaining state
+        # ---------------------------------
+
+        # Integrate the derivative of the tangential material deformation
+        m = x_t0.soft_contacts.tangential_deformation
+        ṁ = dxdt_t0.soft_contacts.tangential_deformation
+        tangential_deformation_tf = m + sub_step_dt * ṁ
+
+        # Pack the new state into an ODEState object
         x_tf = ODEState(
             physics_model=PhysicsModelState(
                 base_position=pos_tf[0:3],
@@ -321,7 +347,7 @@ def integrate_single_step_over_horizon(
 
     # Integrate over the given horizon
     _, (x_horizon, aux_horizon) = jax.lax.scan(
-        f=body_fun, init=carry_init, xs=jnp.arange(start=0, stop=len(t))
+        f=body_fun, init=carry_init, xs=jnp.arange(start=0, stop=len(t), dtype=int)
     )
 
     return x_horizon, aux_horizon
@@ -374,26 +400,26 @@ def odeint_euler(
 
 def odeint_euler_semi_implicit(
     func,
-    y0: State,
+    y0: ODEState,
     t: TimeHorizon,
     *args,
     num_sub_steps: int = 1,
     return_aux: bool = False
-) -> Union[State, Tuple[State, Dict[str, Any]]]:
+) -> Union[ODEState, Tuple[ODEState, Dict[str, Any]]]:
     """
     Integrate a system of ODEs using the Semi-Implicit Euler method.
 
     Args:
         func: A function that computes the time-derivative of the state.
-        y0: The initial state.
+        y0: The initial state as ODEState object.
         t: The vector of time instants of the integration horizon.
         *args: Additional arguments to be passed to the function func.
         num_sub_steps: The number of sub-steps to be performed within each integration step.
         return_aux: Whether to return the auxiliary data produced by the integrator.
 
     Returns:
-        The state of the system at the end of the integration horizon, and optionally
-        the auxiliary data produced by the integrator.
+        The state of the system at the end of the integration horizon as ODEState object,
+        and optionally the auxiliary data produced by the integrator.
     """
 
     # Close func over additional inputs and parameters

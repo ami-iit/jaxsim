@@ -213,7 +213,7 @@ class JaxSim(Vmappable):
             The model with the given name.
         """
 
-        if model_name not in self.data.models.keys():
+        if model_name not in self.data.models:
             raise ValueError(f"Failed to find model '{model_name}'")
 
         return self.data.models[model_name]
@@ -250,7 +250,7 @@ class JaxSim(Vmappable):
 
         self.data.gravity = gravity
 
-        for model_name, model in self.data.models.items():
+        for model in self.data.models.values():
             model.physics_model.set_gravity(gravity=gravity)
 
     @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)

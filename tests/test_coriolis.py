@@ -57,6 +57,5 @@ def test_coriolis(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     h = model.free_floating_bias_forces()
     nu = np.array(model.forward_dynamics_aba())
 
-    assert np.allclose(h - (C @ nu))
-
-    assert np.allclose(M_dot - (C @ C.T), np.zeros_like(M_dot), atol=1e-5)
+    assert h == pytest.approx(C @ nu, abs=1e-5)
+    assert M_dot == pytest.approx(C @ C.T, abs=1e-5)

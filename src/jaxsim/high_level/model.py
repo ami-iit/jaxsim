@@ -321,8 +321,8 @@ class Model(Vmappable):
         """"""
 
         valid = True
-        valid = valid and all([l.valid() for l in self.links()])
-        valid = valid and all([j.valid() for j in self.joints()])
+        valid = valid and all(l.valid() for l in self.links())
+        valid = valid and all(j.valid() for j in self.joints())
         return jnp.array(valid, dtype=bool)
 
     @functools.partial(oop.jax_tf.method_ro, jit=False)

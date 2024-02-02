@@ -50,7 +50,13 @@ def test_coriolis(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
         physics_model=model.physics_model
     )
 
-    # Compute model acceleration with ABA
+    # Compute output of the coriolis matrix algorithm
     M, M_dot, C = model.coriolis_matrix()
+
+    # Compute the bias forces and the model acceleration
+    h = model.free_floating_bias_forces()
+    nu = np.array(model.forward_dynamics_aba())
+
+    assert np.allclose(h - (C @ nu))
 
     assert np.allclose(M_dot - (C @ C.T), np.zeros_like(M_dot), atol=1e-5)

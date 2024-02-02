@@ -10,7 +10,7 @@ from jaxsim import logging
 from jaxsim.math.quaternion import Quaternion
 from jaxsim.parsers import descriptions, kinematic_graph
 
-from . import utils as utils
+from . import utils
 
 
 class SDFData(NamedTuple):

@@ -15,12 +15,12 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.high_level
-import jaxsim.parsers.descriptions as descriptions
 import jaxsim.physics
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.high_level.common import VelRepr
 from jaxsim.high_level.model import Model, StepData
+from jaxsim.parsers import descriptions
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel

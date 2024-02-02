@@ -117,7 +117,7 @@ class KinematicGraph:
 
         # Check that joint indices are unique
         assert len([j.index for j in self.joints]) == len(
-            set([j.index for j in self.joints])
+            {j.index for j in self.joints}
         )
 
         # Order joints with their indices
@@ -268,7 +268,7 @@ class KinematicGraph:
 
         # Check if all considered joints are part of the full kinematic graph
         if len(set(considered_joints) - set(j.name for j in full_graph.joints)) != 0:
-            extra_j = set(considered_joints) - set([j.name for j in full_graph.joints])
+            extra_j = set(considered_joints) - {j.name for j in full_graph.joints}
             msg = f"Not all joints to consider are part of the graph ({{{extra_j}}})"
             raise ValueError(msg)
 

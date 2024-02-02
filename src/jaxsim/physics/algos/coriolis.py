@@ -96,8 +96,8 @@ def coriolis(
     )
 
     C = jnp.zeros([model.NB, model.NB])
-    H = jnp.zeros([model.NB, model.NB])
-    Hd = jnp.zeros([model.NB, model.NB])
+    M = jnp.zeros([model.NB, model.NB])
+    Md = jnp.zeros([model.NB, model.NB])
 
     Pass2Carry = Tuple[
         jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
@@ -106,15 +106,15 @@ def coriolis(
     def loop_pass_2(carry: Pass2Carry, j: jtp.Int) -> Tuple[Pass2Carry, None]:
         jj = λ[j] - 1
 
-        C, H, Hd, IC, BC = carry
+        C, M, Md, IC, BC = carry
 
         F_1 = IC[j] @ Sd[j] + BC[j] @ S[j]
         F_2 = IC[j] @ S[j]
         F_3 = BC[j].T @ S[j]
 
         C = C.at[jj, jj].set((S[j].T @ F_1).squeeze())
-        H = H.at[jj, jj].set((S[j].T @ F_2).squeeze())
-        Hd = Hd.at[jj, jj].set((Sd[j].T @ F_2 + S[j].T @ F_3).squeeze())
+        M = M.at[jj, jj].set((S[j].T @ F_2).squeeze())
+        Md = Md.at[jj, jj].set((Sd[j].T @ F_2 + S[j].T @ F_3).squeeze())
 
         F_1 = i_X_λi[j] @ F_1
         F_2 = i_X_λi[j] @ F_2
@@ -131,26 +131,26 @@ def coriolis(
         ]
 
         def inner_loop_body(carry: InnerLoopCarry) -> Tuple[InnerLoopCarry]:
-            C, H, Hd, F_1, F_2, F_3, i = carry
+            C, M, Md, F_1, F_2, F_3, i = carry
             ii = λ[i] - 1
 
             C = C.at[ii, jj].set((S[i].T @ F_1).squeeze())
             C = C.at[jj, ii].set((S[i].T @ F_1).squeeze())
 
-            H = H.at[ii, ii].set((S[i].T @ F_2).squeeze())
-            Hd = Hd.at[ii].set((Sd[i].T @ F_2 + S[i].T @ F_3).squeeze())
+            M = M.at[ii, ii].set((S[i].T @ F_2).squeeze())
+            Md = Md.at[ii].set((Sd[i].T @ F_2 + S[i].T @ F_3).squeeze())
 
             F_1 = F_1 + i_X_λi[i] @ F_1
             F_2 = F_2 + i_X_λi[i] @ F_2
             F_3 = F_3 + i_X_λi[i] @ F_3
 
             i = λ[i]
-            return C, H, Hd, F_1, F_2, F_3, i
+            return C, M, Md, F_1, F_2, F_3, i
 
-        (C, H, Hd, F_1, F_2, F_3, _) = jax.lax.while_loop(
+        (C, M, Md, F_1, F_2, F_3, _) = jax.lax.while_loop(
             body_fun=inner_loop_body,
             cond_fun=lambda idx: idx[-1] > 0,
-            init_val=(C, H, Hd, F_1, F_2, F_3, 0),
+            init_val=(C, M, Md, F_1, F_2, F_3, 0),
         )
 
         def propagate(
@@ -170,12 +170,12 @@ def coriolis(
             operand=(IC, BC),
         )
 
-        return (C, H, Hd, IC, BC), None
+        return (C, M, Md, IC, BC), None
 
-    (C, H, Hd, IC, BC), _ = jax.lax.scan(
+    (C, M, Md, IC, BC), _ = jax.lax.scan(
         f=loop_pass_2,
-        init=(C, H, Hd, IC, BC),
+        init=(C, M, Md, IC, BC),
         xs=np.flip(np.arange(1, model.NB + 1)),
     )
 
-    return H, Hd, C
+    return M, Md, C

@@ -357,6 +357,6 @@ def build_model_description(
     )
 
     # Store the parsed SDF tree as extra info
-    model = dataclasses.replace(model, extra_info=dict(sdf_model=sdf_data.sdf_model))
+    model = dataclasses.replace(model, extra_info={"sdf_model": sdf_data.sdf_model})
 
     return model

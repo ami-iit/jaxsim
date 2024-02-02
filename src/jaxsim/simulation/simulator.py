@@ -129,7 +129,7 @@ class JaxSim(Vmappable):
         self.data.time_ns = jnp.zeros_like(self.data.time_ns)
 
         if remove_models:
-            self.data.models = dict()
+            self.data.models = {}
         else:
             _ = [m.zero() for m in self.models()]
 
@@ -400,7 +400,7 @@ class JaxSim(Vmappable):
         tf_ns = t0_ns + dt_ns
 
         # We collect the StepData of all models
-        step_data = dict()
+        step_data = {}
 
         for model in self.models():
             # Integrate individually all models and collect their StepData.

@@ -15,6 +15,19 @@ class Adjoint:
         inverse: bool = False,
         normalize_quaternion: bool = False,
     ) -> jtp.Matrix:
+        """
+        Create an adjoint matrix from a quaternion and a translation.
+
+        Args:
+            quaternion (jtp.Vector): A quaternion vector (4D) representing orientation.
+            translation (jtp.Vector): A translation vector (3D).
+            inverse (bool): Whether to compute the inverse adjoint. Default is False.
+            normalize_quaternion (bool): Whether to normalize the quaternion before creating the adjoint.
+                                         Default is False.
+
+        Returns:
+            jtp.Matrix: The adjoint matrix.
+        """
         assert quaternion.size == 4
         assert translation.size == 3
 
@@ -31,6 +44,17 @@ class Adjoint:
         translation: jtp.Vector = jnp.zeros(3),
         inverse: bool = False,
     ) -> jtp.Matrix:
+        """
+        Create an adjoint matrix from a rotation matrix and a translation vector.
+
+        Args:
+            rotation (jtp.Matrix): A 3x3 rotation matrix.
+            translation (jtp.Vector): A translation vector (3D).
+            inverse (bool): Whether to compute the inverse adjoint. Default is False.
+
+        Returns:
+            jtp.Matrix: The adjoint matrix.
+        """
         assert rotation.shape == (3, 3)
         assert translation.size == 3
 
@@ -56,6 +80,15 @@ class Adjoint:
 
     @staticmethod
     def to_transform(adjoint: jtp.Matrix) -> jtp.Matrix:
+        """
+        Convert an adjoint matrix to a transformation matrix.
+
+        Args:
+            adjoint (jtp.Matrix): The adjoint matrix (6x6).
+
+        Returns:
+            jtp.Matrix: The transformation matrix (4x4).
+        """
         X = adjoint.squeeze()
         assert X.shape == (6, 6)
 
@@ -73,6 +106,15 @@ class Adjoint:
 
     @staticmethod
     def inverse(adjoint: jtp.Matrix) -> jtp.Matrix:
+        """
+        Compute the inverse of an adjoint matrix.
+
+        Args:
+            adjoint (jtp.Matrix): The adjoint matrix.
+
+        Returns:
+            jtp.Matrix: The inverse adjoint matrix.
+        """
         A_X_B = adjoint
         A_H_B = Adjoint.to_transform(adjoint=A_X_B)
 

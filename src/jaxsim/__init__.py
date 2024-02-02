@@ -1,4 +1,5 @@
 from . import logging
+from ._version import __version__
 
 
 # Follow upstream development in https://github.com/google/jax/pull/13304

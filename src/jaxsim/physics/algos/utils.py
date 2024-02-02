@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Tuple
 
 import jax.numpy as jnp
 
@@ -8,12 +8,12 @@ from jaxsim.physics.model.physics_model import PhysicsModel
 
 def process_inputs(
     physics_model: PhysicsModel,
-    xfb: jtp.Vector = None,
-    q: jtp.Vector = None,
-    qd: jtp.Vector = None,
-    qdd: jtp.Vector = None,
-    tau: jtp.Vector = None,
-    f_ext: jtp.Matrix = None,
+    xfb: jtp.Vector | None = None,
+    q: jtp.Vector | None = None,
+    qd: jtp.Vector | None = None,
+    qdd: jtp.Vector | None = None,
+    tau: jtp.Vector | None = None,
+    f_ext: jtp.Matrix | None = None,
 ) -> Tuple[jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector, jtp.Matrix]:
     """
     Adjust the inputs to the physics model.

@@ -1,0 +1,32 @@
+[project]
+authors = ["Filippo Luca Ferretti <filippoluca.ferretti@outlook.com>"]
+channels = ["conda-forge", "nvidia"]
+description = "JAXsim PD controller notebook"
+name = "JAXsim examples"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[system-requirements]
+cuda = "12"
+unix = true
+
+[tasks]
+PD_controller = {cmd = "jupyter notebook PD_controller.ipynb", depends_on = ["install"]}
+Parallel_computing = {cmd = "jupyter notebook Parallel_computing.ipynb", depends_on = ["install"]}
+install = "python -m pip install git+https://github.com/ami-iit/jaxsim.git"
+
+[dependencies]
+cuda-nvcc = {channel = "nvidia", version = ">=12.3,<12.4"}
+cudatoolkit = {channel = "nvidia"}
+ffmpeg = "*"
+jax-dataclasses = "*"
+jaxlib = "* *cuda*"
+jaxlie = "*"
+libgz-sim7 = "*"
+mediapy = "*"
+mujoco = "*"
+notebook = "*"
+pip = "*"
+pptree = "*"
+rod = "*"
+typing-extensions = "*"

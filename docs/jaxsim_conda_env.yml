@@ -1,0 +1,21 @@
+name: jaxsim
+channels:
+  - conda-forge
+dependencies:
+  - coloredlogs
+  - python=3.11
+  - jax
+  - jax-dataclasses
+  - jaxlib
+  - jaxlie
+  - jinja2
+  - rod
+  - coloredlogs
+  - sphinx
+  - sphinx-autodoc-typehints
+  - sphinx-copybutton
+  - sphinx_fontawesome
+  - sphinx-multiversion
+  - sphinx_rtd_theme
+  - pip
+  - pptree

@@ -23,6 +23,17 @@ from .physics_model_state import PhysicsModelState
 class PhysicsModel(JaxsimDataclass):
     """
     A read-only class to store all the information necessary to run RBDAs on a model.
+
+    This class contains information about the physics model, including the number of bodies, initial state, gravity,
+    floating base configuration, ground contact points, and more.
+
+    Attributes:
+        NB (Static[int]): The number of bodies in the physics model.
+        initial_state (PhysicsModelState): The initial state of the physics model (default: None).
+        gravity (jtp.Vector): The gravity vector (default: [0, 0, 0, 0, 0, 0]).
+        is_floating_base (Static[bool]): A flag indicating whether the model has a floating base (default: False).
+        gc (GroundContact): The ground contact points of the model (default: empty GroundContact instance).
+        description (Static[jaxsim.parsers.descriptions.model.ModelDescription]): A description of the model (default: None).
     """
 
     NB: Static[int]
@@ -34,14 +45,14 @@ class PhysicsModel(JaxsimDataclass):
     )
     is_floating_base: Static[bool] = dataclasses.field(default=False)
     gc: GroundContact = dataclasses.field(default_factory=lambda: GroundContact())
-    description: Static[
-        jaxsim.parsers.descriptions.model.ModelDescription
-    ] = dataclasses.field(default=None)
+    description: Static[jaxsim.parsers.descriptions.model.ModelDescription] = (
+        dataclasses.field(default=None)
+    )
 
     _parent_array_dict: Static[Dict[int, int]] = dataclasses.field(default_factory=dict)
-    _jtype_dict: Static[
-        Dict[int, Union[JointType, JointDescriptor]]
-    ] = dataclasses.field(default_factory=dict)
+    _jtype_dict: Static[Dict[int, Union[JointType, JointDescriptor]]] = (
+        dataclasses.field(default_factory=dict)
+    )
     _tree_transforms_dict: Dict[int, jtp.Matrix] = dataclasses.field(
         default_factory=dict
     )

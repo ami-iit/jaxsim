@@ -12,6 +12,17 @@ from . import utils
 
 
 def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Matrix:
+    """
+    Compute the Jacobian matrix for a specific link in an articulated body or robot.
+
+    Args:
+        model (PhysicsModel): The physics model of the articulated body or robot.
+        body_index (jtp.Int): The index of the link for which to compute the Jacobian matrix.
+        q (jtp.Vector): Joint positions (Generalized coordinates).
+
+    Returns:
+        jtp.Matrix: The Jacobian matrix for the specified link.
+    """
     _, q, _, _, _, _ = utils.process_inputs(physics_model=model, q=q)
 
     S = model.motion_subspaces(q=q)

@@ -12,7 +12,14 @@ from jaxsim.parsers.descriptions import ModelDescription
 @jax_dataclasses.pytree_dataclass
 class GroundContact:
     """
-    Class to store the collidable points of a robot model.
+    A class for managing collidable points in a robot model.
+
+    This class is used to store and manage information about collidable points on a robot model,
+    such as their positions and the corresponding bodies (links) they are associated with.
+
+    Attributes:
+        point (npt.NDArray): An array of shape (3, N) representing the 3D positions of collidable points.
+        body (Static[npt.NDArray]): An array of integers representing the indices of the bodies (links) associated with each collidable point.
     """
 
     point: npt.NDArray = dataclasses.field(default_factory=lambda: jnp.array([]))

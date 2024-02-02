@@ -16,6 +16,7 @@ class IntegratorType(enum.IntEnum):
     RungeKutta4 = enum.auto()
     EulerForward = enum.auto()
     EulerSemiImplicit = enum.auto()
+    EulerSemiImplicitManifold = enum.auto()
 
 
 @jax.jit
@@ -39,7 +40,7 @@ def ode_integration_euler(
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     terrain: Terrain = FlatTerrain(),
-    ode_input: ode.ode_data.ODEInput = None,
+    ode_input: ode.ode_data.ODEInput | None = None,
     *args,
     num_sub_steps: int = 1,
     return_aux: bool = False,
@@ -70,7 +71,7 @@ def ode_integration_euler_semi_implicit(
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     terrain: Terrain = FlatTerrain(),
-    ode_input: ode.ode_data.ODEInput = None,
+    ode_input: ode.ode_data.ODEInput | None = None,
     *args,
     num_sub_steps: int = 1,
     return_aux: bool = False,
@@ -95,13 +96,44 @@ def ode_integration_euler_semi_implicit(
 
 
 @functools.partial(jax.jit, static_argnames=["num_sub_steps", "return_aux"])
-def ode_integration_rk4(
+def ode_integration_euler_semi_implicit_manifold(
     x0: ode.ode_data.ODEState,
     t: integrators.TimeHorizon,
     physics_model: PhysicsModel,
     soft_contacts_params: SoftContactsParams = SoftContactsParams(),
     terrain: Terrain = FlatTerrain(),
     ode_input: ode.ode_data.ODEInput = None,
+    *args,
+    num_sub_steps: int = 1,
+    return_aux: bool = False,
+) -> Union[ode.ode_data.ODEState, Tuple[ode.ode_data.ODEState, Dict[str, Any]]]:
+    # Close func over additional inputs and parameters
+    dx_dt_closure = lambda x, ts: ode.dx_dt(
+        x, ts, physics_model, soft_contacts_params, ode_input, terrain, *args
+    )
+
+    # Integrate over the horizon
+    out = integrators.odeint_euler_semi_implicit_manifold(
+        func=dx_dt_closure,
+        y0=x0,
+        t=t,
+        num_sub_steps=num_sub_steps,
+        return_aux=return_aux,
+    )
+
+    # Return output pytree and, optionally, the aux dict
+    state = out if not return_aux else out[0]
+    return (state, out[1]) if return_aux else state
+
+
+@functools.partial(jax.jit, static_argnames=["num_sub_steps", "return_aux"])
+def ode_integration_rk4(
+    x0: ode.ode_data.ODEState,
+    t: integrators.TimeHorizon,
+    physics_model: PhysicsModel,
+    soft_contacts_params: SoftContactsParams = SoftContactsParams(),
+    terrain: Terrain = FlatTerrain(),
+    ode_input: ode.ode_data.ODEInput | None = None,
     *args,
     num_sub_steps=1,
     return_aux: bool = False,

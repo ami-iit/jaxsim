@@ -1,7 +1,6 @@
 import abc
 from typing import Callable, Dict, Tuple
 
-import jaxsim.high_level.model
 import jaxsim.typing as jtp
 from jaxsim.high_level.model import StepData
 

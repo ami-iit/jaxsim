@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Tuple
 
 import jax
@@ -18,10 +20,27 @@ def aba(
     q: jtp.Vector,
     qd: jtp.Vector,
     tau: jtp.Vector,
-    f_ext: jtp.Matrix = None,
+    f_ext: jtp.Matrix | None = None,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Articulated Body Algorithm (ABA) algorithm for forward dynamics.
+
+    Args:
+        model: The physics model of the articulated body or robot.
+        xfb: The floating base state vector containing quaternion (4D) and position (3D).
+        q: Joint positions (Generalized coordinates).
+        qd: Joint velocities.
+        tau: Joint torques or forces.
+        f_ext: External forces and torques acting on each link. Defaults to None.
+
+    Returns:
+        A tuple containing the resulting base acceleration (in inertial-fixed representation)
+        and joint accelerations.
+
+    Note:
+        The ABA algorithm is used to compute the accelerations of the links in an articulated body or robot system given
+        inputs such as joint positions, velocities, torques, and external forces. The algorithm involves multiple passes
+        to calculate intermediate quantities required for simulating the motion of the robot.
     """
 
     x_fb, q, qd, _, tau, f_ext = utils.process_inputs(
@@ -214,7 +233,7 @@ def aba(
 
         return (a, qdd), None
 
-    (a_, qdd), _ = jax.lax.scan(
+    (a, qdd), _ = jax.lax.scan(
         f=loop_body_pass3,
         init=pass_3_carry,
         xs=np.arange(1, model.NB),

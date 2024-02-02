@@ -90,7 +90,7 @@ class JaxSim(Vmappable):
         steps_per_run: jtp.Int = 1,
         velocity_representation: VelRepr = VelRepr.Inertial,
         integrator_type: IntegratorType = IntegratorType.EulerSemiImplicit,
-        simulator_data: SimulatorData = None,
+        simulator_data: SimulatorData | None = None,
     ) -> "JaxSim":
         """
         Build a JaxSim simulator object.
@@ -219,7 +219,7 @@ class JaxSim(Vmappable):
         return self.data.models[model_name]
 
     @functools.partial(oop.jax_tf.method_ro, jit=False, vmap=False)
-    def models(self, model_names: tuple[str, ...] = None) -> tuple[Model, ...]:
+    def models(self, model_names: tuple[str, ...] | None = None) -> tuple[Model, ...]:
         """
         Return the simulated models.
 
@@ -257,18 +257,16 @@ class JaxSim(Vmappable):
     def insert_model_from_description(
         self,
         model_description: Union[pathlib.Path, str, rod.Model],
-        model_name: Optional[str] = None,
-        considered_joints: List[str] = None,
+        model_name: str | None = None,
+        considered_joints: List[str] | None = None,
     ) -> Model:
         """
         Insert a model from a model description.
 
         Args:
-            model_description: A path to an SDF/URDF file, a string containing its content,
-                or a pre-parsed/pre-built rod model.
+            model_description: A path to an SDF/URDF file, a string containing its content, or a pre-parsed/pre-built rod model.
             model_name: The optional name of the model that overrides the one in the description.
-            considered_joints: Optional list of joints to consider.
-                               It is also useful to specify the joint serialization.
+            considered_joints: Optional list of joints to consider. It is also useful to specify the joint serialization.
 
         Returns:
             The newly inserted model.
@@ -300,8 +298,8 @@ class JaxSim(Vmappable):
     def insert_model_from_sdf(
         self,
         sdf: Union[pathlib.Path, str],
-        model_name: str = None,
-        considered_joints: List[str] = None,
+        model_name: str | None = None,
+        considered_joints: List[str] | None = None,
     ) -> Model:
         """
         Insert a model from an SDF resource.
@@ -320,7 +318,9 @@ class JaxSim(Vmappable):
 
     @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)
     def insert_model(
-        self, model_description: descriptions.ModelDescription, model_name: str = None
+        self,
+        model_description: descriptions.ModelDescription,
+        model_name: str | None = None,
     ) -> Model:
         """
         Insert a model from a model description object.
@@ -432,7 +432,9 @@ class JaxSim(Vmappable):
     def step_over_horizon(
         self,
         horizon_steps: jtp.Int,
-        callback_handler: Union["scb.SimulatorCallback", "scb.CallbackHandler"] = None,
+        callback_handler: (
+            Union["scb.SimulatorCallback", "scb.CallbackHandler"] | None
+        ) = None,
         clear_inputs: jtp.Bool = False,
     ) -> Union[
         "JaxSim",
@@ -458,10 +460,8 @@ class JaxSim(Vmappable):
         sim = self.copy().mutable(validate=True)
 
         # Helper to get callbacks from the handler
-        get_cb = (
-            lambda h, cb_name: getattr(h, cb_name)
-            if h is not None and hasattr(h, cb_name)
-            else None
+        get_cb = lambda h, cb_name: (
+            getattr(h, cb_name) if h is not None and hasattr(h, cb_name) else None
         )
 
         # Get the callbacks

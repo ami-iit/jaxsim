@@ -8,6 +8,21 @@ from jaxsim.utils import JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass
 class PhysicsModelState(JaxsimDataclass):
+    """
+    A class representing the state of a physics model.
+
+    This class stores the joint positions, joint velocities, and the base state (position, orientation, linear velocity,
+    and angular velocity) of a physics model.
+
+    Attributes:
+        joint_positions (jtp.Vector): An array representing the joint positions.
+        joint_velocities (jtp.Vector): An array representing the joint velocities.
+        base_position (jtp.Vector): An array representing the base position (default: zeros).
+        base_quaternion (jtp.Vector): An array representing the base quaternion (default: [1.0, 0, 0, 0]).
+        base_linear_velocity (jtp.Vector): An array representing the base linear velocity (default: zeros).
+        base_angular_velocity (jtp.Vector): An array representing the base angular velocity (default: zeros).
+    """
+
     # Joint state
     joint_positions: jtp.Vector
     joint_velocities: jtp.Vector

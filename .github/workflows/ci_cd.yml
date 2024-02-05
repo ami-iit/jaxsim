@@ -89,15 +89,32 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            src: &src
+              - 'src/**'
+            tests: &tests
+              - 'tests/**'
+            src_and_tests:
+              - *src
+              - *tests
 
       - name: Install Gazebo Classic
-        if: contains(matrix.os, 'ubuntu')
+        if: |
+          contains(matrix.os, 'ubuntu') &&
+          (github.event_name != 'pull_request' ||
+           steps.changes.outputs.src_and_tests == 'true')
         run: |
           sudo apt-get update
           sudo apt-get install gazebo
 
       - name: Run the Python tests
-        if: contains(matrix.os, 'ubuntu')
+        if: |
+          contains(matrix.os, 'ubuntu') &&
+          (github.event_name != 'pull_request' ||
+           steps.changes.outputs.src_and_tests == 'true')
         run: pytest
         env:
           JAX_PLATFORM_NAME: cpu

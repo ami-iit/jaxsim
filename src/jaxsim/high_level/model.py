@@ -1417,7 +1417,7 @@ class Model(Vmappable):
         assert isinstance(integrator_type, IntegratorType)
 
         # Integrate the model dynamics
-        ode_states, aux = ode_integration._integrator_registry[integrator_type](
+        ode_states, aux = ode_integration.ode_integration_fixed_step(
             x0=x0,
             t=jnp.array([t0, tf], dtype=float),
             ode_input=ode_input,
@@ -1425,6 +1425,7 @@ class Model(Vmappable):
             soft_contacts_params=contact_parameters,
             num_sub_steps=sub_steps,
             terrain=terrain,
+            integrator_type=integrator_type,
             return_aux=True,
         )
 

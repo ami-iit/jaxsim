@@ -65,15 +65,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python }}
-
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            src_and_tests:
-              - 'src/**'
-              - 'tests/**'              
+          python-version: ${{ matrix.python }}          
 
       - name: Download Python packages
         uses: actions/download-artifact@v3
@@ -94,10 +86,6 @@ jobs:
       - name: Import the package
         run: python -c "import jaxsim"
 
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
       - name: Install Gazebo Classic
         if: |
           contains(matrix.os, 'ubuntu') &&
@@ -106,10 +94,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install gazebo
 
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            src: &src
+              - 'src/**'
+            tests: &tests
+              - 'tests/**'
+            src_and_tests:
+              - *src
+              - *tests
+
       - name: Run the Python tests
         if: |
           contains(matrix.os, 'ubuntu') &&
-          steps.changes.outputs.src_and_tests == 'true'
+          (github.event_name != 'pull_request' ||
+           steps.changes.outputs.src_and_tests == 'true')
         run: pytest
         env:
           JAX_PLATFORM_NAME: cpu

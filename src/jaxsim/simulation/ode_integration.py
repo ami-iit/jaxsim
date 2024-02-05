@@ -41,7 +41,9 @@ def ode_integration_rk4_adaptive(
     return odeint(dx_dt_closure, x0, t, **kwargs)
 
 
-@functools.partial(jax.jit, static_argnames=["num_sub_steps", "return_aux"])
+@functools.partial(
+    jax.jit, static_argnames=["num_sub_steps", "integrator_type", "return_aux"]
+)
 def ode_integration(
     x0: ode.ode_data.ODEState,
     t: integrators.TimeHorizon,

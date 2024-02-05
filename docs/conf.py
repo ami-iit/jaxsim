@@ -5,6 +5,26 @@ import sys
 
 from pkg_resources import get_distribution
 
+
+def _add_annotations_import(path):
+    with open(path, "r+") as f:
+        contents = f.read()
+        if not contents.startswith("from __future__ import annotations"):
+            f.seek(0, 0)
+            f.write("from __future__ import annotations  " + contents)
+
+
+def _recursive_add_annotations_import():
+    for path, _, files in os.walk("../jaxsim/"):
+        for file in [f for f in files if f.endswith(".py")]:
+            _add_annotations_import(os.path.join(path, file))
+
+
+if "READTHEDOCS" in os.environ:
+    _recursive_add_annotations_import()
+
+import jaxsim
+
 # -- Version information
 
 sys.path.insert(0, os.path.abspath("."))
@@ -46,18 +66,20 @@ extensions = [
 
 language = "en"
 
+html_theme = "sphinx_rtd_theme"
+
 templates_path = ["_templates"]
 
+html_title = f"JAXsim {version}"
+
 master_doc = "index"
+
+autodoc_typehints_format = "short"
 
 exclude_patterns = ["_build"]
 
 autodoc_typehints = "signature"
 
-# -- Options for HTML output
-
-html_theme = "sphinx_rtd_theme"
-
-# -- Options for EPUB output
+autosummary_generate = False
 
 epub_show_urls = "footnote"

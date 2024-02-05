@@ -1,6 +1,3 @@
-.. _parsers:
-
-
 Parsers 
 =======
 

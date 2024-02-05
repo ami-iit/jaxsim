@@ -35,7 +35,13 @@ The JAXsim API documentation is available at [jaxsim.readthedocs.io](https://jax
 
 ## Installation
 
-You can install the project with [`pypa/pip`][pip], preferably in a [virtual environment][venv]:
+You can install the project using [`conda`][conda]:
+
+```bash
+conda install jaxsim -c conda-forge 
+```
+
+Or using [`pypa/pip`][pip], preferably in a [virtual environment][venv]::
 
 ```bash
 pip install jaxsim
@@ -44,8 +50,9 @@ pip install jaxsim
 Check [`setup.cfg`](setup.cfg) for the complete list of optional dependencies.
 Install all of them with `jaxsim[all]`.
 
-**Note:** For GPU support, follow the official [installation instruction][jax_gpu] of JAX.
+**Note:** For GPU support, follow the official [installation instructions][jax_gpu] of JAX.
 
+[conda]: https://anaconda.org/
 [pip]: https://github.com/pypa/pip/
 [venv]: https://docs.python.org/3/tutorial/venv.html
 [jax_gpu]: https://github.com/google/jax/#installation

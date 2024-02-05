@@ -44,7 +44,7 @@ def ode_integration_rk4_adaptive(
 @functools.partial(
     jax.jit, static_argnames=["num_sub_steps", "integrator_type", "return_aux"]
 )
-def ode_integration(
+def ode_integration_fixed_step(
     x0: ode.ode_data.ODEState,
     t: integrators.TimeHorizon,
     physics_model: PhysicsModel,

@@ -67,6 +67,14 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            src_and_tests:
+              - 'src/**'
+              - 'tests/**'              
+
       - name: Download Python packages
         uses: actions/download-artifact@v3
         with:
@@ -91,13 +99,17 @@ jobs:
           fetch-depth: 0
 
       - name: Install Gazebo Classic
-        if: contains(matrix.os, 'ubuntu')
+        if: |
+          contains(matrix.os, 'ubuntu') &&
+          steps.changes.outputs.src_and_tests == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install gazebo
 
       - name: Run the Python tests
-        if: contains(matrix.os, 'ubuntu')
+        if: |
+          contains(matrix.os, 'ubuntu') &&
+          steps.changes.outputs.src_and_tests == 'true'
         run: pytest
         env:
           JAX_PLATFORM_NAME: cpu

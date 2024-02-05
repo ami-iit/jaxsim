@@ -10,7 +10,7 @@ from jaxsim import logging
 from jaxsim.math.quaternion import Quaternion
 from jaxsim.parsers import descriptions, kinematic_graph
 
-from . import utils as utils
+from . import utils
 
 
 class SDFData(NamedTuple):
@@ -357,6 +357,6 @@ def build_model_description(
     )
 
     # Store the parsed SDF tree as extra info
-    model = dataclasses.replace(model, extra_info=dict(sdf_model=sdf_data.sdf_model))
+    model = dataclasses.replace(model, extra_info={"sdf_model": sdf_data.sdf_model})
 
     return model

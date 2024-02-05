@@ -15,12 +15,12 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.high_level
-import jaxsim.parsers.descriptions as descriptions
 import jaxsim.physics
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.high_level.common import VelRepr
 from jaxsim.high_level.model import Model, StepData
+from jaxsim.parsers import descriptions
 from jaxsim.physics.algos.soft_contacts import SoftContactsParams
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
@@ -129,7 +129,7 @@ class JaxSim(Vmappable):
         self.data.time_ns = jnp.zeros_like(self.data.time_ns)
 
         if remove_models:
-            self.data.models = dict()
+            self.data.models = {}
         else:
             _ = [m.zero() for m in self.models()]
 
@@ -213,7 +213,7 @@ class JaxSim(Vmappable):
             The model with the given name.
         """
 
-        if model_name not in self.data.models.keys():
+        if model_name not in self.data.models:
             raise ValueError(f"Failed to find model '{model_name}'")
 
         return self.data.models[model_name]
@@ -250,7 +250,7 @@ class JaxSim(Vmappable):
 
         self.data.gravity = gravity
 
-        for model_name, model in self.data.models.items():
+        for model in self.data.models.values():
             model.physics_model.set_gravity(gravity=gravity)
 
     @functools.partial(oop.jax_tf.method_rw, jit=False, vmap=False, validate=False)
@@ -400,7 +400,7 @@ class JaxSim(Vmappable):
         tf_ns = t0_ns + dt_ns
 
         # We collect the StepData of all models
-        step_data = dict()
+        step_data = {}
 
         for model in self.models():
             # Integrate individually all models and collect their StepData.

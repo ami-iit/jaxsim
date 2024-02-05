@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -277,14 +277,14 @@ def dx_dt(
     W_nud_WB = jnp.hstack([W_a_WB.squeeze(), qdd.squeeze()])
 
     # Build the auxiliary data
-    aux_dict = dict(
-        model_acceleration=W_nud_WB,
-        ode_input=ode_input,
-        ode_input_real=ode_input_real,
-        contact_forces_links=contact_forces_links,
-        contact_forces_points=contact_forces_points,
-        tangential_deformation_dot=tangential_deformation_dot,
-    )
+    aux_dict = {
+        "model_acceleration": W_nud_WB,
+        "ode_input": ode_input,
+        "ode_input_real": ode_input_real,
+        "contact_forces_links": contact_forces_links,
+        "contact_forces_points": contact_forces_points,
+        "tangential_deformation_dot": tangential_deformation_dot,
+    }
 
     # Return the state derivative as a generic PyTree, and the dict with auxiliary info
     return state_derivative, aux_dict

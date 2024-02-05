@@ -321,8 +321,8 @@ class Model(Vmappable):
         """"""
 
         valid = True
-        valid = valid and all([l.valid() for l in self.links()])
-        valid = valid and all([j.valid() for j in self.joints()])
+        valid = valid and all(l.valid() for l in self.links())
+        valid = valid and all(j.valid() for j in self.joints())
         return jnp.array(valid, dtype=bool)
 
     @functools.partial(oop.jax_tf.method_ro, jit=False)
@@ -1414,20 +1414,10 @@ class Model(Vmappable):
             physics_model=self.data.model_input
         )
 
-        if integrator_type is IntegratorType.EulerForward:
-            integrator_fn = ode_integration.ode_integration_euler
-
-        elif integrator_type is IntegratorType.EulerSemiImplicit:
-            integrator_fn = ode_integration.ode_integration_euler_semi_implicit
-
-        elif integrator_type is IntegratorType.RungeKutta4:
-            integrator_fn = ode_integration.ode_integration_rk4
-
-        else:
-            raise ValueError(integrator_type)
+        assert isinstance(integrator_type, IntegratorType)
 
         # Integrate the model dynamics
-        ode_states, aux = integrator_fn(
+        ode_states, aux = ode_integration.ode_integration_fixed_step(
             x0=x0,
             t=jnp.array([t0, tf], dtype=float),
             ode_input=ode_input,
@@ -1435,6 +1425,7 @@ class Model(Vmappable):
             soft_contacts_params=contact_parameters,
             num_sub_steps=sub_steps,
             terrain=terrain,
+            integrator_type=integrator_type,
             return_aux=True,
         )
 

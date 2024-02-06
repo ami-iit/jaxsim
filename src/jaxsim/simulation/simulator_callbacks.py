@@ -23,7 +23,7 @@ class SimulatorCallback(abc.ABC):
 
 class ConfigureCallback(SimulatorCallback):
     """
-    A class for configuring a simulator callback.
+    A callback class to define logic for configuring the simulator before taking the first step.
     """
 
     @property

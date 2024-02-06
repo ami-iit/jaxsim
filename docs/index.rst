@@ -40,12 +40,12 @@ Features
   :maxdepth: 2
   :caption: JAXsim API
 
-  modules/typing
   modules/high_level
   modules/math
-  modules/physics
   modules/parsers
+  modules/physics
   modules/simulation
+  modules/typing
   modules/utils
 
 

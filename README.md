@@ -41,7 +41,7 @@ You can install the project using [`conda`][conda]:
 conda install jaxsim -c conda-forge 
 ```
 
-Or using [`pypa/pip`][pip], preferably in a [virtual environment][venv]::
+Alternatively, you can use [`pypa/pip`][pip], preferably in a [virtual environment][venv]:
 
 ```bash
 pip install jaxsim

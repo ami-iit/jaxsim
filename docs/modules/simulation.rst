@@ -1,4 +1,4 @@
-Simulation 
+Simulation
 ==========
 
 .. automodule:: jaxsim.simulation
@@ -8,7 +8,7 @@ Simulator
 
 .. autoclass:: jaxsim.simulation.simulator.SimulatorData
     :members:
-    
+
 .. autoclass:: jaxsim.simulation.simulator.JaxSim
     :members:
 
@@ -28,4 +28,7 @@ ODE
 ~~~
 
 .. automodule:: jaxsim.simulation.ode
+    :members:
+
+.. autoflag:: jaxsim.simulation.ode_integration.IntegratorType
     :members:

@@ -60,6 +60,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     "sphinx_multiversion",
+    "enum_tools.autoenum",
 ]
 
 # -- Options for intersphinx extension

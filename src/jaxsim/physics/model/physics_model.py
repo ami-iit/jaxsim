@@ -45,14 +45,14 @@ class PhysicsModel(JaxsimDataclass):
     )
     is_floating_base: Static[bool] = dataclasses.field(default=False)
     gc: GroundContact = dataclasses.field(default_factory=lambda: GroundContact())
-    description: Static[jaxsim.parsers.descriptions.model.ModelDescription] = (
-        dataclasses.field(default=None)
-    )
+    description: Static[
+        jaxsim.parsers.descriptions.model.ModelDescription
+    ] = dataclasses.field(default=None)
 
     _parent_array_dict: Static[Dict[int, int]] = dataclasses.field(default_factory=dict)
-    _jtype_dict: Static[Dict[int, Union[JointType, JointDescriptor]]] = (
-        dataclasses.field(default_factory=dict)
-    )
+    _jtype_dict: Static[
+        Dict[int, Union[JointType, JointDescriptor]]
+    ] = dataclasses.field(default_factory=dict)
     _tree_transforms_dict: Dict[int, jtp.Matrix] = dataclasses.field(
         default_factory=dict
     )

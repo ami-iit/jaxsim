@@ -1,4 +1,4 @@
-High Level 
+High Level
 ==========
 
 .. currentmodule:: jaxsim.high_level
@@ -24,5 +24,7 @@ Link
 Common
 ~~~~~~
 
-.. automodule:: jaxsim.high_level.common
+.. autoflag:: jaxsim.high_level.common.VelRepr
     :members:
+
+

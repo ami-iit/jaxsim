@@ -68,12 +68,12 @@ class PostStepCallback(SimulatorCallback):
 class CallbackHandler(ConfigureCallback, PreStepCallback, PostStepCallback):
     """
     A class that handles callbacks for the simulator.
-    
+
     Note:
         The are different simulation stages with associated callbacks:
         - `configure`: runs before the first step is taken.
         - `pre_step`: runs at each step before integrating the dynamics and advancing the time.
-        - `post_step`: runs at each step after the integration of the dynamics. 
+        - `post_step`: runs at each step after the integration of the dynamics.
     """
 
     pass

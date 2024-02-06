@@ -17,5 +17,8 @@ dependencies:
   - sphinx_fontawesome
   - sphinx-multiversion
   - sphinx_rtd_theme
+  - sphinx-toolbox
   - pip
   - pptree
+  - pip:
+    - enum-tools[sphinx]

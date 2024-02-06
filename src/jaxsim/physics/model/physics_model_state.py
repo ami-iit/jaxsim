@@ -135,8 +135,8 @@ class PhysicsModelInput(JaxsimDataclass):
     This class stores the joint torques and external forces acting on the bodies of a physics model.
 
     Attributes:
-        tau (jtp.Vector): An array representing the joint torques.
-        f_ext (jtp.Matrix): A matrix representing the external forces acting on the bodies of the physics model.
+        tau: An array representing the joint torques.
+        f_ext: A matrix representing the external forces acting on the bodies of the physics model.
     """
 
     tau: jtp.VectorJax

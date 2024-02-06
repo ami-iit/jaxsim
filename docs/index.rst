@@ -29,22 +29,24 @@ Features
 - Preliminary support for automatic differentiation of RBDAs.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: User Guide
+  :hidden:
+  :maxdepth: 1
+  :caption: User Guide
 
-   guide/install
+  guide/install
 
 .. toctree::
-   :maxdepth: 2
-   :caption: JAXsim API
+  :hidden:
+  :maxdepth: 2
+  :caption: JAXsim API
 
-   modules/typing
-   modules/high_level
-   modules/math
-   modules/physics
-   modules/parsers
-   modules/simulation
-   modules/utils
+  modules/high_level
+  modules/math
+  modules/parsers
+  modules/physics
+  modules/simulation
+  modules/typing
+  modules/utils
 
 
 Examples

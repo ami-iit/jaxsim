@@ -1,17 +1,30 @@
-.. _high_level:
-
-
-High Level 
+High Level
 ==========
 
-.. autoclass:: jaxsim.high_level.model.Model
-    :members:
-    :inherited-members:
+.. currentmodule:: jaxsim.high_level
 
-.. autoclass:: jaxsim.high_level.joint.Joint
-    :members:
-    :inherited-members:
 
-.. autoclass:: jaxsim.high_level.link.Link
+Model
+~~~~~
+
+.. automodule:: jaxsim.high_level.model
     :members:
-    :inherited-members:
+
+Joint
+~~~~~
+
+.. automodule:: jaxsim.high_level.joint
+    :members:
+
+Link
+~~~~~
+.. automodule:: jaxsim.high_level.link
+    :members:
+
+Common
+~~~~~~
+
+.. autoflag:: jaxsim.high_level.common.VelRepr
+    :members:
+
+

@@ -129,6 +129,16 @@ class PhysicsModelState(JaxsimDataclass):
 
 @jax_dataclasses.pytree_dataclass
 class PhysicsModelInput(JaxsimDataclass):
+    """
+    A class representing the input to a physics model.
+
+    This class stores the joint torques and external forces acting on the bodies of a physics model.
+
+    Attributes:
+        tau: An array representing the joint torques.
+        f_ext: A matrix representing the external forces acting on the bodies of the physics model.
+    """
+
     tau: jtp.VectorJax
     f_ext: jtp.MatrixJax
 

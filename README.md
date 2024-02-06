@@ -38,7 +38,7 @@ The JAXsim API documentation is available at [jaxsim.readthedocs.io](https://jax
 You can install the project using [`conda`][conda]:
 
 ```bash
-conda install jaxsim -c conda-forge 
+conda install jaxsim -c conda-forge
 ```
 
 Alternatively, you can use [`pypa/pip`][pip], preferably in a [virtual environment][venv]:

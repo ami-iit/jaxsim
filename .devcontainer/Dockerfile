@@ -16,3 +16,6 @@ RUN echo 'function activate_conda() {' >> /etc/bash.bashrc &&\
 # As documented as follows, we provide a suggestion through an environment variable.
 # https://code.visualstudio.com/docs/python/environments#_where-the-extension-looks-for-environments
 ENV WORKON_HOME=$CONDA_PREFIX_JAXSIM
+
+# Specify the workdir of the container
+WORKDIR /workspace/jaxsim

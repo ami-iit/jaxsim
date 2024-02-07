@@ -11,3 +11,8 @@ RUN echo 'function activate_conda() {' >> /etc/bash.bashrc &&\
     echo '[[ -x $(which micromamba) && -d ${CONDA_PREFIX_JAXSIM-$CONDA_PREFIX} ]] && activate_conda' >> /etc/bash.bashrc &&\
     echo '[[ -x $(which micromamba) && ! -x $(which mamba) ]] && alias mamba="$(which micromamba)"' >> /etc/bash.bashrc &&\
     echo '[[ -x $(which micromamba) && ! -x $(which conda) ]] && alias conda="$(which micromamba)"' >> /etc/bash.bashrc
+
+# The Python extension in VSCode is not able to detect the interpreter installed with micromamba.
+# As documented as follows, we provide a suggestion through an environment variable.
+# https://code.visualstudio.com/docs/python/environments#_where-the-extension-looks-for-environments
+ENV WORKON_HOME=$CONDA_PREFIX_JAXSIM

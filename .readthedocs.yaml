@@ -4,15 +4,15 @@ build:
   os: ubuntu-22.04
   tools:
     python: "mambaforge-22.9"
-    
+
 conda:
-  environment: docs/jaxsim_conda_env.yml
+  environment: environment.yml
 
 python:
   install:
     - method: pip
       path: .
-      
+
 sphinx:
   configuration: docs/conf.py
 

@@ -1,0 +1,39 @@
+name: jaxsim
+channels:
+  - conda-forge
+dependencies:
+  # Dependencies from setup.cfg
+  - python=3.11
+  - coloredlogs
+  - jax >= 0.4.13
+  - jaxlib
+  - jaxlie >= 1.3.0
+  - jax-dataclasses >= 1.4.0
+  - pptree
+  - rod
+  # Optional dependencies from setup.cfg
+  - black
+  - isort
+  - idyntree
+  - pytest
+  - pytest-forked
+  - pytest-icdiff
+  - robot_descriptions
+  # System dependencies to run the tests
+  - gz-sim7
+  # Other packages
+  - ipython
+  # Documentation dependencies
+  - cachecontrol
+  - enum_tools
+  - filecache
+  - filelock
+  - jinja2
+  - sphinx
+  - sphinx-autodoc-typehints
+  - sphinx-copybutton
+  - sphinx_fontawesome
+  - sphinx-jinja2-compat
+  - sphinx-multiversion
+  - sphinx_rtd_theme
+  - sphinx-toolbox

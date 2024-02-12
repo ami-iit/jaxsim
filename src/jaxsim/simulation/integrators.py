@@ -46,7 +46,21 @@ def single_step(
     integrator_type: IntegratorType,
     num_sub_steps: int = 1,
 ) -> Tuple[State, Dict[str, Any]]:
-    """"""
+    """
+    Compute a single integration step.
+
+    Args:
+        dx_dt: Callable that computes the state derivative.
+        x0: Initial state.
+        t0: Initial time.
+        tf: Final time.
+        integrator_type: Integrator type.
+        num_sub_steps: Number of sub-steps to break the integration into.
+
+    Returns:
+        The final state and a dictionary including auxiliary data at t0.
+    """
+
     # Compute the sub-step size.
     # We break dt in configurable sub-steps.
     dt = tf - t0
@@ -56,6 +70,10 @@ def single_step(
     carry_init: Carry = (x0, t0)
 
     def forward_euler_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+        """
+        Forward Euler integrator.
+        """
+
         # Unpack the carry
         x_t0, t0 = carry
 
@@ -76,6 +94,10 @@ def single_step(
         return carry, None
 
     def rk4_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+        """
+        Runge-Kutta 4 integrator.
+        """
+
         # Unpack the carry
         x_t0, t0 = carry
 
@@ -105,6 +127,10 @@ def single_step(
         return carry, None
 
     def semi_implicit_euler_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+        """
+        Semi-implicit Euler integrator.
+        """
+
         # Unpack the carry
         x_t0, t0 = carry
 
@@ -211,6 +237,10 @@ def single_step(
     def semi_implicit_euler_manifold_body_fun(
         carry: Carry, xs: None
     ) -> Tuple[Carry, None]:
+        """
+        Semi-implicit Euler integrator with quaternion integration on SO(3).
+        """
+
         # Unpack the carry
         x_t0, t0 = carry
 

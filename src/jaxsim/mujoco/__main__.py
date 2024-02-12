@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+import sys
 import time
 
 import numpy as np
@@ -105,7 +106,7 @@ if __name__ == "__main__":
         if not pathlib.Path(args.description).is_file():
             msg = f"The URDF/SDF file '{args.description}' does not exist."
             parser.error(msg)
-            exit(1)
+            sys.exit(1)
 
     # Expand the path of the output MJCF file if not absolute.
     if args.export is not None:
@@ -122,7 +123,7 @@ if __name__ == "__main__":
         if pathlib.Path(args.export).is_file() and not args.force:
             msg = "The output file '{}' already exists, use '--force' to override."
             parser.error(msg.format(args.export))
-            exit(1)
+            sys.exit(1)
 
     # ================================================
     # Load the URDF/SDF file and produce a MJCF string
@@ -141,7 +142,7 @@ if __name__ == "__main__":
         case _:
             msg = f"The file extension '{args.description.suffix}' is not supported."
             parser.error(msg)
-            exit(1)
+            sys.exit(1)
 
     if args.print:
         print(mjcf_string, flush=True)
@@ -151,7 +152,7 @@ if __name__ == "__main__":
     # ========================================
 
     if args.export is not None:
-        with open(args.export, "w+") as file:
+        with open(args.export, "w+", encoding="utf-8") as file:
             file.write(mjcf_string)
 
     # =======================================
@@ -188,4 +189,4 @@ if __name__ == "__main__":
     # Exit the program with success
     # =============================
 
-    exit(0)
+    sys.exit(0)

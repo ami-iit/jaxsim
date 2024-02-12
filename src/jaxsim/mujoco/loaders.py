@@ -155,7 +155,7 @@ class RodModelToMjcf:
         joints_dict = {j.name: j for j in rod_model.joints()}
 
         # Convert all the joints not considered to fixed joints.
-        for joint_name in set([j.name for j in rod_model.joints()]) - considered_joints:
+        for joint_name in set(j.name for j in rod_model.joints()) - considered_joints:
             joints_dict[joint_name].type = "fixed"
 
         # Convert the ROD model to URDF.
@@ -237,10 +237,8 @@ class RodModelToMjcf:
 
         # Get the joint names.
         mj_joint_names = set(
-            [
-                mj.mj_id2name(mj_model, mj.mjtObj.mjOBJ_JOINT, idx)
-                for idx in range(mj_model.njnt)
-            ]
+            mj.mj_id2name(mj_model, mj.mjtObj.mjOBJ_JOINT, idx)
+            for idx in range(mj_model.njnt)
         )
 
         # Check that the Mujoco model only has the considered joints.
@@ -267,8 +265,7 @@ class RodModelToMjcf:
         root: ET._Element = tree.getroot()
 
         # Find the <mujoco> element (might be the root itself).
-        mujoco_elements = [e for e in root.iter("mujoco")]
-        mujoco_element: ET._Element = mujoco_elements[0]
+        mujoco_element: ET._Element = list(root.iter("mujoco"))[0]
 
         # --------------
         # Add the motors
@@ -403,10 +400,8 @@ class RodModelToMjcf:
             # <worldbody> elements inside <mujoco>.
             for wb in mujoco_element.findall(".//worldbody"):
                 if all(
-                    [
-                        wb.find(f".//joint[@name='{j}']") is not None
-                        for j in considered_joints
-                    ]
+                    wb.find(f".//joint[@name='{j}']") is not None
+                    for j in considered_joints
                 ):
                     worldbody_element = wb
                     break

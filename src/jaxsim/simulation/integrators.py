@@ -1,5 +1,5 @@
 import enum
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -20,7 +20,7 @@ State = jtp.PyTree
 StateDerivative = jtp.PyTree
 
 StateDerivativeCallable = Callable[
-    [State, Time], Tuple[StateDerivative, Dict[str, Any]]
+    [State, Time], tuple[StateDerivative, dict[str, Any]]
 ]
 
 
@@ -43,7 +43,7 @@ def integrator_fixed_single_step(
     tf: Time,
     integrator_type: IntegratorType,
     num_sub_steps: int = 1,
-) -> Tuple[State | ODEState, Dict[str, Any]]:
+) -> tuple[State | ODEState, dict[str, Any]]:
     """
     Advance a state vector by integrating a sytem dynamics with a fixed-step integrator.
 
@@ -65,10 +65,10 @@ def integrator_fixed_single_step(
     sub_step_dt = dt / num_sub_steps
 
     # Initialize the carry
-    Carry = Tuple[State | ODEState, Time]
+    Carry = tuple[State | ODEState, Time]
     carry_init: Carry = (x0, t0)
 
-    def forward_euler_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+    def forward_euler_body_fun(carry: Carry, xs: None) -> tuple[Carry, None]:
         """
         Forward Euler integrator.
         """
@@ -92,7 +92,7 @@ def integrator_fixed_single_step(
 
         return carry, None
 
-    def rk4_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+    def rk4_body_fun(carry: Carry, xs: None) -> tuple[Carry, None]:
         """
         Runge-Kutta 4 integrator.
         """
@@ -125,7 +125,7 @@ def integrator_fixed_single_step(
 
         return carry, None
 
-    def semi_implicit_euler_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
+    def semi_implicit_euler_body_fun(carry: Carry, xs: None) -> tuple[Carry, None]:
         """
         Semi-implicit Euler integrator.
         """
@@ -170,7 +170,6 @@ def integrator_fixed_single_step(
         # -----------------------------------------------------
 
         # Extract the implicit angular velocity and the initial base quaternion
-
         W_ω_WB = vel_tf[3:6]
         W_Q_B = x_t0.physics_model.base_quaternion
 
@@ -301,10 +300,10 @@ def integrator_fixed_single_step(
 
 
 def integrate_single_step_over_horizon(
-    integrator_single_step: Callable[[Time, Time, State], Tuple[State, Dict[str, Any]]],
+    integrator_single_step: Callable[[Time, Time, State], tuple[State, dict[str, Any]]],
     t: TimeHorizon,
     x0: State,
-) -> Tuple[State, Dict[str, Any]]:
+) -> tuple[State, dict[str, Any]]:
     """
     Integrate a single-step integrator over a given horizon.
 
@@ -320,7 +319,7 @@ def integrate_single_step_over_horizon(
     # Initialize the carry
     carry_init = (x0, t)
 
-    def body_fun(carry: Tuple, idx: int) -> Tuple[Tuple, jtp.PyTree]:
+    def body_fun(carry: tuple, idx: int) -> tuple[tuple, jtp.PyTree]:
         # Unpack the carry
         x_t0, horizon = carry
 

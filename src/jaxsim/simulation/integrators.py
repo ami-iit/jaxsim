@@ -38,7 +38,8 @@ class IntegratorType(enum.IntEnum):
 # =======================
 
 
-def single_step(
+@functools.partial(jax.jit, static_argnames=["integrator_type"])
+def integrator_fixed_single_step(
     dx_dt: StateDerivativeCallable,
     x0: State,
     t0: Time,

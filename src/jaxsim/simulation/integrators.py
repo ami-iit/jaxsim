@@ -1,5 +1,5 @@
 import enum
-from typing import Any, Callable, Dict, Tuple, Union
+from typing import Any, Callable, Dict, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -441,7 +441,6 @@ def odeint(
     y0: State,
     t: TimeHorizon,
     *args,
-    method: str = "euler",
     num_sub_steps: int = 1,
     return_aux: bool = False,
     integrator_type: IntegratorType = None,

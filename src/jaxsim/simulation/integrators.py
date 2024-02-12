@@ -47,7 +47,7 @@ def single_step(
     num_sub_steps: int = 1,
 ) -> Tuple[State, Dict[str, Any]]:
     """
-    Compute a single integration step.
+    Advance a state vector by integrating a sytem dynamics with a fixed-step integrator.
 
     Args:
         dx_dt: Callable that computes the state derivative.

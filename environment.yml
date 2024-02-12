@@ -12,13 +12,18 @@ dependencies:
   - pptree
   - rod
   # Optional dependencies from setup.cfg
+  # [style]
   - black
   - isort
+  # [testing]
   - idyntree
   - pytest
   - pytest-forked
   - pytest-icdiff
   - robot_descriptions
+  # [viz]
+  - mediapy
+  - mujoco >= 3.0.0
   # System dependencies to run the tests
   - gz-sim7
   # Other packages

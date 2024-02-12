@@ -23,8 +23,6 @@ StateDerivativeCallable = Callable[
     [State, Time], Tuple[StateDerivative, Dict[str, Any]]
 ]
 
-Carry = Tuple[State, Time]
-
 
 class IntegratorType(enum.IntEnum):
     RungeKutta4 = enum.auto()
@@ -38,7 +36,6 @@ class IntegratorType(enum.IntEnum):
 # =======================
 
 
-@functools.partial(jax.jit, static_argnames=["integrator_type"])
 def integrator_fixed_single_step(
     dx_dt: StateDerivativeCallable,
     x0: State,
@@ -68,6 +65,7 @@ def integrator_fixed_single_step(
     sub_step_dt = dt / num_sub_steps
 
     # Initialize the carry
+    Carry = Tuple[State, Time]
     carry_init: Carry = (x0, t0)
 
     def forward_euler_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:

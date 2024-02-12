@@ -38,12 +38,12 @@ class IntegratorType(enum.IntEnum):
 
 def integrator_fixed_single_step(
     dx_dt: StateDerivativeCallable,
-    x0: State,
+    x0: State | ODEState,
     t0: Time,
     tf: Time,
     integrator_type: IntegratorType,
     num_sub_steps: int = 1,
-) -> Tuple[State, Dict[str, Any]]:
+) -> Tuple[State | ODEState, Dict[str, Any]]:
     """
     Advance a state vector by integrating a sytem dynamics with a fixed-step integrator.
 
@@ -65,7 +65,7 @@ def integrator_fixed_single_step(
     sub_step_dt = dt / num_sub_steps
 
     # Initialize the carry
-    Carry = Tuple[State, Time]
+    Carry = Tuple[State | ODEState, Time]
     carry_init: Carry = (x0, t0)
 
     def forward_euler_body_fun(carry: Carry, xs: None) -> Tuple[Carry, None]:
@@ -360,7 +360,7 @@ def odeint(
     integrator_type: IntegratorType = None,
 ):
     """
-    Integrate a system of ODEs using the Runge-Kutta 4 method.
+    Integrate a system of ODEs with a fixed-step integrator.
 
     Args:
         func: A function that computes the time-derivative of the state.

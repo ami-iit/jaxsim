@@ -205,17 +205,15 @@ def integrator_fixed_single_step(
         # ------------------------------------
 
         pos_tf = pos_t0 + sub_step_dt * d_pos_tf
-        sl = (
-            slice(3)
+        joint_positions = (
+            pos_tf[3:]
             if integrator_type is IntegratorType.EulerSemiImplicitManifold
-            else slice(7)
+            else pos_tf[7:]
         )
         base_quaternion = (
-            (
-                jnp.zeros_like(x_t0.base_quaternion)
-                if integrator_type is IntegratorType.EulerSemiImplicitManifold
-                else pos_tf[3:7]
-            ),
+            jnp.zeros_like(x_t0.base_quaternion)
+            if integrator_type is IntegratorType.EulerSemiImplicitManifold
+            else pos_tf[3:7]
         )
 
         # ---------------------------------
@@ -232,7 +230,7 @@ def integrator_fixed_single_step(
             physics_model=PhysicsModelState(
                 base_position=pos_tf[0:3],
                 base_quaternion=base_quaternion,
-                joint_positions=pos_tf[sl],
+                joint_positions=joint_positions,
                 base_linear_velocity=vel_tf[0:3],
                 base_angular_velocity=vel_tf[3:6],
                 joint_velocities=vel_tf[6:],

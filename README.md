@@ -89,7 +89,8 @@ Here below we summarize the differences between the projects:
 
 ## Contributing
 
-We welcome contributions from the community. Please read the [contributing guide](./CONTRIBUTING.md) to get started.
+We welcome contributions from the community.
+Please read the [contributing guide](./CONTRIBUTING.md) to get started.
 
 ## Citing
 

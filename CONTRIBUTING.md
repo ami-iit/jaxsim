@@ -8,6 +8,34 @@ We're thrilled that you're considering contributing to JAXsim! Here's a brief gu
 
 Make sure your development environment is set up. Follow the installation instructions in the [README](./README.md) to get JAXsim and its dependencies up and running.
 
+To ensure consistency and maintain code quality, we recommend using the pre-commit hook with the following configuration. This will help catch issues before they become a part of the project.
+
+### Setting Up Pre-commit Hook :fishing_pole_and_fish:
+
+`pre-commit` is a tool that manages pre-commit hooks for your project. It will run checks on your code before you commit it, ensuring that it meets the project's standards. You should have it already installed if you followed the installation instructions in the [README](./README.md).
+
+Run the following command to install the hooks:
+
+```bash
+pre-commit install
+```
+
+### Using Pre-commit Hook 🚦
+
+Before making any commits, the pre-commit hook will automatically run. If it finds any issues, it will prevent the commit and provide instructions on how to fix them.
+
+To get your commit through without fixing the issues, use the `--no-verify` flag:
+
+```bash
+git commit -m "Your commit message" --no-verify
+```
+
+To manually run the pre-commit hook at any time, use:
+
+```bash
+pre-commit run --all-files
+```
+
 ## Branching Strategy :deciduous_tree:
 
 When making changes, create a new branch from main. Use a descriptive name like `feature/your-feature` or `fix/your-fix`. This helps us understand the purpose of the branch.

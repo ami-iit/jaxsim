@@ -89,8 +89,8 @@ Here below we summarize the differences between the projects:
 
 ## Contributing
 
-Pull requests are welcome. 
-For major changes, please open an issue first to discuss what you would like to change.
+We welcome contributions from the community.
+Please read the [contributing guide](./CONTRIBUTING.md) to get started.
 
 ## Citing
 

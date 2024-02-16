@@ -51,6 +51,7 @@ Update the documentation in the [docs](./docs) folder and the [README](./README.
 ## Code Review :eyes:
 
 Expect feedback during the code review process. Address comments and make necessary changes. This collaboration ensures quality.
+Please keep the commit history clean, or squash commits if necessary.
 
 ## License :scroll:
 

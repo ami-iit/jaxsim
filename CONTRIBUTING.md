@@ -36,10 +36,6 @@ To manually run the pre-commit hook at any time, use:
 pre-commit run --all-files
 ```
 
-## Branching Strategy :deciduous_tree:
-
-When making changes, create a new branch from main. Use a descriptive name like `feature/your-feature` or `fix/your-fix`. This helps us understand the purpose of the branch.
-
 ## Making Changes :construction:
 
 Before submitting a pull request, create an issue to discuss your changes if major changes are involved. This helps us understand your needs and provide feedback. Clearly describe your pull request, referencing any related issues. Follow the [PEP 8](https://peps.python.org/pep-0008/) style guide and include relevant tests.

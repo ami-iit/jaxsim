@@ -46,7 +46,7 @@ Your code will be tested with the CI/CD pipeline before merging. Feel free to ad
 
 ## Documentation :book:
 
-Update the documentation in the [docs](./docs) folder and the [README](./README.md) to reflect your changes, if necessary.
+Update the documentation in the [docs](./docs) folder and the [README](./README.md) to reflect your changes, if necessary. There is no need to build the documentation locally; it will be automatically built and deployed with your pull request, where a preview link will be provided.
 
 ## Code Review :eyes:
 

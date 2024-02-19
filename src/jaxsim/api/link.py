@@ -79,3 +79,20 @@ def idxs_to_names(
 
     d = {l.index: l.name for l in model.physics_model.description.links_dict.values()}
     return tuple(d[i] for i in link_indices)
+
+
+# =========
+# Link APIs
+# =========
+
+
+def mass(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
+    """"""
+
+    return model.physics_model._link_masses[link_index].astype(float)
+
+
+def spatial_inertia(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Matrix:
+    """"""
+
+    return model.physics_model._link_spatial_inertias[link_index]

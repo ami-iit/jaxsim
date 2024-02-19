@@ -253,8 +253,8 @@ class SoftContactsParams:
 
     @staticmethod
     def build(
-        K: float = 1e6, D: float = 2_000, mu: float = 0.5
-    ) -> "SoftContactsParams":
+        K: jtp.FloatLike = 1e6, D: jtp.FloatLike = 2_000, mu: jtp.FloatLike = 0.5
+    ) -> SoftContactsParams:
         """
         Create a SoftContactsParams instance with specified parameters.
 
@@ -272,6 +272,60 @@ class SoftContactsParams:
             D=jnp.array(D, dtype=float),
             mu=jnp.array(mu, dtype=float),
         )
+
+    @staticmethod
+    def build_default_from_physics_model(
+        physics_model: PhysicsModel,
+        static_friction_coefficient: jtp.FloatLike = 0.5,
+        max_penetration: jtp.FloatLike = 0.001,
+        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+        damping_ratio: jtp.FloatLike = 1.0,
+    ) -> SoftContactsParams:
+        """
+        Create a SoftContactsParams instance with good default parameters.
+
+        Args:
+            physics_model: The target physics model.
+            static_friction_coefficient: The static friction coefficient.
+            max_penetration: The maximum penetration depth.
+            number_of_active_collidable_points_steady_state: The number of contacts
+                supporting the weight of the model in steady state.
+            damping_ratio: The ratio controlling the damping behavior.
+
+        Returns:
+            A SoftContactsParams instance with the specified parameters.
+
+        Note:
+            The `damping_ratio` parameter allows to operate on the following conditions:
+            - ξ > 1.0: over-damped
+            - ξ = 1.0: critically damped
+            - ξ < 1.0: under-damped
+        """
+
+        # Use symbols for input parameters
+        ξ = damping_ratio
+        δ_max = max_penetration
+        μc = static_friction_coefficient
+
+        # Compute the total mass of the model
+        m = jnp.array(
+            [l.mass for l in physics_model.description.links_dict.values()]
+        ).sum()
+
+        # Extract gravity
+        g = -physics_model.gravity[0:3][-1]
+
+        # Compute the average support force on each collidable point
+        f_average = m * g / number_of_active_collidable_points_steady_state
+
+        # Compute the stiffness to get the desired steady-state penetration
+        K = f_average / jnp.power(δ_max, 3 / 2)
+
+        # Compute the damping using the damping ratio
+        critical_damping = 2 * jnp.sqrt(K * m)
+        D = ξ * critical_damping
+
+        return SoftContactsParams.build(K=K, D=D, mu=μc)
 
 
 @jax_dataclasses.pytree_dataclass

@@ -5,6 +5,7 @@ import jax.numpy as jnp
 
 import jaxsim.typing as jtp
 
+from . import data as Data
 from . import model as Model
 
 # =======================
@@ -96,3 +97,24 @@ def spatial_inertia(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp
     """"""
 
     return model.physics_model._link_spatial_inertias[link_index]
+
+
+@jax.jit
+def transform(
+    model: Model.JaxSimModel, data: Data.JaxSimModelData, *, link_index: jtp.IntLike
+) -> jtp.Matrix:
+    """
+    Compute the SE(3) transform from the world frame to the link frame.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        link_index: The index of the link.
+
+    Returns:
+        The 4x4 matrix representing the transform.
+    """
+
+    from jaxsim.helpers.model import forward_kinematics
+
+    return forward_kinematics(model=model, data=data)[link_index]

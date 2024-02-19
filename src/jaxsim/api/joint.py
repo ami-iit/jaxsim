@@ -118,3 +118,31 @@ def position_limits(
 
     joint_idxs = names_to_idxs(joint_names=joint_names, model=model)
     return jax.vmap(lambda i: position_limit(model=model, joint_index=i))(joint_idxs)
+
+
+# ======================
+# Random data generation
+# ======================
+
+
+@functools.partial(jax.jit, static_argnames=["joint_names"])
+def random_joint_positions(
+    model: Model.JaxSimModel,
+    *,
+    joint_names: Sequence[str] | None = None,
+    key: jax.Array | None = None,
+) -> jtp.Vector:
+    """"""
+
+    key = key if key is not None else jax.random.PRNGKey(seed=0)
+
+    s_min, s_max = position_limits(model=model, joint_names=joint_names)
+
+    s_random = jax.random.uniform(
+        minval=s_min,
+        maxval=s_max,
+        key=key,
+        shape=s_min.shape,
+    )
+
+    return s_random

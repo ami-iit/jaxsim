@@ -243,3 +243,46 @@ class JaxSimModel(JaxsimDataclass):
         """
 
         return tuple(self.physics_model.description.links_dict.keys())
+
+
+# =====================
+# Model post-processing
+# =====================
+
+
+def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimModel:
+    """
+    Reduce the model by lumping together the links connected by removed joints.
+
+    Args:
+        model: The model to reduce.
+        considered_joints: The sequence of joints to consider.
+
+    Note:
+        If considered_joints contains joints not existing in the model, the method
+        will raise an exception. If considered_joints is empty, the method will
+        return a copy of the input model.
+    """
+
+    if len(considered_joints) == 0:
+        return model.copy()
+
+    # Reduce the model description.
+    # If considered_joints contains joints not existing in the model, the method
+    # will raise an exception.
+    reduced_intermediate_description = model.physics_model.description.reduce(
+        considered_joints=list(considered_joints)
+    )
+
+    # Create the physics model from the reduced model description
+    physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
+        model_description=reduced_intermediate_description,
+        gravity=model.physics_model.gravity[0:3],
+    )
+
+    # Build the reduced model
+    reduced_model = JaxSimModel.build(
+        physics_model=physics_model, model_name=model.name()
+    )
+
+    return reduced_model

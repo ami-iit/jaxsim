@@ -383,3 +383,61 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
     )
 
     return jnp.atleast_3d(W_H_LL).astype(float)
+
+
+@jax.jit
+def generalized_free_floating_jacobian(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Matrix:
+    """
+    Compute the free-floating jacobians of all links.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        output_vel_repr:
+            The output velocity representation of the free-floating jacobians.
+
+    Returns:
+        The (nL, 6, 6+dofs) array containing the stacked free-floating
+        jacobians of the links. The first axis is the link index.
+    """
+
+    if output_vel_repr is None:
+        output_vel_repr = data.velocity_representation
+
+    # The body frame of the Link.jacobian method is the link frame L.
+    # In this method, we want instead to use the base link B as body frame.
+    # Therefore, we always get the link jacobian having Inertial as output
+    # representation, and then we convert it to the desired output representation.
+    match output_vel_repr:
+        case VelRepr.Inertial:
+            to_output = lambda J: J
+
+        case VelRepr.Body:
+
+            def to_output(W_J_Wi):
+                W_H_B = data.base_transform()
+                B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+                return B_X_W @ W_J_Wi
+
+        case VelRepr.Mixed:
+
+            def to_output(W_J_Wi):
+                W_H_B = data.base_transform()
+                W_H_BW = jnp.array(W_H_B).at[0:3, 0:3].set(jnp.eye(3))
+                BW_X_W = jaxlie.SE3.from_matrix(W_H_BW).inverse().adjoint()
+                return BW_X_W @ W_J_Wi
+
+        case _:
+            raise ValueError(output_vel_repr)
+
+    # Get the link jacobians in Inertial representation and convert them to the
+    # target output representation in which the body frame is the base link B
+    J_free_floating = jax.vmap(
+        lambda i: to_output(js.link.jacobian(model=model, data=data, link_index=i))
+    )(jnp.arange(model.number_of_links()))
+
+    return J_free_floating

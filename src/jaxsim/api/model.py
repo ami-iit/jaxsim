@@ -3,6 +3,8 @@ from __future__ import annotations
 import dataclasses
 import pathlib
 
+import jax
+import jax.numpy as jnp
 import jax_dataclasses
 import rod
 from jax_dataclasses import Static
@@ -286,3 +288,29 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
     )
 
     return reduced_model
+
+
+# ===================
+# Inertial properties
+# ===================
+
+
+@jax.jit
+def total_mass(model: JaxSimModel) -> jtp.Float:
+    """
+    Compute the total mass of the model.
+
+    Args:
+        model: The model to consider.
+
+    Returns:
+        The total mass of the model.
+    """
+
+    return (
+        jax.vmap(lambda idx: js.link.mass(model=model, link_index=idx))(
+            jnp.arange(model.number_of_links())
+        )
+        .sum()
+        .astype(float)
+    )

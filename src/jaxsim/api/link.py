@@ -118,3 +118,47 @@ def transform(
     from jaxsim.helpers.model import forward_kinematics
 
     return forward_kinematics(model=model, data=data)[link_index]
+
+
+@jax.jit
+def com_position(
+    model: Model.JaxSimModel,
+    data: Data.JaxSimModelData,
+    *,
+    link_index: jtp.IntLike,
+    in_link_frame: jtp.BoolLike = True,
+) -> jtp.Vector:
+    """
+    Compute the position of the center of mass of the link.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        link_index: The index of the link.
+        in_link_frame:
+            Whether to return the position in the link frame or in the world frame.
+
+    Returns:
+        The 3D position of the center of mass of the link.
+    """
+
+    from jaxsim.math.inertia import Inertia
+
+    _, L_p_CoM, _ = Inertia.to_params(
+        M=spatial_inertia(model=model, link_index=link_index)
+    )
+
+    def com_in_link_frame():
+        return L_p_CoM.squeeze()
+
+    def com_in_inertial_frame():
+        W_H_L = transform(link_index=link_index, model=model, data=data)
+        W_p̃_CoM = W_H_L @ jnp.hstack([L_p_CoM.squeeze(), 1])
+
+        return W_p̃_CoM[0:3].squeeze()
+
+    return jax.lax.select(
+        pred=in_link_frame,
+        on_true=com_in_link_frame(),
+        on_false=com_in_inertial_frame(),
+    )

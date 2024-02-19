@@ -1,3 +1,5 @@
+from typing import Union
+
 import jax.numpy as jnp
 import jax_dataclasses
 
@@ -42,13 +44,85 @@ class PhysicsModelState(JaxsimDataclass):
     )
 
     @staticmethod
+    def build(
+        joint_positions: jtp.Vector | None = None,
+        joint_velocities: jtp.Vector | None = None,
+        base_position: jtp.Vector | None = None,
+        base_quaternion: jtp.Vector | None = None,
+        base_linear_velocity: jtp.Vector | None = None,
+        base_angular_velocity: jtp.Vector | None = None,
+        number_of_dofs: jtp.Int | None = None,
+    ) -> "PhysicsModelState":
+        """"""
+
+        joint_positions = (
+            joint_positions
+            if joint_positions is not None
+            else jnp.zeros(number_of_dofs)
+        )
+
+        joint_velocities = (
+            joint_velocities
+            if joint_velocities is not None
+            else jnp.zeros(number_of_dofs)
+        )
+
+        base_position = base_position if base_position is not None else jnp.zeros(3)
+
+        base_quaternion = (
+            base_quaternion
+            if base_quaternion is not None
+            else jnp.array([1.0, 0, 0, 0])
+        )
+
+        base_linear_velocity = (
+            base_linear_velocity if base_linear_velocity is not None else jnp.zeros(3)
+        )
+
+        base_angular_velocity = (
+            base_angular_velocity if base_angular_velocity is not None else jnp.zeros(3)
+        )
+
+        physics_model_state = PhysicsModelState(
+            joint_positions=jnp.array(joint_positions, dtype=float),
+            joint_velocities=jnp.array(joint_velocities, dtype=float),
+            base_position=jnp.array(base_position, dtype=float),
+            base_quaternion=jnp.array(base_quaternion, dtype=float),
+            base_linear_velocity=jnp.array(base_linear_velocity, dtype=float),
+            base_angular_velocity=jnp.array(base_angular_velocity, dtype=float),
+        )
+
+        return physics_model_state
+
+    @staticmethod
+    def build_from_physics_model(
+        joint_positions: jtp.Vector | None = None,
+        joint_velocities: jtp.Vector | None = None,
+        base_position: jtp.Vector | None = None,
+        base_quaternion: jtp.Vector | None = None,
+        base_linear_velocity: jtp.Vector | None = None,
+        base_angular_velocity: jtp.Vector | None = None,
+        physics_model: Union[
+            "jaxsim.physics.model.physics_model.PhysicsModel", None
+        ] = None,
+    ) -> "PhysicsModelState":
+        """"""
+
+        return PhysicsModelState.build(
+            joint_positions=joint_positions,
+            joint_velocities=joint_velocities,
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            base_linear_velocity=base_linear_velocity,
+            base_angular_velocity=base_angular_velocity,
+            number_of_dofs=physics_model.dofs(),
+        )
+
+    @staticmethod
     def zero(
         physics_model: "jaxsim.physics.model.physics_model.PhysicsModel",
     ) -> "PhysicsModelState":
-        return PhysicsModelState(
-            joint_positions=jnp.zeros(physics_model.dofs()),
-            joint_velocities=jnp.zeros(physics_model.dofs()),
-        )
+        return PhysicsModelState.build_from_physics_model(physics_model=physics_model)
 
     def position(self) -> jtp.Vector:
         return jnp.hstack(
@@ -143,16 +217,41 @@ class PhysicsModelInput(JaxsimDataclass):
     f_ext: jtp.MatrixJax
 
     @staticmethod
+    def build(
+        tau: jtp.VectorJax | None = None,
+        f_ext: jtp.MatrixJax | None = None,
+        number_of_dofs: jtp.Int | None = None,
+        number_of_links: jtp.Int | None = None,
+    ) -> "PhysicsModelInput":
+        """"""
+
+        tau = tau if tau is not None else jnp.zeros(number_of_dofs)
+        f_ext = f_ext if f_ext is not None else jnp.zeros(shape=(number_of_links, 6))
+
+        return PhysicsModelInput(
+            tau=jnp.array(tau, dtype=float), f_ext=jnp.array(f_ext, dtype=float)
+        )
+
+    @staticmethod
+    def build_from_physics_model(
+        tau: jtp.VectorJax | None = None,
+        f_ext: jtp.MatrixJax | None = None,
+        physics_model: Union[
+            "jaxsim.physics.model.physics_model.PhysicsModel", None
+        ] = None,
+    ) -> "PhysicsModelInput":
+        return PhysicsModelInput.build(
+            tau=tau,
+            f_ext=f_ext,
+            number_of_dofs=physics_model.dofs(),
+            number_of_links=physics_model.NB,
+        )
+
+    @staticmethod
     def zero(
         physics_model: "jaxsim.physics.model.physics_model.PhysicsModel",
     ) -> "PhysicsModelInput":
-        ode_input = PhysicsModelInput(
-            tau=jnp.zeros(physics_model.dofs()),
-            f_ext=jnp.zeros(shape=(physics_model.NB, 6)),
-        )
-
-        assert ode_input.valid(physics_model)
-        return ode_input
+        return PhysicsModelInput.build_from_physics_model(physics_model=physics_model)
 
     def replace(self, validate: bool = True, **kwargs) -> "PhysicsModelInput":
         with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_input:

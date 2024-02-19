@@ -10,6 +10,7 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+import jaxsim.physics.algos.forward_kinematics
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
@@ -354,3 +355,31 @@ def com_position(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vecto
     B_p̃_CoM = B_p̃_CoM.at[3].set(1)
 
     return (W_H_B @ B_p̃_CoM)[0:3].astype(float)
+
+
+# ==============================
+# Rigid Body Dynamics Algorithms
+# ==============================
+
+
+@jax.jit
+def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
+    """
+    Compute the SE(3) transforms from the world frame to the frames of all links.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        A (nL, 4, 4) array containing the stacked SE(3) transforms of the links.
+        The first axis is the link index.
+    """
+
+    W_H_LL = jaxsim.physics.algos.forward_kinematics.forward_kinematics_model(
+        model=model.physics_model,
+        q=data.state.physics_model.joint_positions,
+        xfb=data.state.physics_model.xfb(),
+    )
+
+    return jnp.atleast_3d(W_H_LL).astype(float)

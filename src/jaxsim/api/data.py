@@ -4,11 +4,12 @@ import contextlib
 import dataclasses
 import functools
 import weakref
-from typing import ContextManager
+from typing import ContextManager, Sequence
 
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import jaxlie
 import numpy as np
 from jax_dataclasses import Static
 
@@ -24,7 +25,7 @@ from jaxsim import sixd
 from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.simulation.ode_data import ODEState
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.utils import JaxsimDataclass, Mutability
 
 from . import contact as Contact
 
@@ -580,3 +581,83 @@ class JaxSimModelData(JaxsimDataclass):
 
             case _:
                 raise ValueError(other_representation)
+
+
+def random_model_data(
+    model: jaxsim.api.model.JaxSimModel,
+    *,
+    key: jax.Array | None = None,
+    base_pos_bounds: tuple[
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+    ] = ((-1, -1, 0.5), 1.0),
+    base_vel_lin_bounds: tuple[
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+    ] = (-1.0, 1.0),
+    base_vel_ang_bounds: tuple[
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+    ] = (-1.0, 1.0),
+    joint_vel_bounds: tuple[
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+    ] = (-1.0, 1.0),
+) -> JaxSimModelData:
+    """
+    Randomly generate a `JaxSimModelData` object.
+
+    Args:
+        model: The target model for the random data.
+        key: The random key.
+        base_pos_bounds: The bounds for the base position.
+        base_vel_lin_bounds: The bounds for the base linear velocity.
+        base_vel_ang_bounds: The bounds for the base angular velocity.
+        joint_vel_bounds: The bounds for the joint velocities.
+
+    Returns:
+        A `JaxSimModelData` object with random data.
+    """
+
+    key = key if key is not None else jax.random.PRNGKey(seed=0)
+    k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
+
+    p_min = jnp.array(base_pos_bounds[0], dtype=float)
+    p_max = jnp.array(base_pos_bounds[1], dtype=float)
+    v_min = jnp.array(base_vel_lin_bounds[0], dtype=float)
+    v_max = jnp.array(base_vel_lin_bounds[1], dtype=float)
+    ω_min = jnp.array(base_vel_ang_bounds[0], dtype=float)
+    ω_max = jnp.array(base_vel_ang_bounds[1], dtype=float)
+    ṡ_min, ṡ_max = joint_vel_bounds
+
+    random_data = JaxSimModelData.zero(model=model)
+
+    with random_data.mutable_context(mutability=Mutability.MUTABLE):
+
+        physics_model_state = random_data.state.physics_model
+
+        physics_model_state.base_position = jax.random.uniform(
+            key=k1, shape=(3,), minval=p_min, maxval=p_max
+        )
+
+        physics_model_state.base_quaternion = jaxlie.SO3.from_rpy_radians(
+            *jax.random.uniform(key=k2, shape=(3,), minval=0, maxval=2 * jnp.pi)
+        ).as_quaternion_xyzw()[np.array([3, 0, 1, 2])]
+
+        physics_model_state.joint_positions = jaxsim.api.joint.random_joint_positions(
+            model=model
+        )
+
+        physics_model_state.base_linear_velocity = jax.random.uniform(
+            key=k4, shape=(3,), minval=v_min, maxval=v_max
+        )
+
+        physics_model_state.base_angular_velocity = jax.random.uniform(
+            key=k5, shape=(3,), minval=ω_min, maxval=ω_max
+        )
+
+        physics_model_state.joint_velocities = jax.random.uniform(
+            key=k6, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+        )
+
+    return random_data

@@ -1,3 +1,4 @@
+import functools
 from typing import Sequence
 
 import jax
@@ -89,3 +90,31 @@ def idxs_to_names(
     }
 
     return tuple(d[i] for i in joint_indices)
+
+
+# ============
+# Joint limits
+# ============
+
+
+@jax.jit
+def position_limit(
+    model: Model.JaxSimModel, *, joint_index: jtp.IntLike
+) -> tuple[jtp.Float, jtp.Float]:
+    """"""
+
+    min = model.physics_model._joint_position_limits_min[joint_index]
+    max = model.physics_model._joint_position_limits_max[joint_index]
+
+    return min.astype(float), max.astype(float)
+
+
+@functools.partial(jax.jit, static_argnames=["joint_names"])
+def position_limits(
+    model: Model.JaxSimModel, *, joint_names: Sequence[str] | None = None
+) -> tuple[jtp.Vector, jtp.Vector]:
+
+    joint_names = joint_names if joint_names is not None else model.joint_names()
+
+    joint_idxs = names_to_idxs(joint_names=joint_names, model=model)
+    return jax.vmap(lambda i: position_limit(model=model, joint_index=i))(joint_idxs)

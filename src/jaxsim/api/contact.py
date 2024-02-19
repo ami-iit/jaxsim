@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.typing as jtp
+from jaxsim.physics.algos import soft_contacts
 
 from . import data as Data
 from . import model as Model
@@ -126,3 +127,68 @@ def in_contact(
     )(jnp.arange(model.number_of_links()))
 
     return links_in_contact
+
+
+@jax.jit
+def estimate_good_soft_contacts_parameters(
+    model: Model.JaxSimModel,
+    static_friction_coefficient: jtp.FloatLike = 0.5,
+    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+    damping_ratio: jtp.FloatLike = 1.0,
+    max_penetration: jtp.FloatLike | None = None,
+) -> soft_contacts.SoftContactsParams:
+    """
+    Estimate good soft contacts parameters for the given model.
+
+    Args:
+        model: The model to consider.
+        static_friction_coefficient: The static friction coefficient.
+        number_of_active_collidable_points_steady_state:
+            The number of active collidable points in steady state supporting
+            the weight of the robot.
+        damping_ratio: The damping ratio.
+        max_penetration:
+            The maximum penetration allowed in steady state when the robot is
+            supported by the configured number of active collidable points.
+
+    Returns:
+        The estimated good soft contacts parameters.
+
+    Note:
+        This method provides a good starting point for the soft contacts parameters.
+        The user is encouraged to fine-tune the parameters based on the
+        specific application.
+    """
+
+    def estimate_model_height(model: Model.JaxSimModel) -> jtp.Float:
+        """"""
+
+        zero_data = Data.JaxSimModelData.build(
+            model=model, soft_contacts_params=soft_contacts.SoftContactsParams()
+        )
+
+        W_p_CoM = Model.com_position(model=model, data=zero_data)
+
+        if model.physics_model.is_floating_base:
+            W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
+            return 2 * (W_p_CoM[2] - W_pz_C.min())
+        else:
+            return 2 * W_p_CoM
+
+    max_δ = (
+        max_penetration
+        if max_penetration is not None
+        else 0.005 * estimate_model_height(model=model)
+    )
+
+    nc = number_of_active_collidable_points_steady_state
+
+    sc_parameters = soft_contacts.SoftContactsParams.build_default_from_physics_model(
+        physics_model=model.physics_model,
+        static_friction_coefficient=static_friction_coefficient,
+        max_penetration=max_δ,
+        number_of_active_collidable_points_steady_state=nc,
+        damping_ratio=damping_ratio,
+    )
+
+    return sc_parameters

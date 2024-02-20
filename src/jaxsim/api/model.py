@@ -964,3 +964,69 @@ def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vec
         base_transform=W_H_B,
         is_force=True,
     ).astype(float)
+
+
+# ======
+# Energy
+# ======
+
+
+@jax.jit
+def mechanical_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
+    """
+    Compute the mechanical energy of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The mechanical energy of the model.
+    """
+
+    K = kinetic_energy(model=model, data=data)
+    U = potential_energy(model=model, data=data)
+
+    return (K + U).astype(float)
+
+
+@jax.jit
+def kinetic_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
+    """
+    Compute the kinetic energy of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The kinetic energy of the model.
+    """
+
+    with data.switch_velocity_representation(velocity_representation=VelRepr.Body):
+        B_ν = data.generalized_velocity()
+        M_B = free_floating_mass_matrix(model=model, data=data)
+
+    K = 0.5 * B_ν.T @ M_B @ B_ν
+    return K.squeeze().astype(float)
+
+
+@jax.jit
+def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
+    """
+    Compute the potential energy of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The potential energy of the model.
+    """
+
+    m = total_mass(model=model)
+    gravity = data.gravity.squeeze()
+    W_p̃_CoM = jnp.hstack([com_position(model=model, data=data), 1])
+
+    U = -jnp.hstack([gravity, 0]) @ (m * W_p̃_CoM)
+    return U.squeeze().astype(float)

@@ -6,10 +6,12 @@ import pathlib
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import jaxlie
 import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.forward_kinematics
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
@@ -441,3 +443,206 @@ def generalized_free_floating_jacobian(
     )(jnp.arange(model.number_of_links()))
 
     return J_free_floating
+
+
+@functools.partial(jax.jit, static_argnames=["prefer_aba"])
+def forward_dynamics(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    joint_forces: jtp.VectorLike | None = None,
+    external_forces: jtp.MatrixLike | None = None,
+    prefer_aba: float = True,
+) -> tuple[jtp.Vector, jtp.Vector]:
+    """
+    Compute the forward dynamics of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        joint_forces:
+            The joint forces to consider as a vector of shape `(dofs,)`.
+        external_forces:
+            The external forces to consider as a matrix of shape `(nL, 6)`.
+        prefer_aba: Whether to prefer the ABA algorithm over the CRB one.
+
+    Returns:
+        A tuple containing the 6D acceleration in the active representation of the
+        base link and the joint accelerations resulting from the application of the
+        considered joint forces and external forces.
+    """
+
+    forward_dynamics_fn = forward_dynamics_aba if prefer_aba else forward_dynamics_crb
+
+    return forward_dynamics_fn(
+        model=model, data=data, tau=joint_forces, external_forces=external_forces
+    )
+
+
+@jax.jit
+def forward_dynamics_aba(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    joint_forces: jtp.VectorLike | None = None,
+    external_forces: jtp.MatrixLike | None = None,
+) -> tuple[jtp.Vector, jtp.Vector]:
+    """
+    Compute the forward dynamics of the model with the ABA algorithm.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        joint_forces:
+            The joint forces to consider as a vector of shape `(dofs,)`.
+        external_forces:
+            The external forces to consider as a matrix of shape `(nL, 6)`.
+
+    Returns:
+        A tuple containing the 6D acceleration in the active representation of the
+        base link and the joint accelerations resulting from the application of the
+        considered joint forces and external forces.
+    """
+
+    # Build joint torques if not provided
+    τ = (
+        joint_forces
+        if joint_forces is not None
+        else jnp.zeros_like(data.joint_positions())
+    )
+
+    # Build external forces if not provided
+    f_ext = (
+        external_forces
+        if external_forces is not None
+        else jnp.zeros((model.number_of_links(), 6))
+    )
+
+    # Compute ABA
+    W_v̇_WB, s̈ = jaxsim.physics.algos.aba.aba(
+        model=model.physics_model,
+        xfb=data.state.physics_model.xfb(),
+        q=data.state.physics_model.joint_positions,
+        qd=data.state.physics_model.joint_velocities,
+        tau=τ,
+        f_ext=f_ext,
+    )
+
+    def to_active(W_vd_WB, W_H_C, W_v_WB, W_vl_WC):
+        C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
+
+        if data.velocity_representation != VelRepr.Mixed:
+            return C_X_W @ W_vd_WB
+        else:
+            from jaxsim.math.cross import Cross
+
+            W_v_WC = jnp.hstack([W_vl_WC, jnp.zeros(3)])
+            return C_X_W @ (W_vd_WB - Cross.vx(W_v_WC) @ W_v_WB)
+
+    match data.velocity_representation:
+        case VelRepr.Inertial:
+            W_H_C = W_H_W = jnp.eye(4)
+            W_vl_WC = W_vl_WW = jnp.zeros(3)
+
+        case VelRepr.Body:
+            W_H_C = W_H_B = data.base_transform()
+            W_vl_WC = W_vl_WB = data.base_velocity()[0:3]
+
+        case VelRepr.Mixed:
+            W_H_B = data.base_transform()
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_vl_WC = W_vl_W_BW = data.base_velocity()[0:3]
+
+        case _:
+            raise ValueError(data.velocity_representation)
+
+    # We need to convert the derivative of the base acceleration to the active
+    # representation. In Mixed representation, this conversion is not a plain
+    # transformation with just X, but it also involves a cross product in ℝ⁶.
+    C_v̇_WB = to_active(
+        W_vd_WB=W_v̇_WB.squeeze(),
+        W_H_C=W_H_C,
+        W_v_WB=jnp.hstack(
+            [
+                data.state.physics_model.base_linear_velocity,
+                data.state.physics_model.base_angular_velocity,
+            ]
+        ),
+        W_vl_WC=W_vl_WC,
+    )
+
+    # Adjust shape
+    s̈ = jnp.atleast_1d(s̈.squeeze())
+
+    return C_v̇_WB, s̈
+
+
+@jax.jit
+def forward_dynamics_crb(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    joint_forces: jtp.MatrixLike | None = None,
+    external_forces: jtp.MatrixLike | None = None,
+) -> tuple[jtp.Vector, jtp.Vector]:
+    """
+    Compute the forward dynamics of the model with the CRB algorithm.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        joint_forces:
+            The joint forces to consider as a vector of shape `(dofs,)`.
+        external_forces:
+            The external forces to consider as a matrix of shape `(nL, 6)`.
+
+    Returns:
+        A tuple containing the 6D acceleration in the active representation of the
+        base link and the joint accelerations resulting from the application of the
+        considered joint forces and external forces.
+
+    Note:
+        Compared to ABA, this method could be significantly slower, especially for
+        models with a large number of degrees of freedom.
+    """
+
+    # Build joint torques if not provided
+    τ = (
+        joint_forces
+        if joint_forces is not None
+        else jnp.zeros_like(data.joint_positions())
+    )
+
+    # Build external forces if not provided
+    external_forces = (
+        external_forces
+        if external_forces is not None
+        else jnp.zeros(shape=(model.number_of_links(), 6))
+    )
+
+    # Handle models with zero and one DoFs
+    τ = jnp.atleast_1d(τ.squeeze())
+    τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
+
+    # Compute terms of the floating-base EoM
+    M = free_floating_mass_matrix(model=model, data=data)
+    h = jnp.vstack(free_floating_bias_forces(model=model, data=data))
+    J = jnp.vstack(generalized_free_floating_jacobian(model=model, data=data))
+    f_ext = jnp.vstack(external_forces.flatten())
+    S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
+
+    # TODO: invert the Mss block exploiting sparsity defined by the parent array λ(i)
+    if model.floating_base():
+        ν̇ = jnp.linalg.inv(M) @ ((S @ τ) - h + J.T @ f_ext)
+    else:
+        v̇_WB = jnp.zeros(6)
+        s̈ = jnp.linalg.inv(M[6:, 6:]) @ ((S @ τ)[6:] - h[6:] + J[:, 6:].T @ f_ext)
+        ν̇ = jnp.hstack([v̇_WB, s̈.squeeze()])
+
+    # Extract the base acceleration in the active representation.
+    # Note that this is an apparent acceleration (relevant in Mixed representation),
+    # therefore it cannot be always expressed in different frames with just a
+    # 6D transformation X.
+    v̇_WB = ν̇[0:6].squeeze().astype(float)
+
+    # Extract the joint accelerations
+    s̈ = jnp.atleast_1d(ν̇[6:].squeeze()).astype(float)
+
+    return v̇_WB, s̈

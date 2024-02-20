@@ -859,3 +859,63 @@ def free_floating_gravity_forces(
             external_forces=jnp.zeros(shape=(model.number_of_links(), 6)),
         )
     ).astype(float)
+
+
+@jax.jit
+def free_floating_bias_forces(
+    model: JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Vector:
+    """
+    Compute the free-floating bias forces :math:`h(\mathbf{q}, \boldsymbol{\nu})`
+    of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The free-floating bias forces of the model.
+    """
+
+    # Build a zeroed state
+    data_rnea = js.data.JaxSimModelData.zero(model=model)
+
+    # Set the generalized position and generalized velocity
+    with data_rnea.mutable_context(
+        mutability=Mutability.MUTABLE, restore_after_exception=False
+    ):
+
+        data_rnea.state.physics_model.base_position = (
+            data.state.physics_model.base_position
+        )
+
+        data_rnea.state.physics_model.base_quaternion = (
+            data.state.physics_model.base_quaternion
+        )
+
+        data_rnea.state.physics_model.joint_positions = (
+            data.state.physics_model.joint_positions
+        )
+
+        data_rnea.state.physics_model.base_linear_velocity = (
+            data.state.physics_model.base_linear_velocity
+        )
+
+        data_rnea.state.physics_model.base_angular_velocity = (
+            data.state.physics_model.base_angular_velocity
+        )
+
+        data_rnea.state.physics_model.joint_velocities = (
+            data.state.physics_model.joint_velocities
+        )
+
+    return jnp.hstack(
+        inverse_dynamics(
+            model=model,
+            data=data_rnea,
+            # Set zero inputs:
+            joint_accelerations=jnp.atleast_1d(jnp.zeros(model.dofs())),
+            base_acceleration=jnp.zeros(6),
+            external_forces=jnp.zeros(shape=(model.number_of_links(), 6)),
+        )
+    ).astype(float)

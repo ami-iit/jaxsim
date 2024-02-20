@@ -916,3 +916,48 @@ def free_floating_bias_forces(
             external_forces=jnp.zeros(shape=(model.number_of_links(), 6)),
         )
     ).astype(float)
+
+
+# ==========================
+# Other kinematic quantities
+# ==========================
+
+
+@jax.jit
+def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
+    """
+    Compute the total momentum of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The total momentum of the model.
+    """
+
+    # Compute the momentum in body-fixed velocity representation.
+    # Note: the first 6 rows of the mass matrix define the jacobian of the
+    #       floating-base momentum.
+    with data.switch_velocity_representation(velocity_representation=VelRepr.Body):
+        B_ν = data.generalized_velocity()
+        M_B = free_floating_mass_matrix(model=model, data=data)
+
+    # Compute the total momentum expressed in the base frame
+    B_h = M_B[0:6, :] @ B_ν
+
+    # Compute the 6D transformation matrix
+    W_H_B = data.base_transform()
+    B_X_W: jtp.Array = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+
+    # Convert to inertial-fixed representation
+    # (its coordinates transform like 6D forces)
+    W_h = B_X_W.T @ B_h
+
+    # Convert to the active representation of the model
+    return js.data.JaxSimModelData.inertial_to_other_representation(
+        array=W_h,
+        other_representation=data.velocity_representation,
+        base_transform=W_H_B,
+        is_force=True,
+    ).astype(float)

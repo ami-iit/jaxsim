@@ -14,6 +14,7 @@ import jaxsim.api as js
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
+import jaxsim.physics.algos.rnea
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
@@ -699,3 +700,112 @@ def free_floating_mass_matrix(
 
         case _:
             raise ValueError(data.velocity_representation)
+
+
+@jax.jit
+def inverse_dynamics(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    joint_accelerations: jtp.Vector | None = None,
+    base_acceleration: jtp.Vector | None = None,
+    external_forces: jtp.Matrix | None = None,
+) -> tuple[jtp.Vector, jtp.Vector]:
+    """
+    Compute inverse dynamics with the RNEA algorithm.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        joint_accelerations:
+            The joint accelerations to consider as a vector of shape `(dofs,)`.
+        base_acceleration:
+            The base acceleration to consider as a vector of shape `(6,)`.
+        external_forces:
+            The external forces to consider as a matrix of shape `(nL, 6)`.
+
+    Returns:
+        A tuple containing the 6D force in the active representation applied to the
+        base to obtain the considered base acceleration, and the joint forces to apply
+        to obtain the considered joint accelerations.
+    """
+
+    # Build joint accelerations if not provided
+    joint_accelerations = (
+        joint_accelerations
+        if joint_accelerations is not None
+        else jnp.zeros_like(data.joint_positions())
+    )
+
+    # Build base acceleration if not provided
+    base_acceleration = (
+        base_acceleration if base_acceleration is not None else jnp.zeros(6)
+    )
+
+    external_forces = (
+        external_forces
+        if external_forces is not None
+        else jnp.zeros(shape=(model.number_of_links(), 6))
+    )
+
+    def to_inertial(C_vd_WB, W_H_C, C_v_WB, W_vl_WC):
+        W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
+        C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
+
+        if data.velocity_representation != VelRepr.Mixed:
+            return W_X_C @ C_vd_WB
+        else:
+            from jaxsim.math.cross import Cross
+
+            C_v_WC = C_X_W @ jnp.hstack([W_vl_WC, jnp.zeros(3)])
+            return W_X_C @ (C_vd_WB + Cross.vx(C_v_WC) @ C_v_WB)
+
+    match data.velocity_representation:
+        case VelRepr.Inertial:
+            W_H_C = W_H_W = jnp.eye(4)
+            W_vl_WC = W_vl_WW = jnp.zeros(3)
+
+        case VelRepr.Body:
+            W_H_C = W_H_B = data.base_transform()
+            W_vl_WC = W_vl_WB = data.base_velocity()[0:3]
+
+        case VelRepr.Mixed:
+            W_H_B = data.base_transform()
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_vl_WC = W_vl_W_BW = data.base_velocity()[0:3]
+
+        case _:
+            raise ValueError(data.velocity_representation)
+
+    # We need to convert the derivative of the base acceleration to the Inertial
+    # representation. In Mixed representation, this conversion is not a plain
+    # transformation with just X, but it also involves a cross product in ℝ⁶.
+    W_v̇_WB = to_inertial(
+        C_vd_WB=base_acceleration,
+        W_H_C=W_H_C,
+        C_v_WB=data.base_velocity(),
+        W_vl_WC=W_vl_WC,
+    )
+
+    # Compute RNEA
+    W_f_B, tau = jaxsim.physics.algos.rnea.rnea(
+        model=model.physics_model,
+        xfb=data.state.physics_model.xfb(),
+        q=data.state.physics_model.joint_positions,
+        qd=data.state.physics_model.joint_velocities,
+        qdd=joint_accelerations,
+        a0fb=W_v̇_WB,
+        f_ext=external_forces,
+    )
+
+    # Adjust shape
+    tau = jnp.atleast_1d(tau.squeeze())
+
+    # Express W_f_B in the active representation
+    f_B = js.data.JaxSimModelData.inertial_to_other_representation(
+        array=W_f_B,
+        other_representation=data.velocity_representation,
+        base_transform=data.base_transform(),
+        is_force=True,
+    ).squeeze()
+
+    return f_B.astype(float), tau.astype(float)

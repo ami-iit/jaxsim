@@ -12,6 +12,7 @@ from jax_dataclasses import Static
 
 import jaxsim.api as js
 import jaxsim.physics.algos.aba
+import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
@@ -646,3 +647,58 @@ def forward_dynamics_crb(
     s̈ = jnp.atleast_1d(ν̇[6:].squeeze()).astype(float)
 
     return v̇_WB, s̈
+
+
+@jax.jit
+def free_floating_mass_matrix(
+    model: JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    """
+    Compute the free-floating mass matrix of the model with the CRBA algorithm.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The free-floating mass matrix of the model.
+    """
+
+    M_body = jaxsim.physics.algos.crba.crba(
+        model=model.physics_model,
+        q=data.state.physics_model.joint_positions,
+    )
+
+    match data.velocity_representation:
+        case VelRepr.Body:
+            return M_body
+
+        case VelRepr.Inertial:
+            zero_6n = jnp.zeros(shape=(6, model.dofs()))
+            B_X_W = jaxlie.SE3.from_matrix(data.base_transform()).inverse().adjoint()
+
+            invT = jnp.vstack(
+                [
+                    jnp.block([B_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(model.dofs())]),
+                ]
+            )
+
+            return invT.T @ M_body @ invT
+
+        case VelRepr.Mixed:
+            zero_6n = jnp.zeros(shape=(6, model.dofs()))
+            W_H_BW = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            BW_X_W = jaxlie.SE3.from_matrix(W_H_BW).inverse().adjoint()
+
+            invT = jnp.vstack(
+                [
+                    jnp.block([BW_X_W, zero_6n]),
+                    jnp.block([zero_6n.T, jnp.eye(model.dofs())]),
+                ]
+            )
+
+            return invT.T @ M_body @ invT
+
+        case _:
+            raise ValueError(data.velocity_representation)

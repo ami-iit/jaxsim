@@ -22,6 +22,7 @@ dependencies:
   - pytest-icdiff
   - robot_descriptions
   # [viz]
+  - lxml
   - mediapy
   - mujoco >= 3.0.0
   # System dependencies to run the tests

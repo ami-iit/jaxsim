@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import pathlib
 
 import jax
@@ -17,6 +18,7 @@ import jaxsim.physics.algos.forward_kinematics
 import jaxsim.physics.algos.rnea
 import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
+from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.utils import JaxsimDataclass, Mutability
 

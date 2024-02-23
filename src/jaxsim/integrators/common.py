@@ -301,9 +301,20 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
             # Define the computation of the Runge-Kutta stage.
             def compute_ki() -> jax.Array:
+
+                # Compute the next time for the kᵢ evaluation.
                 ti = t0 + c[i] * Δt
-                op = lambda x0, k: x0 + Δt * jnp.dot(A[i, :], k)
-                xi = jax.tree_util.tree_map(op, x0, K)
+
+                # Compute ∑ⱼ aᵢⱼ kⱼ
+                op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
+                sum_ak = jax.tree_util.tree_map(op_sum_ak, K)
+
+                # Compute the next state for the kᵢ evaluation.
+                # Note that this is not a Δt integration since aᵢⱼ could be fractional.
+                op = lambda x0, ak: x0 + Δt * ak
+                xi = jax.tree_util.tree_map(op, x0, sum_ak)
+
+                # This is kᵢ = f(xᵢ, tᵢ).
                 return f(xi, ti)[0]
 
             # This selector enables FSAL property in the first iteration (i=0).
@@ -333,7 +344,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Compute the output state.
         # Note that z contains as many new states as the rows of `b.T`.
-        op = lambda x0, ki: x0 + Δt * jnp.dot(b.T, ki)
+        op = lambda x0, k: x0 + Δt * jnp.einsum("zs,s...->z...", b.T, k)
         z = jax.tree_util.tree_map(op, x0, K)
 
         return z

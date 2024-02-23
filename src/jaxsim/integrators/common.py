@@ -256,6 +256,41 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         # The next state is the batch element located at the configured index of solution.
         return jax.tree_util.tree_map(lambda l: l[self.row_index_of_solution], z)
 
+    @classmethod
+    def integrate_rk_stage(
+        cls, x0: State, t0: Time, dt: TimeStep, k: StateDerivative
+    ) -> NextState:
+        """
+        Integrate a single stage of the Runge-Kutta method.
+
+        Args:
+            x0: The initial state of the system.
+            t0: The initial time of the system.
+            dt:
+                The time step of the RK integration scheme. Note that this is
+                not the stage timestep, as it depends on the `A` matrix used
+                to compute the `k` argument.
+            k:
+                The RK state derivative of the current stage, weighted with
+                the `A` matrix.
+
+        Returns:
+            The state at the next stage of the integration.
+
+        Note:
+            In the most generic case, `k` could be an arbitrary composition
+            of the kᵢ derivatives, depending on the RK matrix A.
+
+        Note:
+            Overriding this method allows users to use different classes
+            defining `State` and `StateDerivative`. Be aware that the
+            timestep `dt` is not the stage timestep, therefore the map
+            used to convert the state derivative must be time-independent.
+        """
+
+        op = lambda x0_leaf, k_leaf: x0_leaf + dt * k_leaf
+        return jax.tree_util.tree_map(op, x0, k)
+
     def _compute_next_state(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
     ) -> NextState:
@@ -302,17 +337,16 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             # Define the computation of the Runge-Kutta stage.
             def compute_ki() -> jax.Array:
 
-                # Compute the next time for the kᵢ evaluation.
-                ti = t0 + c[i] * Δt
-
                 # Compute ∑ⱼ aᵢⱼ kⱼ
                 op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
                 sum_ak = jax.tree_util.tree_map(op_sum_ak, K)
 
                 # Compute the next state for the kᵢ evaluation.
                 # Note that this is not a Δt integration since aᵢⱼ could be fractional.
-                op = lambda x0, ak: x0 + Δt * ak
-                xi = jax.tree_util.tree_map(op, x0, sum_ak)
+                xi = self.integrate_rk_stage(x0, t0, Δt, sum_ak)
+
+                # Compute the next time for the kᵢ evaluation.
+                ti = t0 + c[i] * Δt
 
                 # This is kᵢ = f(xᵢ, tᵢ).
                 return f(xi, ti)[0]

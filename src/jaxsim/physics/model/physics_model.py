@@ -70,10 +70,40 @@ class PhysicsModel(JaxsimDataclass):
         default_factory=dict
     )
 
+    _link_masses: jtp.Vector = dataclasses.field(init=False)
+    _link_spatial_inertias: jtp.Vector = dataclasses.field(init=False)
+    _joint_position_limits_min: jtp.Matrix = dataclasses.field(init=False)
+    _joint_position_limits_max: jtp.Matrix = dataclasses.field(init=False)
+
     def __post_init__(self):
         if self.initial_state is None:
             initial_state = PhysicsModelState.zero(physics_model=self)
             object.__setattr__(self, "initial_state", initial_state)
+
+        ordered_links = sorted(
+            list(self.description.links_dict.values()),
+            key=lambda l: l.index,
+        )
+
+        ordered_joints = sorted(
+            list(self.description.joints_dict.values()),
+            key=lambda j: j.index,
+        )
+
+        from jaxsim.utils import Mutability
+
+        with self.mutable_context(
+            mutability=Mutability.MUTABLE_NO_VALIDATION, restore_after_exception=False
+        ):
+            self._link_masses = jnp.stack([link.mass for link in ordered_links])
+            self._link_spatial_inertias = jnp.stack(
+                [self._link_inertias_dict[l.index] for l in ordered_links]
+            )
+
+            s_min = jnp.hstack([j.position_limit[0] for j in ordered_joints])
+            s_max = jnp.hstack([j.position_limit[1] for j in ordered_joints])
+            self._joint_position_limits_min = jnp.vstack([s_min, s_max]).min(axis=0)
+            self._joint_position_limits_max = jnp.vstack([s_min, s_max]).max(axis=0)
 
     @staticmethod
     def build_from(

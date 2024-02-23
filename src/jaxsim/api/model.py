@@ -392,6 +392,7 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
 def generalized_free_floating_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
+    *,
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
     """
@@ -450,6 +451,7 @@ def generalized_free_floating_jacobian(
 def forward_dynamics(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
+    *,
     joint_forces: jtp.VectorLike | None = None,
     external_forces: jtp.MatrixLike | None = None,
     prefer_aba: float = True,
@@ -483,6 +485,7 @@ def forward_dynamics(
 def forward_dynamics_aba(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
+    *,
     joint_forces: jtp.VectorLike | None = None,
     external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
@@ -580,6 +583,7 @@ def forward_dynamics_aba(
 def forward_dynamics_crb(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
+    *,
     joint_forces: jtp.MatrixLike | None = None,
     external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
@@ -708,6 +712,7 @@ def free_floating_mass_matrix(
 def inverse_dynamics(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
+    *,
     joint_accelerations: jtp.Vector | None = None,
     base_acceleration: jtp.Vector | None = None,
     external_forces: jtp.Matrix | None = None,
@@ -789,7 +794,7 @@ def inverse_dynamics(
     )
 
     # Compute RNEA
-    W_f_B, tau = jaxsim.physics.algos.rnea.rnea(
+    W_f_B, τ = jaxsim.physics.algos.rnea.rnea(
         model=model.physics_model,
         xfb=data.state.physics_model.xfb(),
         q=data.state.physics_model.joint_positions,
@@ -800,7 +805,7 @@ def inverse_dynamics(
     )
 
     # Adjust shape
-    tau = jnp.atleast_1d(tau.squeeze())
+    τ = jnp.atleast_1d(τ.squeeze())
 
     # Express W_f_B in the active representation
     f_B = js.data.JaxSimModelData.inertial_to_other_representation(
@@ -810,7 +815,7 @@ def inverse_dynamics(
         is_force=True,
     ).squeeze()
 
-    return f_B.astype(float), tau.astype(float)
+    return f_B.astype(float), τ.astype(float)
 
 
 @jax.jit

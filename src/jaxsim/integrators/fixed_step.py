@@ -1,18 +1,18 @@
-from typing import ClassVar
+from typing import ClassVar, Generic
 
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
 
-from .common import ExplicitRungeKutta
+from .common import ExplicitRungeKutta, PyTreeType
 
-# ================================
-# Explicit Runge-Kutta integrators
-# ================================
+# =====================================================
+# Explicit Runge-Kutta integrators operating on PyTrees
+# =====================================================
 
 
 @jax_dataclasses.pytree_dataclass
-class ForwardEuler(ExplicitRungeKutta):
+class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     A: ClassVar[jax.typing.ArrayLike] = jnp.array(
         [
@@ -38,7 +38,8 @@ class ForwardEuler(ExplicitRungeKutta):
     order_of_bT_rows: ClassVar[tuple[int, ...]] = (1,)
 
 
-class Heun(ExplicitRungeKutta):
+@jax_dataclasses.pytree_dataclass
+class Heun(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     A: ClassVar[jax.typing.ArrayLike] = jnp.array(
         [
@@ -63,7 +64,8 @@ class Heun(ExplicitRungeKutta):
     order_of_bT_rows: ClassVar[tuple[int, ...]] = (2,)
 
 
-class RungeKutta4(ExplicitRungeKutta):
+@jax_dataclasses.pytree_dataclass
+class RungeKutta4(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     A: ClassVar[jax.typing.ArrayLike] = jnp.array(
         [

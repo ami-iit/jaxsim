@@ -119,9 +119,7 @@ def transform(
         The 4x4 matrix representing the transform.
     """
 
-    from jaxsim.helpers.model import forward_kinematics
-
-    return forward_kinematics(model=model, data=data)[link_index]
+    return Model.forward_kinematics(model=model, data=data)[link_index]
 
 
 @jax.jit

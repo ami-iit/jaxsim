@@ -641,7 +641,7 @@ def random_model_data(
         ).as_quaternion_xyzw()[np.array([3, 0, 1, 2])]
 
         physics_model_state.joint_positions = jaxsim.api.joint.random_joint_positions(
-            model=model
+            model=model, key=k3
         )
 
         physics_model_state.base_linear_velocity = jax.random.uniform(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import pathlib
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -1034,3 +1035,62 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 
     U = -jnp.hstack([gravity, 0]) @ (m * W_p̃_CoM)
     return U.squeeze().astype(float)
+
+
+# ==========
+# Simulation
+# ==========
+
+
+@functools.partial(jax.jit, static_argnames=["integrator"])
+def step(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    dt: jtp.FloatLike,
+    integrator: jaxsim.integrators.Integrator,
+    integrator_state: dict[str, Any] | None = None,
+    joint_forces: jtp.Vector | None = None,
+    external_forces: jtp.Vector | None = None,
+) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
+    """
+    Perform a simulation step.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        dt: The time step to consider.
+        integrator: The integrator to use.
+        integrator_state: The state of the integrator.
+        joint_forces: The joint forces to consider.
+        external_forces: The external forces to consider.
+
+    Returns:
+        A tuple containing the new data of the model
+        and the new state of the integrator.
+    """
+
+    integrator_state = integrator_state if integrator_state is not None else dict()
+
+    # Extract the initial resources.
+    t0_ns = data.time_ns
+    state_x0 = data.state
+    integrator_state_x0 = integrator_state
+
+    # Step the dynamics forward.
+    state_xf, integrator_state_xf = integrator.step(
+        x0=state_x0,
+        t0=jnp.array(t0_ns * 1e9).astype(float),
+        dt=dt,
+        params=integrator_state_x0,
+        **dict(joint_forces=joint_forces, external_forces=external_forces),
+    )
+
+    return (
+        # Store the new state of the model and the new time.
+        data.replace(
+            state=state_xf,
+            time_ns=t0_ns + jnp.array(dt * 1e9).astype(jnp.uint64),
+        ),
+        integrator_state_xf,
+    )

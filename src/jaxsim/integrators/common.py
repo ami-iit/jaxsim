@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import Any, Callable, ClassVar, Generic, Self, Type, TypeVar
+from typing import Any, ClassVar, Generic, Protocol, Self, Type, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -10,6 +10,12 @@ from jax_dataclasses import Static
 import jaxsim.typing as jtp
 from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass, Mutability
 
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
+
+
 # =============
 # Generic types
 # =============
@@ -17,9 +23,15 @@ from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass, Mutability
 Time = jax.typing.ArrayLike
 TimeStep = jax.typing.ArrayLike
 State = NextState = TypeVar("State")
-
 StateDerivative = TypeVar("StateDerivative")
-SystemDynamics = Callable[[State, Time], tuple[StateDerivative, dict[str, Any]]]
+PyTreeType = TypeVar("PyTreeType", bound=jtp.PyTree)
+
+
+class SystemDynamics(Protocol[State, StateDerivative]):
+    def __call__(
+        self, x: State, t: Time, **kwargs
+    ) -> tuple[StateDerivative, dict[str, Any]]: ...
+
 
 # =======================
 # Base integrator classes
@@ -27,11 +39,11 @@ SystemDynamics = Callable[[State, Time], tuple[StateDerivative, dict[str, Any]]]
 
 
 @jax_dataclasses.pytree_dataclass
-class Integrator(JaxsimDataclass, abc.ABC, Generic[State]):
+class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
     AuxDictDynamicsKey: ClassVar[str] = "aux_dict_dynamics"
 
-    dynamics: Static[SystemDynamics] = dataclasses.field(
+    dynamics: Static[SystemDynamics[State, StateDerivative]] = dataclasses.field(
         repr=False, hash=False, compare=False, kw_only=True
     )
 
@@ -40,7 +52,9 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State]):
     )
 
     @classmethod
-    def build(cls: Type[Self], *, dynamics: SystemDynamics, **kwargs) -> Self:
+    def build(
+        cls: Type[Self], *, dynamics: SystemDynamics[State, StateDerivative], **kwargs
+    ) -> Self:
         """
         Build the integrator object.
 
@@ -136,7 +150,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State]):
 
 
 @jax_dataclasses.pytree_dataclass
-class ExplicitRungeKutta(Integrator[jtp.PyTree]):
+class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]):
 
     # The Runge-Kutta matrix.
     A: ClassVar[jax.typing.ArrayLike]
@@ -168,11 +182,12 @@ class ExplicitRungeKutta(Integrator[jtp.PyTree]):
     def order(self) -> int:
         return self.order_of_bT_rows[self.row_index_of_solution]
 
+    @override
     @classmethod
     def build(
-        cls,
+        cls: Type[Self],
         *,
-        dynamics: SystemDynamics,
+        dynamics: SystemDynamics[State, StateDerivative],
         fsal_enabled_if_supported: jtp.BoolLike = True,
         **kwargs,
     ) -> Self:
@@ -262,7 +277,9 @@ class ExplicitRungeKutta(Integrator[jtp.PyTree]):
         c = self.c
         b = self.b
         A = self.A
-        f = self.dynamics
+
+        # Close f over optional kwargs.
+        f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
 
         # Initialize the carry of the for loop with the stacked kᵢ vectors.
         carry0 = jax.tree_util.tree_map(

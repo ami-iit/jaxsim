@@ -13,7 +13,7 @@ import jaxlie
 import numpy as np
 from jax_dataclasses import Static
 
-import jaxsim.api.model
+import jaxsim.api
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
@@ -299,8 +299,6 @@ class JaxSimModelData(JaxsimDataclass):
             The joint positions.
         """
 
-        import jaxsim.api.joint
-
         joint_names = (
             joint_names if joint_names is not None else self.model.joint_names()
         )
@@ -323,8 +321,6 @@ class JaxSimModelData(JaxsimDataclass):
         Returns:
             The joint velocities.
         """
-
-        import jaxsim.api.joint
 
         joint_names = (
             joint_names if joint_names is not None else self.model.joint_names()

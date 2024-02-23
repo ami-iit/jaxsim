@@ -478,7 +478,10 @@ def forward_dynamics(
     forward_dynamics_fn = forward_dynamics_aba if prefer_aba else forward_dynamics_crb
 
     return forward_dynamics_fn(
-        model=model, data=data, tau=joint_forces, external_forces=external_forces
+        model=model,
+        data=data,
+        joint_forces=joint_forces,
+        external_forces=external_forces,
     )
 
 
@@ -536,11 +539,11 @@ def forward_dynamics_aba(
 
         if data.velocity_representation != VelRepr.Mixed:
             return C_X_W @ W_vd_WB
-        else:
-            from jaxsim.math.cross import Cross
 
-            W_v_WC = jnp.hstack([W_vl_WC, jnp.zeros(3)])
-            return C_X_W @ (W_vd_WB - Cross.vx(W_v_WC) @ W_v_WB)
+        from jaxsim.math.cross import Cross
+
+        W_v_WC = jnp.hstack([W_vl_WC, jnp.zeros(3)])
+        return C_X_W @ (W_vd_WB - Cross.vx(W_v_WC) @ W_v_WB)
 
     match data.velocity_representation:
         case VelRepr.Inertial:

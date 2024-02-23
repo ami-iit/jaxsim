@@ -54,14 +54,16 @@ class MujocoVideoRecorder:
 
     def render_frame(self, camera_name: str | None = None) -> npt.NDArray:
         """"""
+        camera_name = camera_name or "track"
 
         mujoco.mj_forward(self.model, self.data)
-        self.renderer.update_scene(data=self.data)  # TODO camera name
+        self.renderer.update_scene(data=self.data, camera=camera_name)
 
         return self.renderer.render()
 
     def record_frame(self, camera_name: str | None = None) -> None:
         """"""
+        camera_name = camera_name or "track"
 
         frame = self.render_frame(camera_name=camera_name)
         self.frames.append(frame)

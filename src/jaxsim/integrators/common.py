@@ -291,6 +291,25 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         op = lambda x0_leaf, k_leaf: x0_leaf + dt * k_leaf
         return jax.tree_util.tree_map(op, x0, k)
 
+    @classmethod
+    def post_process_state(
+        cls, x0: State, t0: Time, xf: NextState, dt: TimeStep
+    ) -> NextState:
+        """
+        Post-process the integrated state at :math:`t_f = t_0 + \Delta t`.
+
+        Args:
+            x0: The initial state of the system.
+            t0: The initial time of the system.
+            xf: The final state of the system obtain through the integration.
+            dt: The time step used for the integration.
+
+        Returns:
+            The post-processed integrated state.
+        """
+
+        return xf
+
     def _compute_next_state(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
     ) -> NextState:
@@ -381,7 +400,13 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         op = lambda x0, k: x0 + Δt * jnp.einsum("zs,s...->z...", b.T, k)
         z = jax.tree_util.tree_map(op, x0, K)
 
-        return z
+        # Transform the final state of the integration.
+        # This allows to inject custom logic, if needed.
+        z_transformed = jax.vmap(
+            lambda xf: self.post_process_state(x0=x0, t0=t0, xf=xf, dt=dt)
+        )(z)
+
+        return z_transformed
 
     @staticmethod
     def butcher_tableau_is_valid(

@@ -89,6 +89,10 @@ jobs:
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')"
 
+      - name: Document installed pip packages
+        shell: bash
+        run: pip list --verbose
+      
       - name: Import the package
         run: python -c "import jaxsim"
 

@@ -1,11 +1,17 @@
 name: Python CI/CD
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
   release:
     types:
       - published
+  schedule:
+  # * is a special character in YAML so you have to quote this string
+  # Execute a "nightly" build at 2 AM UTC
+  - cron:  '0 2 * * *'
+
 
 jobs:
 
@@ -83,38 +89,25 @@ jobs:
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')"
 
+      - name: Document installed pip packages
+        shell: bash
+        run: pip list --verbose
+      
       - name: Import the package
         run: python -c "import jaxsim"
 
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            src: &src
-              - 'src/**'
-            tests: &tests
-              - 'tests/**'
-            src_and_tests:
-              - *src
-              - *tests
 
       - name: Install Gazebo Classic
-        if: |
-          contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.src_and_tests == 'true')
+        if: contains(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install gazebo
 
       - name: Run the Python tests
-        if: |
-          contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.src_and_tests == 'true')
+        if: contains(matrix.os, 'ubuntu')
         run: pytest
         env:
           JAX_PLATFORM_NAME: cpu

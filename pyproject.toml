@@ -19,10 +19,7 @@ multi_line_output = 3
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-# --forked used to be passed here, but it was removed
-# as workaround for compatibility with jax 0.4.25,
-# see https://github.com/ami-iit/jaxsim/pull/92#issuecomment-1966290170 
-addopts = "-rsxX -v --strict-markers"
+addopts = "-rsxX -v --strict-markers --forked"
 testpaths = [
     "tests",
 ]

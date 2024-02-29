@@ -259,6 +259,7 @@ class JaxSimModelData(JaxsimDataclass):
 
         return self.time_ns.astype(float) / 1e9
 
+    @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_positions(
         self,
         model: jaxsim.api.model.JaxSimModel | None = None,
@@ -298,6 +299,7 @@ class JaxSimModelData(JaxsimDataclass):
             jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
+    @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_velocities(
         self,
         model: jaxsim.api.model.JaxSimModel | None = None,

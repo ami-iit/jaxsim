@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
-from typing import ContextManager, Sequence
+from typing import ContextManager, Self, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -67,7 +67,7 @@ class JaxSimModelData(JaxsimDataclass):
     @contextlib.contextmanager
     def switch_velocity_representation(
         self, velocity_representation: VelRepr
-    ) -> ContextManager[JaxSimModelData]:
+    ) -> ContextManager[Self]:
         """
         Context manager to temporarily switch the velocity representation.
 
@@ -457,6 +457,278 @@ class JaxSimModelData(JaxsimDataclass):
             .squeeze()
             .astype(float)
         )
+
+    # ================
+    # Store quantities
+    # ================
+
+    @functools.partial(jax.jit, static_argnames=["joint_names"])
+    def reset_joint_positions(
+        self,
+        positions: jtp.VectorLike,
+        model: jaxsim.api.model.JaxSimModel | None = None,
+        joint_names: tuple[str, ...] | None = None,
+    ) -> Self:
+        """
+        Reset the joint positions.
+
+        Args:
+            positions: The joint positions.
+            model: The model to consider.
+            joint_names: The names of the joints for which to set the positions.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        positions = jnp.array(positions)
+
+        def replace(s: jtp.VectorLike) -> JaxSimModelData:
+            return self.replace(
+                validate=True,
+                state=self.state.replace(
+                    physics_model=self.state.physics_model.replace(
+                        joint_positions=jnp.atleast_1d(s.squeeze()).astype(float)
+                    )
+                ),
+            )
+
+        if model is None:
+            return replace(s=positions)
+
+        if not self.valid(model=model):
+            msg = "The data object is not compatible with the provided model"
+            raise ValueError(msg)
+
+        joint_names = joint_names if joint_names is not None else model.joint_names()
+
+        return replace(
+            s=self.state.physics_model.joint_positions.at[
+                jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+            ].set(positions)
+        )
+
+    @functools.partial(jax.jit, static_argnames=["joint_names"])
+    def reset_joint_velocities(
+        self,
+        velocities: jtp.VectorLike,
+        model: jaxsim.api.model.JaxSimModel | None = None,
+        joint_names: tuple[str, ...] | None = None,
+    ) -> Self:
+        """
+        Reset the joint velocities.
+
+        Args:
+            velocities: The joint velocities.
+            model: The model to consider.
+            joint_names: The names of the joints for which to set the velocities.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        velocities = jnp.array(velocities)
+
+        def replace(ṡ: jtp.VectorLike) -> JaxSimModelData:
+            return self.replace(
+                validate=True,
+                state=self.state.replace(
+                    physics_model=self.state.physics_model.replace(
+                        joint_velocities=jnp.atleast_1d(ṡ.squeeze()).astype(float)
+                    )
+                ),
+            )
+
+        if model is None:
+            return replace(ṡ=velocities)
+
+        if not self.valid(model=model):
+            msg = "The data object is not compatible with the provided model"
+            raise ValueError(msg)
+
+        joint_names = joint_names if joint_names is not None else model.joint_names()
+
+        return replace(
+            ṡ=self.state.physics_model.joint_velocities.at[
+                jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+            ].set(velocities)
+        )
+
+    @jax.jit
+    def reset_base_position(self, base_position: jtp.VectorLike) -> Self:
+        """
+        Reset the base position.
+
+        Args:
+            base_position: The base position.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        base_position = jnp.array(base_position)
+
+        return self.replace(
+            validate=True,
+            state=self.state.replace(
+                physics_model=self.state.physics_model.replace(
+                    base_position=jnp.atleast_1d(base_position.squeeze()).astype(float)
+                )
+            ),
+        )
+
+    @jax.jit
+    def reset_base_quaternion(self, base_quaternion: jtp.VectorLike) -> Self:
+        """
+        Reset the base quaternion.
+
+        Args:
+            base_quaternion: The base orientation as a quaternion.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        base_quaternion = jnp.array(base_quaternion)
+
+        return self.replace(
+            validate=True,
+            state=self.state.replace(
+                physics_model=self.state.physics_model.replace(
+                    base_quaternion=jnp.atleast_1d(base_quaternion.squeeze()).astype(
+                        float
+                    )
+                )
+            ),
+        )
+
+    @jax.jit
+    def reset_base_pose(self, base_pose: jtp.MatrixLike) -> Self:
+        """
+        Reset the base pose.
+
+        Args:
+            base_pose: The base pose as an SE(3) matrix.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        base_pose = jnp.array(base_pose)
+
+        W_p_B = base_pose[0:3, 3]
+
+        to_wxyz = np.array([3, 0, 1, 2])
+        W_R_B: jaxlie.SO3 = jaxlie.SO3.from_matrix(base_pose[0:3, 0:3])  # noqa
+        W_Q_B = W_R_B.as_quaternion_xyzw()[to_wxyz]
+
+        return self.reset_base_position(base_position=W_p_B).reset_base_quaternion(
+            base_quaternion=W_Q_B
+        )
+
+    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    def reset_base_linear_velocity(
+        self,
+        linear_velocity: jtp.VectorLike,
+        velocity_representation: VelRepr | None = None,
+    ) -> Self:
+        """
+        Reset the base linear velocity.
+
+        Args:
+            linear_velocity: The base linear velocity as a 3D array.
+            velocity_representation:
+                The velocity representation in which the base velocity is expressed.
+                If `None`, the active representation is considered.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        linear_velocity = jnp.array(linear_velocity)
+
+        return self.reset_base_velocity(
+            base_velocity=jnp.hstack(
+                [linear_velocity.squeeze(), self.base_velocity()[3:6]]
+            ),
+            velocity_representation=velocity_representation,
+        )
+
+    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    def reset_base_angular_velocity(
+        self,
+        angular_velocity: jtp.VectorLike,
+        velocity_representation: VelRepr | None = None,
+    ) -> Self:
+        """
+        Reset the base angular velocity.
+
+        Args:
+            angular_velocity: The base angular velocity as a 3D array.
+            velocity_representation:
+                The velocity representation in which the base velocity is expressed.
+                If `None`, the active representation is considered.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        angular_velocity = jnp.array(angular_velocity)
+
+        return self.reset_base_velocity(
+            base_velocity=jnp.hstack(
+                [self.base_velocity()[0:3], angular_velocity.squeeze()]
+            ),
+            velocity_representation=velocity_representation,
+        )
+
+    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    def reset_base_velocity(
+        self,
+        base_velocity: jtp.VectorLike,
+        velocity_representation: VelRepr | None = None,
+    ) -> Self:
+        """
+        Reset the base 6D velocity.
+
+        Args:
+            base_velocity: The base 6D velocity in the active representation.
+            velocity_representation:
+                The velocity representation in which the base velocity is expressed.
+                If `None`, the active representation is considered.
+
+        Returns:
+            The updated `JaxSimModelData` object.
+        """
+
+        base_velocity = jnp.array(base_velocity)
+
+        velocity_representation = (
+            velocity_representation
+            if velocity_representation is not None
+            else self.velocity_representation
+        )
+
+        W_v_WB = self.other_representation_to_inertial(
+            array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
+            other_representation=velocity_representation,
+            base_transform=self.base_transform(),
+            is_force=False,
+        )
+
+        return self.replace(
+            validate=True,
+            state=self.state.replace(
+                physics_model=self.state.physics_model.replace(
+                    base_linear_velocity=W_v_WB[0:3].squeeze().astype(float),
+                    base_angular_velocity=W_v_WB[3:6].squeeze().astype(float),
+                )
+            ),
+        )
+
+    # =============
+    # Other helpers
+    # =============
 
     @staticmethod
     @functools.partial(jax.jit, static_argnames=["other_representation", "is_force"])

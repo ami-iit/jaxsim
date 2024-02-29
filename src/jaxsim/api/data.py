@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
-import weakref
 from typing import ContextManager, Sequence
 
 import jax
@@ -27,16 +26,6 @@ from jaxsim.physics.algos import soft_contacts
 from jaxsim.simulation.ode_data import ODEState
 from jaxsim.utils import JaxsimDataclass, Mutability
 
-from . import contact as Contact
-
-
-@dataclasses.dataclass
-class HashlessReferenceType:
-    ref: weakref.ReferenceType
-
-    def __hash__(self) -> int:
-        return 0
-
 
 @jax_dataclasses.pytree_dataclass
 class JaxSimModelData(JaxsimDataclass):
@@ -51,42 +40,13 @@ class JaxSimModelData(JaxsimDataclass):
     soft_contacts_params: soft_contacts.SoftContactsParams = dataclasses.field(
         repr=False
     )
-
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
     )
 
     velocity_representation: Static[VelRepr] = VelRepr.Inertial
 
-    _model_ref: Static[HashlessReferenceType] = dataclasses.field(
-        default=None, repr=False
-    )
-
-    @property
-    def model(self) -> jaxsim.api.model.JaxSimModel:
-        """
-        The model associated with the current state.
-
-        Returns:
-            The model associated with the current state.
-
-        Raises:
-            RuntimeError: If the model has been deleted.
-
-        Note:
-            The model is stored as a weak reference to prevent garbage collection
-            problems due to circular references. It is possible that the associated
-            model has been deleted.
-        """
-
-        m = self._model_ref.ref()
-
-        if m is None:
-            raise RuntimeError("The model has been deleted")
-
-        return m
-
-    def valid(self, model: jaxsim.api.model.JaxSimModel) -> bool:
+    def valid(self, model: jaxsim.api.model.JaxSimModel | None = None) -> bool:
         """
         Check if the current state is valid for the given model.
 
@@ -98,8 +58,9 @@ class JaxSimModelData(JaxsimDataclass):
         """
 
         valid = True
-        valid = valid and self.model is not None
-        valid = valid and self.state.valid(physics_model=model.physics_model)
+
+        if model is not None:
+            valid = valid and self.state.valid(physics_model=model.physics_model)
 
         return valid
 
@@ -244,7 +205,7 @@ class JaxSimModelData(JaxsimDataclass):
         soft_contacts_params = (
             soft_contacts_params
             if soft_contacts_params is not None
-            else Contact.estimate_good_soft_contacts_parameters(model=model)
+            else jaxsim.api.contact.estimate_good_soft_contacts_parameters(model=model)
         )
 
         W_H_B = jaxlie.SE3.from_rotation_and_translation(
@@ -283,51 +244,84 @@ class JaxSimModelData(JaxsimDataclass):
             gravity=gravity.astype(float),
             soft_contacts_params=soft_contacts_params,
             velocity_representation=velocity_representation,
-            _model_ref=HashlessReferenceType(ref=weakref.ref(model)),
         )
 
-    def joint_positions(self, joint_names: tuple[str, ...] | None = None) -> jtp.Vector:
+    def joint_positions(
+        self,
+        model: jaxsim.api.model.JaxSimModel | None = None,
+        joint_names: tuple[str, ...] | None = None,
+    ) -> jtp.Vector:
         """
         Get the joint positions.
 
         Args:
+            model: The model to consider.
             joint_names:
-                The names of the joints for which to get the positions. If `None`, the
-                positions of all joints are returned.
+                The names of the joints for which to get the positions. If `None`,
+                the positions of all joints are returned.
 
         Returns:
-            The joint positions.
+            If no model and no joint names are provided, the joint positions as a
+            `(DoFs,)` vector corresponding to the serialization of the original
+            model used to build the data object.
+            If a model is provided and no joint names are provided, the joint positions
+            as a `(DoFs,)` vector corresponding to the serialization of the
+            provided model.
+            If a model and joint names are provided, the joint positions as a
+            `(len(joint_names),)` vector corresponding to the serialization of
+            the passed joint names vector.
         """
 
-        joint_names = (
-            joint_names if joint_names is not None else self.model.joint_names()
-        )
+        if model is None:
+            return self.state.physics_model.joint_positions
+
+        if not self.valid(model=model):
+            msg = "The data object is not compatible with the provided model"
+            raise ValueError(msg)
+
+        joint_names = joint_names if joint_names is not None else model.joint_names()
 
         return self.state.physics_model.joint_positions[
-            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=self.model)
+            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
     def joint_velocities(
-        self, joint_names: tuple[str, ...] | None = None
+        self,
+        model: jaxsim.api.model.JaxSimModel | None = None,
+        joint_names: tuple[str, ...] | None = None,
     ) -> jtp.Vector:
         """
         Get the joint velocities.
 
         Args:
+            model: The model to consider.
             joint_names:
-                The names of the joints for which to get the velocities. If `None`, the
-                velocities of all joints are returned.
+                The names of the joints for which to get the velocities. If `None`,
+                the velocities of all joints are returned.
 
         Returns:
-            The joint velocities.
+            If no model and no joint names are provided, the joint velocities as a
+            `(DoFs,)` vector corresponding to the serialization of the original
+            model used to build the data object.
+            If a model is provided and no joint names are provided, the joint velocities
+            as a `(DoFs,)` vector corresponding to the serialization of the
+            provided model.
+            If a model and joint names are provided, the joint velocities as a
+            `(len(joint_names),)` vector corresponding to the serialization of
+            the passed joint names vector.
         """
 
-        joint_names = (
-            joint_names if joint_names is not None else self.model.joint_names()
-        )
+        if model is None:
+            return self.state.physics_model.joint_velocities
+
+        if not self.valid(model=model):
+            msg = "The data object is not compatible with the provided model"
+            raise ValueError(msg)
+
+        joint_names = joint_names if joint_names is not None else model.joint_names()
 
         return self.state.physics_model.joint_velocities[
-            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=self.model)
+            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
     @jax.jit
@@ -425,7 +419,8 @@ class JaxSimModelData(JaxsimDataclass):
     @jax.jit
     def generalized_position(self) -> tuple[jtp.Matrix, jtp.Vector]:
         """
-        Get the generalized position.
+        Get the generalized position
+        :math:`\mathbf{q} = ({}^W \mathbf{H}_B, \mathbf{s}) \in \text{SO}(3) \times \mathbb{R}^n`.
 
         Returns:
             A tuple containing the base transform and the joint positions.
@@ -436,7 +431,8 @@ class JaxSimModelData(JaxsimDataclass):
     @jax.jit
     def generalized_velocity(self) -> jtp.Vector:
         """
-        Get the generalized velocity.
+        Get the generalized velocity
+        :math:`\boldsymbol{\nu} = (\boldsymbol{v}_{W,B};\, \boldsymbol{\omega}_{W,B};\, \mathbf{s}) \in \mathbb{R}^{6+n}`
 
         Returns:
             The generalized velocity in the active representation.

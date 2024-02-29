@@ -246,6 +246,20 @@ class JaxSimModelData(JaxsimDataclass):
             velocity_representation=velocity_representation,
         )
 
+    # ==================
+    # Extract quantities
+    # ==================
+
+    def time(self) -> jtp.Float:
+        """
+        Get the simulated time.
+
+        Returns:
+            The simulated time in seconds.
+        """
+
+        return self.time_ns.astype(float) / 1e9
+
     def joint_positions(
         self,
         model: jaxsim.api.model.JaxSimModel | None = None,

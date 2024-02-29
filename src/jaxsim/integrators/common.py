@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import Any, ClassVar, Generic, Protocol, Self, Type, TypeVar
+from typing import Any, ClassVar, Generic, Protocol, Type, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -14,6 +14,11 @@ try:
     from typing import override
 except ImportError:
     from typing_extensions import override
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 # =============

@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
-from typing import ContextManager, Self, Sequence
+from typing import ContextManager, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -24,6 +24,11 @@ from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.simulation.ode_data import ODEState
 from jaxsim.utils import JaxsimDataclass, Mutability
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 @jax_dataclasses.pytree_dataclass

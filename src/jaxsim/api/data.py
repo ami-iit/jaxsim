@@ -20,7 +20,6 @@ import jaxsim.physics.algos.rnea
 import jaxsim.physics.model.physics_model
 import jaxsim.physics.model.physics_model_state
 import jaxsim.typing as jtp
-from jaxsim import sixd
 from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos import soft_contacts
 from jaxsim.simulation.ode_data import ODEState
@@ -218,13 +217,13 @@ class JaxSimModelData(JaxsimDataclass):
         v_WB = JaxSimModelData.other_representation_to_inertial(
             array=jnp.hstack([base_linear_velocity, base_angular_velocity]),
             other_representation=velocity_representation,
-            base_transform=W_H_B,
+            transform=W_H_B,
             is_force=False,
         )
 
         ode_state = ODEState.build(
             physics_model=model.physics_model,
-            physics_model_state=jaxsim.physics.model.physics_model.PhysicsModelState(
+            physics_model_state=jaxsim.physics.model.physics_model_state.PhysicsModelState(
                 base_position=base_position.astype(float),
                 base_quaternion=base_quaternion.astype(float),
                 joint_positions=joint_positions.astype(float),
@@ -377,7 +376,7 @@ class JaxSimModelData(JaxsimDataclass):
         return (
             base_unit_quaternion
             if not dcm
-            else sixd.so3.SO3.from_quaternion_xyzw(
+            else jaxlie.SO3.from_quaternion_xyzw(
                 base_unit_quaternion[to_xyzw]
             ).as_matrix()
         )
@@ -423,7 +422,7 @@ class JaxSimModelData(JaxsimDataclass):
             JaxSimModelData.inertial_to_other_representation(
                 array=W_v_WB,
                 other_representation=self.velocity_representation,
-                base_transform=W_H_B,
+                transform=W_H_B,
                 is_force=False,
             )
             .squeeze()
@@ -712,7 +711,7 @@ class JaxSimModelData(JaxsimDataclass):
         W_v_WB = self.other_representation_to_inertial(
             array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
             other_representation=velocity_representation,
-            base_transform=self.base_transform(),
+            transform=self.base_transform(),
             is_force=False,
         )
 
@@ -735,7 +734,7 @@ class JaxSimModelData(JaxsimDataclass):
     def inertial_to_other_representation(
         array: jtp.Array,
         other_representation: VelRepr,
-        base_transform: jtp.Matrix,
+        transform: jtp.Matrix,
         is_force: bool = False,
     ) -> jtp.Array:
         """
@@ -744,7 +743,9 @@ class JaxSimModelData(JaxsimDataclass):
         Args:
             array: The 6D quantity to convert.
             other_representation: The representation to convert to.
-            base_transform: The base transform.
+            transform:
+                The `math:W \mathbf{H}_O` transform, where `math:O` is the
+                reference frame of the other representation.
             is_force: Whether the quantity is a 6D force or 6D velocity.
 
         Returns:
@@ -752,13 +753,13 @@ class JaxSimModelData(JaxsimDataclass):
         """
 
         W_array = array.squeeze()
-        W_H_B = base_transform.squeeze()
+        W_H_O = transform.squeeze()
 
         if W_array.size != 6:
             raise ValueError(W_array.size, 6)
 
-        if W_H_B.shape != (4, 4):
-            raise ValueError(W_H_B.shape, (4, 4))
+        if W_H_O.shape != (4, 4):
+            raise ValueError(W_H_O.shape, (4, 4))
 
         match other_representation:
 
@@ -768,28 +769,28 @@ class JaxSimModelData(JaxsimDataclass):
             case VelRepr.Body:
 
                 if not is_force:
-                    B_Xv_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
-                    B_array = B_Xv_W @ W_array
+                    O_Xv_W = jaxlie.SE3.from_matrix(W_H_O).inverse().adjoint()
+                    O_array = O_Xv_W @ W_array
 
                 else:
-                    B_Xf_W = sixd.se3.SE3.from_matrix(W_H_B).adjoint().T
-                    B_array = B_Xf_W @ W_array
+                    O_Xf_W = jaxlie.SE3.from_matrix(W_H_O).adjoint().T
+                    O_array = O_Xf_W @ W_array
 
-                return B_array
+                return O_array
 
             case VelRepr.Mixed:
-                W_p_B = W_H_B[0:3, 3]
-                W_H_BW = jnp.eye(4).at[0:3, 3].set(W_p_B)
+                W_p_O = W_H_O[0:3, 3]
+                W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
                 if not is_force:
-                    BW_Xv_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                    BW_array = BW_Xv_W @ W_array
+                    OW_Xv_W = jaxlie.SE3.from_matrix(W_H_OW).inverse().adjoint()
+                    OW_array = OW_Xv_W @ W_array
 
                 else:
-                    BW_Xf_W = sixd.se3.SE3.from_matrix(W_H_BW).adjoint().T
-                    BW_array = BW_Xf_W @ W_array
+                    OW_Xf_W = jaxlie.SE3.from_matrix(W_H_OW).adjoint().transpose()
+                    OW_array = OW_Xf_W @ W_array
 
-                return BW_array
+                return OW_array
 
             case _:
                 raise ValueError(other_representation)
@@ -799,7 +800,7 @@ class JaxSimModelData(JaxsimDataclass):
     def other_representation_to_inertial(
         array: jtp.Array,
         other_representation: VelRepr,
-        base_transform: jtp.Matrix,
+        transform: jtp.Matrix,
         is_force: bool = False,
     ) -> jtp.Array:
         """
@@ -808,7 +809,9 @@ class JaxSimModelData(JaxsimDataclass):
         Args:
             array: The 6D quantity to convert.
             other_representation: The representation to convert from.
-            base_transform: The base transform.
+            transform:
+                The `math:W \mathbf{H}_O` transform, where `math:O` is the
+                reference frame of the other representation.
             is_force: Whether the quantity is a 6D force or 6D velocity.
 
         Returns:
@@ -816,13 +819,13 @@ class JaxSimModelData(JaxsimDataclass):
         """
 
         W_array = array.squeeze()
-        W_H_B = base_transform.squeeze()
+        W_H_O = transform.squeeze()
 
         if W_array.size != 6:
             raise ValueError(W_array.size, 6)
 
-        if W_H_B.shape != (4, 4):
-            raise ValueError(W_H_B.shape, (4, 4))
+        if W_H_O.shape != (4, 4):
+            raise ValueError(W_H_O.shape, (4, 4))
 
         match other_representation:
             case VelRepr.Inertial:
@@ -830,29 +833,29 @@ class JaxSimModelData(JaxsimDataclass):
                 return W_array
 
             case VelRepr.Body:
-                B_array = array
+                O_array = array
 
                 if not is_force:
-                    W_Xv_B: jtp.Array = sixd.se3.SE3.from_matrix(W_H_B).adjoint()
-                    W_array = W_Xv_B @ B_array
+                    W_Xv_O: jtp.Array = jaxlie.SE3.from_matrix(W_H_O).adjoint()
+                    W_array = W_Xv_O @ O_array
 
                 else:
-                    W_Xf_B = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint().T
-                    W_array = W_Xf_B @ B_array
+                    W_Xf_O = jaxlie.SE3.from_matrix(W_H_O).inverse().adjoint().T
+                    W_array = W_Xf_O @ O_array
 
                 return W_array
 
             case VelRepr.Mixed:
                 BW_array = array
-                W_p_B = W_H_B[0:3, 3]
-                W_H_BW = jnp.eye(4).at[0:3, 3].set(W_p_B)
+                W_p_O = W_H_O[0:3, 3]
+                W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
                 if not is_force:
-                    W_Xv_BW: jtp.Array = sixd.se3.SE3.from_matrix(W_H_BW).adjoint()
+                    W_Xv_BW: jtp.Array = jaxlie.SE3.from_matrix(W_H_OW).adjoint()
                     W_array = W_Xv_BW @ BW_array
 
                 else:
-                    W_Xf_BW = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint().T
+                    W_Xf_BW = jaxlie.SE3.from_matrix(W_H_OW).inverse().adjoint().T
                     W_array = W_Xf_BW @ BW_array
 
                 return W_array

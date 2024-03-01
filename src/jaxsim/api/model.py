@@ -815,7 +815,7 @@ def inverse_dynamics(
     f_B = js.data.JaxSimModelData.inertial_to_other_representation(
         array=W_f_B,
         other_representation=data.velocity_representation,
-        base_transform=data.base_transform(),
+        transform=data.base_transform(),
         is_force=True,
     ).squeeze()
 
@@ -969,7 +969,7 @@ def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vec
     return js.data.JaxSimModelData.inertial_to_other_representation(
         array=W_h,
         other_representation=data.velocity_representation,
-        base_transform=W_H_B,
+        transform=W_H_B,
         is_force=True,
     ).astype(float)
 

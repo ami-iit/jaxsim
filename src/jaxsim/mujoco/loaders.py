@@ -387,29 +387,41 @@ class RodModelToMjcf:
             dir="0 0 -1",
         )
 
+        # -------------------------------------------------------
+        # Add a camera following the CoM of the worldbody element
+        # -------------------------------------------------------
+
+        worldbody_element = None
+
+        # Find the <worldbody> element of our model by searching the one that contains
+        # all the considered joints. This is needed because there might be multiple
+        # <worldbody> elements inside <mujoco>.
+        for wb in mujoco_element.findall(".//worldbody"):
+            if all(
+                wb.find(f".//joint[@name='{j}']") is not None for j in considered_joints
+            ):
+                worldbody_element = wb
+                break
+
+        if worldbody_element is None:
+            raise RuntimeError("Failed to find the <worldbody> element of the model")
+
+        # Camera attached to the model
+        _ = ET.SubElement(
+            worldbody_element,
+            "camera",
+            name="track",
+            mode="trackcom",
+            pos="1 0 5",
+            zaxis="0 0 1",
+            fovy="60",
+        )
+
         # ------------------------------------------------
         # Add a light following the  CoM of the first link
         # ------------------------------------------------
 
         if not rod_model.is_fixed_base():
-
-            worldbody_element = None
-
-            # Find the <worldbody> element of our model by searching the one that contains
-            # all the considered joints. This is needed because there might be multiple
-            # <worldbody> elements inside <mujoco>.
-            for wb in mujoco_element.findall(".//worldbody"):
-                if all(
-                    wb.find(f".//joint[@name='{j}']") is not None
-                    for j in considered_joints
-                ):
-                    worldbody_element = wb
-                    break
-
-            if worldbody_element is None:
-                raise RuntimeError(
-                    "Failed to find the <worldbody> element of the model"
-                )
 
             # Light attached to the model
             _ = ET.SubElement(

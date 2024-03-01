@@ -167,11 +167,11 @@ def estimate_good_soft_contacts_parameters(
             model=model, soft_contacts_params=soft_contacts.SoftContactsParams()
         )
 
-        W_p_CoM = Model.com_position(model=model, data=zero_data)[2]
+        W_pz_CoM = Model.com_position(model=model, data=zero_data)[2]
 
         if model.physics_model.is_floating_base:
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
-            return 2 * (W_p_CoM - W_pz_C.min())
+            return 2 * (W_pz_CoM - W_pz_C.min())
 
         return 2 * W_p_CoM
 

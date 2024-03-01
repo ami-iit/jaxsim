@@ -173,7 +173,7 @@ def estimate_good_soft_contacts_parameters(
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
             return 2 * (W_pz_CoM - W_pz_C.min())
 
-        return 2 * W_p_CoM
+        return 2 * W_pz_CoM
 
     max_δ = (
         max_penetration

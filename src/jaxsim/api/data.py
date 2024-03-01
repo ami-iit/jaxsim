@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import contextlib
 import dataclasses
 import functools
-from typing import ContextManager, Sequence
+from typing import Sequence
 
 import jax
 import jax.numpy as jnp

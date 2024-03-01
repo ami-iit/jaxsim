@@ -5,8 +5,8 @@ dependencies:
   # Dependencies from setup.cfg
   - python=3.11
   - coloredlogs
-  - jax >= 0.4.13
-  - jaxlib
+  - jax >= 0.4.13,<0.4.15
+  - jaxlib < 0.4.15
   - jaxlie >= 1.3.0
   - jax-dataclasses >= 1.4.0
   - pptree

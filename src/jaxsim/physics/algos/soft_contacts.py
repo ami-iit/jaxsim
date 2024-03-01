@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 from typing import Tuple
 
@@ -13,38 +15,67 @@ from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.skew import Skew
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
+from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
 from . import utils
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsState:
+class SoftContactsState(JaxsimDataclass):
     """
     State of the soft contacts model.
 
     Attributes:
-        tangential_deformation (jtp.Matrix): The tangential deformation of the material at each collidable point.
+        tangential_deformation:
+            The tangential deformation of the material at each collidable point.
     """
 
     tangential_deformation: jtp.Matrix
 
     @staticmethod
+    def build(
+        tangential_deformation: jtp.Matrix | None = None,
+        number_of_collidable_points: int | None = None,
+    ) -> SoftContactsState:
+        """"""
+
+        tangential_deformation = (
+            tangential_deformation
+            if tangential_deformation is not None
+            else jnp.zeros(shape=(3, number_of_collidable_points))
+        )
+
+        return SoftContactsState(
+            tangential_deformation=jnp.array(tangential_deformation, dtype=float)
+        )
+
+    @staticmethod
+    def build_from_physics_model(
+        tangential_deformation: jtp.Matrix | None = None,
+        physics_model: jaxsim.physics.model.physics_model.PhysicsModel | None = None,
+    ) -> SoftContactsState:
+        """"""
+
+        return SoftContactsState.build(
+            tangential_deformation=tangential_deformation,
+            number_of_collidable_points=physics_model.gc.body.size,
+        )
+
+    @staticmethod
     def zero(
         physics_model: jaxsim.physics.model.physics_model.PhysicsModel,
-    ) -> "SoftContactsState":
+    ) -> SoftContactsState:
         """
         Modify the SoftContactsState instance imposing zero tangential deformation.
 
         Args:
-            physics_model (jaxsim.physics.model.physics_model.PhysicsModel): The physics model.
+            physics_model: The physics model.
 
         Returns:
-            SoftContactsState: A SoftContactsState instance with zero tangential deformation.
+            A SoftContactsState instance with zero tangential deformation.
         """
 
-        return SoftContactsState(
-            tangential_deformation=jnp.zeros(shape=(3, physics_model.gc.body.size))
-        )
+        return SoftContactsState.build_from_physics_model(physics_model=physics_model)
 
     def valid(
         self, physics_model: jaxsim.physics.model.physics_model.PhysicsModel
@@ -53,10 +84,10 @@ class SoftContactsState:
         Check if the soft contacts state has valid shape.
 
         Args:
-            physics_model (jaxsim.physics.model.physics_model.PhysicsModel): The physics model.
+            physics_model: The physics model.
 
         Returns:
-            bool: True if the state has a valid shape, otherwise False.
+            True if the state has a valid shape, otherwise False.
         """
 
         from jaxsim.simulation.utils import check_valid_shape
@@ -67,22 +98,6 @@ class SoftContactsState:
             expected_shape=(3, physics_model.gc.body.size),
             valid=True,
         )
-
-    def replace(self, validate: bool = True, **kwargs) -> "SoftContactsState":
-        """
-        Replace attributes of the soft contacts state.
-
-        Args:
-            validate (bool, optional): Whether to validate the state after replacement. Defaults to True.
-
-        Returns:
-            SoftContactsState: A new SoftContactsState instance with replaced attributes.
-        """
-
-        with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_state:
-            _ = [updated_state.__setattr__(k, v) for k, v in kwargs.items()]
-
-        return updated_state
 
 
 def collidable_points_pos_vel(
@@ -238,8 +253,8 @@ class SoftContactsParams:
 
     @staticmethod
     def build(
-        K: float = 1e6, D: float = 2_000, mu: float = 0.5
-    ) -> "SoftContactsParams":
+        K: jtp.FloatLike = 1e6, D: jtp.FloatLike = 2_000, mu: jtp.FloatLike = 0.5
+    ) -> SoftContactsParams:
         """
         Create a SoftContactsParams instance with specified parameters.
 
@@ -257,6 +272,60 @@ class SoftContactsParams:
             D=jnp.array(D, dtype=float),
             mu=jnp.array(mu, dtype=float),
         )
+
+    @staticmethod
+    def build_default_from_physics_model(
+        physics_model: PhysicsModel,
+        static_friction_coefficient: jtp.FloatLike = 0.5,
+        max_penetration: jtp.FloatLike = 0.001,
+        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+        damping_ratio: jtp.FloatLike = 1.0,
+    ) -> SoftContactsParams:
+        """
+        Create a SoftContactsParams instance with good default parameters.
+
+        Args:
+            physics_model: The target physics model.
+            static_friction_coefficient: The static friction coefficient.
+            max_penetration: The maximum penetration depth.
+            number_of_active_collidable_points_steady_state: The number of contacts
+                supporting the weight of the model in steady state.
+            damping_ratio: The ratio controlling the damping behavior.
+
+        Returns:
+            A SoftContactsParams instance with the specified parameters.
+
+        Note:
+            The `damping_ratio` parameter allows to operate on the following conditions:
+            - ξ > 1.0: over-damped
+            - ξ = 1.0: critically damped
+            - ξ < 1.0: under-damped
+        """
+
+        # Use symbols for input parameters
+        ξ = damping_ratio
+        δ_max = max_penetration
+        μc = static_friction_coefficient
+
+        # Compute the total mass of the model
+        m = jnp.array(
+            [l.mass for l in physics_model.description.links_dict.values()]
+        ).sum()
+
+        # Extract gravity
+        g = -physics_model.gravity[0:3][-1]
+
+        # Compute the average support force on each collidable point
+        f_average = m * g / number_of_active_collidable_points_steady_state
+
+        # Compute the stiffness to get the desired steady-state penetration
+        K = f_average / jnp.power(δ_max, 3 / 2)
+
+        # Compute the damping using the damping ratio
+        critical_damping = 2 * jnp.sqrt(K * m)
+        D = ξ * critical_damping
+
+        return SoftContactsParams.build(K=K, D=D, mu=μc)
 
 
 @jax_dataclasses.pytree_dataclass

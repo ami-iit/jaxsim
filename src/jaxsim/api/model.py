@@ -785,17 +785,17 @@ def inverse_dynamics(
         else jnp.zeros(shape=(model.number_of_links(), 6))
     )
 
-    def to_inertial(C_vd_WB, W_H_C, C_v_WB, W_vl_WC):
+    def to_inertial(C_v̇_WB, W_H_C, C_v_WB, W_vl_WC):
         W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
 
         if data.velocity_representation != VelRepr.Mixed:
-            return W_X_C @ C_vd_WB
+            return W_X_C @ C_v̇_WB
         else:
             from jaxsim.math.cross import Cross
 
             C_v_WC = C_X_W @ jnp.hstack([W_vl_WC, jnp.zeros(3)])
-            return W_X_C @ (C_vd_WB + Cross.vx(C_v_WC) @ C_v_WB)
+            return W_X_C @ (C_v̇_WB + Cross.vx(C_v_WC) @ C_v_WB)
 
     match data.velocity_representation:
         case VelRepr.Inertial:
@@ -818,22 +818,30 @@ def inverse_dynamics(
     # representation. In Mixed representation, this conversion is not a plain
     # transformation with just X, but it also involves a cross product in ℝ⁶.
     W_v̇_WB = to_inertial(
-        C_vd_WB=base_acceleration,
+        C_v̇_WB=base_acceleration,
         W_H_C=W_H_C,
         C_v_WB=data.base_velocity(),
         W_vl_WC=W_vl_WC,
     )
 
-    # Compute RNEA
-    W_f_B, τ = jaxsim.physics.algos.rnea.rnea(
-        model=model.physics_model,
-        xfb=data.state.physics_model.xfb(),
-        q=data.state.physics_model.joint_positions,
-        qd=data.state.physics_model.joint_velocities,
-        qdd=joint_accelerations,
-        a0fb=W_v̇_WB,
-        f_ext=external_forces,
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        data=data,
+        link_forces=external_forces,
+        velocity_representation=data.velocity_representation,
     )
+
+    # Compute RNEA
+    with references.switch_velocity_representation(VelRepr.Inertial):
+        W_f_B, τ = jaxsim.physics.algos.rnea.rnea(
+            model=model.physics_model,
+            xfb=data.state.physics_model.xfb(),
+            q=data.state.physics_model.joint_positions,
+            qd=data.state.physics_model.joint_velocities,
+            qdd=joint_accelerations,
+            a0fb=W_v̇_WB,
+            f_ext=references.link_forces(model=model, data=data),
+        )
 
     # Adjust shape
     τ = jnp.atleast_1d(τ.squeeze())

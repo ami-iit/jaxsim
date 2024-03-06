@@ -52,7 +52,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         joint_force_references: jtp.Vector | None = None,
         link_forces: jtp.Matrix | None = None,
         data: js.data.JaxSimModelData | None = None,
-        velocity_representation: VelRepr = VelRepr.Inertial,
+        velocity_representation: VelRepr | None = None,
     ) -> JaxSimModelReferences:
         """
         Create a `JaxSimModelReferences` object with the given references.
@@ -83,6 +83,15 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
         ).astype(float)
+
+        # Select the velocity representation.
+        velocity_representation = (
+            velocity_representation
+            if velocity_representation is not None
+            else (
+                data.velocity_representation if data is not None else VelRepr.Inertial
+            )
+        )
 
         # Create a zero references object.
         references = JaxSimModelReferences(

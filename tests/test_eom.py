@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 from pytest import param as p
 
-from jaxsim.high_level.common import VelRepr
-from jaxsim.high_level.model import Model
+import jaxsim.api as js
+from jaxsim import VelRepr
 
 from . import utils_idyntree, utils_models, utils_rng
 from .utils_models import Robot
@@ -38,26 +38,27 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     # Get the URDF of the robot
     urdf_file_path = utils_models.ModelFactory.get_model_description(robot=robot)
 
-    # Build the high-level model
-    model_jaxsim = Model.build_from_model_description(
+    # Build the model
+    model_jaxsim = js.model.JaxSimModel.build_from_model_description(
         model_description=urdf_file_path,
-        vel_repr=vel_repr,
-        gravity=gravity,
         is_urdf=True,
-    ).mutable(mutable=True, validate=True)
+        gravity=gravity,
+    )
+
+    random_state = utils_rng.random_model_state(model=model_jaxsim)
 
     # Initialize the model with a random state
-    model_jaxsim.data.model_state = utils_rng.random_physics_model_state(
-        physics_model=model_jaxsim.physics_model
+    data = js.data.JaxSimModelData.build(
+        model=model_jaxsim, velocity_representation=vel_repr, **random_state
     )
 
     # Initialize the model with a random input
-    model_jaxsim.data.model_input = utils_rng.random_physics_model_input(
-        physics_model=model_jaxsim.physics_model
-    )
+    tau, f_ext = utils_rng.random_model_input(model=model_jaxsim)
 
-    # Get the joint torques
-    tau = model_jaxsim.joint_generalized_forces_targets()
+    link_indices = [
+        js.link.name_to_idx(model=model_jaxsim, link_name=link)
+        for link in model_jaxsim.link_names()
+    ]
 
     # ==========================
     # Ground truth with iDynTree
@@ -71,19 +72,19 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     )
 
     kin_dyn.set_robot_state(
-        joint_positions=np.array(model_jaxsim.joint_positions()),
-        joint_velocities=np.array(model_jaxsim.joint_velocities()),
-        base_transform=np.array(model_jaxsim.base_transform()),
-        base_velocity=np.array(model_jaxsim.base_velocity()),
+        joint_positions=np.array(data.joint_positions()),
+        joint_velocities=np.array(data.joint_velocities()),
+        base_transform=np.array(data.base_transform()),
+        base_velocity=np.array(data.base_velocity()),
     )
 
     assert kin_dyn.joint_names() == list(model_jaxsim.joint_names())
-    assert kin_dyn.gravity == pytest.approx(model_jaxsim.physics_model.gravity[0:3])
-    assert kin_dyn.joint_positions() == pytest.approx(model_jaxsim.joint_positions())
-    assert kin_dyn.joint_velocities() == pytest.approx(model_jaxsim.joint_velocities())
-    assert kin_dyn.base_velocity() == pytest.approx(model_jaxsim.base_velocity())
-    assert kin_dyn.frame_transform(model_jaxsim.base_frame()) == pytest.approx(
-        model_jaxsim.base_transform()
+    assert kin_dyn.gravity == pytest.approx(data.gravity[0:3])
+    assert kin_dyn.joint_positions() == pytest.approx(data.joint_positions())
+    assert kin_dyn.joint_velocities() == pytest.approx(data.joint_velocities())
+    assert kin_dyn.base_velocity() == pytest.approx(data.base_velocity())
+    assert kin_dyn.frame_transform(model_jaxsim.base_link()) == pytest.approx(
+        data.base_transform()
     )
 
     M_idt = kin_dyn.mass_matrix()
@@ -101,10 +102,15 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     # Test individual terms of the EoM
     # ================================
 
-    M_jaxsim = model_jaxsim.free_floating_mass_matrix()
-    g_jaxsim = model_jaxsim.free_floating_gravity_forces()
-    J_jaxsim = jnp.vstack([link.jacobian() for link in model_jaxsim.links()])
-    h_jaxsim = model_jaxsim.free_floating_bias_forces()
+    M_jaxsim = js.model.free_floating_mass_matrix(model=model_jaxsim, data=data)
+    g_jaxsim = js.model.free_floating_gravity_forces(model=model_jaxsim, data=data)
+    J_jaxsim = jnp.vstack(
+        [
+            js.link.jacobian(model=model_jaxsim, data=data, link_index=idx)
+            for idx in link_indices
+        ]
+    )
+    h_jaxsim = js.model.free_floating_bias_forces(model=model_jaxsim, data=data)
 
     # Support both fixed-base and floating-base models by slicing the first six rows
     sl = np.s_[0:] if model_jaxsim.floating_base() else np.s_[6:]
@@ -118,9 +124,10 @@ def test_eom(robot: utils_models.Robot, vel_repr: VelRepr) -> None:
     # Test the forward dynamics computed with CRB
     # ===========================================
 
-    J_ff = model_jaxsim.generalized_free_floating_jacobian()
-    f_ext = model_jaxsim.external_forces().flatten()
-    ν̇ = np.hstack(model_jaxsim.forward_dynamics_crb(tau=tau))
+    J_ff = js.model.generalized_free_floating_jacobian(model=model_jaxsim, data=data)
+    ν̇ = np.hstack(
+        js.model.forward_dynamics_crb(model=model_jaxsim, data=data, joint_forces=tau)
+    )
     S = np.block(
         [np.zeros(shape=(model_jaxsim.dofs(), 6)), np.eye(model_jaxsim.dofs())]
     ).T

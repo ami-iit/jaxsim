@@ -490,6 +490,7 @@ def forward_dynamics(
             The joint forces to consider as a vector of shape `(dofs,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
         prefer_aba: Whether to prefer the ABA algorithm over the CRB one.
 
     Returns:
@@ -526,6 +527,7 @@ def forward_dynamics_aba(
             The joint forces to consider as a vector of shape `(dofs,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the 6D acceleration in the active representation of the
@@ -611,7 +613,7 @@ def forward_dynamics_crb(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_forces: jtp.MatrixLike | None = None,
+    joint_forces: jtp.VectorLike | None = None,
     external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
@@ -624,6 +626,7 @@ def forward_dynamics_crb(
             The joint forces to consider as a vector of shape `(dofs,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the 6D acceleration in the active representation of the
@@ -760,6 +763,7 @@ def inverse_dynamics(
             The base acceleration to consider as a vector of shape `(6,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the 6D force in the active representation applied to the
@@ -1080,7 +1084,7 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 # ==========
 
 
-@functools.partial(jax.jit, static_argnames=["integrator"])
+@jax.jit
 def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -1088,8 +1092,8 @@ def step(
     dt: jtp.FloatLike,
     integrator: jaxsim.integrators.Integrator,
     integrator_state: dict[str, Any] | None = None,
-    joint_forces: jtp.Vector | None = None,
-    external_forces: jtp.Vector | None = None,
+    joint_forces: jtp.VectorLike | None = None,
+    external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
     """
     Perform a simulation step.
@@ -1101,7 +1105,9 @@ def step(
         integrator: The integrator to use.
         integrator_state: The state of the integrator.
         joint_forces: The joint forces to consider.
-        external_forces: The external forces to consider.
+        external_forces:
+            The external forces to consider.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the new data of the model

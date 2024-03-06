@@ -389,7 +389,7 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
     return jnp.atleast_3d(W_H_LL).astype(float)
 
 
-@jax.jit
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def generalized_free_floating_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -406,43 +406,61 @@ def generalized_free_floating_jacobian(
             The output velocity representation of the free-floating jacobians.
 
     Returns:
-        The (nL, 6, 6+dofs) array containing the stacked free-floating
+        The `(nL, 6, 6+dofs)` array containing the stacked free-floating
         jacobians of the links. The first axis is the link index.
+
+    Note:
+        The v-stacked version of the returned Jacobian array together with the
+        flattened 6D forces of the links, are useful to compute the `J.T @ f`
+        product of the multi-body EoM.
     """
 
-    if output_vel_repr is None:
-        output_vel_repr = data.velocity_representation
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
 
-    # The body frame of the Link.jacobian method is the link frame L.
+    # The body frame of the link.jacobian method is the link frame L.
     # In this method, we want instead to use the base link B as body frame.
     # Therefore, we always get the link jacobian having Inertial as output
     # representation, and then we convert it to the desired output representation.
     match output_vel_repr:
         case VelRepr.Inertial:
-            to_output = lambda J: J
+            to_output = lambda W_J_WL: W_J_WL
 
         case VelRepr.Body:
 
-            def to_output(W_J_Wi):
+            def to_output(W_J_WL: jtp.Matrix) -> jtp.Matrix:
                 W_H_B = data.base_transform()
                 B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
-                return B_X_W @ W_J_Wi
+                return B_X_W @ W_J_WL
 
         case VelRepr.Mixed:
 
-            def to_output(W_J_Wi):
+            def to_output(W_J_WL: jtp.Matrix) -> jtp.Matrix:
                 W_H_B = data.base_transform()
                 W_H_BW = jnp.array(W_H_B).at[0:3, 0:3].set(jnp.eye(3))
                 BW_X_W = jaxlie.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                return BW_X_W @ W_J_Wi
+                return BW_X_W @ W_J_WL
 
         case _:
             raise ValueError(output_vel_repr)
 
-    # Get the link jacobians in Inertial representation and convert them to the
-    # target output representation in which the body frame is the base link B
+    # Compute first the link jacobians having the active representation of `data`
+    # as input representation (matching the one of ν), and inertial as output
+    # representation (i.e. W_J_WL_C where C is C_ν).
+    # Then, with to_output, we convert this jacobian to the desired output
+    # representation, that can either be W (inertial), B (body), or B[W] (mixed).
+    # This is necessary because for example the body-fixed free-floating jacobian
+    # of a link is L_J_WL, but here being inside model we need B_J_WL.
     J_free_floating = jax.vmap(
-        lambda i: to_output(js.link.jacobian(model=model, data=data, link_index=i))
+        lambda i: to_output(
+            W_J_WL=js.link.jacobian(
+                model=model,
+                data=data,
+                link_index=i,
+                output_vel_repr=VelRepr.Inertial,
+            )
+        )
     )(jnp.arange(model.number_of_links()))
 
     return J_free_floating

@@ -396,7 +396,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @jax.jit
     def generalized_position(self) -> tuple[jtp.Matrix, jtp.Vector]:
-        """
+        r"""
         Get the generalized position
         :math:`\mathbf{q} = ({}^W \mathbf{H}_B, \mathbf{s}) \in \text{SO}(3) \times \mathbb{R}^n`.
 
@@ -408,7 +408,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @jax.jit
     def generalized_velocity(self) -> jtp.Vector:
-        """
+        r"""
         Get the generalized velocity
         :math:`\boldsymbol{\nu} = (\boldsymbol{v}_{W,B};\, \boldsymbol{\omega}_{W,B};\, \mathbf{s}) \in \mathbb{R}^{6+n}`
 

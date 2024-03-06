@@ -865,7 +865,7 @@ def inverse_dynamics(
 def free_floating_gravity_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Vector:
-    """
+    r"""
     Compute the free-floating gravity forces :math:`g(\mathbf{q})` of the model.
 
     Args:
@@ -914,7 +914,7 @@ def free_floating_gravity_forces(
 def free_floating_bias_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Vector:
-    """
+    r"""
     Compute the free-floating bias forces :math:`h(\mathbf{q}, \boldsymbol{\nu})`
     of the model.
 

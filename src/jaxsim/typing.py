@@ -15,7 +15,9 @@ ArrayJax = jax.Array
 VectorJax = ArrayJax
 MatrixJax = ArrayJax
 
-PyTree = dict[Hashable, "PyTree"] | list["PyTree"] | tuple["PyTree"] | None | Any
+PyTree = (
+    dict[Hashable, "PyTree"] | list["PyTree"] | tuple["PyTree"] | None | jax.Array | Any
+)
 
 # =======================
 # Mixed JAX / NumPy types

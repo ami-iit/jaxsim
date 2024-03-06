@@ -117,6 +117,7 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model
         model = JaxSimModel.build(physics_model=physics_model, model_name=model_name)
 
+        # Store the origin of the model, in case downstream logic needs it
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
 
@@ -293,6 +294,10 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
         physics_model=physics_model, model_name=model.name()
     )
 
+    # Store the origin of the model, in case downstream logic needs it
+    with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+        reduced_model.built_from = model.built_from
+
     return reduced_model
 
 
@@ -389,7 +394,7 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
     return jnp.atleast_3d(W_H_LL).astype(float)
 
 
-@jax.jit
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def generalized_free_floating_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -406,43 +411,61 @@ def generalized_free_floating_jacobian(
             The output velocity representation of the free-floating jacobians.
 
     Returns:
-        The (nL, 6, 6+dofs) array containing the stacked free-floating
+        The `(nL, 6, 6+dofs)` array containing the stacked free-floating
         jacobians of the links. The first axis is the link index.
+
+    Note:
+        The v-stacked version of the returned Jacobian array together with the
+        flattened 6D forces of the links, are useful to compute the `J.T @ f`
+        product of the multi-body EoM.
     """
 
-    if output_vel_repr is None:
-        output_vel_repr = data.velocity_representation
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
 
-    # The body frame of the Link.jacobian method is the link frame L.
+    # The body frame of the link.jacobian method is the link frame L.
     # In this method, we want instead to use the base link B as body frame.
     # Therefore, we always get the link jacobian having Inertial as output
     # representation, and then we convert it to the desired output representation.
     match output_vel_repr:
         case VelRepr.Inertial:
-            to_output = lambda J: J
+            to_output = lambda W_J_WL: W_J_WL
 
         case VelRepr.Body:
 
-            def to_output(W_J_Wi):
+            def to_output(W_J_WL: jtp.Matrix) -> jtp.Matrix:
                 W_H_B = data.base_transform()
                 B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
-                return B_X_W @ W_J_Wi
+                return B_X_W @ W_J_WL
 
         case VelRepr.Mixed:
 
-            def to_output(W_J_Wi):
+            def to_output(W_J_WL: jtp.Matrix) -> jtp.Matrix:
                 W_H_B = data.base_transform()
                 W_H_BW = jnp.array(W_H_B).at[0:3, 0:3].set(jnp.eye(3))
                 BW_X_W = jaxlie.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                return BW_X_W @ W_J_Wi
+                return BW_X_W @ W_J_WL
 
         case _:
             raise ValueError(output_vel_repr)
 
-    # Get the link jacobians in Inertial representation and convert them to the
-    # target output representation in which the body frame is the base link B
+    # Compute first the link jacobians having the active representation of `data`
+    # as input representation (matching the one of ν), and inertial as output
+    # representation (i.e. W_J_WL_C where C is C_ν).
+    # Then, with to_output, we convert this jacobian to the desired output
+    # representation, that can either be W (inertial), B (body), or B[W] (mixed).
+    # This is necessary because for example the body-fixed free-floating jacobian
+    # of a link is L_J_WL, but here being inside model we need B_J_WL.
     J_free_floating = jax.vmap(
-        lambda i: to_output(js.link.jacobian(model=model, data=data, link_index=i))
+        lambda i: to_output(
+            W_J_WL=js.link.jacobian(
+                model=model,
+                data=data,
+                link_index=i,
+                output_vel_repr=VelRepr.Inertial,
+            )
+        )
     )(jnp.arange(model.number_of_links()))
 
     return J_free_floating
@@ -467,6 +490,7 @@ def forward_dynamics(
             The joint forces to consider as a vector of shape `(dofs,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
         prefer_aba: Whether to prefer the ABA algorithm over the CRB one.
 
     Returns:
@@ -503,6 +527,7 @@ def forward_dynamics_aba(
             The joint forces to consider as a vector of shape `(dofs,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the 6D acceleration in the active representation of the
@@ -588,7 +613,7 @@ def forward_dynamics_crb(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_forces: jtp.MatrixLike | None = None,
+    joint_forces: jtp.VectorLike | None = None,
     external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
@@ -601,6 +626,7 @@ def forward_dynamics_crb(
             The joint forces to consider as a vector of shape `(dofs,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the 6D acceleration in the active representation of the
@@ -614,35 +640,39 @@ def forward_dynamics_crb(
 
     # Build joint torques if not provided
     τ = (
-        joint_forces
+        jnp.atleast_1d(joint_forces)
         if joint_forces is not None
         else jnp.zeros_like(data.joint_positions())
     )
 
     # Build external forces if not provided
-    external_forces = (
-        external_forces
+    f = (
+        jnp.atleast_2d(external_forces)
         if external_forces is not None
         else jnp.zeros(shape=(model.number_of_links(), 6))
     )
 
-    # Handle models with zero and one DoFs
-    τ = jnp.atleast_1d(τ.squeeze())
-    τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
-
     # Compute terms of the floating-base EoM
     M = free_floating_mass_matrix(model=model, data=data)
-    h = jnp.vstack(free_floating_bias_forces(model=model, data=data))
-    J = jnp.vstack(generalized_free_floating_jacobian(model=model, data=data))
-    f_ext = jnp.vstack(external_forces.flatten())
+    h = free_floating_bias_forces(model=model, data=data)
     S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
+    J = generalized_free_floating_jacobian(model=model, data=data)
 
     # TODO: invert the Mss block exploiting sparsity defined by the parent array λ(i)
+
     if model.floating_base():
-        ν̇ = jnp.linalg.inv(M) @ ((S @ τ) - h + J.T @ f_ext)
+        # l: number of links.
+        # g: generalized coordinates, 6 + number of joints.
+        JTf = jnp.einsum("l6g,l6->g", J, f)
+        ν̇ = jnp.linalg.solve(M, S @ τ - h + JTf)
+
     else:
+        # l: number of links.
+        # j: number of joints.
+        JTf = jnp.einsum("l6j,l6->j", J[:, :, 6:], f)
+        s̈ = jnp.linalg.solve(M[6:, 6:], τ - h[6:] + JTf)
+
         v̇_WB = jnp.zeros(6)
-        s̈ = jnp.linalg.inv(M[6:, 6:]) @ ((S @ τ)[6:] - h[6:] + J[:, 6:].T @ f_ext)
         ν̇ = jnp.hstack([v̇_WB, s̈.squeeze()])
 
     # Extract the base acceleration in the active representation.
@@ -733,6 +763,7 @@ def inverse_dynamics(
             The base acceleration to consider as a vector of shape `(6,)`.
         external_forces:
             The external forces to consider as a matrix of shape `(nL, 6)`.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the 6D force in the active representation applied to the
@@ -758,17 +789,17 @@ def inverse_dynamics(
         else jnp.zeros(shape=(model.number_of_links(), 6))
     )
 
-    def to_inertial(C_vd_WB, W_H_C, C_v_WB, W_vl_WC):
+    def to_inertial(C_v̇_WB, W_H_C, C_v_WB, W_vl_WC):
         W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
 
         if data.velocity_representation != VelRepr.Mixed:
-            return W_X_C @ C_vd_WB
+            return W_X_C @ C_v̇_WB
         else:
             from jaxsim.math.cross import Cross
 
             C_v_WC = C_X_W @ jnp.hstack([W_vl_WC, jnp.zeros(3)])
-            return W_X_C @ (C_vd_WB + Cross.vx(C_v_WC) @ C_v_WB)
+            return W_X_C @ (C_v̇_WB + Cross.vx(C_v_WC) @ C_v_WB)
 
     match data.velocity_representation:
         case VelRepr.Inertial:
@@ -791,22 +822,30 @@ def inverse_dynamics(
     # representation. In Mixed representation, this conversion is not a plain
     # transformation with just X, but it also involves a cross product in ℝ⁶.
     W_v̇_WB = to_inertial(
-        C_vd_WB=base_acceleration,
+        C_v̇_WB=base_acceleration,
         W_H_C=W_H_C,
         C_v_WB=data.base_velocity(),
         W_vl_WC=W_vl_WC,
     )
 
-    # Compute RNEA
-    W_f_B, τ = jaxsim.physics.algos.rnea.rnea(
-        model=model.physics_model,
-        xfb=data.state.physics_model.xfb(),
-        q=data.state.physics_model.joint_positions,
-        qd=data.state.physics_model.joint_velocities,
-        qdd=joint_accelerations,
-        a0fb=W_v̇_WB,
-        f_ext=external_forces,
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        data=data,
+        link_forces=external_forces,
+        velocity_representation=data.velocity_representation,
     )
+
+    # Compute RNEA
+    with references.switch_velocity_representation(VelRepr.Inertial):
+        W_f_B, τ = jaxsim.physics.algos.rnea.rnea(
+            model=model.physics_model,
+            xfb=data.state.physics_model.xfb(),
+            q=data.state.physics_model.joint_positions,
+            qd=data.state.physics_model.joint_velocities,
+            qdd=joint_accelerations,
+            a0fb=W_v̇_WB,
+            f_ext=references.link_forces(model=model, data=data),
+        )
 
     # Adjust shape
     τ = jnp.atleast_1d(τ.squeeze())
@@ -838,7 +877,9 @@ def free_floating_gravity_forces(
     """
 
     # Build a zeroed state
-    data_rnea = js.data.JaxSimModelData.zero(model=model)
+    data_rnea = js.data.JaxSimModelData.zero(
+        model=model, velocity_representation=data.velocity_representation
+    )
 
     # Set just the generalized position
     with data_rnea.mutable_context(
@@ -886,7 +927,9 @@ def free_floating_bias_forces(
     """
 
     # Build a zeroed state
-    data_rnea = js.data.JaxSimModelData.zero(model=model)
+    data_rnea = js.data.JaxSimModelData.zero(
+        model=model, velocity_representation=data.velocity_representation
+    )
 
     # Set the generalized position and generalized velocity
     with data_rnea.mutable_context(
@@ -1045,7 +1088,7 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 # ==========
 
 
-@functools.partial(jax.jit, static_argnames=["integrator"])
+@jax.jit
 def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -1053,8 +1096,8 @@ def step(
     dt: jtp.FloatLike,
     integrator: jaxsim.integrators.Integrator,
     integrator_state: dict[str, Any] | None = None,
-    joint_forces: jtp.Vector | None = None,
-    external_forces: jtp.Vector | None = None,
+    joint_forces: jtp.VectorLike | None = None,
+    external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
     """
     Perform a simulation step.
@@ -1066,7 +1109,9 @@ def step(
         integrator: The integrator to use.
         integrator_state: The state of the integrator.
         joint_forces: The joint forces to consider.
-        external_forces: The external forces to consider.
+        external_forces:
+            The external forces to consider.
+            The frame in which they are expressed must be `data.velocity_representation`.
 
     Returns:
         A tuple containing the new data of the model

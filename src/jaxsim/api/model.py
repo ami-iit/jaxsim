@@ -637,35 +637,39 @@ def forward_dynamics_crb(
 
     # Build joint torques if not provided
     τ = (
-        joint_forces
+        jnp.atleast_1d(joint_forces)
         if joint_forces is not None
         else jnp.zeros_like(data.joint_positions())
     )
 
     # Build external forces if not provided
-    external_forces = (
-        external_forces
+    f = (
+        jnp.atleast_2d(external_forces)
         if external_forces is not None
         else jnp.zeros(shape=(model.number_of_links(), 6))
     )
 
-    # Handle models with zero and one DoFs
-    τ = jnp.atleast_1d(τ.squeeze())
-    τ = jnp.vstack(τ) if τ.size > 0 else jnp.empty(shape=(0, 1))
-
     # Compute terms of the floating-base EoM
     M = free_floating_mass_matrix(model=model, data=data)
-    h = jnp.vstack(free_floating_bias_forces(model=model, data=data))
-    J = jnp.vstack(generalized_free_floating_jacobian(model=model, data=data))
-    f_ext = jnp.vstack(external_forces.flatten())
+    h = free_floating_bias_forces(model=model, data=data)
     S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
+    J = generalized_free_floating_jacobian(model=model, data=data)
 
     # TODO: invert the Mss block exploiting sparsity defined by the parent array λ(i)
+
     if model.floating_base():
-        ν̇ = jnp.linalg.inv(M) @ ((S @ τ) - h + J.T @ f_ext)
+        # l: number of links.
+        # g: generalized coordinates, 6 + number of joints.
+        JTf = jnp.einsum("l6g,l6->g", J, f)
+        ν̇ = jnp.linalg.solve(M, S @ τ - h + JTf)
+
     else:
+        # l: number of links.
+        # j: number of joints.
+        JTf = jnp.einsum("l6j,l6->j", J[:, :, 6:], f)
+        s̈ = jnp.linalg.solve(M[6:, 6:], τ - h[6:] + JTf)
+
         v̇_WB = jnp.zeros(6)
-        s̈ = jnp.linalg.inv(M[6:, 6:]) @ ((S @ τ)[6:] - h[6:] + J[:, 6:].T @ f_ext)
         ν̇ = jnp.hstack([v̇_WB, s̈.squeeze()])
 
     # Extract the base acceleration in the active representation.

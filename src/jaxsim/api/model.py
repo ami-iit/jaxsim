@@ -117,6 +117,7 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model
         model = JaxSimModel.build(physics_model=physics_model, model_name=model_name)
 
+        # Store the origin of the model, in case downstream logic needs it
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
 
@@ -292,6 +293,10 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
     reduced_model = JaxSimModel.build(
         physics_model=physics_model, model_name=model.name()
     )
+
+    # Store the origin of the model, in case downstream logic needs it
+    with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+        reduced_model.built_from = model.built_from
 
     return reduced_model
 

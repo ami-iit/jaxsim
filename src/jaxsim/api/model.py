@@ -877,7 +877,9 @@ def free_floating_gravity_forces(
     """
 
     # Build a zeroed state
-    data_rnea = js.data.JaxSimModelData.zero(model=model)
+    data_rnea = js.data.JaxSimModelData.zero(
+        model=model, velocity_representation=data.velocity_representation
+    )
 
     # Set just the generalized position
     with data_rnea.mutable_context(
@@ -925,7 +927,9 @@ def free_floating_bias_forces(
     """
 
     # Build a zeroed state
-    data_rnea = js.data.JaxSimModelData.zero(model=model)
+    data_rnea = js.data.JaxSimModelData.zero(
+        model=model, velocity_representation=data.velocity_representation
+    )
 
     # Set the generalized position and generalized velocity
     with data_rnea.mutable_context(

@@ -695,6 +695,7 @@ def random_model_data(
     model: jaxsim.api.model.JaxSimModel,
     *,
     key: jax.Array | None = None,
+    velocity_representation: VelRepr | None = None,
     base_pos_bounds: tuple[
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
@@ -718,6 +719,7 @@ def random_model_data(
     Args:
         model: The target model for the random data.
         key: The random key.
+        velocity_representation: The velocity representation to use.
         base_pos_bounds: The bounds for the base position.
         base_vel_lin_bounds: The bounds for the base linear velocity.
         base_vel_ang_bounds: The bounds for the base angular velocity.
@@ -738,7 +740,14 @@ def random_model_data(
     ω_max = jnp.array(base_vel_ang_bounds[1], dtype=float)
     ṡ_min, ṡ_max = joint_vel_bounds
 
-    random_data = JaxSimModelData.zero(model=model)
+    random_data = JaxSimModelData.zero(
+        model=model,
+        **(
+            dict(velocity_representation=velocity_representation)
+            if velocity_representation is not None
+            else {}
+        ),
+    )
 
     with random_data.mutable_context(mutability=Mutability.MUTABLE):
 

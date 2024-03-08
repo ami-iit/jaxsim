@@ -130,10 +130,14 @@ def rnea(
 
         return (i_X_λi, v, a, i_X_0, f), None
 
-    (i_X_λi, v, a, i_X_0, f), _ = jax.lax.scan(
-        f=forward_pass,
-        init=forward_pass_carry,
-        xs=np.arange(start=1, stop=model.NB),
+    (i_X_λi, v, a, i_X_0, f), _ = (
+        jax.lax.scan(
+            f=forward_pass,
+            init=forward_pass_carry,
+            xs=np.arange(start=1, stop=model.NB),
+        )
+        if model.NB > 1
+        else [(i_X_λi, v, a, i_X_0, f), None]
     )
 
     tau = jnp.zeros_like(q)
@@ -164,10 +168,14 @@ def rnea(
 
         return (tau, f), None
 
-    (tau, f), _ = jax.lax.scan(
-        f=backward_pass,
-        init=backward_pass_carry,
-        xs=np.flip(np.arange(start=1, stop=model.NB)),
+    (tau, f), _ = (
+        jax.lax.scan(
+            f=backward_pass,
+            init=backward_pass_carry,
+            xs=np.flip(np.arange(start=1, stop=model.NB)),
+        )
+        if model.NB > 1
+        else [(tau, f), None]
     )
 
     # Handle 1 DoF models

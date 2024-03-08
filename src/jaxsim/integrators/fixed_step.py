@@ -45,7 +45,7 @@ class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
 
 @jax_dataclasses.pytree_dataclass
-class Heun(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
+class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     A: ClassVar[jax.typing.ArrayLike] = jnp.array(
         [
@@ -149,7 +149,7 @@ class ForwardEulerSO3(ExplicitRungeKuttaSO3Mixin, Heun[ODEState]):
 
 
 @jax_dataclasses.pytree_dataclass
-class HeunSO3(ExplicitRungeKuttaSO3Mixin, Heun[ODEState]):
+class Heun2SO3(ExplicitRungeKuttaSO3Mixin, Heun2[ODEState]):
     pass
 
 

@@ -240,3 +240,126 @@ def jaxsim_model_ur10() -> js.model.JaxSimModel:
     model_urdf_path = pathlib.Path(robot_descriptions.ur10_description.URDF_PATH)
 
     return build_jaxsim_model(model_description=model_urdf_path)
+
+
+# ============================
+# Collections of JaxSim models
+# ============================
+
+
+def get_jaxsim_model_fixture(
+    model_name: str, request: pytest.FixtureRequest
+) -> str | pathlib.Path:
+    """
+    Factory to get the fixture providing the JaxSim model of a robot.
+
+    Args:
+        model_name: The name of the model.
+        request: The request object.
+
+    Returns:
+        The JaxSim model of the robot.
+    """
+
+    match model_name:
+        case "box":
+            return request.getfixturevalue(jaxsim_model_box.__name__)
+        case "sphere":
+            return request.getfixturevalue(jaxsim_model_sphere.__name__)
+        case "ergocub":
+            return request.getfixturevalue(jaxsim_model_ergocub.__name__)
+        case "ergocub_reduced":
+            return request.getfixturevalue(jaxsim_model_ergocub_reduced.__name__)
+        case "ur10":
+            return request.getfixturevalue(jaxsim_model_ur10.__name__)
+        case _:
+            raise ValueError(model_name)
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        "box",
+        "sphere",
+        "ur10",
+        "ergocub",
+        "ergocub_reduced",
+    ],
+)
+def jaxsim_models_all(request) -> pathlib.Path | str:
+    """
+    Fixture providing the JaxSim models of all supported robots.
+    """
+
+    model_name: str = request.param
+    return get_jaxsim_model_fixture(model_name=model_name, request=request)
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        "box",
+        "ur10",
+        "ergocub_reduced",
+    ],
+)
+def jaxsim_models_types(request) -> pathlib.Path | str:
+    """
+    Fixture providing JaxSim models of all types of supported robots.
+
+    Note:
+        At the moment, most of our tests use this fixture. It provides:
+        - A robot with no joints.
+        - A fixed-base robot.
+        - A floating-base robot.
+    """
+
+    model_name: str = request.param
+    return get_jaxsim_model_fixture(model_name=model_name, request=request)
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        "box",
+        "sphere",
+    ],
+)
+def jaxsim_models_no_joints(request) -> pathlib.Path | str:
+    """
+    Fixture providing JaxSim models of robots with no joints.
+    """
+
+    model_name: str = request.param
+    return get_jaxsim_model_fixture(model_name=model_name, request=request)
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        "ergocub",
+        "ergocub_reduced",
+    ],
+)
+def jaxsim_models_floating_base(request) -> pathlib.Path | str:
+    """
+    Fixture providing JaxSim models of floating-base robots.
+    """
+
+    model_name: str = request.param
+    return get_jaxsim_model_fixture(model_name=model_name, request=request)
+
+
+@pytest.fixture(
+    scope="session",
+    params=[
+        "ur10",
+    ],
+)
+def jaxsim_models_fixed_base(request) -> pathlib.Path | str:
+    """
+    Fixture providing JaxSim models of fixed-base robots.
+    """
+
+    model_name: str = request.param
+    return get_jaxsim_model_fixture(model_name=model_name, request=request)

@@ -26,7 +26,7 @@ def name_to_idx(model: Model.JaxSimModel, *, joint_name: str) -> jtp.Int:
     """
 
     return jnp.array(
-        model.physics_model.description.joints_dict[joint_name].index, dtype=int
+        model.physics_model.description.joints_dict[joint_name].index - 1, dtype=int
     )
 
 

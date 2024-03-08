@@ -19,7 +19,6 @@ dependencies:
   # [testing]
   - idyntree
   - pytest
-  - pytest-forked
   - pytest-icdiff
   - robot_descriptions
   # [viz]

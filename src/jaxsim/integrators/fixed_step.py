@@ -20,25 +20,11 @@ ODEStateDerivative = ODEState
 @jax_dataclasses.pytree_dataclass
 class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
-    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
-        [
-            [0],
-        ]
-    ).astype(float)
+    A: ClassVar[jax.typing.ArrayLike] = jnp.atleast_2d(0).astype(float)
 
-    b: ClassVar[jax.typing.ArrayLike] = (
-        jnp.array(
-            [
-                [1],
-            ]
-        )
-        .astype(float)
-        .transpose()
-    )
+    b: ClassVar[jax.typing.ArrayLike] = jnp.atleast_2d(1).astype(float).transpose()
 
-    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
-        [0],
-    ).astype(float)
+    c: ClassVar[jax.typing.ArrayLike] = jnp.atleast_1d(0).astype(float)
 
     row_index_of_solution: ClassVar[int] = 0
     order_of_bT_rows: ClassVar[tuple[int, ...]] = (1,)
@@ -144,7 +130,7 @@ class ExplicitRungeKuttaSO3Mixin:
 
 
 @jax_dataclasses.pytree_dataclass
-class ForwardEulerSO3(ExplicitRungeKuttaSO3Mixin, Heun[ODEState]):
+class ForwardEulerSO3(ExplicitRungeKuttaSO3Mixin, ForwardEuler[ODEState]):
     pass
 
 

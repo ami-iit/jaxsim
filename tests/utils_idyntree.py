@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import pathlib
 
@@ -5,7 +7,72 @@ import idyntree.bindings as idt
 import numpy as np
 import numpy.typing as npt
 
+import jaxsim.api as js
 from jaxsim.high_level.common import VelRepr
+
+
+def build_kindyncomputations_from_jaxsim_model(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> KinDynComputations:
+    """
+    Build a `KinDynComputations` from `JaxSimModel` and `JaxSimModelData`.
+
+    Args:
+        model: The `JaxSimModel` from which to build the `KinDynComputations`.
+        data: The `JaxSimModelData` from which to build the `KinDynComputations`.
+
+    Returns:
+        The `KinDynComputations` built from the `JaxSimModel` and `JaxSimModelData`.
+
+    Note:
+        Only `JaxSimModel` built from URDF files are supported.
+    """
+
+    if (
+        isinstance(model.built_from, pathlib.Path)
+        and model.built_from.suffix != ".urdf"
+    ) or (isinstance(model.built_from, str) and "<robot" not in model.built_from):
+        raise ValueError("iDynTree only supports URDF models")
+
+    # Create the KinDynComputations from the same URDF model.
+    kin_dyn = KinDynComputations.build(
+        urdf=model.built_from,
+        considered_joints=list(model.joint_names()),
+        vel_repr=data.velocity_representation,
+        gravity=np.array(data.gravity),
+    )
+
+    # Copy the state of the JaxSim model.
+    kin_dyn = store_jaxsim_data_in_kindyncomputations(data=data, kin_dyn=kin_dyn)
+
+    return kin_dyn
+
+
+def store_jaxsim_data_in_kindyncomputations(
+    data: js.data.JaxSimModelData, kin_dyn: KinDynComputations
+) -> KinDynComputations:
+    """
+    Store the state of a `JaxSimModelData` in `KinDynComputations`.
+
+    Args:
+        data:
+            The `JaxSimModelData` providing the desired state to copy.
+        kin_dyn:
+            The `KinDynComputations` in which to store the state of `JaxSimModelData`.
+
+    Returns:
+        The updated `KinDynComputations` with the state of `JaxSimModelData`.
+    """
+
+    with data.switch_velocity_representation(kin_dyn.vel_repr):
+        kin_dyn.set_robot_state(
+            joint_positions=np.array(data.joint_positions()),
+            joint_velocities=np.array(data.joint_velocities()),
+            base_transform=np.array(data.base_transform()),
+            base_velocity=np.array(data.base_velocity()),
+        )
+
+    return kin_dyn
 
 
 @dataclasses.dataclass

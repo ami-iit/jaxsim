@@ -2,6 +2,7 @@ import os
 
 import jax
 import pytest
+import jaxsim
 
 
 def pytest_configure() -> None:
@@ -33,3 +34,22 @@ def prng_key() -> jax.Array:
 
     pytest.prng_key, subkey = jax.random.split(pytest.prng_key, num=2)
     return subkey
+
+
+@pytest.fixture(
+    scope="function",
+    params=[
+        pytest.param(jaxsim.VelRepr.Inertial, id="inertial"),
+        pytest.param(jaxsim.VelRepr.Body, id="body"),
+        pytest.param(jaxsim.VelRepr.Mixed, id="mixed"),
+    ],
+)
+def velocity_representation(request) -> jaxsim.VelRepr:
+    """
+    Parametrized fixture providing all supported velocity representations.
+
+    Returns:
+        A velocity representation.
+    """
+
+    return request.param

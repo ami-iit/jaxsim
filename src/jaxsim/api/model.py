@@ -962,17 +962,19 @@ def free_floating_bias_forces(
             data.state.physics_model.joint_positions
         )
 
-        data_rnea.state.physics_model.base_linear_velocity = (
-            data.state.physics_model.base_linear_velocity
-        )
-
-        data_rnea.state.physics_model.base_angular_velocity = (
-            data.state.physics_model.base_angular_velocity
-        )
-
         data_rnea.state.physics_model.joint_velocities = (
             data.state.physics_model.joint_velocities
         )
+
+        # Make sure that base velocity is zero for fixed-base model.
+        if model.floating_base():
+            data_rnea.state.physics_model.base_linear_velocity = (
+                data.state.physics_model.base_linear_velocity
+            )
+
+            data_rnea.state.physics_model.base_angular_velocity = (
+                data.state.physics_model.base_angular_velocity
+            )
 
     return jnp.hstack(
         inverse_dynamics(

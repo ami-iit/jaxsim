@@ -602,6 +602,12 @@ def forward_dynamics_aba(
         W_vl_WC=W_vl_WC,
     )
 
+    # The ABA algorithm already returns a zero base 6D acceleration for
+    # fixed-based models. However, the to_active function introduces an
+    # additional acceleration component in Mixed representation.
+    # Here below we make sure that the base acceleration is zero.
+    C_v̇_WB = C_v̇_WB if model.floating_base() else jnp.zeros(6).astype(float)
+
     # Adjust shape
     s̈ = jnp.atleast_1d(s̈.squeeze())
 

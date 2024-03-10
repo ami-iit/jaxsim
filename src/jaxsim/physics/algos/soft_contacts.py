@@ -58,7 +58,7 @@ class SoftContactsState(JaxsimDataclass):
 
         return SoftContactsState.build(
             tangential_deformation=tangential_deformation,
-            number_of_collidable_points=physics_model.gc.body.size,
+            number_of_collidable_points=len(physics_model.gc.body),
         )
 
     @staticmethod
@@ -95,7 +95,7 @@ class SoftContactsState(JaxsimDataclass):
         return check_valid_shape(
             what="tangential_deformation",
             shape=self.tangential_deformation.shape,
-            expected_shape=(3, physics_model.gc.body.size),
+            expected_shape=(3, len(physics_model.gc.body)),
             valid=True,
         )
 
@@ -237,7 +237,7 @@ def collidable_points_pos_vel(
 
     # Process all the collidable points in parallel
     W_p_Ci, CW_v_WC = jax.vmap(process_point_kinematics)(
-        model.gc.point.T, model.gc.body
+        model.gc.point.T, np.array(model.gc.body, dtype=int)
     )
 
     return W_p_Ci.transpose(), CW_v_WC.transpose()

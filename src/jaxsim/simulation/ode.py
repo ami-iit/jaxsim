@@ -123,7 +123,7 @@ def dx_dt(
         ode_state.soft_contacts.tangential_deformation
     )
 
-    if physics_model.gc.body.size > 0:
+    if len(physics_model.gc.body) > 0:
         (
             contact_forces_links,
             tangential_deformation_dot,

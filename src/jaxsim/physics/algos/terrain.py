@@ -46,23 +46,21 @@ class FlatTerrain(Terrain):
 
 @jax_dataclasses.pytree_dataclass
 class PlaneTerrain(Terrain):
-    plane_normal: jtp.Vector = jax_dataclasses.field(
-        default_factory=lambda: jnp.array([0, 0, 1.0])
-    )
+    plane_normal: list = jax_dataclasses.field(default_factory=lambda: [0, 0, 1.0])
 
     @staticmethod
-    def build(plane_normal: jtp.Vector) -> "PlaneTerrain":
+    def build(plane_normal: list) -> "PlaneTerrain":
         """
         Create a PlaneTerrain instance with a specified plane normal vector.
 
         Args:
-            plane_normal (jtp.Vector): The normal vector of the terrain plane.
+            plane_normal (list): The normal vector of the terrain plane.
 
         Returns:
             PlaneTerrain: A PlaneTerrain instance.
         """
 
-        return PlaneTerrain(plane_normal=jnp.array(plane_normal, dtype=float))
+        return PlaneTerrain(plane_normal=plane_normal)
 
     def height(self, x: float, y: float) -> float:
         """

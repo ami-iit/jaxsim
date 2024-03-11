@@ -211,7 +211,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Adjust the shape of the tableau coefficients.
         c = jnp.atleast_1d(cls.c.squeeze())
-        b = jnp.atleast_2d(jnp.vstack(cls.b.squeeze()))
+        b = jnp.atleast_2d(cls.b.T.squeeze()).transpose()
         A = jnp.atleast_2d(cls.A.squeeze())
 
         # Check validity of the Butcher tableau.

@@ -23,9 +23,7 @@ class GroundContact:
     """
 
     point: npt.NDArray = dataclasses.field(default_factory=lambda: jnp.array([]))
-    body: Static[npt.NDArray] = dataclasses.field(
-        default_factory=lambda: np.array([], dtype=int)
-    )
+    body: Static[list] = dataclasses.field(default_factory=lambda: [])
 
     @staticmethod
     def build_from(
@@ -42,9 +40,9 @@ class GroundContact:
 
         # Build the GroundContact attributes
         points = jnp.vstack([cp.position for cp in collidable_points]).T
-        link_index_of_points = np.array(
-            [links_dict[cp.parent_link.name].index for cp in collidable_points]
-        )
+        link_index_of_points = [
+            links_dict[cp.parent_link.name].index for cp in collidable_points
+        ]
 
         # Build the object
         gc = GroundContact(point=points, body=link_index_of_points)

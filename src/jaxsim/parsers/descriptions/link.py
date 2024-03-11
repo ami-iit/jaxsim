@@ -38,6 +38,17 @@ class LinkDescription(JaxsimDataclass):
     def __hash__(self) -> int:
         return hash(self.__repr__())
 
+    def __eq__(self, other) -> bool:
+        return (
+            self.name == other.name
+            and self.mass == other.mass
+            and (self.inertia == other.inertia).all()
+            and self.index == other.index
+            and self.parent == other.parent
+            and (self.pose == other.pose).all()
+            and self.children == other.children
+        )
+
     @property
     def name_and_index(self) -> str:
         """

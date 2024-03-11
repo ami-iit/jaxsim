@@ -123,7 +123,7 @@ def system_velocity_dynamics(
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
     ṁ = jnp.zeros_like(data.state.soft_contacts.tangential_deformation).astype(float)
 
-    if model.physics_model.gc.body.size > 0:
+    if len(model.physics_model.gc.body) > 0:
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
         W_p_Ci, W_ṗ_Ci = Contact.collidable_point_kinematics(model=model, data=data)
@@ -140,7 +140,11 @@ def system_velocity_dynamics(
         # we don't need any coordinate transformation.
         W_f_Li_terrain = jax.vmap(
             lambda nc: (
-                jnp.vstack(jnp.equal(model.physics_model.gc.body, nc).astype(int))
+                jnp.vstack(
+                    jnp.equal(
+                        np.array(model.physics_model.gc.body, dtype=int), nc
+                    ).astype(int)
+                )
                 * W_f_Ci
             ).sum(axis=0)
         )(jnp.arange(model.number_of_links()))

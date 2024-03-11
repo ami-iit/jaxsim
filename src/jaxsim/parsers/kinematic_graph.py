@@ -34,6 +34,11 @@ class RootPose(NamedTuple):
     root_position: npt.NDArray = np.zeros(3)
     root_quaternion: npt.NDArray = np.array([1.0, 0, 0, 0])
 
+    def __eq__(self, other):
+        return (self.root_position == other.root_position).all() and (
+            self.root_quaternion == other.root_quaternion
+        ).all()
+
 
 @dataclasses.dataclass(frozen=True)
 class KinematicGraph:

@@ -50,6 +50,14 @@ class CollidablePoint:
             enabled=self.enabled,
         )
 
+    def __eq__(self, other):
+        retval = (
+            self.parent_link == other.parent_link
+            and (self.position == other.position).all()
+            and self.enabled == other.enabled
+        )
+        return retval
+
     def __str__(self):
         return (
             f"{self.__class__.__name__}("
@@ -93,6 +101,9 @@ class BoxCollision(CollisionShape):
 
     center: npt.NDArray
 
+    def __eq__(self, other):
+        return (self.center == other.center).all() and super().__eq__(other)
+
 
 @dataclasses.dataclass
 class SphereCollision(CollisionShape):
@@ -105,3 +116,6 @@ class SphereCollision(CollisionShape):
     """
 
     center: npt.NDArray
+
+    def __eq__(self, other):
+        return (self.center == other.center).all() and super().__eq__(other)

@@ -100,8 +100,8 @@ class PhysicsModel(JaxsimDataclass):
                 [self._link_inertias_dict[l.index] for l in ordered_links]
             )
 
-            s_min = jnp.hstack([j.position_limit[0] for j in ordered_joints])
-            s_max = jnp.hstack([j.position_limit[1] for j in ordered_joints])
+            s_min = jnp.array([j.position_limit[0] for j in ordered_joints])
+            s_max = jnp.array([j.position_limit[1] for j in ordered_joints])
             self._joint_position_limits_min = jnp.vstack([s_min, s_max]).min(axis=0)
             self._joint_position_limits_max = jnp.vstack([s_min, s_max]).max(axis=0)
 

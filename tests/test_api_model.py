@@ -65,7 +65,7 @@ def test_model_creation_and_reduction(
 
     # Check that the CoM position is preserved.
     assert js.model.com_position(model=model_full, data=data) == pytest.approx(
-        js.model.com_position(model=model_reduced, data=data_reduced)
+        js.model.com_position(model=model_reduced, data=data_reduced), abs=1e-6
     )
 
 

@@ -23,7 +23,6 @@ from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.utils import JaxsimDataclass, Mutability
 
-from . import kin_dyn_parameters
 
 @jax_dataclasses.pytree_dataclass
 class JaxSimModel(JaxsimDataclass):
@@ -43,7 +42,7 @@ class JaxSimModel(JaxsimDataclass):
         repr=False, default=None
     )
 
-    kin_dyn_parameters: kin_dyn_parameters.KynDynParameters = dataclasses.field(
+    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters = dataclasses.field(
         default=None
     )
 
@@ -138,7 +137,7 @@ class JaxSimModel(JaxsimDataclass):
         with model.mutable_context(
             mutability=Mutability.MUTABLE_NO_VALIDATION, restore_after_exception=False
         ):
-            model.kin_dyn_parameters = kin_dyn_parameters.KynDynParameters.build(
+            model.kin_dyn_parameters = js.kin_dyn_parameters.KynDynParameters.build(
                 model=model
             )
 

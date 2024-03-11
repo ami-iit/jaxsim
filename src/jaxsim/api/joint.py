@@ -4,16 +4,15 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
-
-from . import model as Model
 
 # =======================
 # Index-related functions
 # =======================
 
 
-def name_to_idx(model: Model.JaxSimModel, *, joint_name: str) -> jtp.Int:
+def name_to_idx(model: js.model.JaxSimModel, *, joint_name: str) -> jtp.Int:
     """
     Convert the name of a joint to its index.
 
@@ -30,7 +29,7 @@ def name_to_idx(model: Model.JaxSimModel, *, joint_name: str) -> jtp.Int:
     )
 
 
-def idx_to_name(model: Model.JaxSimModel, *, joint_index: jtp.IntLike) -> str:
+def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str:
     """
     Convert the index of a joint to its name.
 
@@ -46,7 +45,9 @@ def idx_to_name(model: Model.JaxSimModel, *, joint_index: jtp.IntLike) -> str:
     return d[joint_index]
 
 
-def names_to_idxs(model: Model.JaxSimModel, *, joint_names: Sequence[str]) -> jax.Array:
+def names_to_idxs(
+    model: js.model.JaxSimModel, *, joint_names: Sequence[str]
+) -> jax.Array:
     """
     Convert a sequence of joint names to their corresponding indices.
 
@@ -71,7 +72,9 @@ def names_to_idxs(model: Model.JaxSimModel, *, joint_names: Sequence[str]) -> ja
 
 
 def idxs_to_names(
-    model: Model.JaxSimModel, *, joint_indices: Sequence[jtp.IntLike] | jtp.VectorLike
+    model: js.model.JaxSimModel,
+    *,
+    joint_indices: Sequence[jtp.IntLike] | jtp.VectorLike,
 ) -> tuple[str, ...]:
     """
     Convert a sequence of joint indices to their corresponding names.
@@ -99,7 +102,7 @@ def idxs_to_names(
 
 @jax.jit
 def position_limit(
-    model: Model.JaxSimModel, *, joint_index: jtp.IntLike
+    model: js.model.JaxSimModel, *, joint_index: jtp.IntLike
 ) -> tuple[jtp.Float, jtp.Float]:
     """"""
 
@@ -114,7 +117,7 @@ def position_limit(
 
 @functools.partial(jax.jit, static_argnames=["joint_names"])
 def position_limits(
-    model: Model.JaxSimModel, *, joint_names: Sequence[str] | None = None
+    model: js.model.JaxSimModel, *, joint_names: Sequence[str] | None = None
 ) -> tuple[jtp.Vector, jtp.Vector]:
 
     joint_names = joint_names if joint_names is not None else model.joint_names()
@@ -130,7 +133,7 @@ def position_limits(
 
 @functools.partial(jax.jit, static_argnames=["joint_names"])
 def random_joint_positions(
-    model: Model.JaxSimModel,
+    model: js.model.JaxSimModel,
     *,
     joint_names: Sequence[str] | None = None,
     key: jax.Array | None = None,

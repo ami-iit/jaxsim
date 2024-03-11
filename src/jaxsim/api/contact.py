@@ -3,16 +3,14 @@ import functools
 import jax
 import jax.numpy as jnp
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.physics.algos import soft_contacts
-
-from . import data as Data
-from . import model as Model
 
 
 @jax.jit
 def collidable_point_kinematics(
-    model: Model.JaxSimModel, data: Data.JaxSimModelData
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
     """
     Compute the position and 3D velocity of the collidable points in the world frame.
@@ -44,7 +42,7 @@ def collidable_point_kinematics(
 
 @jax.jit
 def collidable_point_positions(
-    model: Model.JaxSimModel, data: Data.JaxSimModelData
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
     """
     Compute the position of the collidable points in the world frame.
@@ -62,7 +60,7 @@ def collidable_point_positions(
 
 @jax.jit
 def collidable_point_velocities(
-    model: Model.JaxSimModel, data: Data.JaxSimModelData
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
     """
     Compute the 3D velocity of the collidable points in the world frame.
@@ -80,8 +78,8 @@ def collidable_point_velocities(
 
 @functools.partial(jax.jit, static_argnames=["link_names"])
 def in_contact(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     link_names: tuple[str, ...] | None = None,
 ) -> jtp.Vector:
@@ -131,7 +129,7 @@ def in_contact(
 
 @jax.jit
 def estimate_good_soft_contacts_parameters(
-    model: Model.JaxSimModel,
+    model: js.model.JaxSimModel,
     static_friction_coefficient: jtp.FloatLike = 0.5,
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
@@ -160,14 +158,14 @@ def estimate_good_soft_contacts_parameters(
         specific application.
     """
 
-    def estimate_model_height(model: Model.JaxSimModel) -> jtp.Float:
+    def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
         """"""
 
-        zero_data = Data.JaxSimModelData.build(
+        zero_data = js.data.JaxSimModelData.build(
             model=model, soft_contacts_params=soft_contacts.SoftContactsParams()
         )
 
-        W_pz_CoM = Model.com_position(model=model, data=zero_data)[2]
+        W_pz_CoM = js.model.com_position(model=model, data=zero_data)[2]
 
         if model.physics_model.is_floating_base:
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]

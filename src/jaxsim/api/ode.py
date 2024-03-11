@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 import jaxlie
 
+import jaxsim.api as js
 import jaxsim.physics.algos.soft_contacts
 import jaxsim.typing as jtp
 from jaxsim import VelRepr, integrators
@@ -13,23 +14,19 @@ from jaxsim.physics.algos.soft_contacts import SoftContactsState
 from jaxsim.physics.model.physics_model_state import PhysicsModelState
 from jaxsim.simulation.ode_data import ODEState
 
-from . import contact as Contact
-from . import data as Data
-from . import model as Model
-
 
 class SystemDynamicsFromModelAndData(Protocol):
     def __call__(
         self,
-        model: Model.JaxSimModel,
-        data: Data.JaxSimModelData,
+        model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData,
         **kwargs: dict[str, Any],
     ) -> tuple[ODEState, dict[str, Any]]: ...
 
 
 def wrap_system_dynamics_for_integration(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     system_dynamics: SystemDynamicsFromModelAndData,
     **kwargs,
@@ -72,8 +69,8 @@ def wrap_system_dynamics_for_integration(
 
 @jax.jit
 def system_velocity_dynamics(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     joint_forces: jtp.Vector | None = None,
     external_forces: jtp.Vector | None = None,
@@ -126,7 +123,7 @@ def system_velocity_dynamics(
     if len(model.physics_model.gc.body) > 0:
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
-        W_p_Ci, W_ṗ_Ci = Contact.collidable_point_kinematics(model=model, data=data)
+        W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
         # Compute the 3D forces applied to each collidable point.
         W_f_Ci, ṁ = jax.vmap(
@@ -186,7 +183,7 @@ def system_velocity_dynamics(
     # - Joint accelerations: s̈ ∈ ℝⁿ
     # - Base inertial-fixed acceleration: W_v̇_WB = (W_p̈_B, W_ω̇_B) ∈ ℝ⁶
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        W_v̇_WB, s̈ = Model.forward_dynamics_aba(
+        W_v̇_WB, s̈ = js.model.forward_dynamics_aba(
             model=model,
             data=data,
             joint_forces=τ_total,
@@ -198,7 +195,7 @@ def system_velocity_dynamics(
 
 @jax.jit
 def system_position_dynamics(
-    model: Model.JaxSimModel, data: Data.JaxSimModelData
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector]:
     """
     Compute the dynamics of the system position.
@@ -232,8 +229,8 @@ def system_position_dynamics(
 
 @jax.jit
 def system_dynamics(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     joint_forces: jtp.Vector | None = None,
     external_forces: jtp.Vector | None = None,

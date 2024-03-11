@@ -10,7 +10,7 @@ import jax_dataclasses
 import jaxlie
 import numpy as np
 
-import jaxsim.api
+import jaxsim.api as js
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
@@ -48,7 +48,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
     )
 
-    def valid(self, model: jaxsim.api.model.JaxSimModel | None = None) -> bool:
+    def valid(self, model: js.model.JaxSimModel | None = None) -> bool:
         """
         Check if the current state is valid for the given model.
 
@@ -68,7 +68,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @staticmethod
     def zero(
-        model: jaxsim.api.model.JaxSimModel,
+        model: js.model.JaxSimModel,
         velocity_representation: VelRepr = VelRepr.Inertial,
     ) -> JaxSimModelData:
         """
@@ -88,7 +88,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @staticmethod
     def build(
-        model: jaxsim.api.model.JaxSimModel,
+        model: js.model.JaxSimModel,
         base_position: jtp.Vector | None = None,
         base_quaternion: jtp.Vector | None = None,
         joint_positions: jtp.Vector | None = None,
@@ -167,7 +167,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         soft_contacts_params = (
             soft_contacts_params
             if soft_contacts_params is not None
-            else jaxsim.api.contact.estimate_good_soft_contacts_parameters(model=model)
+            else js.contact.estimate_good_soft_contacts_parameters(model=model)
         )
 
         W_H_B = jaxlie.SE3.from_rotation_and_translation(
@@ -225,7 +225,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_positions(
         self,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> jtp.Vector:
         """
@@ -259,13 +259,13 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         joint_names = joint_names if joint_names is not None else model.joint_names()
 
         return self.state.physics_model.joint_positions[
-            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_velocities(
         self,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> jtp.Vector:
         """
@@ -299,7 +299,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         joint_names = joint_names if joint_names is not None else model.joint_names()
 
         return self.state.physics_model.joint_velocities[
-            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
     @jax.jit
@@ -430,7 +430,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     def reset_joint_positions(
         self,
         positions: jtp.VectorLike,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> Self:
         """
@@ -468,7 +468,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return replace(
             s=self.state.physics_model.joint_positions.at[
-                jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+                js.joint.names_to_idxs(joint_names=joint_names, model=model)
             ].set(positions)
         )
 
@@ -476,7 +476,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     def reset_joint_velocities(
         self,
         velocities: jtp.VectorLike,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> Self:
         """
@@ -514,7 +514,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return replace(
             ṡ=self.state.physics_model.joint_velocities.at[
-                jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+                js.joint.names_to_idxs(joint_names=joint_names, model=model)
             ].set(velocities)
         )
 
@@ -692,7 +692,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
 
 def random_model_data(
-    model: jaxsim.api.model.JaxSimModel,
+    model: js.model.JaxSimModel,
     *,
     key: jax.Array | None = None,
     velocity_representation: VelRepr | None = None,
@@ -762,8 +762,8 @@ def random_model_data(
         ).as_quaternion_xyzw()[np.array([3, 0, 1, 2])]
 
         if model.number_of_joints() > 0:
-            physics_model_state.joint_positions = (
-                jaxsim.api.joint.random_joint_positions(model=model, key=k3)
+            physics_model_state.joint_positions = js.joint.random_joint_positions(
+                model=model, key=k3
             )
 
             physics_model_state.joint_velocities = jax.random.uniform(

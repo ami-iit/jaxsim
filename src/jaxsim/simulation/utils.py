@@ -10,6 +10,6 @@ def check_valid_shape(
 
     if not valid_shape:
         logging.debug(f"Shape of {what} differs: {shape}, {expected_shape}")
-        raise
+        return False
 
     return valid

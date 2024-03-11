@@ -119,6 +119,9 @@ def collidable_points_pos_vel(
         Tuple[jtp.Matrix, jtp.Matrix]: A tuple containing the position and velocity of collidable points.
     """
 
+    if len(model.gc.body) == 0:
+        return jnp.empty(0), jnp.empty(0)
+
     # Make sure that shape and size are correct
     xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
 

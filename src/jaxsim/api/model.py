@@ -549,14 +549,22 @@ def forward_dynamics_aba(
         else jnp.zeros((model.number_of_links(), 6))
     )
 
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        joint_force_references=τ,
+        link_forces=f_ext,
+        data=data,
+        velocity_representation=data.velocity_representation,
+    )
+
     # Compute ABA
     W_v̇_WB, s̈ = jaxsim.physics.algos.aba.aba(
         model=model.physics_model,
         xfb=data.state.physics_model.xfb(),
         q=data.state.physics_model.joint_positions,
         qd=data.state.physics_model.joint_velocities,
-        tau=τ,
-        f_ext=f_ext,
+        tau=references.input.physics_model.tau,
+        f_ext=references.input.physics_model.f_ext,
     )
 
     def to_active(W_vd_WB, W_H_C, W_v_WB, W_vl_WC):

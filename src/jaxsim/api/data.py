@@ -767,16 +767,16 @@ def random_model_data(
             )
 
             physics_model_state.joint_velocities = jax.random.uniform(
-                key=k6, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+                key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
             )
 
         if model.floating_base():
             physics_model_state.base_linear_velocity = jax.random.uniform(
-                key=k4, shape=(3,), minval=v_min, maxval=v_max
+                key=k5, shape=(3,), minval=v_min, maxval=v_max
             )
 
             physics_model_state.base_angular_velocity = jax.random.uniform(
-                key=k5, shape=(3,), minval=ω_min, maxval=ω_max
+                key=k6, shape=(3,), minval=ω_min, maxval=ω_max
             )
 
     return random_data

@@ -108,7 +108,16 @@ def idxs_to_names(
 def position_limit(
     model: js.model.JaxSimModel, *, joint_index: jtp.IntLike
 ) -> tuple[jtp.Float, jtp.Float]:
-    """"""
+    """
+    Get the position limits of a joint.
+
+    Args:
+        model: The model to consider.
+        joint_index: The index of the joint.
+
+    Returns:
+        The position limits of the joint.
+    """
 
     if model.number_of_joints() <= 1:
         return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
@@ -123,7 +132,17 @@ def position_limit(
 def position_limits(
     model: js.model.JaxSimModel, *, joint_names: Sequence[str] | None = None
 ) -> tuple[jtp.Vector, jtp.Vector]:
-    """"""
+    """
+    Get the position limits of a list of joint.
+
+    Args:
+        model: The model to consider.
+        joint_names: The names of the joints.
+
+    Returns:
+        The position limits of the joints.
+    """
+
     joint_names = joint_names if joint_names is not None else model.joint_names()
 
     if len(joint_names) == 0:
@@ -145,7 +164,17 @@ def random_joint_positions(
     joint_names: Sequence[str] | None = None,
     key: jax.Array | None = None,
 ) -> jtp.Vector:
-    """"""
+    """
+    Generate random joint positions.
+
+    Args:
+        model: The model to consider.
+        joint_names: The names of the joints.
+        key: The random key.
+
+    Returns:
+        The random joint positions.
+    """
 
     key = key if key is not None else jax.random.PRNGKey(seed=0)
 

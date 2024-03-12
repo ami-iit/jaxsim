@@ -209,19 +209,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             The integrator object.
         """
 
-        # Adjust the shape of the tableau coefficients.
-        c = jnp.atleast_1d(cls.c.squeeze())
-        b = jnp.atleast_2d(cls.b.T.squeeze()).transpose()
-        A = jnp.atleast_2d(cls.A.squeeze())
-
         # Check validity of the Butcher tableau.
-        if not ExplicitRungeKutta.butcher_tableau_is_valid(A=A, b=b, c=c):
+        if not ExplicitRungeKutta.butcher_tableau_is_valid(A=cls.A, b=cls.b, c=cls.c):
             raise ValueError("The Butcher tableau of this class is not valid.")
-
-        # Store the adjusted shapes of the tableau coefficients.
-        cls.c = c
-        cls.b = b
-        cls.A = A
 
         # Check that b.T has enough rows based on the configured index of the solution.
         if cls.row_index_of_solution >= cls.b.T.shape[0]:

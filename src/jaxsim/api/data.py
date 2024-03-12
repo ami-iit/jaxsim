@@ -761,20 +761,22 @@ def random_model_data(
             *jax.random.uniform(key=k2, shape=(3,), minval=0, maxval=2 * jnp.pi)
         ).as_quaternion_xyzw()[np.array([3, 0, 1, 2])]
 
-        physics_model_state.joint_positions = jaxsim.api.joint.random_joint_positions(
-            model=model, key=k3
-        )
+        if model.number_of_joints() > 0:
+            physics_model_state.joint_positions = (
+                jaxsim.api.joint.random_joint_positions(model=model, key=k3)
+            )
 
-        physics_model_state.base_linear_velocity = jax.random.uniform(
-            key=k4, shape=(3,), minval=v_min, maxval=v_max
-        )
+            physics_model_state.joint_velocities = jax.random.uniform(
+                key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+            )
 
-        physics_model_state.base_angular_velocity = jax.random.uniform(
-            key=k5, shape=(3,), minval=ω_min, maxval=ω_max
-        )
+        if model.floating_base():
+            physics_model_state.base_linear_velocity = jax.random.uniform(
+                key=k5, shape=(3,), minval=v_min, maxval=v_max
+            )
 
-        physics_model_state.joint_velocities = jax.random.uniform(
-            key=k6, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
-        )
+            physics_model_state.base_angular_velocity = jax.random.uniform(
+                key=k6, shape=(3,), minval=ω_min, maxval=ω_max
+            )
 
     return random_data

@@ -119,6 +119,9 @@ def collidable_points_pos_vel(
         Tuple[jtp.Matrix, jtp.Matrix]: A tuple containing the position and velocity of collidable points.
     """
 
+    if len(model.gc.body) == 0:
+        return jnp.empty(0), jnp.empty(0)
+
     # Make sure that shape and size are correct
     xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
 
@@ -176,10 +179,14 @@ def collidable_points_pos_vel(
         # Pack and return the carry
         return (W_X_i,), None
 
-    (W_X_i,), _ = jax.lax.scan(
-        f=propagate_transforms,
-        init=propagate_transforms_carry,
-        xs=np.arange(start=1, stop=model.NB),
+    (W_X_i,), _ = (
+        jax.lax.scan(
+            f=propagate_transforms,
+            init=propagate_transforms_carry,
+            xs=np.arange(start=1, stop=model.NB),
+        )
+        if model.NB > 1
+        else [(W_X_i,), None]
     )
 
     # ====================
@@ -209,10 +216,14 @@ def collidable_points_pos_vel(
         # Pack and return the carry
         return (W_v_Wi,), None
 
-    (W_v_Wi,), _ = jax.lax.scan(
-        f=propagate_velocities,
-        init=propagate_velocities_carry,
-        xs=jnp.vstack([qd, jnp.arange(start=0, stop=qd.size)]).T,
+    (W_v_Wi,), _ = (
+        jax.lax.scan(
+            f=propagate_velocities,
+            init=propagate_velocities_carry,
+            xs=jnp.vstack([qd, jnp.arange(start=0, stop=qd.size)]).T,
+        )
+        if model.NB > 1
+        else [(W_v_Wi,), None]
     )
 
     # ==================================================

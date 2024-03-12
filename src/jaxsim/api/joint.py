@@ -26,7 +26,7 @@ def name_to_idx(model: Model.JaxSimModel, *, joint_name: str) -> jtp.Int:
     """
 
     return jnp.array(
-        model.physics_model.description.joints_dict[joint_name].index, dtype=int
+        model.physics_model.description.joints_dict[joint_name].index - 1, dtype=int
     )
 
 
@@ -103,10 +103,13 @@ def position_limit(
 ) -> tuple[jtp.Float, jtp.Float]:
     """"""
 
-    min = model.physics_model._joint_position_limits_min[joint_index]
-    max = model.physics_model._joint_position_limits_max[joint_index]
+    if model.physics_model.NB <= 1:
+        return jnp.array([]), jnp.array([])
 
-    return min.astype(float), max.astype(float)
+    s_min = model.physics_model._joint_position_limits_min[joint_index]
+    s_max = model.physics_model._joint_position_limits_max[joint_index]
+
+    return s_min.astype(float), s_max.astype(float)
 
 
 @functools.partial(jax.jit, static_argnames=["joint_names"])

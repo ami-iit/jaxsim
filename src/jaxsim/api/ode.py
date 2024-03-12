@@ -142,7 +142,7 @@ def system_velocity_dynamics(
             lambda nc: (
                 jnp.vstack(
                     jnp.equal(
-                        np.array(model.physics_model.gc.body, dtype=int), nc
+                        jnp.array(model.physics_model.gc.body, dtype=int), nc
                     ).astype(int)
                 )
                 * W_f_Ci

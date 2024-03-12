@@ -112,7 +112,7 @@ def aba(
         i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
 
         # Propagate link velocity
-        vJ = S[i] * qd[ii] if qd.size != 0 else S[i] * 0
+        vJ = S[i] * qd[ii]
 
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
@@ -134,10 +134,14 @@ def aba(
 
         return (i_X_λi, v, c, MA, pA, i_X_0), None
 
-    (i_X_λi, v, c, MA, pA, i_X_0), _ = jax.lax.scan(
-        f=loop_body_pass1,
-        init=pass_1_carry,
-        xs=np.arange(start=1, stop=model.NB),
+    (i_X_λi, v, c, MA, pA, i_X_0), _ = (
+        jax.lax.scan(
+            f=loop_body_pass1,
+            init=pass_1_carry,
+            xs=np.arange(start=1, stop=model.NB),
+        )
+        if model.NB > 1
+        else [(i_X_λi, v, c, MA, pA, i_X_0), None]
     )
 
     U = jnp.zeros_like(S)
@@ -166,7 +170,7 @@ def aba(
         d_i = S[i].T @ U[i]
         d = d.at[i].set(d_i.squeeze())
 
-        u_i = tau[ii] - S[i].T @ pA[i] if tau.size != 0 else -S[i].T @ pA[i]
+        u_i = tau[ii] - S[i].T @ pA[i]
         u = u.at[i].set(u_i.squeeze())
 
         # Compute the articulated-body inertia and bias forces of this link
@@ -196,10 +200,14 @@ def aba(
 
         return (U, d, u, MA, pA), None
 
-    (U, d, u, MA, pA), _ = jax.lax.scan(
-        f=loop_body_pass2,
-        init=pass_2_carry,
-        xs=np.flip(np.arange(start=1, stop=model.NB)),
+    (U, d, u, MA, pA), _ = (
+        jax.lax.scan(
+            f=loop_body_pass2,
+            init=pass_2_carry,
+            xs=np.flip(np.arange(start=1, stop=model.NB)),
+        )
+        if model.NB > 1
+        else [(U, d, u, MA, pA), None]
     )
 
     if model.is_floating_base:
@@ -226,15 +234,19 @@ def aba(
         qdd_ii = (u[i] - U[i].T @ a_i) / d[i]
         qdd = qdd.at[i - 1].set(qdd_ii.squeeze()) if qdd.size != 0 else qdd
 
-        a_i = a_i + S[i] * qdd[ii] if qdd.size != 0 else a_i
+        a_i = a_i + S[i] * qdd[ii]
         a = a.at[i].set(a_i)
 
         return (a, qdd), None
 
-    (a, qdd), _ = jax.lax.scan(
-        f=loop_body_pass3,
-        init=pass_3_carry,
-        xs=np.arange(1, model.NB),
+    (a, qdd), _ = (
+        jax.lax.scan(
+            f=loop_body_pass3,
+            init=pass_3_carry,
+            xs=np.arange(1, model.NB),
+        )
+        if model.NB > 1
+        else [(a, qdd), None]
     )
 
     # Handle 1 DoF models

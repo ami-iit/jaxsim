@@ -549,14 +549,22 @@ def forward_dynamics_aba(
         else jnp.zeros((model.number_of_links(), 6))
     )
 
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        joint_force_references=τ,
+        link_forces=f_ext,
+        data=data,
+        velocity_representation=data.velocity_representation,
+    )
+
     # Compute ABA
     W_v̇_WB, s̈ = jaxsim.physics.algos.aba.aba(
         model=model.physics_model,
         xfb=data.state.physics_model.xfb(),
         q=data.state.physics_model.joint_positions,
         qd=data.state.physics_model.joint_velocities,
-        tau=τ,
-        f_ext=f_ext,
+        tau=references.input.physics_model.tau,
+        f_ext=references.input.physics_model.f_ext,
     )
 
     def to_active(W_vd_WB, W_H_C, W_v_WB, W_vl_WC):
@@ -601,6 +609,12 @@ def forward_dynamics_aba(
         ),
         W_vl_WC=W_vl_WC,
     )
+
+    # The ABA algorithm already returns a zero base 6D acceleration for
+    # fixed-based models. However, the to_active function introduces an
+    # additional acceleration component in Mixed representation.
+    # Here below we make sure that the base acceleration is zero.
+    C_v̇_WB = C_v̇_WB if model.floating_base() else jnp.zeros(6).astype(float)
 
     # Adjust shape
     s̈ = jnp.atleast_1d(s̈.squeeze())
@@ -948,17 +962,19 @@ def free_floating_bias_forces(
             data.state.physics_model.joint_positions
         )
 
-        data_rnea.state.physics_model.base_linear_velocity = (
-            data.state.physics_model.base_linear_velocity
-        )
-
-        data_rnea.state.physics_model.base_angular_velocity = (
-            data.state.physics_model.base_angular_velocity
-        )
-
         data_rnea.state.physics_model.joint_velocities = (
             data.state.physics_model.joint_velocities
         )
+
+        # Make sure that base velocity is zero for fixed-base model.
+        if model.floating_base():
+            data_rnea.state.physics_model.base_linear_velocity = (
+                data.state.physics_model.base_linear_velocity
+            )
+
+            data_rnea.state.physics_model.base_angular_velocity = (
+                data.state.physics_model.base_angular_velocity
+            )
 
     return jnp.hstack(
         inverse_dynamics(

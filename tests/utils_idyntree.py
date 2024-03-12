@@ -1,6 +1,5 @@
 import dataclasses
 import pathlib
-from typing import List, Union
 
 import idyntree.bindings as idt
 import numpy as np
@@ -19,14 +18,13 @@ class KinDynComputations:
 
     @staticmethod
     def build(
-        urdf: Union[pathlib.Path, str],
-        considered_joints: List[str] = None,
+        urdf: pathlib.Path | str,
+        considered_joints: list[str] = None,
         vel_repr: VelRepr = VelRepr.Inertial,
         gravity: npt.NDArray = dataclasses.field(
             default_factory=lambda: np.array([0, 0, -10.0])
         ),
     ) -> "KinDynComputations":
-        """"""
 
         # Read the URDF description
         urdf_string = urdf.read_text() if isinstance(urdf, pathlib.Path) else urdf
@@ -40,7 +38,7 @@ class KinDynComputations:
             if considered_joints is None
             else mdl_loader.loadReducedModelFromString(urdf_string, considered_joints)
         ):
-            raise RuntimeError(f"Failed to load URDF description")
+            raise RuntimeError("Failed to load URDF description")
 
         # Create KinDynComputations and insert the model
         kindyn = idt.KinDynComputations()
@@ -72,6 +70,7 @@ class KinDynComputations:
         base_velocity: npt.NDArray = np.zeros(6),
         world_gravity: npt.NDArray | None = None,
     ) -> None:
+
         joint_positions = (
             joint_positions if joint_positions is not None else np.zeros(self.dofs())
         )
@@ -114,21 +113,25 @@ class KinDynComputations:
             raise RuntimeError("Failed to set the robot state")
 
         # Update stored gravity
-        self.world_gravity = gravity
+        self.gravity = gravity
 
     def dofs(self) -> int:
+
         return self.kin_dyn.getNrOfDegreesOfFreedom()
 
-    def joint_names(self) -> List[str]:
+    def joint_names(self) -> list[str]:
+
         model: idt.Model = self.kin_dyn.model()
         return [model.getJointName(i) for i in range(model.getNrOfJoints())]
 
-    def link_names(self) -> List[str]:
+    def link_names(self) -> list[str]:
+
         return [
             self.kin_dyn.getFrameName(i) for i in range(self.kin_dyn.getNrOfLinks())
         ]
 
     def joint_positions(self) -> npt.NDArray:
+
         vector = idt.VectorDynSize()
 
         if not self.kin_dyn.getJointPos(vector):
@@ -137,6 +140,7 @@ class KinDynComputations:
         return vector.toNumPy()
 
     def joint_velocities(self) -> npt.NDArray:
+
         vector = idt.VectorDynSize()
 
         if not self.kin_dyn.getJointVel(vector):
@@ -145,6 +149,7 @@ class KinDynComputations:
         return vector.toNumPy()
 
     def jacobian_frame(self, frame_name: str) -> npt.NDArray:
+
         if self.kin_dyn.getFrameIndex(frame_name) < 0:
             raise ValueError(f"Frame '{frame_name}' does not exist")
 
@@ -156,23 +161,36 @@ class KinDynComputations:
         return J.toNumPy()
 
     def total_mass(self) -> float:
+
         model: idt.Model = self.kin_dyn.model()
         return model.getTotalMass()
 
-    def spatial_inertia(self, link_name: str) -> npt.NDArray:
+    def link_spatial_inertia(self, link_name: str) -> npt.NDArray:
+
         if link_name not in self.link_names():
             raise ValueError(link_name)
 
         model = self.kin_dyn.model()
+        link: idt.Link = model.getLink(model.getLinkIndex(link_name))
 
-        return (
-            model.getLink(model.getLinkIndex(link_name)).inertia().asMatrix().toNumPy()
-        )
+        return link.inertia().asMatrix().toNumPy()
+
+    def link_mass(self, link_name: str) -> float:
+
+        if link_name not in self.link_names():
+            raise ValueError(link_name)
+
+        model = self.kin_dyn.model()
+        link: idt.Link = model.getLink(model.getLinkIndex(link_name))
+
+        return link.getInertia().asVector().toNumPy()[0]
 
     def floating_base_frame(self) -> str:
+
         return self.kin_dyn.getFloatingBase()
 
     def frame_transform(self, frame_name: str) -> npt.NDArray:
+
         if self.kin_dyn.getFrameIndex(frame_name) < 0:
             raise ValueError(f"Frame '{frame_name}' does not exist")
 
@@ -181,8 +199,6 @@ class KinDynComputations:
         else:
             H_idt = self.kin_dyn.getWorldTransform(frame_name)
 
-        # return H_idt.asHomogeneousTransform().toNumPy()
-
         H = np.eye(4)
         H[0:3, 3] = H_idt.getPosition().toNumPy()
         H[0:3, 0:3] = H_idt.getRotation().toNumPy()
@@ -190,6 +206,7 @@ class KinDynComputations:
         return H
 
     def base_velocity(self) -> npt.NDArray:
+
         nu = idt.VectorDynSize()
 
         if not self.kin_dyn.getModelVel(nu):
@@ -198,10 +215,12 @@ class KinDynComputations:
         return nu.toNumPy()[0:6]
 
     def com_position(self) -> npt.NDArray:
+
         W_p_G = self.kin_dyn.getCenterOfMassPosition()
         return W_p_G.toNumPy()
 
     def mass_matrix(self) -> npt.NDArray:
+
         M = idt.MatrixDynSize()
 
         if not self.kin_dyn.getFreeFloatingMassMatrix(M):
@@ -210,6 +229,7 @@ class KinDynComputations:
         return M.toNumPy()
 
     def bias_forces(self) -> npt.NDArray:
+
         h = idt.FreeFloatingGeneralizedTorques(self.kin_dyn.model())
 
         if not self.kin_dyn.generalizedBiasForces(h):
@@ -223,6 +243,7 @@ class KinDynComputations:
         )
 
     def gravity_forces(self) -> npt.NDArray:
+
         g = idt.FreeFloatingGeneralizedTorques(self.kin_dyn.model())
 
         if not self.kin_dyn.generalizedGravityForces(g):
@@ -234,3 +255,16 @@ class KinDynComputations:
         return np.hstack(
             [base_wrench.toNumPy().flatten(), joint_torques.toNumPy().flatten()]
         )
+
+    def total_momentum(self) -> npt.NDArray:
+
+        return self.kin_dyn.getLinearAngularMomentum().toNumPy().flatten()
+
+    def total_momentum_jacobian(self) -> npt.NDArray:
+
+        Jh = idt.MatrixDynSize()
+
+        if not self.kin_dyn.getLinearAngularMomentumJacobian(Jh):
+            raise RuntimeError("Failed to get the total momentum jacobian")
+
+        return Jh.toNumPy()

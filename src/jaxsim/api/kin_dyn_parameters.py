@@ -10,6 +10,7 @@ import jaxsim.typing as jtp
 from jaxsim.math.inertia import Inertia
 from jaxsim.math.joint_model import JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, ModelDescription
+from jaxsim.physics.model.ground_contact import GroundContact as ContactParameters
 from jaxsim.utils import JaxsimDataclass
 
 
@@ -23,6 +24,9 @@ class KynDynParameters(JaxsimDataclass):
 
     # Links
     link_parameters: LinkParameters
+
+    # Contacts
+    contact_parameters: ContactParameters
 
     # Joints
     joint_model: JointModel
@@ -152,6 +156,9 @@ class KynDynParameters(JaxsimDataclass):
             link_parameters=link_parameters,
             joint_model=joint_model,
             joint_parameters=joint_parameters,
+            contact_parameters=ContactParameters.build_from(
+                model_description=model_description
+            ),
         )
 
     def __eq__(self, other: KynDynParameters) -> bool:

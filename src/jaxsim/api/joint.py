@@ -3,6 +3,7 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
@@ -12,6 +13,7 @@ import jaxsim.typing as jtp
 # =======================
 
 
+@functools.partial(jax.jit, static_argnames="joint_name")
 def name_to_idx(model: js.model.JaxSimModel, *, joint_name: str) -> jtp.Int:
     """
     Convert the name of a joint to its index.
@@ -24,9 +26,23 @@ def name_to_idx(model: js.model.JaxSimModel, *, joint_name: str) -> jtp.Int:
         The index of the joint.
     """
 
-    return jnp.array(
-        model.physics_model.description.joints_dict[joint_name].index - 1, dtype=int
-    )
+    if joint_name in model.kin_dyn_parameters.joint_model.joint_names:
+        # Note: the index of the joint for RBDAs starts from 1, but
+        # the index for accessing the right element starts from 0.
+        # Therefore, there is a -1.
+        return (
+            jnp.array(
+                np.argwhere(
+                    np.array(model.kin_dyn_parameters.joint_model.joint_names)
+                    == joint_name
+                )
+                - 1
+            )
+            .squeeze()
+            .astype(int)
+        )
+    else:
+        return jnp.array(-1).astype(int)
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str:
@@ -41,10 +57,10 @@ def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str
         The name of the joint.
     """
 
-    d = {j.index: j.name for j in model.physics_model.description.joints_dict.values()}
-    return d[joint_index]
+    return model.kin_dyn_parameters.joint_model.joint_names[joint_index + 1]
 
 
+@functools.partial(jax.jit, static_argnames="joint_names")
 def names_to_idxs(
     model: js.model.JaxSimModel, *, joint_names: Sequence[str]
 ) -> jax.Array:
@@ -60,15 +76,8 @@ def names_to_idxs(
     """
 
     return jnp.array(
-        [
-            # Note: the index of the joint for RBDAs starts from 1, but
-            # the index for accessing the right element starts from 0.
-            # Therefore, there is a -1.
-            model.physics_model.description.joints_dict[name].index - 1
-            for name in joint_names
-        ],
-        dtype=int,
-    )
+        [name_to_idx(model=model, joint_name=name) for name in joint_names],
+    ).astype(int)
 
 
 def idxs_to_names(
@@ -87,12 +96,7 @@ def idxs_to_names(
         The names of the joints.
     """
 
-    d = {
-        j.index - 1: j.name
-        for j in model.physics_model.description.joints_dict.values()
-    }
-
-    return tuple(d[i] for i in joint_indices)
+    return tuple(idx_to_name(model=model, joint_index=idx) for idx in joint_indices)
 
 
 # ============
@@ -106,11 +110,11 @@ def position_limit(
 ) -> tuple[jtp.Float, jtp.Float]:
     """"""
 
-    if model.physics_model.NB <= 1:
-        return jnp.array([]), jnp.array([])
+    if model.number_of_joints() <= 1:
+        return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
 
-    s_min = model.physics_model._joint_position_limits_min[joint_index]
-    s_max = model.physics_model._joint_position_limits_max[joint_index]
+    s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min[joint_index]
+    s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max[joint_index]
 
     return s_min.astype(float), s_max.astype(float)
 
@@ -119,8 +123,11 @@ def position_limit(
 def position_limits(
     model: js.model.JaxSimModel, *, joint_names: Sequence[str] | None = None
 ) -> tuple[jtp.Vector, jtp.Vector]:
-
+    """"""
     joint_names = joint_names if joint_names is not None else model.joint_names()
+
+    if len(joint_names) == 0:
+        return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
 
     joint_idxs = names_to_idxs(joint_names=joint_names, model=model)
     return jax.vmap(lambda i: position_limit(model=model, joint_index=i))(joint_idxs)

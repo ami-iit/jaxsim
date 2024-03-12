@@ -33,17 +33,19 @@ class JaxSimModel(JaxsimDataclass):
     model_name: Static[str]
 
     physics_model: jaxsim.physics.model.physics_model.PhysicsModel = dataclasses.field(
-        repr=False
+        repr=False, compare=False, hash=False
     )
 
-    terrain: Static[Terrain] = dataclasses.field(default=FlatTerrain(), repr=False)
+    terrain: Static[Terrain] = dataclasses.field(
+        default=FlatTerrain(), repr=False, compare=False, hash=False
+    )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
-        repr=False, default=None
+        default=None, repr=False, compare=False, hash=False
     )
 
-    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters = dataclasses.field(
-        default=None
+    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
+        dataclasses.field(default=None, repr=False, compare=False, hash=False)
     )
 
     # ========================

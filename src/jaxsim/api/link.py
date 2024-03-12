@@ -4,6 +4,7 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import jaxlie
+import numpy as np
 
 import jaxsim.api as js
 import jaxsim.physics.algos.jacobian
@@ -15,6 +16,7 @@ from jaxsim.high_level.common import VelRepr
 # =======================
 
 
+@functools.partial(jax.jit, static_argnames="link_name")
 def name_to_idx(model: js.model.JaxSimModel, *, link_name: str) -> jtp.Int:
     """
     Convert the name of a link to its index.
@@ -27,9 +29,16 @@ def name_to_idx(model: js.model.JaxSimModel, *, link_name: str) -> jtp.Int:
         The index of the link.
     """
 
-    return jnp.array(
-        model.physics_model.description.links_dict[link_name].index, dtype=int
-    )
+    if link_name in model.kin_dyn_parameters.link_names:
+        return (
+            jnp.array(
+                np.argwhere(np.array(model.kin_dyn_parameters.link_names) == link_name)
+            )
+            .squeeze()
+            .astype(int)
+        )
+    else:
+        return jnp.array(-1).astype(int)
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
@@ -44,10 +53,10 @@ def idx_to_name(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
         The name of the link.
     """
 
-    d = {l.index: l.name for l in model.physics_model.description.links_dict.values()}
-    return d[link_index]
+    return model.kin_dyn_parameters.link_names[link_index]
 
 
+@functools.partial(jax.jit, static_argnames="link_names")
 def names_to_idxs(
     model: js.model.JaxSimModel, *, link_names: Sequence[str]
 ) -> jax.Array:
@@ -63,9 +72,8 @@ def names_to_idxs(
     """
 
     return jnp.array(
-        [model.physics_model.description.links_dict[name].index for name in link_names],
-        dtype=int,
-    )
+        [name_to_idx(model=model, link_name=name) for name in link_names],
+    ).astype(int)
 
 
 def idxs_to_names(
@@ -82,8 +90,7 @@ def idxs_to_names(
         The names of the links.
     """
 
-    d = {l.index: l.name for l in model.physics_model.description.links_dict.values()}
-    return tuple(d[i] for i in link_indices)
+    return tuple(idx_to_name(model=model, link_index=idx) for idx in link_indices)
 
 
 # =========
@@ -91,18 +98,24 @@ def idxs_to_names(
 # =========
 
 
+@jax.jit
 def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
     """"""
 
-    return model.physics_model._link_masses[link_index].astype(float)
+    return model.kin_dyn_parameters.link_parameters.mass[link_index].astype(float)
 
 
+@jax.jit
 def spatial_inertia(
     model: js.model.JaxSimModel, *, link_index: jtp.IntLike
 ) -> jtp.Matrix:
     """"""
 
-    return model.physics_model._link_spatial_inertias[link_index]
+    link_parameters = jax.tree_util.tree_map(
+        lambda l: l[link_index], model.kin_dyn_parameters.link_parameters
+    )
+
+    return js.kin_dyn_parameters.LinkParameters.spatial_inertia(link_parameters)
 
 
 @jax.jit

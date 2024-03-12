@@ -23,6 +23,7 @@ from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.utils import JaxsimDataclass, Mutability
 
+from . import kin_dyn_parameters
 
 @jax_dataclasses.pytree_dataclass
 class JaxSimModel(JaxsimDataclass):
@@ -42,24 +43,9 @@ class JaxSimModel(JaxsimDataclass):
         repr=False, default=None
     )
 
-    _number_of_links: Static[int] = dataclasses.field(
-        init=False, repr=False, default=None
+    kin_dyn_parameters: kin_dyn_parameters.KynDynParameters = dataclasses.field(
+        default=None
     )
-
-    _number_of_joints: Static[int] = dataclasses.field(
-        init=False, repr=False, default=None
-    )
-
-    def __post_init__(self):
-
-        # These attributes are Static so that we can use `jax.vmap` and `jax.lax.scan`
-        # over the all links and joints
-        with self.mutable_context(
-            mutability=Mutability.MUTABLE_NO_VALIDATION,
-            restore_after_exception=False,
-        ):
-            self._number_of_links = len(self.physics_model.description.links_dict)
-            self._number_of_joints = len(self.physics_model.description.joints_dict)
 
     # ========================
     # Initialization and state
@@ -148,6 +134,14 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model
         model = JaxSimModel(physics_model=physics_model, model_name=model_name)  # noqa
 
+        # Create and store the KinDynParameters
+        with model.mutable_context(
+            mutability=Mutability.MUTABLE_NO_VALIDATION, restore_after_exception=False
+        ):
+            model.kin_dyn_parameters = kin_dyn_parameters.KynDynParameters.build(
+                model=model
+            )
+
         return model
 
     # ==========
@@ -175,7 +169,7 @@ class JaxSimModel(JaxsimDataclass):
             The base link is included in the count and its index is always 0.
         """
 
-        return self._number_of_links
+        return self.kin_dyn_parameters.number_of_links()
 
     def number_of_joints(self) -> jtp.Int:
         """
@@ -185,7 +179,7 @@ class JaxSimModel(JaxsimDataclass):
             The number of joints in the model.
         """
 
-        return self._number_of_joints
+        return self.kin_dyn_parameters.number_of_joints()
 
     # =================
     # Base link methods
@@ -199,7 +193,7 @@ class JaxSimModel(JaxsimDataclass):
             True if the model is floating-base, False otherwise.
         """
 
-        return self.physics_model.is_floating_base
+        return bool(self.kin_dyn_parameters.joint_model.joint_dofs[0] == 6)
 
     def base_link(self) -> str:
         """
@@ -207,9 +201,12 @@ class JaxSimModel(JaxsimDataclass):
 
         Returns:
             The name of the base link.
+
+        Note:
+            By default, the base link is the root of the kinematic tree.
         """
 
-        return self.physics_model.description.root.name
+        return self.link_names()[0]
 
     # =====================
     # Joint-related methods
@@ -227,7 +224,7 @@ class JaxSimModel(JaxsimDataclass):
             the number of joints. In the future, this could be different.
         """
 
-        return len(self.physics_model.description.joints_dict)
+        return int(sum(self.kin_dyn_parameters.joint_model.joint_dofs[1:]))
 
     def joint_names(self) -> tuple[str, ...]:
         """
@@ -237,7 +234,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the joints in the model.
         """
 
-        return tuple(self.physics_model.description.joints_dict.keys())
+        return self.kin_dyn_parameters.joint_model.joint_names[1:]
 
     # ====================
     # Link-related methods
@@ -251,7 +248,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the links in the model.
         """
 
-        return tuple(self.physics_model.description.links_dict.keys())
+        return self.kin_dyn_parameters.link_names
 
 
 # =====================

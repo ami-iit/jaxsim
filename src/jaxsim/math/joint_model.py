@@ -88,13 +88,16 @@ class JointModel:
                 )
             )
 
+        # Define the DoFs of the base link.
+        base_dofs = 0 if description.fixed_base else 6
+
         # We always add a dummy fixed joint between world and base.
         # TODO: Port floating-base support also at this level, not only in RBDAs.
         return JointModel(
             λ_H_pre=λ_H_pre,
             suc_H_i=suc_H_i,
             # Static attributes
-            joint_dofs=tuple([0] + [int(1) for _ in ordered_joints]),
+            joint_dofs=tuple([base_dofs] + [int(1) for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
             joint_types=tuple([JointType.F] + [j.jtype for j in ordered_joints]),
         )

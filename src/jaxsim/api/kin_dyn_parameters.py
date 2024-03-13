@@ -6,11 +6,10 @@ import jax_dataclasses
 import jaxlie
 from jax_dataclasses import Static
 
-import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math.inertia import Inertia
 from jaxsim.math.joint_model import JointModel, supported_joint_motion
-from jaxsim.parsers.descriptions import JointDescription
+from jaxsim.parsers.descriptions import JointDescription, ModelDescription
 from jaxsim.utils import JaxsimDataclass
 
 
@@ -30,12 +29,12 @@ class KynDynParameters(JaxsimDataclass):
     joint_parameters: JointParameters | None
 
     @staticmethod
-    def build(model: js.model.JaxSimModel) -> KynDynParameters:
+    def build(model_description: ModelDescription) -> KynDynParameters:
         """
         Construct the kinematic and dynamic parameters of the model.
 
         Args:
-            model: The model to consider.
+            model_description: The parsed model description to consider.
 
         Returns:
             The kinematic and dynamic parameters of the model.
@@ -45,13 +44,10 @@ class KynDynParameters(JaxsimDataclass):
             an automatic differentiation context.
         """
 
-        # Extract the model description.
-        model_description = model.physics_model.description
-
         # Extract the links ordered by their index.
         # The link index corresponds to the body index ∈ [0, num_bodies - 1].
         ordered_links = sorted(
-            list(model.physics_model.description.links_dict.values()),
+            list(model_description.links_dict.values()),
             key=lambda l: l.index,
         )
 
@@ -59,7 +55,7 @@ class KynDynParameters(JaxsimDataclass):
         # The joint index matches the index of its child link, therefore it starts
         # from 1. Keep this in mind since this 1-indexing might introduce bugs.
         ordered_joints = sorted(
-            list(model.physics_model.description.joints_dict.values()),
+            list(model_description.joints_dict.values()),
             key=lambda j: j.index,
         )
 
@@ -150,7 +146,7 @@ class KynDynParameters(JaxsimDataclass):
         )
 
         return KynDynParameters(
-            link_names=tuple(model.link_names()),
+            link_names=tuple([l.name for l in ordered_links]),
             parent_array=parent_array,
             support_body_array_bool=support_body_array_bool,
             link_parameters=link_parameters,

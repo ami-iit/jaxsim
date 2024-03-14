@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import jax_dataclasses
 
 import jaxsim.api as js
-import jaxsim.physics.model.physics_model_state
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
 from jaxsim.simulation.ode_data import ODEInput
@@ -188,7 +187,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # If we have the model, we can extract the link names, if not provided.
         link_names = link_names if link_names is not None else model.link_names()
-        link_idxs = jaxsim.api.link.names_to_idxs(link_names=link_names, model=model)
+        link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
 
         # In inertial-fixed representation, we already have the link forces.
         if self.velocity_representation is VelRepr.Inertial:
@@ -379,7 +378,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # If we have the model, we can extract the link names if not provided.
         link_names = link_names if link_names is not None else model.link_names()
-        link_idxs = jaxsim.api.link.names_to_idxs(link_names=link_names, model=model)
+        link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
 
         # Compute the bias depending on whether we either set or add the link forces.
         W_f0_L = (

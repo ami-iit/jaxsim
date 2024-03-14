@@ -13,6 +13,7 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+import jaxsim.parsers.descriptions
 import jaxsim.physics.algos.aba
 import jaxsim.physics.algos.crba
 import jaxsim.physics.algos.forward_kinematics
@@ -21,7 +22,7 @@ import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
 from jaxsim.high_level.common import VelRepr
 from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
-from jaxsim.utils import JaxsimDataclass, Mutability
+from jaxsim.utils import HashlessObject, JaxsimDataclass, Mutability
 
 
 @jax_dataclasses.pytree_dataclass
@@ -33,33 +34,24 @@ class JaxSimModel(JaxsimDataclass):
     model_name: Static[str]
 
     physics_model: jaxsim.physics.model.physics_model.PhysicsModel = dataclasses.field(
-        repr=False
+        repr=False, compare=False, hash=False
     )
 
-    terrain: Static[Terrain] = dataclasses.field(default=FlatTerrain(), repr=False)
+    terrain: Static[Terrain] = dataclasses.field(
+        default=FlatTerrain(), repr=False, compare=False, hash=False
+    )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
-        repr=False, default=None
+        default=None, repr=False, compare=False, hash=False
     )
 
-    _number_of_links: Static[int] = dataclasses.field(
-        init=False, repr=False, default=None
+    description: Static[
+        HashlessObject[jaxsim.parsers.descriptions.ModelDescription | None]
+    ] = dataclasses.field(default=None, repr=False, compare=False, hash=False)
+
+    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
+        dataclasses.field(default=None, repr=False, compare=False, hash=False)
     )
-
-    _number_of_joints: Static[int] = dataclasses.field(
-        init=False, repr=False, default=None
-    )
-
-    def __post_init__(self):
-
-        # These attributes are Static so that we can use `jax.vmap` and `jax.lax.scan`
-        # over the all links and joints
-        with self.mutable_context(
-            mutability=Mutability.MUTABLE_NO_VALIDATION,
-            restore_after_exception=False,
-        ):
-            self._number_of_links = len(self.physics_model.description.links_dict)
-            self._number_of_joints = len(self.physics_model.description.joints_dict)
 
     # ========================
     # Initialization and state
@@ -146,7 +138,14 @@ class JaxSimModel(JaxsimDataclass):
         )
 
         # Build the model
-        model = JaxSimModel(physics_model=physics_model, model_name=model_name)  # noqa
+        model = JaxSimModel(
+            physics_model=physics_model,
+            model_name=model_name,
+            description=HashlessObject(obj=physics_model.description),
+            kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
+                model_description=physics_model.description
+            ),
+        )
 
         return model
 
@@ -175,7 +174,7 @@ class JaxSimModel(JaxsimDataclass):
             The base link is included in the count and its index is always 0.
         """
 
-        return self._number_of_links
+        return self.kin_dyn_parameters.number_of_links()
 
     def number_of_joints(self) -> jtp.Int:
         """
@@ -185,7 +184,7 @@ class JaxSimModel(JaxsimDataclass):
             The number of joints in the model.
         """
 
-        return self._number_of_joints
+        return self.kin_dyn_parameters.number_of_joints()
 
     # =================
     # Base link methods
@@ -199,7 +198,7 @@ class JaxSimModel(JaxsimDataclass):
             True if the model is floating-base, False otherwise.
         """
 
-        return self.physics_model.is_floating_base
+        return bool(self.kin_dyn_parameters.joint_model.joint_dofs[0] == 6)
 
     def base_link(self) -> str:
         """
@@ -207,9 +206,12 @@ class JaxSimModel(JaxsimDataclass):
 
         Returns:
             The name of the base link.
+
+        Note:
+            By default, the base link is the root of the kinematic tree.
         """
 
-        return self.physics_model.description.root.name
+        return self.link_names()[0]
 
     # =====================
     # Joint-related methods
@@ -227,7 +229,7 @@ class JaxSimModel(JaxsimDataclass):
             the number of joints. In the future, this could be different.
         """
 
-        return len(self.physics_model.description.joints_dict)
+        return int(sum(self.kin_dyn_parameters.joint_model.joint_dofs[1:]))
 
     def joint_names(self) -> tuple[str, ...]:
         """
@@ -237,7 +239,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the joints in the model.
         """
 
-        return tuple(self.physics_model.description.joints_dict.keys())
+        return self.kin_dyn_parameters.joint_model.joint_names[1:]
 
     # ====================
     # Link-related methods
@@ -251,7 +253,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the links in the model.
         """
 
-        return tuple(self.physics_model.description.links_dict.keys())
+        return self.kin_dyn_parameters.link_names
 
 
 # =====================
@@ -279,7 +281,7 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
     # Reduce the model description.
     # If considered_joints contains joints not existing in the model, the method
     # will raise an exception.
-    reduced_intermediate_description = model.physics_model.description.reduce(
+    reduced_intermediate_description = model.description.obj.reduce(
         considered_joints=list(considered_joints)
     )
 
@@ -297,6 +299,7 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
     # Store the origin of the model, in case downstream logic needs it
     with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
         reduced_model.built_from = model.built_from
+        reduced_model.description = HashlessObject(obj=physics_model.description)
 
     return reduced_model
 

@@ -2,34 +2,30 @@ from typing import Any, Protocol
 
 import jax
 import jax.numpy as jnp
-import jaxlie
 
+import jaxsim.api as js
 import jaxsim.physics.algos.soft_contacts
 import jaxsim.typing as jtp
-from jaxsim import VelRepr, integrators
+from jaxsim import VelRepr
 from jaxsim.integrators.common import Time
 from jaxsim.math.quaternion import Quaternion
 from jaxsim.physics.algos.soft_contacts import SoftContactsState
 from jaxsim.physics.model.physics_model_state import PhysicsModelState
 from jaxsim.simulation.ode_data import ODEState
 
-from . import contact as Contact
-from . import data as Data
-from . import model as Model
-
 
 class SystemDynamicsFromModelAndData(Protocol):
     def __call__(
         self,
-        model: Model.JaxSimModel,
-        data: Data.JaxSimModelData,
+        model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData,
         **kwargs: dict[str, Any],
     ) -> tuple[ODEState, dict[str, Any]]: ...
 
 
 def wrap_system_dynamics_for_integration(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     system_dynamics: SystemDynamicsFromModelAndData,
     **kwargs,
@@ -72,8 +68,8 @@ def wrap_system_dynamics_for_integration(
 
 @jax.jit
 def system_velocity_dynamics(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     joint_forces: jtp.Vector | None = None,
     external_forces: jtp.Vector | None = None,
@@ -123,10 +119,10 @@ def system_velocity_dynamics(
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
     ṁ = jnp.zeros_like(data.state.soft_contacts.tangential_deformation).astype(float)
 
-    if len(model.physics_model.gc.body) > 0:
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
-        W_p_Ci, W_ṗ_Ci = Contact.collidable_point_kinematics(model=model, data=data)
+        W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
         # Compute the 3D forces applied to each collidable point.
         W_f_Ci, ṁ = jax.vmap(
@@ -142,7 +138,10 @@ def system_velocity_dynamics(
             lambda nc: (
                 jnp.vstack(
                     jnp.equal(
-                        jnp.array(model.physics_model.gc.body, dtype=int), nc
+                        jnp.array(
+                            model.kin_dyn_parameters.contact_parameters.body, dtype=int
+                        ),
+                        nc,
                     ).astype(int)
                 )
                 * W_f_Ci
@@ -164,8 +163,12 @@ def system_velocity_dynamics(
 
     if model.dofs() > 0:
         # Static and viscous joint friction parameters
-        kc = jnp.array(list(model.physics_model._joint_friction_static.values()))
-        kv = jnp.array(list(model.physics_model._joint_friction_viscous.values()))
+        kc = jnp.array(
+            model.kin_dyn_parameters.joint_parameters.friction_static
+        ).astype(float)
+        kv = jnp.array(
+            model.kin_dyn_parameters.joint_parameters.friction_viscous
+        ).astype(float)
 
         # Compute the joint friction torque
         τ_friction = -(
@@ -186,7 +189,7 @@ def system_velocity_dynamics(
     # - Joint accelerations: s̈ ∈ ℝⁿ
     # - Base inertial-fixed acceleration: W_v̇_WB = (W_p̈_B, W_ω̇_B) ∈ ℝ⁶
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        W_v̇_WB, s̈ = Model.forward_dynamics_aba(
+        W_v̇_WB, s̈ = js.model.forward_dynamics_aba(
             model=model,
             data=data,
             joint_forces=τ_total,
@@ -198,7 +201,7 @@ def system_velocity_dynamics(
 
 @jax.jit
 def system_position_dynamics(
-    model: Model.JaxSimModel, data: Data.JaxSimModelData
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector]:
     """
     Compute the dynamics of the system position.
@@ -232,8 +235,8 @@ def system_position_dynamics(
 
 @jax.jit
 def system_dynamics(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     joint_forces: jtp.Vector | None = None,
     external_forces: jtp.Vector | None = None,

@@ -247,11 +247,11 @@ def collidable_points_pos_vel(
         return W_p_Ci, CW_vl_WCi
 
     # Process all the collidable points in parallel
-    W_p_Ci, CW_v_WC = jax.vmap(process_point_kinematics)(
-        model.gc.point.T, np.array(model.gc.body, dtype=int)
+    W_p_Ci, CW_vl_WC = jax.vmap(process_point_kinematics)(
+        model.gc.point, jnp.array(model.gc.body)
     )
 
-    return W_p_Ci.transpose(), CW_v_WC.transpose()
+    return W_p_Ci.transpose(), CW_vl_WC.transpose()
 
 
 @jax_dataclasses.pytree_dataclass

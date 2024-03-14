@@ -4,20 +4,20 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import jaxlie
+import numpy as np
 
+import jaxsim.api as js
 import jaxsim.physics.algos.jacobian
 import jaxsim.typing as jtp
 from jaxsim.high_level.common import VelRepr
-
-from . import data as Data
-from . import model as Model
 
 # =======================
 # Index-related functions
 # =======================
 
 
-def name_to_idx(model: Model.JaxSimModel, *, link_name: str) -> jtp.Int:
+@functools.partial(jax.jit, static_argnames="link_name")
+def name_to_idx(model: js.model.JaxSimModel, *, link_name: str) -> jtp.Int:
     """
     Convert the name of a link to its index.
 
@@ -29,12 +29,18 @@ def name_to_idx(model: Model.JaxSimModel, *, link_name: str) -> jtp.Int:
         The index of the link.
     """
 
-    return jnp.array(
-        model.physics_model.description.links_dict[link_name].index, dtype=int
-    )
+    if link_name in model.kin_dyn_parameters.link_names:
+        return (
+            jnp.array(
+                np.argwhere(np.array(model.kin_dyn_parameters.link_names) == link_name)
+            )
+            .squeeze()
+            .astype(int)
+        )
+    return jnp.array(-1).astype(int)
 
 
-def idx_to_name(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
+def idx_to_name(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
     """
     Convert the index of a link to its name.
 
@@ -46,11 +52,13 @@ def idx_to_name(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
         The name of the link.
     """
 
-    d = {l.index: l.name for l in model.physics_model.description.links_dict.values()}
-    return d[link_index]
+    return model.kin_dyn_parameters.link_names[link_index]
 
 
-def names_to_idxs(model: Model.JaxSimModel, *, link_names: Sequence[str]) -> jax.Array:
+@functools.partial(jax.jit, static_argnames="link_names")
+def names_to_idxs(
+    model: js.model.JaxSimModel, *, link_names: Sequence[str]
+) -> jax.Array:
     """
     Convert a sequence of link names to their corresponding indices.
 
@@ -63,13 +71,12 @@ def names_to_idxs(model: Model.JaxSimModel, *, link_names: Sequence[str]) -> jax
     """
 
     return jnp.array(
-        [model.physics_model.description.links_dict[name].index for name in link_names],
-        dtype=int,
-    )
+        [name_to_idx(model=model, link_name=name) for name in link_names],
+    ).astype(int)
 
 
 def idxs_to_names(
-    model: Model.JaxSimModel, *, link_indices: Sequence[jtp.IntLike] | jtp.VectorLike
+    model: js.model.JaxSimModel, *, link_indices: Sequence[jtp.IntLike] | jtp.VectorLike
 ) -> tuple[str, ...]:
     """
     Convert a sequence of link indices to their corresponding names.
@@ -82,8 +89,7 @@ def idxs_to_names(
         The names of the links.
     """
 
-    d = {l.index: l.name for l in model.physics_model.description.links_dict.values()}
-    return tuple(d[i] for i in link_indices)
+    return tuple(idx_to_name(model=model, link_index=idx) for idx in link_indices)
 
 
 # =========
@@ -91,21 +97,32 @@ def idxs_to_names(
 # =========
 
 
-def mass(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
+@jax.jit
+def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
     """"""
 
-    return model.physics_model._link_masses[link_index].astype(float)
+    return model.kin_dyn_parameters.link_parameters.mass[link_index].astype(float)
 
 
-def spatial_inertia(model: Model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Matrix:
+@jax.jit
+def spatial_inertia(
+    model: js.model.JaxSimModel, *, link_index: jtp.IntLike
+) -> jtp.Matrix:
     """"""
 
-    return model.physics_model._link_spatial_inertias[link_index]
+    link_parameters = jax.tree_util.tree_map(
+        lambda l: l[link_index], model.kin_dyn_parameters.link_parameters
+    )
+
+    return js.kin_dyn_parameters.LinkParameters.spatial_inertia(link_parameters)
 
 
 @jax.jit
 def transform(
-    model: Model.JaxSimModel, data: Data.JaxSimModelData, *, link_index: jtp.IntLike
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    link_index: jtp.IntLike,
 ) -> jtp.Matrix:
     """
     Compute the SE(3) transform from the world frame to the link frame.
@@ -119,13 +136,13 @@ def transform(
         The 4x4 matrix representing the transform.
     """
 
-    return Model.forward_kinematics(model=model, data=data)[link_index]
+    return js.model.forward_kinematics(model=model, data=data)[link_index]
 
 
 @jax.jit
 def com_position(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
     in_link_frame: jtp.BoolLike = True,
@@ -168,8 +185,8 @@ def com_position(
 
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def jacobian(
-    model: Model.JaxSimModel,
-    data: Data.JaxSimModelData,
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
     output_vel_repr: VelRepr | None = None,

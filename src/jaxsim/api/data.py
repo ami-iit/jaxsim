@@ -14,6 +14,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.utils import Mutability
+from jaxsim.utils.tracing import not_tracing
 
 from . import common
 from .common import VelRepr
@@ -260,9 +261,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         if model is None:
+            if joint_names is not None:
+                raise ValueError("Joint names cannot be provided without a model")
+
             return self.state.physics_model.joint_positions
 
-        if not self.valid(model=model):
+        if not_tracing(self.state.physics_model.joint_positions) and not self.valid(
+            model=model
+        ):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -300,9 +306,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         if model is None:
+            if joint_names is not None:
+                raise ValueError("Joint names cannot be provided without a model")
+
             return self.state.physics_model.joint_velocities
 
-        if not self.valid(model=model):
+        if not_tracing(self.state.physics_model.joint_velocities) and not self.valid(
+            model=model
+        ):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 

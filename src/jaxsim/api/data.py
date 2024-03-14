@@ -11,19 +11,13 @@ import jaxlie
 import numpy as np
 
 import jaxsim.api as js
-import jaxsim.physics.algos.aba
-import jaxsim.physics.algos.crba
-import jaxsim.physics.algos.forward_kinematics
-import jaxsim.physics.algos.rnea
-import jaxsim.physics.model.physics_model
-import jaxsim.physics.model.physics_model_state
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.high_level.common import VelRepr
-from jaxsim.physics.algos import soft_contacts
-from jaxsim.simulation.ode_data import ODEState
 from jaxsim.utils import Mutability
 
 from . import common
+from .common import VelRepr
+from .ode_data import ODEState
 
 try:
     from typing import Self
@@ -41,9 +35,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    soft_contacts_params: soft_contacts.SoftContactsParams = dataclasses.field(
-        repr=False
+    soft_contacts_params: jaxsim.rbda.soft_contacts.SoftContactsParams = (
+        dataclasses.field(repr=False)
     )
+
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
     )
@@ -96,8 +91,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
         gravity: jtp.Vector | None = None,
-        soft_contacts_state: soft_contacts.SoftContactsState | None = None,
-        soft_contacts_params: soft_contacts.SoftContactsParams | None = None,
+        soft_contacts_state: jaxsim.rbda.soft_contacts.SoftContactsState | None = None,
+        soft_contacts_params: (
+            jaxsim.rbda.soft_contacts.SoftContactsParams | None
+        ) = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
@@ -186,7 +183,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         ode_state = ODEState.build(
             physics_model=model.physics_model,
-            physics_model_state=jaxsim.physics.model.physics_model_state.PhysicsModelState(
+            physics_model_state=js.ode_data.PhysicsModelState(
                 base_position=base_position.astype(float),
                 base_quaternion=base_quaternion.astype(float),
                 joint_positions=joint_positions.astype(float),

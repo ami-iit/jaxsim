@@ -7,9 +7,10 @@ import jaxlie
 import numpy as np
 
 import jaxsim.api as js
-import jaxsim.physics.algos.jacobian
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.high_level.common import VelRepr
+
+from .common import VelRepr
 
 # =======================
 # Index-related functions
@@ -209,11 +210,12 @@ def jacobian(
         velocity representation.
     """
 
-    if output_vel_repr is None:
-        output_vel_repr = data.velocity_representation
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
 
     # Compute the doubly left-trivialized free-floating jacobian
-    L_J_WL_B = jaxsim.physics.algos.jacobian.jacobian(
+    L_J_WL_B = jaxsim.rbda.jacobian.jacobian(
         model=model.physics_model,
         body_index=link_index,
         q=data.joint_positions(),

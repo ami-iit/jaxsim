@@ -5,11 +5,11 @@ import jax.numpy as jnp
 import jax_dataclasses
 import jaxlie
 
-from jaxsim.simulation.ode_data import ODEState
+import jaxsim.api as js
 
 from .common import ExplicitRungeKutta, PyTreeType, Time, TimeStep
 
-ODEStateDerivative = ODEState
+ODEStateDerivative = js.ode_data.ODEState
 
 
 # =====================================================
@@ -97,8 +97,8 @@ class ExplicitRungeKuttaSO3Mixin:
 
     @classmethod
     def post_process_state(
-        cls, x0: ODEState, t0: Time, xf: ODEState, dt: TimeStep
-    ) -> ODEState:
+        cls, x0: js.ode_data.ODEState, t0: Time, xf: js.ode_data.ODEState, dt: TimeStep
+    ) -> js.ode_data.ODEState:
 
         # Indices to convert quaternions between serializations.
         to_xyzw = jnp.array([1, 2, 3, 0])
@@ -130,15 +130,15 @@ class ExplicitRungeKuttaSO3Mixin:
 
 
 @jax_dataclasses.pytree_dataclass
-class ForwardEulerSO3(ExplicitRungeKuttaSO3Mixin, ForwardEuler[ODEState]):
+class ForwardEulerSO3(ExplicitRungeKuttaSO3Mixin, ForwardEuler[js.ode_data.ODEState]):
     pass
 
 
 @jax_dataclasses.pytree_dataclass
-class Heun2SO3(ExplicitRungeKuttaSO3Mixin, Heun2[ODEState]):
+class Heun2SO3(ExplicitRungeKuttaSO3Mixin, Heun2[js.ode_data.ODEState]):
     pass
 
 
 @jax_dataclasses.pytree_dataclass
-class RungeKutta4SO3(ExplicitRungeKuttaSO3Mixin, RungeKutta4[ODEState]):
+class RungeKutta4SO3(ExplicitRungeKuttaSO3Mixin, RungeKutta4[js.ode_data.ODEState]):
     pass

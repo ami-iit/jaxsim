@@ -14,15 +14,12 @@ from jax_dataclasses import Static
 
 import jaxsim.api as js
 import jaxsim.parsers.descriptions
-import jaxsim.physics.algos.aba
-import jaxsim.physics.algos.crba
-import jaxsim.physics.algos.forward_kinematics
-import jaxsim.physics.algos.rnea
 import jaxsim.physics.model.physics_model
+import jaxsim.physics.model.physics_model_state
 import jaxsim.typing as jtp
-from jaxsim.high_level.common import VelRepr
-from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.utils import HashlessObject, JaxsimDataclass, Mutability
+
+from .common import VelRepr
 
 
 @jax_dataclasses.pytree_dataclass
@@ -37,8 +34,8 @@ class JaxSimModel(JaxsimDataclass):
         repr=False, compare=False, hash=False
     )
 
-    terrain: Static[Terrain] = dataclasses.field(
-        default=FlatTerrain(), repr=False, compare=False, hash=False
+    terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
+        default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
@@ -388,7 +385,7 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
         The first axis is the link index.
     """
 
-    W_H_LL = jaxsim.physics.algos.forward_kinematics.forward_kinematics_model(
+    W_H_LL = jaxsim.rbda.forward_kinematics.forward_kinematics_model(
         model=model.physics_model,
         q=data.state.physics_model.joint_positions,
         xfb=data.state.physics_model.xfb(),
@@ -561,7 +558,7 @@ def forward_dynamics_aba(
     )
 
     # Compute ABA
-    W_v̇_WB, s̈ = jaxsim.physics.algos.aba.aba(
+    W_v̇_WB, s̈ = jaxsim.rbda.aba.aba(
         model=model.physics_model,
         xfb=data.state.physics_model.xfb(),
         q=data.state.physics_model.joint_positions,
@@ -719,7 +716,7 @@ def free_floating_mass_matrix(
         The free-floating mass matrix of the model.
     """
 
-    M_body = jaxsim.physics.algos.crba.crba(
+    M_body = jaxsim.rbda.crba.crba(
         model=model.physics_model,
         q=data.state.physics_model.joint_positions,
     )
@@ -854,7 +851,7 @@ def inverse_dynamics(
 
     # Compute RNEA
     with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_B, τ = jaxsim.physics.algos.rnea.rnea(
+        W_f_B, τ = jaxsim.rbda.rnea.rnea(
             model=model.physics_model,
             xfb=data.state.physics_model.xfb(),
             q=data.state.physics_model.joint_positions,

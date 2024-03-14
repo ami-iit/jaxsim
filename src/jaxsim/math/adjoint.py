@@ -1,7 +1,7 @@
 import jax.numpy as jnp
+import jaxlie
 
 import jaxsim.typing as jtp
-from jaxsim.sixd import so3
 
 from .quaternion import Quaternion
 from .skew import Skew
@@ -31,7 +31,7 @@ class Adjoint:
         assert quaternion.size == 4
         assert translation.size == 3
 
-        Q_sixd = so3.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(quaternion))
+        Q_sixd = jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(quaternion))
         Q_sixd = Q_sixd if not normalize_quaternion else Q_sixd.normalize()
 
         return Adjoint.from_rotation_and_translation(

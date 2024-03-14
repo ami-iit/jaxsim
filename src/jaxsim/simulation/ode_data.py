@@ -1,13 +1,11 @@
 import jax.flatten_util
 import jax_dataclasses
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim.api.ode_data import PhysicsModelInput, PhysicsModelState
 from jaxsim.physics.algos.soft_contacts import SoftContactsState
 from jaxsim.physics.model.physics_model import PhysicsModel
-from jaxsim.physics.model.physics_model_state import (
-    PhysicsModelInput,
-    PhysicsModelState,
-)
 from jaxsim.utils import JaxsimDataclass
 
 

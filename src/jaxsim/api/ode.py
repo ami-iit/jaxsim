@@ -4,14 +4,13 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-import jaxsim.physics.algos.soft_contacts
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim import VelRepr
-from jaxsim.integrators.common import Time
+from jaxsim.integrators import Time
 from jaxsim.math.quaternion import Quaternion
-from jaxsim.physics.algos.soft_contacts import SoftContactsState
-from jaxsim.physics.model.physics_model_state import PhysicsModelState
-from jaxsim.simulation.ode_data import ODEState
+
+from .common import VelRepr
+from .ode_data import ODEState, PhysicsModelState, SoftContactsState
 
 
 class SystemDynamicsFromModelAndData(Protocol):
@@ -126,7 +125,7 @@ def system_velocity_dynamics(
 
         # Compute the 3D forces applied to each collidable point.
         W_f_Ci, ṁ = jax.vmap(
-            lambda p, ṗ, m: jaxsim.physics.algos.soft_contacts.SoftContacts(
+            lambda p, ṗ, m: jaxsim.rbda.soft_contacts.SoftContacts(
                 parameters=data.soft_contacts_params, terrain=model.terrain
             ).contact_model(position=p, velocity=ṗ, tangential_deformation=m)
         )(W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation.T)

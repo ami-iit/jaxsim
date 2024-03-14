@@ -13,8 +13,8 @@ import jaxsim.physics.model.physics_model
 import jaxsim.typing as jtp
 from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.skew import Skew
-from jaxsim.physics.algos.terrain import FlatTerrain, Terrain
 from jaxsim.physics.model.physics_model import PhysicsModel
+from jaxsim.terrain import FlatTerrain, Terrain
 from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
 from . import utils

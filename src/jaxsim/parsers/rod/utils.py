@@ -1,15 +1,17 @@
 import os
 from typing import Union
 
-import jax.numpy as jnp
+import jaxlie
 import numpy as np
 import numpy.typing as npt
 import rod
 
+import jaxsim.typing as jtp
+from jaxsim.math.inertia import Inertia
 from jaxsim.parsers import descriptions
 
 
-def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
+def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
     """
     Extract the 6D inertia matrix from an SDF inertial element.
 
@@ -19,9 +21,6 @@ def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
     Returns:
         The 6D inertia matrix of the link expressed in the link frame.
     """
-
-    from jaxsim.math.inertia import Inertia
-    from jaxsim.sixd import se3
 
     # Extract the "mass" element
     m = inertial.mass
@@ -52,13 +51,13 @@ def from_sdf_inertial(inertial: rod.Inertial) -> npt.NDArray:
     L_H_CoM = inertial.pose.transform() if inertial.pose is not None else np.eye(4)
 
     # We need its inverse
-    CoM_H_L = se3.SE3.from_matrix(matrix=L_H_CoM).inverse()
-    CoM_X_L: npt.NDArray = CoM_H_L.adjoint()
+    CoM_H_L = jaxlie.SE3.from_matrix(matrix=L_H_CoM).inverse()
+    CoM_X_L = CoM_H_L.adjoint()
 
     # Express the CoM inertia matrix in the link frame L
     M_L = CoM_X_L.T @ M_CoM @ CoM_X_L
 
-    return jnp.array(M_L)
+    return M_L.astype(dtype=float)
 
 
 def axis_to_jtype(

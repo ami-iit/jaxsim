@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.physics.algos import soft_contacts
 
 
 @jax.jit
@@ -28,9 +28,9 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    from jaxsim.physics.algos.soft_contacts import collidable_points_pos_vel
+    from jaxsim.rbda import soft_contacts
 
-    W_p_Ci, W_ṗ_Ci = collidable_points_pos_vel(
+    W_p_Ci, W_ṗ_Ci = soft_contacts.collidable_points_pos_vel(
         model=model.physics_model,
         q=data.state.physics_model.joint_positions,
         qd=data.state.physics_model.joint_velocities,
@@ -101,9 +101,9 @@ def in_contact(
     if set(link_names) - set(model.link_names()) != set():
         raise ValueError("One or more link names are not part of the model")
 
-    from jaxsim.physics.algos.soft_contacts import collidable_points_pos_vel
+    from jaxsim.rbda import soft_contacts
 
-    W_p_Ci, _ = collidable_points_pos_vel(
+    W_p_Ci, _ = soft_contacts.collidable_points_pos_vel(
         model=model.physics_model,
         q=data.state.physics_model.joint_positions,
         qd=data.state.physics_model.joint_velocities,
@@ -134,7 +134,7 @@ def estimate_good_soft_contacts_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> soft_contacts.SoftContactsParams:
+) -> jaxsim.rbda.soft_contacts.SoftContactsParams:
     """
     Estimate good soft contacts parameters for the given model.
 
@@ -162,7 +162,8 @@ def estimate_good_soft_contacts_parameters(
         """"""
 
         zero_data = js.data.JaxSimModelData.build(
-            model=model, soft_contacts_params=soft_contacts.SoftContactsParams()
+            model=model,
+            soft_contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
         )
 
         W_pz_CoM = js.model.com_position(model=model, data=zero_data)[2]
@@ -181,12 +182,14 @@ def estimate_good_soft_contacts_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    sc_parameters = soft_contacts.SoftContactsParams.build_default_from_physics_model(
-        physics_model=model.physics_model,
-        static_friction_coefficient=static_friction_coefficient,
-        max_penetration=max_δ,
-        number_of_active_collidable_points_steady_state=nc,
-        damping_ratio=damping_ratio,
+    sc_parameters = (
+        jaxsim.rbda.soft_contacts.SoftContactsParams.build_default_from_physics_model(
+            physics_model=model.physics_model,
+            static_friction_coefficient=static_friction_coefficient,
+            max_penetration=max_δ,
+            number_of_active_collidable_points_steady_state=nc,
+            damping_ratio=damping_ratio,
+        )
     )
 
     return sc_parameters

@@ -14,12 +14,56 @@ version_file = "src/jaxsim/_version.py"
 line-length = 88
 
 [tool.isort]
-profile = "black"
 multi_line_output = 3
+profile = "black"
 
 [tool.pytest.ini_options]
+addopts = "-rsxX -v --strict-markers --forked"
 minversion = "6.0"
-addopts = "-rsxX -v --strict-markers"
 testpaths = [
-    "tests",
+  "tests",
 ]
+
+[tool.ruff]
+exclude = [
+  ".git",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".vscode",
+  ".devcontainer",
+  "__pycache__",
+]
+preview = true
+
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = [
+  "B008", # Function call in default argument
+  "B024", # Abstract base class without abstract methods
+  "B904", # Raise without from inside exception
+  "B905", # Zip without explicit strict
+  "E402", # Module level import not at top of file
+  "E501", # Line too long
+  "E731", # Do not assign a `lambda` expression, use a `def`
+  "E741", # Ambiguous variable name
+  "F841", # Local variable is assigned to but never used
+  "I001", # Import block is unsorted or unformatted
+]
+select = [
+  "B",
+  "E",
+  "F",
+  "I",
+  "W",
+  "YTT",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore `E402` (import violations) in all `__init__.py` files
+"**/{tests,docs,tools}/*" = ["E402"]
+"__init__.py" = ["F401"]
+# TODO: Remove these once deprecated code is removed
+"src/jaxsim/integrators/common.py" = ["E712"]
+"src/jaxsim/physics/model/physics_model.py" = ["B023"]
+"src/jaxsim/simulation/simulator_callbacks.py" = ["F821"]

@@ -55,6 +55,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         valid = True
+        valid = valid and self.standard_gravity() > 0
 
         if model is not None:
             valid = valid and self.state.valid(model=model)
@@ -90,7 +91,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
-        gravity: jtp.Vector | None = None,
+        standard_gravity: jtp.FloatLike = jaxsim.rbda.StandardGravity,
         soft_contacts_state: jaxsim.rbda.soft_contacts.SoftContactsState | None = None,
         soft_contacts_params: (
             jaxsim.rbda.soft_contacts.SoftContactsParams | None
@@ -111,7 +112,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity:
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
-            gravity: The gravity 3D vector.
+            standard_gravity: The standard gravity constant.
             soft_contacts_state: The state of the soft contacts.
             soft_contacts_params: The parameters of the soft contacts.
             velocity_representation: The velocity representation to use.
@@ -139,9 +140,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity if base_angular_velocity is not None else jnp.zeros(3)
         ).squeeze()
 
-        gravity = jnp.array(
-            gravity if gravity is not None else model.physics_model.gravity[0:3]
-        ).squeeze()
+        gravity = jnp.zeros(3).at[2].set(-standard_gravity)
 
         joint_positions = jnp.atleast_1d(
             joint_positions.squeeze()
@@ -164,7 +163,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         soft_contacts_params = (
             soft_contacts_params
             if soft_contacts_params is not None
-            else js.contact.estimate_good_soft_contacts_parameters(model=model)
+            else js.contact.estimate_good_soft_contacts_parameters(
+                model=model, standard_gravity=standard_gravity
+            )
         )
 
         W_H_B = jaxlie.SE3.from_rotation_and_translation(
@@ -220,6 +221,16 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         return self.time_ns.astype(float) / 1e9
+
+    def standard_gravity(self) -> jtp.Float:
+        """
+        Get the standard gravity constant.
+
+        Returns:
+            The standard gravity constant.
+        """
+
+        return -self.gravity[2]
 
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_positions(

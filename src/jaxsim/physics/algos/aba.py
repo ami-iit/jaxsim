@@ -7,9 +7,9 @@ import numpy as np
 import jaxsim.typing as jtp
 from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.cross import Cross
-from jaxsim.physics.model.physics_model import PhysicsModel
 
-from . import utils
+from ..model.physics_model import PhysicsModel
+from . import StandardGravity, utils
 
 
 def aba(
@@ -19,6 +19,7 @@ def aba(
     qd: jtp.Vector,
     tau: jtp.Vector,
     f_ext: jtp.Matrix | None = None,
+    standard_gravity: jtp.FloatLike = StandardGravity,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Articulated Body Algorithm (ABA) algorithm for forward dynamics.
@@ -30,6 +31,7 @@ def aba(
         qd: Joint velocities.
         tau: Joint torques or forces.
         f_ext: External forces and torques acting on each link. Defaults to None.
+        standard_gravity: The standard gravity constant.
 
     Returns:
         A tuple containing the resulting base acceleration (in inertial-fixed representation)
@@ -213,7 +215,7 @@ def aba(
     if model.is_floating_base:
         a0 = jnp.linalg.solve(-MA[0], pA[0])
     else:
-        a0 = -B_X_W @ jnp.vstack(model.gravity)
+        a0 = -B_X_W @ jnp.zeros(shape=(6, 1)).at[2].set(-standard_gravity)
 
     a = jnp.zeros_like(S)
     a = a.at[0].set(a0)
@@ -258,7 +260,8 @@ def aba(
 
     # Convert the base acceleration to inertial-fixed representation, and add gravity
     W_a_WB = jnp.vstack(
-        jnp.linalg.solve(B_X_W, B_a_WB) + jnp.vstack(model.gravity)
+        jnp.linalg.solve(B_X_W, B_a_WB)
+        + jnp.zeros(shape=(6, 1)).at[2].set(-standard_gravity)
         if model.is_floating_base
         else jnp.zeros(6)
     )

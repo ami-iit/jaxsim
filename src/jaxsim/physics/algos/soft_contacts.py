@@ -17,7 +17,7 @@ from jaxsim.physics.model.physics_model import PhysicsModel
 from jaxsim.terrain import FlatTerrain, Terrain
 from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
-from . import utils
+from . import StandardGravity, utils
 
 
 @jax_dataclasses.pytree_dataclass
@@ -308,8 +308,9 @@ class SoftContactsParams:
         )
 
     @staticmethod
-    def build_default_from_physics_model(
-        physics_model: PhysicsModel,
+    def build_default_from_jaxsim_model(
+        model: js.model.JaxSimModel,
+        standard_gravity: jtp.FloatLike = StandardGravity,
         static_friction_coefficient: jtp.FloatLike = 0.5,
         max_penetration: jtp.FloatLike = 0.001,
         number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
@@ -319,15 +320,18 @@ class SoftContactsParams:
         Create a SoftContactsParams instance with good default parameters.
 
         Args:
-            physics_model: The target physics model.
-            static_friction_coefficient: The static friction coefficient.
+            model: The target model.
+            standard_gravity: The standard gravity constant.
+            static_friction_coefficient:
+                The static friction coefficient between the model and the terrain.
             max_penetration: The maximum penetration depth.
-            number_of_active_collidable_points_steady_state: The number of contacts
-                supporting the weight of the model in steady state.
+            number_of_active_collidable_points_steady_state:
+                The number of contacts supporting the weight of the model
+                in steady state.
             damping_ratio: The ratio controlling the damping behavior.
 
         Returns:
-            A SoftContactsParams instance with the specified parameters.
+            A `SoftContactsParams` instance with the specified parameters.
 
         Note:
             The `damping_ratio` parameter allows to operate on the following conditions:
@@ -344,8 +348,8 @@ class SoftContactsParams:
         # Compute the total mass of the model
         m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
 
-        # Extract gravity
-        g = -physics_model.gravity[0:3][-1]
+        # Rename the standard gravity
+        g = standard_gravity
 
         # Compute the average support force on each collidable point
         f_average = m * g / number_of_active_collidable_points_steady_state

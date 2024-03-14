@@ -130,6 +130,8 @@ def in_contact(
 @jax.jit
 def estimate_good_soft_contacts_parameters(
     model: js.model.JaxSimModel,
+    *,
+    standard_gravity: jtp.FloatLike = jaxsim.rbda.StandardGravity,
     static_friction_coefficient: jtp.FloatLike = 0.5,
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
@@ -140,6 +142,7 @@ def estimate_good_soft_contacts_parameters(
 
     Args:
         model: The model to consider.
+        standard_gravity: The standard gravity constant.
         static_friction_coefficient: The static friction coefficient.
         number_of_active_collidable_points_steady_state:
             The number of active collidable points in steady state supporting
@@ -183,8 +186,9 @@ def estimate_good_soft_contacts_parameters(
     nc = number_of_active_collidable_points_steady_state
 
     sc_parameters = (
-        jaxsim.rbda.soft_contacts.SoftContactsParams.build_default_from_physics_model(
-            physics_model=model.physics_model,
+        jaxsim.rbda.soft_contacts.SoftContactsParams.build_default_from_jaxsim_model(
+            model=model,
+            standard_gravity=standard_gravity,
             static_friction_coefficient=static_friction_coefficient,
             max_penetration=max_δ,
             number_of_active_collidable_points_steady_state=nc,

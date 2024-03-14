@@ -30,13 +30,11 @@ def test_call_jit_compiled_function_passing_different_objects():
 
     model1 = js.model.JaxSimModel.build_from_model_description(
         model_description=urdf_string,
-        gravity=jnp.array([0, 0, -10]),
         is_urdf=True,
     )
 
     model2 = js.model.JaxSimModel.build_from_model_description(
         model_description=urdf_string,
-        gravity=jnp.array([0, 0, -10]),
         is_urdf=True,
     )
 

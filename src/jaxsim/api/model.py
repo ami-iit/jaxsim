@@ -58,7 +58,6 @@ class JaxSimModel(JaxsimDataclass):
     def build_from_model_description(
         model_description: str | pathlib.Path | rod.Model,
         model_name: str | None = None,
-        gravity: jtp.Array = jaxsim.physics.default_gravity(),
         is_urdf: bool | None = None,
         considered_joints: list[str] | None = None,
     ) -> JaxSimModel:
@@ -72,7 +71,6 @@ class JaxSimModel(JaxsimDataclass):
             model_name:
                 The optional name of the model that overrides the one in
                 the description.
-            gravity: The 3D gravity vector.
             is_urdf:
                 Whether the model description is a URDF or an SDF. This is
                 automatically inferred if the model description is a path to a file.
@@ -100,7 +98,8 @@ class JaxSimModel(JaxsimDataclass):
 
         # Create the physics model from the model description
         physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
-            model_description=intermediate_description, gravity=gravity
+            model_description=intermediate_description,
+            gravity=jnp.zeros(3).at[2].set(-jaxsim.rbda.StandardGravity),
         )
 
         # Build the model
@@ -565,6 +564,7 @@ def forward_dynamics_aba(
         qd=data.state.physics_model.joint_velocities,
         tau=references.input.physics_model.tau,
         f_ext=references.input.physics_model.f_ext,
+        standard_gravity=data.standard_gravity(),
     )
 
     def to_active(W_vd_WB, W_H_C, W_v_WB, W_vl_WC):
@@ -859,6 +859,7 @@ def inverse_dynamics(
             qdd=joint_accelerations,
             a0fb=W_v̇_WB,
             f_ext=references.link_forces(model=model, data=data),
+            standard_gravity=data.standard_gravity(),
         )
 
     # Adjust shape

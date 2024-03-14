@@ -9,7 +9,7 @@ from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.cross import Cross
 from jaxsim.physics.model.physics_model import PhysicsModel
 
-from . import utils
+from . import StandardGravity, utils
 
 
 def rnea(
@@ -20,6 +20,7 @@ def rnea(
     qdd: jtp.Vector,
     a0fb: jtp.Vector = jnp.zeros(6),
     f_ext: jtp.Matrix | None = None,
+    standard_gravity: jtp.FloatLike = StandardGravity,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
     Perform Inverse Dynamics Calculation using the Recursive Newton-Euler Algorithm (RNEA).
@@ -35,6 +36,7 @@ def rnea(
         qdd (jtp.Vector): Joint accelerations.
         a0fb (jtp.Vector, optional): Base acceleration. Defaults to zeros.
         f_ext (jtp.Matrix, optional): External forces acting on the robot. Defaults to None.
+        standard_gravity: The standard gravity constant.
 
     Returns:
         W_f0 (jtp.Vector): The base 6D force expressed in the world frame.
@@ -46,7 +48,7 @@ def rnea(
     )
 
     a0fb = a0fb.squeeze()
-    gravity = model.gravity.squeeze()
+    gravity = jnp.zeros(6).at[2].set(-standard_gravity)
 
     if a0fb.shape[0] != 6:
         raise ValueError(a0fb.shape)

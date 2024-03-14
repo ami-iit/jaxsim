@@ -1,3 +1,5 @@
+StandardGravity = 9.81
+
 from jaxsim.physics.algos import (
     aba,
     crba,

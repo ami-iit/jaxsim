@@ -99,7 +99,6 @@ def build_jaxsim_model(
     # Build the JaxSim model.
     model = js.model.JaxSimModel.build_from_model_description(
         model_description=model_description,
-        gravity=jnp.array([0, 0, -10]),
         is_urdf=is_urdf,
     )
 

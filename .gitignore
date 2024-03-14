@@ -136,3 +136,6 @@ dmypy.json
 
 # setuptools_scm dynamic version
 src/jaxsim/_version.py
+
+# ruff
+.ruff_cache/

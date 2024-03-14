@@ -1,6 +1,5 @@
 # Configuration file for the Sphinx documentation builder.
 import os
-import pathlib
 import sys
 
 from pkg_resources import get_distribution
@@ -22,8 +21,6 @@ def _recursive_add_annotations_import():
 
 if "READTHEDOCS" in os.environ:
     _recursive_add_annotations_import()
-
-import jaxsim
 
 # -- Version information
 

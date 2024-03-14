@@ -398,7 +398,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     def generalized_position(self) -> tuple[jtp.Matrix, jtp.Vector]:
         """
         Get the generalized position
-        :math:`\mathbf{q} = ({}^W \mathbf{H}_B, \mathbf{s}) \in \text{SO}(3) \times \mathbb{R}^n`.
+        :math:`\\mathbf{q} = ({}^W \\mathbf{H}_B, \\mathbf{s}) \\in \text{SO}(3) \times \\mathbb{R}^n`.
 
         Returns:
             A tuple containing the base transform and the joint positions.
@@ -410,7 +410,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     def generalized_velocity(self) -> jtp.Vector:
         """
         Get the generalized velocity
-        :math:`\boldsymbol{\nu} = (\boldsymbol{v}_{W,B};\, \boldsymbol{\omega}_{W,B};\, \mathbf{s}) \in \mathbb{R}^{6+n}`
+        :math:`\boldsymbol{\nu} = (\boldsymbol{v}_{W,B};\\, \boldsymbol{\\omega}_{W,B};\\, \\mathbf{s}) \\in \\mathbb{R}^{6+n}`
 
         Returns:
             The generalized velocity in the active representation.

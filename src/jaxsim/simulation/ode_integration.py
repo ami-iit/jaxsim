@@ -1,6 +1,5 @@
-import enum
 import functools
-from typing import Any, Dict, Tuple, Union
+from typing import Dict, Tuple, Union
 
 import jax.flatten_util
 from jax.experimental.ode import odeint

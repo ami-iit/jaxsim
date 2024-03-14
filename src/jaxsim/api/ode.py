@@ -2,11 +2,11 @@ from typing import Any, Protocol
 
 import jax
 import jax.numpy as jnp
-import jaxlie
+import numpy as np
 
 import jaxsim.physics.algos.soft_contacts
 import jaxsim.typing as jtp
-from jaxsim import VelRepr, integrators
+from jaxsim import VelRepr
 from jaxsim.integrators.common import Time
 from jaxsim.math.quaternion import Quaternion
 from jaxsim.physics.algos.soft_contacts import SoftContactsState

@@ -300,7 +300,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     def post_process_state(
         cls, x0: State, t0: Time, xf: NextState, dt: TimeStep
     ) -> NextState:
-        """
+        r"""
         Post-process the integrated state at :math:`t_f = t_0 + \Delta t`.
 
         Args:

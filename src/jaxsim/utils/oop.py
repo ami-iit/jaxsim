@@ -129,7 +129,7 @@ class jax_tf:
 
                     if tracing(argument_flat):
                         return fn(*args, **kwargs)
-                except:
+                except Exception:
                     continue
 
             # ===============================================================

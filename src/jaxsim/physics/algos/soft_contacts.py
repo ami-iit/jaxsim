@@ -247,11 +247,9 @@ def collidable_points_pos_vel(
         return W_p_Ci, CW_vl_WCi
 
     # Process all the collidable points in parallel
-    W_p_Ci, CW_vl_WC = jax.vmap(
-        lambda Li_p_C, parent_body: process_point_kinematics(
-            Li_p_C=Li_p_C, parent_body=parent_body
-        )
-    )(model.gc.point, jnp.array(model.gc.body))
+    W_p_Ci, CW_vl_WC = jax.vmap(process_point_kinematics)(
+        model.gc.point, jnp.array(model.gc.body)
+    )
 
     return W_p_Ci.transpose(), CW_vl_WC.transpose()
 

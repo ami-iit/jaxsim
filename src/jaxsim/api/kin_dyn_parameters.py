@@ -150,7 +150,7 @@ class KynDynParameters(JaxsimDataclass):
         )
 
         return KynDynParameters(
-            link_names=tuple([l.name for l in ordered_links]),
+            link_names=tuple(l.name for l in ordered_links),
             parent_array=parent_array,
             support_body_array_bool=support_body_array_bool,
             link_parameters=link_parameters,
@@ -457,13 +457,15 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def build_from_inertial_parameters(
-        m: mass, I: jtp.MatrixLike, c: jtp.VectorLike
+        m: jtp.FloatLike, I: jtp.MatrixLike, c: jtp.VectorLike
     ) -> LinkParameters:
 
         return LinkParameters(
             mass=jnp.array(m).squeeze().astype(float),
-            I=jnp.atleast_1d(I[jnp.triu_indices(3)].squeeze()).astype(float),
-            com=jnp.atleast_1d(c.squeeze()).astype(float),
+            inertia_elements=jnp.atleast_1d(I[jnp.triu_indices(3)].squeeze()).astype(
+                float
+            ),
+            center_of_mass=jnp.atleast_1d(c.squeeze()).astype(float),
         )
 
     @staticmethod
@@ -473,7 +475,9 @@ class LinkParameters(JaxsimDataclass):
         c = jnp.atleast_1d(parameters[1:4].squeeze()).astype(float)
         I = jnp.atleast_1d(parameters[4:].squeeze()).astype(float)
 
-        return LinkParameters(mass=m, I=I[jnp.triu_indices(3)], com=c)
+        return LinkParameters(
+            mass=m, inertia_elements=I[jnp.triu_indices(3)], center_of_mass=c
+        )
 
     @staticmethod
     def parameters(params: LinkParameters) -> jtp.Vector:

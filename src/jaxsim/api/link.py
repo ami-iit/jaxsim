@@ -37,8 +37,7 @@ def name_to_idx(model: js.model.JaxSimModel, *, link_name: str) -> jtp.Int:
             .squeeze()
             .astype(int)
         )
-    else:
-        return jnp.array(-1).astype(int)
+    return jnp.array(-1).astype(int)
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> str:

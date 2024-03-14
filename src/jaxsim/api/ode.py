@@ -120,7 +120,7 @@ def system_velocity_dynamics(
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
     ṁ = jnp.zeros_like(data.state.soft_contacts.tangential_deformation).astype(float)
 
-    if len(model.physics_model.gc.body) > 0:
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
         W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
@@ -139,7 +139,10 @@ def system_velocity_dynamics(
             lambda nc: (
                 jnp.vstack(
                     jnp.equal(
-                        jnp.array(model.physics_model.gc.body, dtype=int), nc
+                        jnp.array(
+                            model.kin_dyn_parameters.contact_parameters.body, dtype=int
+                        ),
+                        nc,
                     ).astype(int)
                 )
                 * W_f_Ci
@@ -161,8 +164,12 @@ def system_velocity_dynamics(
 
     if model.dofs() > 0:
         # Static and viscous joint friction parameters
-        kc = jnp.array(list(model.physics_model._joint_friction_static.values()))
-        kv = jnp.array(list(model.physics_model._joint_friction_viscous.values()))
+        kc = jnp.array(
+            model.kin_dyn_parameters.joint_parameters.friction_static
+        ).astype(float)
+        kv = jnp.array(
+            model.kin_dyn_parameters.joint_parameters.friction_viscous
+        ).astype(float)
 
         # Compute the joint friction torque
         τ_friction = -(

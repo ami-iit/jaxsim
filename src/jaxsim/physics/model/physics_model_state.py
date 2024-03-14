@@ -1,9 +1,9 @@
-from typing import Union
+from __future__ import annotations
 
 import jax.numpy as jnp
 import jax_dataclasses
 
-import jaxsim.physics.model.physics_model
+import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
 
@@ -11,18 +11,18 @@ from jaxsim.utils import JaxsimDataclass
 @jax_dataclasses.pytree_dataclass
 class PhysicsModelState(JaxsimDataclass):
     """
-    A class representing the state of a physics model.
-
-    This class stores the joint positions, joint velocities, and the base state (position, orientation, linear velocity,
-    and angular velocity) of a physics model.
+    Class storing the state of the physics model dynamics.
 
     Attributes:
-        joint_positions (jtp.Vector): An array representing the joint positions.
-        joint_velocities (jtp.Vector): An array representing the joint velocities.
-        base_position (jtp.Vector): An array representing the base position (default: zeros).
-        base_quaternion (jtp.Vector): An array representing the base quaternion (default: [1.0, 0, 0, 0]).
-        base_linear_velocity (jtp.Vector): An array representing the base linear velocity (default: zeros).
-        base_angular_velocity (jtp.Vector): An array representing the base angular velocity (default: zeros).
+        joint_positions: The vector of joint positions.
+        joint_velocities: The vector of joint velocities.
+        base_position: The 3D position of the base link.
+        base_quaternion: The quaternion defining the orientation of the base link.
+        base_linear_velocity:
+            The linear velocity of the base link in inertial-fixed representation.
+        base_angular_velocity:
+            The angular velocity of the base link in inertial-fixed representation.
+
     """
 
     # Joint state
@@ -44,6 +44,48 @@ class PhysicsModelState(JaxsimDataclass):
     )
 
     @staticmethod
+    def build_from_jaxsim_model(
+        model: js.model.JaxSimModel | None = None,
+        joint_positions: jtp.Vector | None = None,
+        joint_velocities: jtp.Vector | None = None,
+        base_position: jtp.Vector | None = None,
+        base_quaternion: jtp.Vector | None = None,
+        base_linear_velocity: jtp.Vector | None = None,
+        base_angular_velocity: jtp.Vector | None = None,
+    ) -> PhysicsModelState:
+        """
+        Build a `PhysicsModelState` from a `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` associated with the state.
+            joint_positions: The vector of joint positions.
+            joint_velocities: The vector of joint velocities.
+            base_position: The 3D position of the base link.
+            base_quaternion: The quaternion defining the orientation of the base link.
+            base_linear_velocity:
+                The linear velocity of the base link in inertial-fixed representation.
+            base_angular_velocity:
+                The angular velocity of the base link in inertial-fixed representation.
+
+        Note:
+            If any of the state components are not provided, they are built from the
+            `JaxSimModel` and initialized to zero.
+
+        Returns:
+            A `PhysicsModelState` instance.
+        """
+
+        return PhysicsModelState.build(
+            joint_positions=joint_positions,
+            joint_velocities=joint_velocities,
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            base_linear_velocity=base_linear_velocity,
+            base_angular_velocity=base_angular_velocity,
+            number_of_dofs=model.dofs(),
+        )
+
+    @staticmethod
     def build(
         joint_positions: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
@@ -52,8 +94,25 @@ class PhysicsModelState(JaxsimDataclass):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         number_of_dofs: jtp.Int | None = None,
-    ) -> "PhysicsModelState":
-        """"""
+    ) -> PhysicsModelState:
+        """
+        Build a `PhysicsModelState`.
+
+        Args:
+            joint_positions: The vector of joint positions.
+            joint_velocities: The vector of joint velocities.
+            base_position: The 3D position of the base link.
+            base_quaternion: The quaternion defining the orientation of the base link.
+            base_linear_velocity:
+                The linear velocity of the base link in inertial-fixed representation.
+            base_angular_velocity:
+                The angular velocity of the base link in inertial-fixed representation.
+            number_of_dofs:
+                The number of degrees of freedom of the physics model.
+
+        Returns:
+            A `PhysicsModelState` instance.
+        """
 
         joint_positions = (
             joint_positions
@@ -95,39 +154,23 @@ class PhysicsModelState(JaxsimDataclass):
         return physics_model_state
 
     @staticmethod
-    def build_from_physics_model(
-        joint_positions: jtp.Vector | None = None,
-        joint_velocities: jtp.Vector | None = None,
-        base_position: jtp.Vector | None = None,
-        base_quaternion: jtp.Vector | None = None,
-        base_linear_velocity: jtp.Vector | None = None,
-        base_angular_velocity: jtp.Vector | None = None,
-        physics_model: Union[
-            "jaxsim.physics.model.physics_model.PhysicsModel", None
-        ] = None,
-    ) -> "PhysicsModelState":
-        """"""
+    def zero(model: js.model.JaxSimModel) -> PhysicsModelState:
+        """
+        Build a `PhysicsModelState` with all components initialized to zero.
 
-        return PhysicsModelState.build(
-            joint_positions=joint_positions,
-            joint_velocities=joint_velocities,
-            base_position=base_position,
-            base_quaternion=base_quaternion,
-            base_linear_velocity=base_linear_velocity,
-            base_angular_velocity=base_angular_velocity,
-            number_of_dofs=physics_model.dofs(),
-        )
+        Args:
+            model: The `JaxSimModel` associated with the state.
 
-    @staticmethod
-    def zero(
-        physics_model: "jaxsim.physics.model.physics_model.PhysicsModel",
-    ) -> "PhysicsModelState":
-        return PhysicsModelState.build_from_physics_model(physics_model=physics_model)
+        Returns:
+            A `PhysicsModelState` instance.
+        """
+
+        return PhysicsModelState.build_from_jaxsim_model(model=model)
 
     def position(self) -> jtp.Vector:
         return jnp.hstack(
             [self.base_position, self.base_quaternion, self.joint_positions]
-        )
+        ).astype(float)
 
     def velocity(self) -> jtp.Vector:
         # W_v_WB: inertial-fixed representation of the base velocity
@@ -137,7 +180,7 @@ class PhysicsModelState(JaxsimDataclass):
                 self.base_angular_velocity,
                 self.joint_velocities,
             ]
-        )
+        ).astype(float)
 
     def xfb(self) -> jtp.Vector:
         return jnp.hstack(
@@ -147,137 +190,172 @@ class PhysicsModelState(JaxsimDataclass):
                 self.base_angular_velocity,
                 self.base_linear_velocity,
             ]
-        )
+        ).astype(float)
 
-    def valid(
-        self, physics_model: "jaxsim.physics.model.physics_model.PhysicsModel"
-    ) -> bool:
-        from jaxsim.simulation.utils import check_valid_shape
+    def valid(self, model: js.model.JaxSimModel) -> bool:
+        """
+        Check if the `PhysicsModelState` is valid for a given `JaxSimModel`.
 
-        valid = True
+        Args:
+            model: The `JaxSimModel` to validate the `PhysicsModelState` against.
 
-        valid = check_valid_shape(
-            what="joint_positions",
-            shape=self.joint_positions.shape,
-            expected_shape=(physics_model.dofs(),),
-            valid=valid,
-        )
+        Returns:
+            `True` if the `PhysicsModelState` is valid for the given model,
+            `False` otherwise.
+        """
 
-        valid = check_valid_shape(
-            what="joint_velocities",
-            shape=self.joint_velocities.shape,
-            expected_shape=(physics_model.dofs(),),
-            valid=valid,
-        )
+        shape = self.joint_positions.shape
+        expected_shape = (model.dofs(),)
 
-        valid = check_valid_shape(
-            what="base_position",
-            shape=self.base_position.shape,
-            expected_shape=(3,),
-            valid=valid,
-        )
+        if shape != expected_shape:
+            return False
 
-        valid = check_valid_shape(
-            what="base_quaternion",
-            shape=self.base_quaternion.shape,
-            expected_shape=(4,),
-            valid=valid,
-        )
+        shape = self.joint_velocities.shape
+        expected_shape = (model.dofs(),)
 
-        valid = check_valid_shape(
-            what="base_linear_velocity",
-            shape=self.base_linear_velocity.shape,
-            expected_shape=(3,),
-            valid=valid,
-        )
+        if shape != expected_shape:
+            return False
 
-        valid = check_valid_shape(
-            what="base_angular_velocity",
-            shape=self.base_angular_velocity.shape,
-            expected_shape=(3,),
-            valid=valid,
-        )
+        shape = self.base_position.shape
+        expected_shape = (3,)
 
-        return valid
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_quaternion.shape
+        expected_shape = (4,)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_linear_velocity.shape
+        expected_shape = (3,)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_angular_velocity.shape
+        expected_shape = (3,)
+
+        if shape != expected_shape:
+            return False
+
+        return True
 
 
 @jax_dataclasses.pytree_dataclass
 class PhysicsModelInput(JaxsimDataclass):
     """
-    A class representing the input to a physics model.
-
-    This class stores the joint torques and external forces acting on the bodies of a physics model.
+    Class storing the inputs of the physics model dynamics.
 
     Attributes:
-        tau: An array representing the joint torques.
-        f_ext: A matrix representing the external forces acting on the bodies of the physics model.
+        tau: The vector of joint forces.
+        f_ext: The matrix of external forces applied to the links.
     """
 
     tau: jtp.VectorJax
     f_ext: jtp.MatrixJax
 
     @staticmethod
+    def build_from_jaxsim_model(
+        model: js.model.JaxSimModel | None = None,
+        joint_forces: jtp.VectorJax | None = None,
+        link_forces: jtp.MatrixJax | None = None,
+    ) -> PhysicsModelInput:
+        """
+        Build a `PhysicsModelInput` from a `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` associated with the input.
+            joint_forces: The vector of joint forces.
+            link_forces: The matrix of external forces applied to the links.
+
+        Returns:
+            A `PhysicsModelInput` instance.
+
+        Note:
+            If any of the input components are not provided, they are built from the
+            `JaxSimModel` and initialized to zero.
+        """
+
+        return PhysicsModelInput.build(
+            joint_forces=joint_forces,
+            link_forces=link_forces,
+            number_of_dofs=model.dofs(),
+            number_of_links=model.number_of_links(),
+        )
+
+    @staticmethod
     def build(
-        tau: jtp.VectorJax | None = None,
-        f_ext: jtp.MatrixJax | None = None,
+        joint_forces: jtp.VectorJax | None = None,
+        link_forces: jtp.MatrixJax | None = None,
         number_of_dofs: jtp.Int | None = None,
         number_of_links: jtp.Int | None = None,
-    ) -> "PhysicsModelInput":
-        """"""
+    ) -> PhysicsModelInput:
+        """
+        Build a `PhysicsModelInput`.
 
-        tau = tau if tau is not None else jnp.zeros(number_of_dofs)
-        f_ext = f_ext if f_ext is not None else jnp.zeros(shape=(number_of_links, 6))
+        Args:
+            joint_forces: The vector of joint forces.
+            link_forces: The matrix of external forces applied to the links.
+            number_of_dofs: The number of degrees of freedom of the model.
+            number_of_links: The number of links of the model.
+
+        Returns:
+            A `PhysicsModelInput` instance.
+        """
+
+        joint_forces = (
+            joint_forces if joint_forces is not None else jnp.zeros(number_of_dofs)
+        )
+
+        link_forces = (
+            link_forces
+            if link_forces is not None
+            else jnp.zeros(shape=(number_of_links, 6))
+        )
 
         return PhysicsModelInput(
-            tau=jnp.array(tau, dtype=float), f_ext=jnp.array(f_ext, dtype=float)
+            tau=jnp.array(joint_forces, dtype=float),
+            f_ext=jnp.array(link_forces, dtype=float),
         )
 
     @staticmethod
-    def build_from_physics_model(
-        tau: jtp.VectorJax | None = None,
-        f_ext: jtp.MatrixJax | None = None,
-        physics_model: Union[
-            "jaxsim.physics.model.physics_model.PhysicsModel", None
-        ] = None,
-    ) -> "PhysicsModelInput":
-        return PhysicsModelInput.build(
-            tau=tau,
-            f_ext=f_ext,
-            number_of_dofs=physics_model.dofs(),
-            number_of_links=physics_model.NB,
-        )
+    def zero(model: js.model.JaxSimModel) -> PhysicsModelInput:
+        """
+        Build a `PhysicsModelInput` with all components initialized to zero.
 
-    @staticmethod
-    def zero(
-        physics_model: "jaxsim.physics.model.physics_model.PhysicsModel",
-    ) -> "PhysicsModelInput":
-        return PhysicsModelInput.build_from_physics_model(physics_model=physics_model)
+        Args:
+            model: The `JaxSimModel` associated with the input.
 
-    def replace(self, validate: bool = True, **kwargs) -> "PhysicsModelInput":
-        with jax_dataclasses.copy_and_mutate(self, validate=validate) as updated_input:
-            _ = [updated_input.__setattr__(k, v) for k, v in kwargs.items()]
+        Returns:
+            A `PhysicsModelInput` instance.
+        """
 
-        return updated_input
+        return PhysicsModelInput.build_from_jaxsim_model(model=model)
 
-    def valid(
-        self, physics_model: "jaxsim.physics.model.physics_model.PhysicsModel"
-    ) -> bool:
-        from jaxsim.simulation.utils import check_valid_shape
+    def valid(self, model: js.model.JaxSimModel) -> bool:
+        """
+        Check if the `PhysicsModelInput` is valid for a given `JaxSimModel`.
 
-        valid = True
+        Args:
+            model: The `JaxSimModel` to validate the `PhysicsModelInput` against.
 
-        valid = check_valid_shape(
-            what="tau",
-            shape=self.tau.shape,
-            expected_shape=(physics_model.dofs(),),
-            valid=valid,
-        )
+        Returns:
+            `True` if the `PhysicsModelInput` is valid for the given model,
+            `False` otherwise.
+        """
 
-        valid = check_valid_shape(
-            what="f_ext",
-            shape=self.f_ext.shape,
-            expected_shape=(physics_model.NB, 6),
-            valid=valid,
-        )
+        shape = self.tau.shape
+        expected_shape = (model.dofs(),)
 
-        return valid
+        if shape != expected_shape:
+            return False
+
+        shape = self.f_ext.shape
+        expected_shape = (model.number_of_links(), 6)
+
+        if shape != expected_shape:
+            return False
+
+        return True

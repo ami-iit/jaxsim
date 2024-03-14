@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
 
-import jaxsim.physics.model.physics_model
+import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.skew import Skew
@@ -23,21 +23,60 @@ from . import utils
 @jax_dataclasses.pytree_dataclass
 class SoftContactsState(JaxsimDataclass):
     """
-    State of the soft contacts model.
+    Class storing the state of the soft contacts model.
 
     Attributes:
         tangential_deformation:
-            The tangential deformation of the material at each collidable point.
+            The matrix of 3D tangential material deformations corresponding to
+            each collidable point.
     """
 
     tangential_deformation: jtp.Matrix
+
+    @staticmethod
+    def build_from_jaxsim_model(
+        model: js.model.JaxSimModel | None = None,
+        tangential_deformation: jtp.Matrix | None = None,
+    ) -> SoftContactsState:
+        """
+        Build a `SoftContactsState` from a `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` associated with the soft contacts state.
+            tangential_deformation: The matrix of 3D tangential material deformations.
+
+        Returns:
+            The `SoftContactsState` built from the `JaxSimModel`.
+
+        Note:
+            If any of the state components are not provided, they are built from the
+            `JaxSimModel` and initialized to zero.
+        """
+
+        return SoftContactsState.build(
+            tangential_deformation=tangential_deformation,
+            number_of_collidable_points=len(
+                model.kin_dyn_parameters.contact_parameters.body
+            ),
+        )
 
     @staticmethod
     def build(
         tangential_deformation: jtp.Matrix | None = None,
         number_of_collidable_points: int | None = None,
     ) -> SoftContactsState:
-        """"""
+        """
+        Create a `SoftContactsState`.
+
+        Args:
+            tangential_deformation:
+                The matrix of 3D tangential material deformations corresponding to
+                each collidable point.
+            number_of_collidable_points: The number of collidable points.
+
+        Returns:
+            A `SoftContactsState` instance.
+        """
 
         tangential_deformation = (
             tangential_deformation
@@ -46,58 +85,42 @@ class SoftContactsState(JaxsimDataclass):
         )
 
         return SoftContactsState(
-            tangential_deformation=jnp.array(tangential_deformation, dtype=float)
+            tangential_deformation=jnp.array(tangential_deformation).astype(float)
         )
 
     @staticmethod
-    def build_from_physics_model(
-        tangential_deformation: jtp.Matrix | None = None,
-        physics_model: jaxsim.physics.model.physics_model.PhysicsModel | None = None,
-    ) -> SoftContactsState:
-        """"""
-
-        return SoftContactsState.build(
-            tangential_deformation=tangential_deformation,
-            number_of_collidable_points=len(physics_model.gc.body),
-        )
-
-    @staticmethod
-    def zero(
-        physics_model: jaxsim.physics.model.physics_model.PhysicsModel,
-    ) -> SoftContactsState:
+    def zero(model: js.model.JaxSimModel) -> SoftContactsState:
         """
-        Modify the SoftContactsState instance imposing zero tangential deformation.
+        Build a zero `SoftContactsState` from a `JaxSimModel`.
 
         Args:
-            physics_model: The physics model.
+            model: The `JaxSimModel` associated with the soft contacts state.
 
         Returns:
-            A SoftContactsState instance with zero tangential deformation.
+            A zero `SoftContactsState` instance.
         """
 
-        return SoftContactsState.build_from_physics_model(physics_model=physics_model)
+        return SoftContactsState.build_from_jaxsim_model(model=model)
 
-    def valid(
-        self, physics_model: jaxsim.physics.model.physics_model.PhysicsModel
-    ) -> bool:
+    def valid(self, model: js.model.JaxSimModel) -> bool:
         """
-        Check if the soft contacts state has valid shape.
+        Check if the `SoftContactsState` is valid for a given `JaxSimModel`.
 
         Args:
-            physics_model: The physics model.
+            model: The `JaxSimModel` to validate the `SoftContactsState` against.
 
         Returns:
-            True if the state has a valid shape, otherwise False.
+            `True` if the soft contacts state is valid for the given `JaxSimModel`,
+            `False` otherwise.
         """
 
-        from jaxsim.simulation.utils import check_valid_shape
+        shape = self.tangential_deformation.shape
+        expected = (3, len(model.kin_dyn_parameters.contact_parameters.body))
 
-        return check_valid_shape(
-            what="tangential_deformation",
-            shape=self.tangential_deformation.shape,
-            expected_shape=(3, len(physics_model.gc.body)),
-            valid=True,
-        )
+        if shape != expected:
+            return False
+
+        return True
 
 
 def collidable_points_pos_vel(

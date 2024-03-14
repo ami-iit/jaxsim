@@ -2,7 +2,6 @@ import io
 from contextlib import redirect_stdout
 
 import jax
-import jax.numpy as jnp
 import rod.builder.primitives
 import rod.urdf.exporter
 

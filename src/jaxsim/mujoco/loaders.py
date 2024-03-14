@@ -102,7 +102,7 @@ class RodModelToMjcf:
 
         if root.find(f".//joint[@name='{floating_joint_name}']") is not None:
             msg = f"The URDF already has a floating joint '{floating_joint_name}'"
-            warnings.warn(msg)
+            warnings.warn(msg, stacklevel=2)
             return ET.tostring(root, pretty_print=True).decode()
 
         # Create the "world" link if it doesn't exist.

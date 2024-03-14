@@ -268,7 +268,7 @@ class KinematicGraph:
 
         # Return early if there is no action to take
         if len(joint_names_to_remove) == 0:
-            logging.info(f"The kinematic graph doesn't need to be reduced")
+            logging.info("The kinematic graph doesn't need to be reduced")
             return copy.deepcopy(self)
 
         # Check if all considered joints are part of the full kinematic graph

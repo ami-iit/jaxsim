@@ -319,9 +319,7 @@ class SoftContactsParams:
         μc = static_friction_coefficient
 
         # Compute the total mass of the model
-        m = jnp.array(
-            [l.mass for l in physics_model.description.links_dict.values()]
-        ).sum()
+        m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
 
         # Extract gravity
         g = -physics_model.gravity[0:3][-1]

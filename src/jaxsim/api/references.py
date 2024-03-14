@@ -95,7 +95,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # Create a zero references object.
         references = JaxSimModelReferences(
-            input=ODEInput.zero(physics_model=model.physics_model),
+            input=ODEInput.zero(model=model),
             velocity_representation=velocity_representation,
         )
 
@@ -132,7 +132,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         valid = True
 
         if model is not None:
-            valid = valid and self.input.valid(physics_model=model.physics_model)
+            valid = valid and self.input.valid(model=model)
 
         return valid
 

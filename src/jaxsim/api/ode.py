@@ -10,7 +10,7 @@ from jaxsim.integrators import Time
 from jaxsim.math.quaternion import Quaternion
 
 from .common import VelRepr
-from .ode_data import ODEState, PhysicsModelState, SoftContactsState
+from .ode_data import ODEState
 
 
 class SystemDynamicsFromModelAndData(Protocol):
@@ -269,18 +269,15 @@ def system_dynamics(
     # Create an ODEState object populated with the derivative of each leaf.
     # Our integrators, operating on generic pytrees, will be able to handle it
     # automatically as state derivative.
-    ode_state_derivative = ODEState.build(
-        physics_model_state=PhysicsModelState.build(
-            base_position=W_ṗ_B,
-            base_quaternion=W_Q̇_B,
-            joint_positions=ṡ,
-            base_linear_velocity=W_v̇_WB[0:3],
-            base_angular_velocity=W_v̇_WB[3:6],
-            joint_velocities=s̈,
-        ),
-        soft_contacts_state=SoftContactsState.build(
-            tangential_deformation=ṁ,
-        ),
+    ode_state_derivative = ODEState.build_from_jaxsim_model(
+        model=model,
+        base_position=W_ṗ_B,
+        base_quaternion=W_Q̇_B,
+        joint_positions=ṡ,
+        base_linear_velocity=W_v̇_WB[0:3],
+        base_angular_velocity=W_v̇_WB[3:6],
+        joint_velocities=s̈,
+        tangential_deformation=ṁ,
     )
 
     return ode_state_derivative, aux_dict

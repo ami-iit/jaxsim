@@ -57,7 +57,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         valid = True
 
         if model is not None:
-            valid = valid and self.state.valid(physics_model=model.physics_model)
+            valid = valid and self.state.valid(model=model)
 
         return valid
 
@@ -181,20 +181,22 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             is_force=False,
         )
 
-        ode_state = ODEState.build(
-            physics_model=model.physics_model,
-            physics_model_state=js.ode_data.PhysicsModelState(
-                base_position=base_position.astype(float),
-                base_quaternion=base_quaternion.astype(float),
-                joint_positions=joint_positions.astype(float),
-                base_linear_velocity=v_WB[0:3].astype(float),
-                base_angular_velocity=v_WB[3:6].astype(float),
-                joint_velocities=joint_velocities.astype(float),
+        ode_state = ODEState.build_from_jaxsim_model(
+            model=model,
+            base_position=base_position.astype(float),
+            base_quaternion=base_quaternion.astype(float),
+            joint_positions=joint_positions.astype(float),
+            base_linear_velocity=v_WB[0:3].astype(float),
+            base_angular_velocity=v_WB[3:6].astype(float),
+            joint_velocities=joint_velocities.astype(float),
+            tangential_deformation=(
+                soft_contacts_state.tangential_deformation
+                if soft_contacts_state is not None
+                else None
             ),
-            soft_contacts_state=soft_contacts_state,
         )
 
-        if not ode_state.valid(physics_model=model.physics_model):
+        if not ode_state.valid(model=model):
             raise ValueError(ode_state)
 
         return JaxSimModelData(

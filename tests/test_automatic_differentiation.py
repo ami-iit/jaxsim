@@ -362,8 +362,8 @@ def test_ad_integration(
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
 
         data_x0 = data.replace(
-            state=js.ode.ODEState.build(
-                physics_model_state=js.ode.PhysicsModelState.build(
+            state=js.ode_data.ODEState.build(
+                physics_model_state=js.ode_data.PhysicsModelState.build(
                     joint_positions=s,
                     joint_velocities=ṡ,
                     base_position=xfb[4:7],
@@ -371,7 +371,7 @@ def test_ad_integration(
                     base_linear_velocity=xfb[7:10],
                     base_angular_velocity=xfb[10:13],
                 ),
-                soft_contacts_state=js.ode.SoftContactsState.build(
+                soft_contacts_state=js.ode_data.SoftContactsState.build(
                     tangential_deformation=m
                 ),
             ),

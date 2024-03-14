@@ -950,6 +950,41 @@ class Model(Vmappable):
     # ==========
 
     @functools.partial(oop.jax_tf.method_ro)
+    def coriolis_matrix(self) -> jtp.Matrix:
+        from jaxsim.physics.algos.coriolis import coriolis
+
+        M, M_dot, C = jaxsim.physics.algos.coriolis.coriolis(
+            model=self.physics_model,
+            q=self.data.model_state.joint_positions,
+            qd=self.data.model_state.joint_velocities,
+            xfb=self.data.model_state.xfb(),
+        )
+
+        def body(C):
+            W_H_B = self.base_transform()
+            B_X_W = sixd.se3.SE3.from_matrix(W_H_B).inverse().adjoint()
+            C = B_X_W.T @ C @ B_X_W
+
+        def mixed(C):
+            W_H_B = self.base_transform()
+            W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            BW_X_W = sixd.se3.SE3.from_matrix(W_H_BW).inverse().adjoint()
+            C = BW_X_W.T @ C @ BW_X_W
+
+        to_active = {
+            VelRepr.Body: body,
+            VelRepr.Mixed: mixed,
+            VelRepr.Inertial: lambda x: x,
+        }
+
+        try:
+            C = to_active[self.velocity_representation](C)
+        except ValueError as e:
+            raise e
+
+        return M, M_dot, C
+
+    @functools.partial(oop.jax_tf.method_ro)
     def forward_kinematics(self) -> jtp.Array:
         """"""
 

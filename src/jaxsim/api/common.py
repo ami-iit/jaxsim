@@ -78,7 +78,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         transform: jtp.Matrix,
         is_force: bool = False,
     ) -> jtp.Array:
-        """
+        r"""
         Convert a 6D quantity from inertial-fixed to another representation.
 
         Args:
@@ -144,7 +144,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         transform: jtp.Matrix,
         is_force: bool = False,
     ) -> jtp.Array:
-        """
+        r"""
         Convert a 6D quantity from another representation to inertial-fixed.
 
         Args:

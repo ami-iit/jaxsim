@@ -40,7 +40,7 @@ class KinDynComputations:
             if considered_joints is None
             else mdl_loader.loadReducedModelFromString(urdf_string, considered_joints)
         ):
-            raise RuntimeError(f"Failed to load URDF description")
+            raise RuntimeError("Failed to load URDF description")
 
         # Create KinDynComputations and insert the model
         kindyn = idt.KinDynComputations()

@@ -2,7 +2,6 @@ import dataclasses
 
 import jax.numpy as jnp
 import jax_dataclasses
-import numpy as np
 import numpy.typing as npt
 from jax_dataclasses import Static
 

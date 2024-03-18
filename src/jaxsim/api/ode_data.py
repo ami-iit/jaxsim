@@ -406,31 +406,6 @@ class PhysicsModelState(JaxsimDataclass):
 
         return PhysicsModelState.build_from_jaxsim_model(model=model)
 
-    def position(self) -> jtp.Vector:
-        return jnp.hstack(
-            [self.base_position, self.base_quaternion, self.joint_positions]
-        ).astype(float)
-
-    def velocity(self) -> jtp.Vector:
-        # W_v_WB: inertial-fixed representation of the base velocity
-        return jnp.hstack(
-            [
-                self.base_linear_velocity,
-                self.base_angular_velocity,
-                self.joint_velocities,
-            ]
-        ).astype(float)
-
-    def xfb(self) -> jtp.Vector:
-        return jnp.hstack(
-            [
-                self.base_quaternion,
-                self.base_position,
-                self.base_angular_velocity,
-                self.base_linear_velocity,
-            ]
-        ).astype(float)
-
     def valid(self, model: js.model.JaxSimModel) -> bool:
         """
         Check if the `PhysicsModelState` is valid for a given `JaxSimModel`.

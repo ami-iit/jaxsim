@@ -7,6 +7,8 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 
+from .common import VelRepr
+
 
 @jax.jit
 def collidable_point_kinematics(
@@ -28,16 +30,20 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    from jaxsim.rbda import soft_contacts
+    from jaxsim.rbda import collidable_points
 
-    W_p_Ci, W_ṗ_Ci = soft_contacts.collidable_points_pos_vel(
-        model=model.physics_model,
-        q=data.state.physics_model.joint_positions,
-        qd=data.state.physics_model.joint_velocities,
-        xfb=data.state.physics_model.xfb(),
-    )
+    with data.switch_velocity_representation(VelRepr.Inertial):
+        W_p_Ci, W_ṗ_Ci = collidable_points.collidable_points_pos_vel(
+            model=model,
+            base_position=data.base_position(),
+            base_quaternion=data.base_orientation(dcm=False),
+            joint_positions=data.joint_positions(model=model),
+            base_linear_velocity=data.base_velocity()[0:3],
+            base_angular_velocity=data.base_velocity()[3:6],
+            joint_velocities=data.joint_velocities(model=model),
+        )
 
-    return W_p_Ci.T, W_ṗ_Ci.T
+    return W_p_Ci, W_ṗ_Ci
 
 
 @jax.jit
@@ -101,24 +107,17 @@ def in_contact(
     if set(link_names) - set(model.link_names()) != set():
         raise ValueError("One or more link names are not part of the model")
 
-    from jaxsim.rbda import soft_contacts
-
-    W_p_Ci, _ = soft_contacts.collidable_points_pos_vel(
-        model=model.physics_model,
-        q=data.state.physics_model.joint_positions,
-        qd=data.state.physics_model.joint_velocities,
-        xfb=data.state.physics_model.xfb(),
-    )
+    W_p_Ci = collidable_point_positions(model=model, data=data)
 
     terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
-        W_p_Ci[0, :], W_p_Ci[1, :]
+        W_p_Ci[:, 0], W_p_Ci[:, 1]
     )
 
-    below_terrain = W_p_Ci[2, :] <= terrain_height
+    below_terrain = W_p_Ci[:, 2] <= terrain_height
 
     links_in_contact = jax.vmap(
         lambda link_index: jnp.where(
-            model.physics_model.gc.body == link_index,
+            model.kin_dyn_parameters.contact_parameters.body == link_index,
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
@@ -171,7 +170,7 @@ def estimate_good_soft_contacts_parameters(
 
         W_pz_CoM = js.model.com_position(model=model, data=zero_data)[2]
 
-        if model.physics_model.is_floating_base:
+        if model.floating_base():
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
             return 2 * (W_pz_CoM - W_pz_C.min())
 

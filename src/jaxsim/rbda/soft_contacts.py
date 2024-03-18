@@ -1,176 +1,17 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Tuple
 
 import jax
-import jax.flatten_util
 import jax.numpy as jnp
 import jax_dataclasses
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math.adjoint import Adjoint
-from jaxsim.math.skew import Skew
-from jaxsim.physics.model.physics_model import PhysicsModel
+from jaxsim.math import Skew
 from jaxsim.terrain import FlatTerrain, Terrain
 
-from . import StandardGravity, utils
-
-
-def collidable_points_pos_vel(
-    model: PhysicsModel,
-    q: jtp.Vector,
-    qd: jtp.Vector,
-    xfb: jtp.Vector | None = None,
-) -> Tuple[jtp.Matrix, jtp.Matrix]:
-    """
-    Compute the position and linear velocity of collidable points in the world frame.
-
-    Args:
-        model (PhysicsModel): The physics model.
-        q (jtp.Vector): The joint positions.
-        qd (jtp.Vector): The joint velocities.
-        xfb (jtp.Vector, optional): The floating base state. Defaults to None.
-
-    Returns:
-        Tuple[jtp.Matrix, jtp.Matrix]: A tuple containing the position and velocity of collidable points.
-    """
-
-    if len(model.gc.body) == 0:
-        return jnp.empty(0), jnp.empty(0)
-
-    # Make sure that shape and size are correct
-    xfb, q, qd, _, _, _ = utils.process_inputs(physics_model=model, xfb=xfb, q=q, qd=qd)
-
-    # Initialize buffers of link transforms (W_X_i) and 6D inertial velocities (W_v_Wi)
-    W_X_i = jnp.zeros(shape=[model.NB, 6, 6])
-    W_v_Wi = jnp.zeros(shape=[model.NB, 6, 1])
-
-    # 6D transform of base velocity
-    W_X_0 = Adjoint.from_quaternion_and_translation(
-        quaternion=xfb[0:4], translation=xfb[4:7], normalize_quaternion=True
-    )
-    W_X_i = W_X_i.at[0].set(W_X_0)
-
-    # Store the 6D inertial velocity W_v_W0 of the base link
-    W_v_W0 = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
-    W_v_Wi = W_v_Wi.at[0].set(W_v_W0)
-
-    # Compute useful resources from the model
-    S = model.motion_subspaces(q=q)
-
-    # Get the 6D transform between the parent link λi and the joint's predecessor frame
-    pre_X_λi = model.tree_transforms
-
-    # Compute the 6D transform of the joints (from predecessor to successor)
-    i_X_pre = model.joint_transforms(q=q)
-
-    # Parent array mapping: i -> λ(i).
-    # Exception: λ(0) must not be used, it's initialized to -1.
-    λ = model.parent_array()
-
-    # ====================
-    # Propagate kinematics
-    # ====================
-
-    PropagateTransformsCarry = Tuple[jtp.MatrixJax]
-    propagate_transforms_carry: PropagateTransformsCarry = (W_X_i,)
-
-    def propagate_transforms(
-        carry: PropagateTransformsCarry, i: jtp.Int
-    ) -> Tuple[PropagateTransformsCarry, None]:
-        # Unpack the carry
-        (W_X_i,) = carry
-
-        # We need the inverse transforms (from parent to child direction)
-        pre_Xi_i = Adjoint.inverse(i_X_pre[i])
-        λi_Xi_pre = Adjoint.inverse(pre_X_λi[i])
-
-        # Compute the parent to child 6D transform
-        λi_X_i = λi_Xi_pre @ pre_Xi_i
-
-        # Compute the world to child 6D transform
-        W_Xi_i = W_X_i[λ[i]] @ λi_X_i
-        W_X_i = W_X_i.at[i].set(W_Xi_i)
-
-        # Pack and return the carry
-        return (W_X_i,), None
-
-    (W_X_i,), _ = (
-        jax.lax.scan(
-            f=propagate_transforms,
-            init=propagate_transforms_carry,
-            xs=np.arange(start=1, stop=model.NB),
-        )
-        if model.NB > 1
-        else [(W_X_i,), None]
-    )
-
-    # ====================
-    # Propagate velocities
-    # ====================
-
-    PropagateVelocitiesCarry = Tuple[jtp.MatrixJax]
-    propagate_velocities_carry: PropagateVelocitiesCarry = (W_v_Wi,)
-
-    def propagate_velocities(
-        carry: PropagateVelocitiesCarry, j_vel_and_j_idx: jtp.VectorJax
-    ) -> Tuple[PropagateVelocitiesCarry, None]:
-        # Unpack the scanned data
-        qd_ii = j_vel_and_j_idx[0]
-        ii = jnp.array(j_vel_and_j_idx[1], dtype=int)
-
-        # Given a joint whose velocity is qd[ii], the index of its parent link is ii + 1
-        i = ii + 1
-
-        # Unpack the carry
-        (W_v_Wi,) = carry
-
-        # Propagate the 6D velocity
-        W_vi_Wi = W_v_Wi[λ[i]] + W_X_i[i] @ (S[i] * qd_ii)
-        W_v_Wi = W_v_Wi.at[i].set(W_vi_Wi)
-
-        # Pack and return the carry
-        return (W_v_Wi,), None
-
-    (W_v_Wi,), _ = (
-        jax.lax.scan(
-            f=propagate_velocities,
-            init=propagate_velocities_carry,
-            xs=jnp.vstack([qd, jnp.arange(start=0, stop=qd.size)]).T,
-        )
-        if model.NB > 1
-        else [(W_v_Wi,), None]
-    )
-
-    # ==================================================
-    # Compute position and velocity of collidable points
-    # ==================================================
-
-    def process_point_kinematics(
-        Li_p_C: jtp.VectorJax, parent_body: jtp.Int
-    ) -> Tuple[jtp.VectorJax, jtp.VectorJax]:
-        # Compute the position of the collidable point
-        W_p_Ci = (
-            Adjoint.to_transform(adjoint=W_X_i[parent_body]) @ jnp.hstack([Li_p_C, 1])
-        )[0:3]
-
-        # Compute the linear part of the mixed velocity Ci[W]_v_{W,Ci}
-        CW_vl_WCi = (
-            jnp.block([jnp.eye(3), -Skew.wedge(vector=W_p_Ci).squeeze()])
-            @ W_v_Wi[parent_body].squeeze()
-        )
-
-        return W_p_Ci, CW_vl_WCi
-
-    # Process all the collidable points in parallel
-    W_p_Ci, CW_vl_WC = jax.vmap(process_point_kinematics)(
-        model.gc.point, jnp.array(model.gc.body)
-    )
-
-    return W_p_Ci.transpose(), CW_vl_WC.transpose()
+from . import StandardGravity
 
 
 @jax_dataclasses.pytree_dataclass

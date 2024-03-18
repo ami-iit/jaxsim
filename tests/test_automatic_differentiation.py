@@ -255,14 +255,14 @@ def test_ad_jacobian(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    s = data.joint_positions(model=model)
 
     # ====
     # Test
@@ -275,7 +275,7 @@ def test_ad_jacobian(
     # We differentiate the jacobian of the last link, likely among those
     # farther from the base.
     jacobian = lambda s: jaxsim.rbda.jacobian(
-        model=model.physics_model, q=s, body_index=link_indices[-1]
+        model=model, joint_positions=s, link_index=link_indices[-1]
     )
 
     # Check derivatives against finite differences.

@@ -1,70 +1,76 @@
-from typing import Tuple
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math.adjoint import Adjoint
-from jaxsim.physics.model.physics_model import PhysicsModel
+from jaxsim.math import Adjoint
 
 from . import utils
 
 
-def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Matrix:
+def jacobian(
+    model: js.model.JaxSimModel,
+    *,
+    link_index: jtp.Int,
+    joint_positions: jtp.VectorLike,
+) -> jtp.Matrix:
     """
-    Compute the Jacobian matrix for a specific link in an articulated body or robot.
+    Compute the free-floating Jacobian of a link.
 
     Args:
-        model (PhysicsModel): The physics model of the articulated body or robot.
-        body_index (jtp.Int): The index of the link for which to compute the Jacobian matrix.
-        q (jtp.Vector): Joint positions (Generalized coordinates).
+        model: The model to consider.
+        link_index: The index of the link for which to compute the Jacobian matrix.
+        joint_positions: The positions of the joints.
 
     Returns:
-        jtp.Matrix: The Jacobian matrix for the specified link.
+        The doubly-left free-floating Jacobian of the link.
     """
-    _, q, _, _, _, _ = utils.process_inputs(physics_model=model, q=q)
 
-    S = model.motion_subspaces(q=q)
-    i_X_pre = model.joint_transforms(q=q)
-    pre_X_λi = model.tree_transforms
-    i_X_λi = jnp.zeros_like(i_X_pre)
+    _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
+        model=model, joint_positions=joint_positions
+    )
 
-    i_X_0 = jnp.zeros_like(i_X_pre)
+    # Get the parent array λ(i).
+    # Note: λ(0) must not be used, it's initialized to -1.
+    λ = model.kin_dyn_parameters.parent_array
+
+    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # These transforms define the relative kinematics of the entire model, including
+    # the base transform for both floating-base and fixed-base models.
+    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+        joint_positions=s, base_transform=jnp.eye(4)
+    )
+
+    # Allocate the buffer of transforms link -> base.
+    i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
-
-    # Parent array mapping: i -> λ(i).
-    # Exception: λ(0) must not be used, it's initialized to -1.
-    λ = model.parent
 
     # ====================
     # Propagate kinematics
     # ====================
 
-    PropagateKinematicsCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
-    propagate_kinematics_carry = (i_X_λi, i_X_0)
+    PropagateKinematicsCarry = tuple[jtp.MatrixJax]
+    propagate_kinematics_carry: PropagateKinematicsCarry = (i_X_0,)
 
     def propagate_kinematics(
         carry: PropagateKinematicsCarry, i: jtp.Int
-    ) -> Tuple[PropagateKinematicsCarry, None]:
-        i_X_λi, i_X_0 = carry
+    ) -> tuple[PropagateKinematicsCarry, None]:
 
-        # For each body (i), compute the parent (λi) to body (i) adjoint matrix
-        i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
-        i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
+        (i_X_0,) = carry
 
-        # Compute the base (0) to body (i) adjoint matrix.
+        # Compute the base (0) to link (i) adjoint matrix.
         # This works fine since we traverse the kinematic tree following the link
         # indices assigned with BFS.
         i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
 
-        return (i_X_λi, i_X_0), None
+        return (i_X_0,), None
 
-    (i_X_λi, i_X_0), _ = jax.lax.scan(
+    (i_X_0,), _ = jax.lax.scan(
         f=propagate_kinematics,
         init=propagate_kinematics_carry,
-        xs=np.arange(start=1, stop=model.NB),
+        xs=np.arange(start=1, stop=model.number_of_links()),
     )
 
     # ============================
@@ -73,26 +79,36 @@ def jacobian(model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector) -> jtp.Mat
 
     J = jnp.zeros(shape=(6, 6 + model.dofs()))
 
-    Jb = i_X_0[body_index]
+    Jb = i_X_0[link_index]
     J = J.at[0:6, 0:6].set(Jb)
 
     # To make JIT happy, we operate on a boolean version of κ(i).
     # Checking if j ∈ κ(i) is equivalent to: κ_bool(j) is True.
-    κ_bool = model.support_body_array_bool(body_index=body_index)
+    κ_bool = model.kin_dyn_parameters.support_body_array_bool[link_index]
 
-    def compute_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> Tuple[jtp.MatrixJax, None]:
+    def compute_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> tuple[jtp.MatrixJax, None]:
+
         def update_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> jtp.MatrixJax:
+
             ii = i - 1
-            Js_i = i_X_0[body_index] @ Adjoint.inverse(i_X_0[i]) @ S[i]
+
+            Js_i = i_X_0[link_index] @ Adjoint.inverse(i_X_0[i]) @ S[i]
             J = J.at[0:6, 6 + ii].set(Js_i.squeeze())
 
             return J
 
-        J = jax.lax.select(pred=κ_bool[i], on_true=update_jacobian(J, i), on_false=J)
+        J = jax.lax.select(
+            pred=κ_bool[i],
+            on_true=update_jacobian(J, i),
+            on_false=J,
+        )
+
         return J, None
 
-    J, _ = jax.lax.scan(
-        f=compute_jacobian, init=J, xs=np.arange(start=1, stop=model.NB)
+    W_J_WL_W, _ = jax.lax.scan(
+        f=compute_jacobian,
+        init=J,
+        xs=np.arange(start=1, stop=model.number_of_links()),
     )
 
-    return J
+    return W_J_WL_W

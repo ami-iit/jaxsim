@@ -96,6 +96,21 @@ class ExplicitRungeKuttaSO3Mixin:
     """
 
     @classmethod
+    def integrate_rk_stage(
+        cls, x0: js.ode_data.ODEState, t0: Time, dt: TimeStep, k: js.ode_data.ODEState
+    ) -> js.ode_data.ODEState:
+
+        op = lambda x0_leaf, k_leaf: x0_leaf + dt * k_leaf
+        xf: js.ode_data.ODEState = jax.tree_util.tree_map(op, x0, k)
+
+        return xf.replace(
+            physics_model=xf.physics_model.replace(
+                base_quaternion=xf.physics_model.base_quaternion
+                / jnp.linalg.norm(xf.physics_model.base_quaternion)
+            ),
+        )
+
+    @classmethod
     def post_process_state(
         cls, x0: js.ode_data.ODEState, t0: Time, xf: js.ode_data.ODEState, dt: TimeStep
     ) -> js.ode_data.ODEState:

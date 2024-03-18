@@ -1,69 +1,142 @@
-from typing import Tuple
-
 import jax.numpy as jnp
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.physics.model.physics_model import PhysicsModel
+
+from . import StandardGravity
 
 
 def process_inputs(
-    physics_model: PhysicsModel,
-    xfb: jtp.Vector | None = None,
-    q: jtp.Vector | None = None,
-    qd: jtp.Vector | None = None,
-    qdd: jtp.Vector | None = None,
-    tau: jtp.Vector | None = None,
-    f_ext: jtp.Matrix | None = None,
-) -> Tuple[jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector, jtp.Matrix]:
+    model: js.model.JaxSimModel,
+    *,
+    base_position: jtp.VectorLike | None = None,
+    base_quaternion: jtp.VectorLike | None = None,
+    joint_positions: jtp.VectorLike | None = None,
+    base_linear_velocity: jtp.VectorLike | None = None,
+    base_angular_velocity: jtp.VectorLike | None = None,
+    joint_velocities: jtp.VectorLike | None = None,
+    base_linear_acceleration: jtp.VectorLike | None = None,
+    base_angular_acceleration: jtp.VectorLike | None = None,
+    joint_accelerations: jtp.VectorLike | None = None,
+    joint_forces: jtp.VectorLike | None = None,
+    link_forces: jtp.MatrixLike | None = None,
+    standard_gravity: jtp.VectorLike | None = None,
+) -> tuple[
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Vector,
+    jtp.Matrix,
+    jtp.Vector,
+]:
     """
-    Adjust the inputs to the physics model.
+    Adjust the inputs to rigid-body dynamics algorithms.
 
     Args:
-        physics_model: The physics model.
-        xfb: The variables of the base link.
-        q: The generalized coordinates.
-        qd: The generalized velocities.
-        qdd: The generalized accelerations.
-        tau: The generalized forces.
-        f_ext: The link external forces.
+        model: The model to consider.
+        base_position: The position of the base link.
+        base_quaternion: The quaternion of the base link.
+        joint_positions: The positions of the joints.
+        base_linear_velocity: The linear velocity of the base link.
+        base_angular_velocity: The angular velocity of the base link.
+        joint_velocities: The velocities of the joints.
+        base_linear_acceleration: The linear acceleration of the base link.
+        base_angular_acceleration: The angular acceleration of the base link.
+        joint_accelerations: The accelerations of the joints.
+        joint_forces: The forces applied to the joints.
+        link_forces: The forces applied to the links.
+        standard_gravity: The standard gravity constant.
 
     Returns:
         The adjusted inputs.
     """
 
-    # Remove extra dimensions
-    q = q.squeeze() if q is not None else jnp.zeros(physics_model.dofs())
-    qd = qd.squeeze() if qd is not None else jnp.zeros(physics_model.dofs())
-    qdd = qdd.squeeze() if qdd is not None else jnp.zeros(physics_model.dofs())
-    tau = tau.squeeze() if tau is not None else jnp.zeros(physics_model.dofs())
-    xfb = xfb.squeeze() if xfb is not None else jnp.zeros(13).at[0].set(1)
-    f_ext = (
-        f_ext.squeeze()
-        if f_ext is not None
-        else jnp.zeros(shape=(physics_model.NB, 6)).squeeze()
+    dofs = model.dofs()
+    nl = model.number_of_links()
+
+    # Floating-base position.
+    W_p_B = base_position
+    W_Q_B = base_quaternion
+    s = joint_positions
+
+    # Floating-base velocity in inertial-fixed representation.
+    W_vl_WB = base_linear_velocity
+    W_ω_WB = base_angular_velocity
+    ṡ = joint_velocities
+
+    # Floating-base acceleration in inertial-fixed representation.
+    W_v̇l_WB = base_linear_acceleration
+    W_ω̇_WB = base_angular_acceleration
+    s̈ = joint_accelerations
+
+    # System dynamics inputs.
+    f = link_forces
+    τ = joint_forces
+
+    # Fill missing data and adjust dimensions.
+    s = jnp.atleast_1d(s.squeeze()) if s is not None else jnp.zeros(dofs)
+    ṡ = jnp.atleast_1d(ṡ.squeeze()) if ṡ is not None else jnp.zeros(dofs)
+    s̈ = jnp.atleast_1d(s̈.squeeze()) if s̈ is not None else jnp.zeros(dofs)
+    τ = jnp.atleast_1d(τ.squeeze()) if τ is not None else jnp.zeros(dofs)
+    W_vl_WB = jnp.atleast_1d(W_vl_WB.squeeze()) if W_vl_WB is not None else jnp.zeros(3)
+    W_v̇l_WB = jnp.atleast_1d(W_v̇l_WB.squeeze()) if W_v̇l_WB is not None else jnp.zeros(3)
+    W_p_B = jnp.atleast_1d(W_p_B.squeeze()) if W_p_B is not None else jnp.zeros(3)
+    W_ω_WB = jnp.atleast_1d(W_ω_WB.squeeze()) if W_ω_WB is not None else jnp.zeros(3)
+    W_ω̇_WB = jnp.atleast_1d(W_ω̇_WB.squeeze()) if W_ω̇_WB is not None else jnp.zeros(3)
+    f = jnp.atleast_2d(f.squeeze()) if f is not None else jnp.zeros(shape=(nl, 6))
+    W_Q_B = (
+        jnp.atleast_1d(W_Q_B.squeeze())
+        if W_Q_B is not None
+        else jnp.array([1.0, 0, 0, 0])
+    )
+    standard_gravity = (
+        jnp.array(standard_gravity).squeeze()
+        if standard_gravity is not None
+        else StandardGravity
     )
 
-    # Fix case with just 1 DoF
-    q = jnp.atleast_1d(q)
-    qd = jnp.atleast_1d(qd)
-    qdd = jnp.atleast_1d(qdd)
-    tau = jnp.atleast_1d(tau)
+    if s.shape != (dofs,):
+        raise ValueError(s.shape, dofs)
 
-    # Fix case with just 1 body
-    f_ext = jnp.atleast_2d(f_ext)
+    if ṡ.shape != (dofs,):
+        raise ValueError(ṡ.shape, dofs)
 
-    # Validate dimensions
-    dofs = physics_model.dofs()
+    if s̈.shape != (dofs,):
+        raise ValueError(s̈.shape, dofs)
 
-    if xfb is not None and xfb.shape[0] != 13:
-        raise ValueError(xfb.shape)
-    if q is not None and q.shape[0] != dofs:
-        raise ValueError(q.shape, dofs)
-    if qd is not None and qd.shape[0] != dofs:
-        raise ValueError(qd.shape, dofs)
-    if tau is not None and tau.shape[0] != dofs:
-        raise ValueError(tau.shape, dofs)
-    if f_ext is not None and f_ext.shape != (physics_model.NB, 6):
-        raise ValueError(f_ext.shape, (physics_model.NB, 6))
+    if τ.shape != (dofs,):
+        raise ValueError(τ.shape, dofs)
 
-    return xfb, q, qd, qdd, tau, f_ext
+    if W_p_B.shape != (3,):
+        raise ValueError(W_p_B.shape, (3,))
+
+    if W_vl_WB.shape != (3,):
+        raise ValueError(W_vl_WB.shape, (3,))
+
+    if W_ω_WB.shape != (3,):
+        raise ValueError(W_ω_WB.shape, (3,))
+
+    if W_v̇l_WB.shape != (3,):
+        raise ValueError(W_v̇l_WB.shape, (3,))
+
+    if W_ω̇_WB.shape != (3,):
+        raise ValueError(W_ω̇_WB.shape, (3,))
+
+    if f.shape != (nl, 6):
+        raise ValueError(f.shape, (nl, 6))
+
+    if W_Q_B.shape != (4,):
+        raise ValueError(W_Q_B.shape, (4,))
+
+    # Pack the 6D base velocity and acceleration.
+    W_v_WB = jnp.hstack([W_vl_WB, W_ω_WB])
+    W_v̇_WB = jnp.hstack([W_v̇l_WB, W_ω̇_WB])
+
+    # Create the 6D gravity acceleration.
+    W_g = jnp.zeros(6).at[2].set(-standard_gravity)
+
+    return W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, τ, f, W_g

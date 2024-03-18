@@ -30,12 +30,12 @@ class SoftContactsParams:
         Create a SoftContactsParams instance with specified parameters.
 
         Args:
-            K (float, optional): The stiffness parameter. Defaults to 1e6.
-            D (float, optional): The damping parameter. Defaults to 2000.
-            mu (float, optional): The friction coefficient. Defaults to 0.5.
+            K: The stiffness parameter.
+            D: The damping parameter of the soft contacts model.
+            mu: The static friction coefficient.
 
         Returns:
-            SoftContactsParams: A SoftContactsParams instance with the specified parameters.
+            A SoftContactsParams instance with the specified parameters.
         """
 
         return SoftContactsParams(
@@ -47,6 +47,7 @@ class SoftContactsParams:
     @staticmethod
     def build_default_from_jaxsim_model(
         model: js.model.JaxSimModel,
+        *,
         standard_gravity: jtp.FloatLike = StandardGravity,
         static_friction_coefficient: jtp.FloatLike = 0.5,
         max_penetration: jtp.FloatLike = 0.001,
@@ -116,17 +117,17 @@ class SoftContacts:
         position: jtp.Vector,
         velocity: jtp.Vector,
         tangential_deformation: jtp.Vector,
-    ) -> Tuple[jtp.Vector, jtp.Vector]:
+    ) -> tuple[jtp.Vector, jtp.Vector]:
         """
         Compute the contact forces and material deformation rate.
 
         Args:
-            position (jtp.Vector): The position of the collidable point.
-            velocity (jtp.Vector): The linear velocity of the collidable point.
-            tangential_deformation (jtp.Vector): The tangential deformation.
+            position: The position of the collidable point.
+            velocity: The linear velocity of the collidable point.
+            tangential_deformation: The tangential deformation.
 
         Returns:
-            Tuple[jtp.Vector, jtp.Vector]: A tuple containing the contact force and material deformation rate.
+            A tuple containing the contact force and material deformation rate.
         """
 
         # Short name of parameters
@@ -236,17 +237,9 @@ class SoftContacts:
                     return CW_f, ṁ
 
                 def slipping_contact():
-                    # Clip the tangential force if too small, allowing jax to
-                    # differentiate through the norm computation
-                    f_tangential_no_nan = jax.lax.select(
-                        pred=f_tangential.dot(f_tangential) >= 1e-9**2,
-                        on_true=f_tangential,
-                        on_false=jnp.array([1e-12, 0, 0]),
-                    )
-
                     # Project the force to the friction cone boundary
                     f_tangential_projected = (μ * force_normal_mag) * (
-                        f_tangential / jnp.linalg.norm(f_tangential_no_nan)
+                        f_tangential / jnp.maximum(jnp.linalg.norm(f_tangential), 1e-9)
                     )
 
                     # Sum the normal and tangential forces, and create the 6D force

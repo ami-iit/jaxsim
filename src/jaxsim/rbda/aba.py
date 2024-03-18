@@ -7,8 +7,8 @@ import numpy as np
 import jaxsim.typing as jtp
 from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.cross import Cross
+from jaxsim.physics.model.physics_model import PhysicsModel
 
-from ..model.physics_model import PhysicsModel
 from . import StandardGravity, utils
 
 

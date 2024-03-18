@@ -384,7 +384,7 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
         The first axis is the link index.
     """
 
-    W_H_LL = jaxsim.rbda.forward_kinematics.forward_kinematics_model(
+    W_H_LL = jaxsim.rbda.forward_kinematics_model(
         model=model.physics_model,
         q=data.state.physics_model.joint_positions,
         xfb=data.state.physics_model.xfb(),
@@ -557,7 +557,7 @@ def forward_dynamics_aba(
     )
 
     # Compute ABA
-    W_v̇_WB, s̈ = jaxsim.rbda.aba.aba(
+    W_v̇_WB, s̈ = jaxsim.rbda.aba(
         model=model.physics_model,
         xfb=data.state.physics_model.xfb(),
         q=data.state.physics_model.joint_positions,
@@ -716,7 +716,7 @@ def free_floating_mass_matrix(
         The free-floating mass matrix of the model.
     """
 
-    M_body = jaxsim.rbda.crba.crba(
+    M_body = jaxsim.rbda.crba(
         model=model.physics_model,
         q=data.state.physics_model.joint_positions,
     )
@@ -851,7 +851,7 @@ def inverse_dynamics(
 
     # Compute RNEA
     with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_B, τ = jaxsim.rbda.rnea.rnea(
+        W_f_B, τ = jaxsim.rbda.rnea(
             model=model.physics_model,
             xfb=data.state.physics_model.xfb(),
             q=data.state.physics_model.joint_positions,

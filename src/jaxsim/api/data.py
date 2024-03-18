@@ -36,9 +36,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    soft_contacts_params: jaxsim.rbda.soft_contacts.SoftContactsParams = (
-        dataclasses.field(repr=False)
-    )
+    soft_contacts_params: jaxsim.rbda.SoftContactsParams = dataclasses.field(repr=False)
 
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
@@ -93,10 +91,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
         standard_gravity: jtp.FloatLike = jaxsim.rbda.StandardGravity,
-        soft_contacts_state: jaxsim.rbda.soft_contacts.SoftContactsState | None = None,
-        soft_contacts_params: (
-            jaxsim.rbda.soft_contacts.SoftContactsParams | None
-        ) = None,
+        soft_contacts_state: js.ode_data.SoftContactsState | None = None,
+        soft_contacts_params: jaxsim.rbda.SoftContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:

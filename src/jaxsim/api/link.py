@@ -215,7 +215,7 @@ def jacobian(
     )
 
     # Compute the doubly left-trivialized free-floating jacobian
-    L_J_WL_B = jaxsim.rbda.jacobian.jacobian(
+    L_J_WL_B = jaxsim.rbda.jacobian(
         model=model.physics_model,
         body_index=link_index,
         q=data.joint_positions(),

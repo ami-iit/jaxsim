@@ -362,15 +362,20 @@ def test_ad_integration(
         f_ext: jax.typing.ArrayLike,
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
 
+        # Make sure that the quaternion is normalized.
+        # When JAX tests against finite differences, the injected ε will make the
+        # quaternion non-unitary, which will cause the AD check to fail.
+        W_Q_B = xfb[0:4] / jnp.linalg.norm(xfb[0:4])
+
         data_x0 = data.replace(
             state=js.ode_data.ODEState.build(
                 physics_model_state=js.ode_data.PhysicsModelState.build(
                     joint_positions=s,
                     joint_velocities=ṡ,
                     base_position=xfb[4:7],
-                    base_quaternion=xfb[0:4],
-                    base_linear_velocity=xfb[7:10],
-                    base_angular_velocity=xfb[10:13],
+                    base_quaternion=W_Q_B,
+                    base_linear_velocity=xfb[10:13],
+                    base_angular_velocity=xfb[7:10],
                 ),
                 soft_contacts_state=js.ode_data.SoftContactsState.build(
                     tangential_deformation=m

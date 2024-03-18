@@ -1,3 +1,6 @@
+# Define the default standard gravity constant.
+StandardGravity = 9.81
+
 from .adjoint import Adjoint
 from .cross import Cross
 from .inertia import Inertia

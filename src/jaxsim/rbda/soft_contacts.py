@@ -8,10 +8,8 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Skew
+from jaxsim.math import Skew, StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
-
-from . import StandardGravity
 
 
 @jax_dataclasses.pytree_dataclass

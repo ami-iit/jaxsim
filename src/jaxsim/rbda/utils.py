@@ -2,8 +2,7 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-
-from . import StandardGravity
+from jaxsim.math import StandardGravity
 
 
 def process_inputs(

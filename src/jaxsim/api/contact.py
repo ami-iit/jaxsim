@@ -130,7 +130,7 @@ def in_contact(
 def estimate_good_soft_contacts_parameters(
     model: js.model.JaxSimModel,
     *,
-    standard_gravity: jtp.FloatLike = jaxsim.rbda.StandardGravity,
+    standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
     static_friction_coefficient: jtp.FloatLike = 0.5,
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,

@@ -6,9 +6,9 @@ import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Cross, Quaternion
+from jaxsim.math import Adjoint, Cross, Quaternion, StandardGravity
 
-from . import StandardGravity, utils
+from . import utils
 
 
 def rnea(

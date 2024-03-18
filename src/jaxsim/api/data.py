@@ -91,7 +91,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
-        standard_gravity: jtp.FloatLike = jaxsim.rbda.StandardGravity,
+        standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
         soft_contacts_state: js.ode_data.SoftContactsState | None = None,
         soft_contacts_params: jaxsim.rbda.SoftContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,

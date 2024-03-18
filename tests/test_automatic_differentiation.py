@@ -334,20 +334,22 @@ def test_ad_integration(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
+    W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    xfb = data.state.physics_model.xfb()
     m = data.state.soft_contacts.tangential_deformation
 
     # Inputs.
-    f = references.link_forces(model=model)
+    W_f_L = references.link_forces(model=model)
     τ = references.joint_force_references(model=model)
 
     # ====
@@ -374,28 +376,29 @@ def test_ad_integration(
 
     # Function exposing only the parameters to be differentiated.
     def step(
-        xfb: jax.typing.ArrayLike,
+        W_p_B: jax.typing.ArrayLike,
+        W_Q_B: jax.typing.ArrayLike,
         s: jax.typing.ArrayLike,
+        W_v_WB: jax.typing.ArrayLike,
         ṡ: jax.typing.ArrayLike,
         m: jax.typing.ArrayLike,
-        tau: jax.typing.ArrayLike,
-        f_ext: jax.typing.ArrayLike,
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        τ: jax.typing.ArrayLike,
+        W_f_L: jax.typing.ArrayLike,
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
 
-        # Make sure that the quaternion is normalized.
         # When JAX tests against finite differences, the injected ε will make the
         # quaternion non-unitary, which will cause the AD check to fail.
-        W_Q_B = xfb[0:4] / jnp.linalg.norm(xfb[0:4])
+        W_Q_B = W_Q_B / jnp.linalg.norm(W_Q_B)
 
         data_x0 = data.replace(
             state=js.ode_data.ODEState.build(
                 physics_model_state=js.ode_data.PhysicsModelState.build(
-                    joint_positions=s,
-                    joint_velocities=ṡ,
-                    base_position=xfb[4:7],
+                    base_position=W_p_B,
                     base_quaternion=W_Q_B,
-                    base_linear_velocity=xfb[10:13],
-                    base_angular_velocity=xfb[7:10],
+                    joint_positions=s,
+                    base_linear_velocity=W_v_WB[0:3],
+                    base_angular_velocity=W_v_WB[3:6],
+                    joint_velocities=ṡ,
                 ),
                 soft_contacts_state=js.ode_data.SoftContactsState.build(
                     tangential_deformation=m
@@ -409,24 +412,26 @@ def test_ad_integration(
             data=data_x0,
             integrator=integrator,
             integrator_state=integrator_state,
-            joint_forces=tau,
-            external_forces=f_ext,
+            joint_forces=τ,
+            external_forces=W_f_L,
         )
 
-        s_xf = data_xf.joint_positions()
-        ṡ_xf = data_xf.joint_velocities()
-        xfb_xf = data_xf.state.physics_model.xfb()
-        m_xf = data_xf.state.soft_contacts.tangential_deformation
+        xf_W_p_B = data_xf.base_position()
+        xf_W_Q_B = data_xf.base_orientation(dcm=False)
+        xf_s = data_xf.joint_positions(model=model)
+        xf_W_v_WB = data_xf.base_velocity()
+        xf_ṡ = data_xf.joint_velocities(model=model)
+        xf_m = data_xf.state.soft_contacts.tangential_deformation
 
-        return xfb_xf, s_xf, ṡ_xf, m_xf
+        return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ, xf_m
 
     # Check derivatives against finite differences.
     check_grads(
         f=step,
-        args=(xfb, s, ṡ, m, τ, f),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, m, τ, W_f_L),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
         # This check (at least on ErgoCub) needs larger tolerances
-        rtol=0.0001,
+        rtol=0.000_100,
     )

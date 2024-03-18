@@ -131,7 +131,7 @@ def system_velocity_dynamics(
         # Compute the 3D force applied to each collidable point and the
         # corresponding material deformation rate.
         W_f_Ci, ṁ = jax.vmap(soft_contacts.contact_model)(
-            W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation.T
+            W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
         )
 
         # Construct the vector defining the parent link index of each collidable point.
@@ -201,7 +201,7 @@ def system_velocity_dynamics(
             external_forces=W_f_L_total,
         )
 
-    return W_v̇_WB, s̈, ṁ.T, dict()
+    return W_v̇_WB, s̈, ṁ, dict()
 
 
 @jax.jit

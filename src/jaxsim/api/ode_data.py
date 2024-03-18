@@ -641,8 +641,19 @@ class SoftContactsState(JaxsimDataclass):
         tangential_deformation = (
             tangential_deformation
             if tangential_deformation is not None
-            else jnp.zeros(shape=(3, number_of_collidable_points))
+            else jnp.zeros(shape=(number_of_collidable_points, 3))
         )
+
+        if tangential_deformation.shape[1] != 3:
+            raise RuntimeError("The tangential deformation matrix must have 3 columns.")
+
+        if (
+            number_of_collidable_points is not None
+            and tangential_deformation.shape[0] != number_of_collidable_points
+        ):
+            msg = "The number of collidable points must match the number of rows "
+            msg += "in the tangential deformation matrix."
+            raise RuntimeError(msg)
 
         return SoftContactsState(
             tangential_deformation=jnp.array(tangential_deformation).astype(float)
@@ -675,7 +686,7 @@ class SoftContactsState(JaxsimDataclass):
         """
 
         shape = self.tangential_deformation.shape
-        expected = (3, len(model.kin_dyn_parameters.contact_parameters.body))
+        expected = (len(model.kin_dyn_parameters.contact_parameters.body), 3)
 
         if shape != expected:
             return False

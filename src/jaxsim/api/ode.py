@@ -214,8 +214,8 @@ def system_position_dynamics(
         base quaternion, and the derivative of the joint positions.
     """
 
-    ṡ = data.state.physics_model.joint_velocities
-    W_Q_B = data.state.physics_model.base_quaternion
+    ṡ = data.joint_velocities(model=model)
+    W_Q_B = data.base_orientation(dcm=False)
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Mixed):
         W_ṗ_B = data.base_velocity()[0:3]

@@ -402,9 +402,10 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
     """
 
     W_H_LL = jaxsim.rbda.forward_kinematics_model(
-        model=model.physics_model,
-        q=data.state.physics_model.joint_positions,
-        xfb=data.state.physics_model.xfb(),
+        model=model,
+        base_position=data.base_position(),
+        base_quaternion=data.base_orientation(dcm=False),
+        joint_positions=data.joint_positions(model=model),
     )
 
     return jnp.atleast_3d(W_H_LL).astype(float)

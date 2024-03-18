@@ -1,79 +1,113 @@
-from typing import Tuple
-
 import jax
 import jax.numpy as jnp
-import numpy as np
+import jaxlie
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math.adjoint import Adjoint
-from jaxsim.physics.model.physics_model import PhysicsModel
+from jaxsim.math import Adjoint, Quaternion
 
 from . import utils
 
 
 def forward_kinematics_model(
-    model: PhysicsModel, q: jtp.Vector, xfb: jtp.Vector
+    model: js.model.JaxSimModel,
+    *,
+    base_position: jtp.VectorLike,
+    base_quaternion: jtp.VectorLike,
+    joint_positions: jtp.VectorLike,
 ) -> jtp.Array:
     """
-    Compute the forward kinematics transformations for all links in an articulated body or robot.
+    Compute the forward kinematics.
 
     Args:
-        model (PhysicsModel): The physics model of the articulated body or robot.
-        q (jtp.Vector): Joint positions (Generalized coordinates).
-        xfb (jtp.Vector): The base pose vector, including the quaternion (first 4 elements) and translation (last 3 elements).
+        model: The model to consider.
+        base_position: The position of the base link.
+        base_quaternion: The quaternion of the base link.
+        joint_positions: The positions of the joints.
 
     Returns:
-        jtp.Array: A 3D array containing the forward kinematics transformations for all links.
+        A 3D array containing the SE(3) transforms of all links belonging to the model.
     """
 
-    x_fb, q, _, _, _, _ = utils.process_inputs(
-        physics_model=model, xfb=xfb, q=q, qd=None, tau=None, f_ext=None
+    W_p_B, W_Q_B, s, _, _, _, _, _, _, _ = utils.process_inputs(
+        model=model,
+        base_position=base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=joint_positions,
     )
 
-    W_X_0 = Adjoint.from_quaternion_and_translation(
-        quaternion=x_fb[0:4], translation=x_fb[4:7]
+    # Get the parent array λ(i).
+    # Note: λ(0) must not be used, it's initialized to -1.
+    λ = model.kin_dyn_parameters.parent_array
+
+    # Compute the base transform.
+    W_H_B = jaxlie.SE3.from_rotation_and_translation(
+        rotation=jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(wxyz=W_Q_B)),
+        translation=W_p_B,
     )
 
-    # This is the 6D velocity transform from i-th link frame to the world frame
-    W_X_i = jnp.zeros(shape=[model.NB, 6, 6])
-    W_X_i = W_X_i.at[0].set(W_X_0)
+    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # These transforms define the relative kinematics of the entire model, including
+    # the base transform for both floating-base and fixed-base models.
+    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+        joint_positions=s, base_transform=W_H_B.as_matrix()
+    )
 
-    i_X_pre = model.joint_transforms(q=q)
-    pre_X_λi = model.tree_transforms
+    # Allocate the buffer of transforms world -> link and initialize the base pose.
+    W_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))
+    W_X_i = W_X_i.at[0].set(Adjoint.inverse(i_X_λi[0]))
 
-    # This is the parent-to-child 6D velocity transforms of all links
-    i_X_λi = jnp.zeros_like(i_X_pre)
+    # ========================
+    # Propagate the kinematics
+    # ========================
 
-    # Parent array mapping: i -> λ(i).
-    # Exception: λ(0) must not be used, it's initialized to -1.
-    λ = model.parent
-
-    PropagateKinematicsCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
-    propagate_kinematics_carry = (i_X_λi, W_X_i)
+    PropagateKinematicsCarry = tuple[jtp.MatrixJax]
+    propagate_kinematics_carry: PropagateKinematicsCarry = (W_X_i,)
 
     def propagate_kinematics(
         carry: PropagateKinematicsCarry, i: jtp.Int
-    ) -> Tuple[PropagateKinematicsCarry, None]:
-        i_X_λi, W_X_i = carry
+    ) -> tuple[PropagateKinematicsCarry, None]:
 
-        i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
-        i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
+        (W_X_i,) = carry
 
         W_X_i_i = W_X_i[λ[i]] @ Adjoint.inverse(i_X_λi[i])
         W_X_i = W_X_i.at[i].set(W_X_i_i)
 
-        return (i_X_λi, W_X_i), None
+        return (W_X_i,), None
 
-    (_, W_X_i), _ = jax.lax.scan(
+    (W_X_i,), _ = jax.lax.scan(
         f=propagate_kinematics,
         init=propagate_kinematics_carry,
-        xs=np.arange(start=1, stop=model.NB),
+        xs=jnp.arange(start=1, stop=model.number_of_links()),
     )
 
-    return jnp.stack([Adjoint.to_transform(adjoint=X) for X in list(W_X_i)])
+    return jax.vmap(Adjoint.to_transform)(W_X_i)
 
 
 def forward_kinematics(
-    model: PhysicsModel, body_index: jtp.Int, q: jtp.Vector, xfb: jtp.Vector
+    model: js.model.JaxSimModel,
+    link_index: jtp.Int,
+    base_position: jtp.VectorLike,
+    base_quaternion: jtp.VectorLike,
+    joint_positions: jtp.VectorLike,
 ) -> jtp.Matrix:
-    return forward_kinematics_model(model=model, q=q, xfb=xfb)[body_index]
+    """
+    Compute the forward kinematics of a specific link.
+
+    Args:
+        model: The model to consider.
+        link_index: The index of the link to consider.
+        base_position: The position of the base link.
+        base_quaternion: The quaternion of the base link.
+        joint_positions: The positions of the joints.
+
+    Returns:
+        The SE(3) transform of the link.
+    """
+
+    return forward_kinematics_model(
+        model=model,
+        base_position=base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=joint_positions,
+    )[link_index]

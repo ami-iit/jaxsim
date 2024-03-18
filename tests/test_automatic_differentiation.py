@@ -197,29 +197,33 @@ def test_ad_fk(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
-    xfb = data.state.physics_model.xfb()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
 
     # ====
     # Test
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    fk = lambda xfb, s: jaxsim.rbda.forward_kinematics_model(
-        model=model.physics_model, xfb=xfb, q=s
+    fk = lambda W_p_B, W_Q_B, s: jaxsim.rbda.forward_kinematics_model(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=fk,
-        args=(xfb, s),
+        args=(W_p_B, W_Q_B, s),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

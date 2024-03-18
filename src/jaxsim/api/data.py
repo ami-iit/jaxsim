@@ -13,6 +13,7 @@ import numpy as np
 import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
+from jaxsim.math import Quaternion
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
@@ -342,26 +343,27 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             The base orientation.
         """
 
+        # Extract the base quaternion.
+        W_Q_B = self.state.physics_model.base_quaternion.squeeze()
+
         # Always normalize the quaternion to avoid numerical issues.
         # If the active scheme does not integrate the quaternion on its manifold,
         # we introduce a Baumgarte stabilization to let the quaternion converge to
         # a unit quaternion. In this case, it is not guaranteed that the quaternion
         # stored in the state is a unit quaternion.
-        base_unit_quaternion = (
-            self.state.physics_model.base_quaternion.squeeze()
-            / jnp.linalg.norm(self.state.physics_model.base_quaternion)
+        W_Q_B = jax.lax.select(
+            pred=jnp.allclose(jnp.linalg.norm(W_Q_B), 1.0, atol=1e-6, rtol=0.0),
+            on_true=W_Q_B,
+            on_false=W_Q_B / jnp.linalg.norm(W_Q_B),
         )
-
-        # Slice to convert quaternion wxyz -> xyzw
-        to_xyzw = np.array([1, 2, 3, 0])
 
         return (
-            base_unit_quaternion
+            W_Q_B
             if not dcm
             else jaxlie.SO3.from_quaternion_xyzw(
-                base_unit_quaternion[to_xyzw]
+                Quaternion.to_xyzw(wxyz=W_Q_B)
             ).as_matrix()
-        )
+        ).astype(float)
 
     @jax.jit
     def base_transform(self) -> jtp.MatrixJax:

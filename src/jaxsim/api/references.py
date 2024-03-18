@@ -8,10 +8,10 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.simulation.ode_data import ODEInput
 from jaxsim.utils.tracing import not_tracing
 
 from .common import VelRepr
+from .ode_data import ODEInput
 
 try:
     from typing import Self

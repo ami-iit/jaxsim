@@ -296,37 +296,51 @@ class KynDynParameters(JaxsimDataclass):
 
     @jax.jit
     def joint_transforms_and_motion_subspaces(
-        self, joint_positions: jtp.VectorLike
+        self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
     ) -> tuple[jtp.Array, jtp.Array]:
         """
         Return the transforms and the motion subspaces of the joints.
 
         Args:
             joint_positions: The joint positions.
+            base_transform: The homogeneous matrix defining the base pose.
 
         Returns:
             A tuple containing the stacked transforms
             :math:`{}^{\text{i}} \mathbf{H}_{\lambda(\text{i})}(s)`
             and the stacked motion subspaces :math:`\mathbf{S}(s)` of each joint.
+
+        Note:
+            The entry transform, at index 0, provides the pose of the base link
+            w.r.t. the world frame. For both floating-base and fixed-base systems,
+            it takes into account the base pose and the optional transform
+            between the root frame of the model and the base link.
         """
 
-        λ_H_pre = jax.vmap(
-            lambda i: self.joint_model.parent_H_predecessor(joint_index=i)
-        )(jnp.arange(1, 1 + self.number_of_joints()))
+        W_H_B = base_transform
+
+        λ_H_pre = jnp.vstack(
+            [
+                jnp.eye(4)[jnp.newaxis],
+                jax.vmap(
+                    lambda i: self.joint_model.parent_H_predecessor(joint_index=i)
+                )(jnp.arange(1, 1 + self.number_of_joints())),
+            ]
+        )
 
         pre_H_suc_and_S = [
             supported_joint_motion(
                 joint_type=self.joint_model.joint_types[index + 1],
                 joint_position=s,
             )
-            for index, s in enumerate(joint_positions)
+            for index, s in enumerate(jnp.array(joint_positions))
         ]
 
-        pre_H_suc = jnp.stack([jnp.eye(4)] + [H for H, _ in pre_H_suc_and_S])
+        pre_H_suc = jnp.stack([W_H_B] + [H for H, _ in pre_H_suc_and_S])
         S = jnp.stack([jnp.vstack(jnp.zeros(6))] + [S for _, S in pre_H_suc_and_S])
 
         suc_H_i = jax.vmap(lambda i: self.joint_model.successor_H_child(joint_index=i))(
-            jnp.arange(1, 1 + self.number_of_joints())
+            jnp.arange(0, 1 + self.number_of_joints())
         )
 
         i_X_λ = jax.vmap(

@@ -14,8 +14,6 @@ from jax_dataclasses import Static
 
 import jaxsim.api as js
 import jaxsim.parsers.descriptions
-import jaxsim.physics.model.physics_model
-import jaxsim.physics.model.physics_model_state
 import jaxsim.typing as jtp
 from jaxsim.utils import HashlessObject, JaxsimDataclass, Mutability
 
@@ -29,10 +27,6 @@ class JaxSimModel(JaxsimDataclass):
     """
 
     model_name: Static[str]
-
-    physics_model: jaxsim.physics.model.physics_model.PhysicsModel = dataclasses.field(
-        repr=False, compare=False, hash=False
-    )
 
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
@@ -96,14 +90,10 @@ class JaxSimModel(JaxsimDataclass):
                 considered_joints=considered_joints
             )
 
-        # Create the physics model from the model description
-        physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
-            model_description=intermediate_description,
-            gravity=jnp.zeros(3).at[2].set(-jaxsim.rbda.StandardGravity),
-        )
-
         # Build the model
-        model = JaxSimModel.build(physics_model=physics_model, model_name=model_name)
+        model = JaxSimModel.build(
+            model_description=intermediate_description, model_name=model_name
+        )
 
         # Store the origin of the model, in case downstream logic needs it
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
@@ -113,14 +103,16 @@ class JaxSimModel(JaxsimDataclass):
 
     @staticmethod
     def build(
-        physics_model: jaxsim.physics.model.physics_model.PhysicsModel,
+        model_description: jaxsim.parsers.descriptions.ModelDescription,
         model_name: str | None = None,
     ) -> JaxSimModel:
         """
-        Build a Model object from a physics model.
+        Build a Model object from an intermediate model description.
 
         Args:
-            physics_model: The physics model.
+            model_description:
+                The intermediate model description defining the kinematics and dynamics
+                of the model.
             model_name:
                 The optional name of the model overriding the physics model name.
 
@@ -129,17 +121,14 @@ class JaxSimModel(JaxsimDataclass):
         """
 
         # Set the model name (if not provided, use the one from the model description)
-        model_name = (
-            model_name if model_name is not None else physics_model.description.name
-        )
+        model_name = model_name if model_name is not None else model_description.name
 
         # Build the model
         model = JaxSimModel(
-            physics_model=physics_model,
             model_name=model_name,
-            description=HashlessObject(obj=physics_model.description),
+            description=HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
-                model_description=physics_model.description
+                model_description=model_description
             ),
         )
 
@@ -281,21 +270,15 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
         considered_joints=list(considered_joints)
     )
 
-    # Create the physics model from the reduced model description
-    physics_model = jaxsim.physics.model.physics_model.PhysicsModel.build_from(
-        model_description=reduced_intermediate_description,
-        gravity=model.physics_model.gravity[0:3],
-    )
-
     # Build the reduced model
     reduced_model = JaxSimModel.build(
-        physics_model=physics_model, model_name=model.name()
+        model_description=reduced_intermediate_description,
+        model_name=model.name(),
     )
 
     # Store the origin of the model, in case downstream logic needs it
     with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
         reduced_model.built_from = model.built_from
-        reduced_model.description = HashlessObject(obj=physics_model.description)
 
     return reduced_model
 

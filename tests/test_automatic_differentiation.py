@@ -59,19 +59,24 @@ def test_ad_aba(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
+    # Get the standard gravity constant.
+    g = jaxsim.rbda.StandardGravity
+
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
+    W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    xfb = data.state.physics_model.xfb()
 
     # Inputs.
-    f = references.link_forces(model=model)
+    W_f_L = references.link_forces(model=model)
     τ = references.joint_force_references(model=model)
 
     # ====
@@ -79,14 +84,23 @@ def test_ad_aba(
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    aba = lambda xfb, s, ṡ, tau, f_ext: jaxsim.rbda.aba(
-        model=model.physics_model, xfb=xfb, q=s, qd=ṡ, tau=tau, f_ext=f_ext
+    aba = lambda W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L, g: jaxsim.rbda.aba(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
+        base_linear_velocity=W_v_WB[0:3],
+        base_angular_velocity=W_v_WB[3:6],
+        joint_velocities=ṡ,
+        joint_forces=τ,
+        link_forces=W_f_L,
+        standard_gravity=g,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=aba,
-        args=(xfb, s, ṡ, τ, f),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L, g),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

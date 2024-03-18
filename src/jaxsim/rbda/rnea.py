@@ -2,189 +2,236 @@ from typing import Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as np
+import jaxlie
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math.adjoint import Adjoint
-from jaxsim.math.cross import Cross
-from jaxsim.physics.model.physics_model import PhysicsModel
+from jaxsim.math import Adjoint, Cross, Quaternion
 
 from . import StandardGravity, utils
 
 
 def rnea(
-    model: PhysicsModel,
-    xfb: jtp.Vector,
-    q: jtp.Vector,
-    qd: jtp.Vector,
-    qdd: jtp.Vector,
-    a0fb: jtp.Vector = jnp.zeros(6),
-    f_ext: jtp.Matrix | None = None,
+    model: js.model.JaxSimModel,
+    *,
+    base_position: jtp.Vector,
+    base_quaternion: jtp.Vector,
+    joint_positions: jtp.Vector,
+    base_linear_velocity: jtp.Vector,
+    base_angular_velocity: jtp.Vector,
+    joint_velocities: jtp.Vector,
+    base_linear_acceleration: jtp.Vector | None = None,
+    base_angular_acceleration: jtp.Vector | None = None,
+    joint_accelerations: jtp.Vector | None = None,
+    link_forces: jtp.Matrix | None = None,
     standard_gravity: jtp.FloatLike = StandardGravity,
 ) -> Tuple[jtp.Vector, jtp.Vector]:
     """
-    Perform Inverse Dynamics Calculation using the Recursive Newton-Euler Algorithm (RNEA).
-
-    This function calculates the joint torques (forces) required to achieve a desired motion
-    given the robot's configuration, velocities, accelerations, and external forces.
+    Compute inverse dynamics using the Recursive Newton-Euler Algorithm (RNEA).
 
     Args:
-        model (PhysicsModel): The robot's physics model containing dynamic parameters.
-        xfb (jtp.Vector): The floating base state, including orientation and position.
-        q (jtp.Vector): Joint positions (angles).
-        qd (jtp.Vector): Joint velocities.
-        qdd (jtp.Vector): Joint accelerations.
-        a0fb (jtp.Vector, optional): Base acceleration. Defaults to zeros.
-        f_ext (jtp.Matrix, optional): External forces acting on the robot. Defaults to None.
+        model: The model to consider.
+        base_position: The position of the base link.
+        base_quaternion: The quaternion of the base link.
+        joint_positions: The positions of the joints.
+        base_linear_velocity:
+            The linear velocity of the base link in inertial-fixed representation.
+        base_angular_velocity:
+            The angular velocity of the base link in inertial-fixed representation.
+        joint_velocities: The velocities of the joints.
+        base_linear_acceleration:
+            The linear acceleration of the base link in inertial-fixed representation.
+        base_angular_acceleration:
+            The angular acceleration of the base link in inertial-fixed representation.
+        joint_accelerations: The accelerations of the joints.
+        link_forces:
+            The forces applied to the links expressed in the world frame.
         standard_gravity: The standard gravity constant.
 
     Returns:
-        W_f0 (jtp.Vector): The base 6D force expressed in the world frame.
-        tau (jtp.Vector): Joint torques (forces) required for the desired motion.
+        A tuple containing the 6D force applied to the base link expressed in the
+        world frame and the joint forces that, when applied respectively to the base
+        link and joints, produce the given base and joint accelerations.
     """
 
-    xfb, q, qd, qdd, _, f_ext = utils.process_inputs(
-        physics_model=model, xfb=xfb, q=q, qd=qd, qdd=qdd, f_ext=f_ext
+    W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, _, W_f, W_g = utils.process_inputs(
+        model=model,
+        base_position=base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=joint_positions,
+        base_linear_velocity=base_linear_velocity,
+        base_angular_velocity=base_angular_velocity,
+        joint_velocities=joint_velocities,
+        base_linear_acceleration=base_linear_acceleration,
+        base_angular_acceleration=base_angular_acceleration,
+        joint_accelerations=joint_accelerations,
+        link_forces=link_forces,
+        standard_gravity=standard_gravity,
     )
 
-    a0fb = a0fb.squeeze()
-    gravity = jnp.zeros(6).at[2].set(-standard_gravity)
+    W_g = jnp.atleast_2d(W_g).T
+    W_v_WB = jnp.atleast_2d(W_v_WB).T
+    W_v̇_WB = jnp.atleast_2d(W_v̇_WB).T
 
-    if a0fb.shape[0] != 6:
-        raise ValueError(a0fb.shape)
+    # Get the 6D spatial inertia matrices of all links.
+    M = js.model.link_spatial_inertia_matrices(model=model)
 
-    M = model.spatial_inertias
-    pre_X_λi = model.tree_transforms
-    i_X_pre = model.joint_transforms(q=q)
-    S = model.motion_subspaces(q=q)
-    i_X_λi = jnp.zeros_like(pre_X_λi)
+    # Get the parent array λ(i).
+    # Note: λ(0) must not be used, it's initialized to -1.
+    λ = model.kin_dyn_parameters.parent_array
 
-    i_X_0 = jnp.zeros_like(pre_X_λi)
+    # Compute the base transform.
+    W_H_B = jaxlie.SE3.from_rotation_and_translation(
+        rotation=jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(wxyz=W_Q_B)),
+        translation=W_p_B,
+    )
+
+    # Compute 6D transforms of the base velocity.
+    W_X_B = W_H_B.adjoint()
+    B_X_W = W_H_B.inverse().adjoint()
+
+    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # These transforms define the relative kinematics of the entire model, including
+    # the base transform for both floating-base and fixed-base models.
+    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+        joint_positions=s, base_transform=W_H_B.as_matrix()
+    )
+
+    # Allocate buffers.
+    v = jnp.zeros(shape=(model.number_of_links(), 6, 1))
+    a = jnp.zeros(shape=(model.number_of_links(), 6, 1))
+    f = jnp.zeros(shape=(model.number_of_links(), 6, 1))
+
+    # Allocate the buffer of transforms link -> base.
+    i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
 
-    # Parent array mapping: i -> λ(i).
-    # Exception: λ(0) must not be used, it's initialized to -1.
-    λ = model.parent_array()
-
-    v = jnp.array([jnp.zeros([6, 1])] * model.NB)
-    a = jnp.array([jnp.zeros([6, 1])] * model.NB)
-    f = jnp.array([jnp.zeros([6, 1])] * model.NB)
-
-    # 6D transform of base velocity
-    B_X_W = Adjoint.from_quaternion_and_translation(
-        quaternion=xfb[0:4],
-        translation=xfb[4:7],
-        inverse=True,
-        normalize_quaternion=True,
-    )
-    i_X_λi = i_X_λi.at[0].set(B_X_W)
-
-    a_0 = -B_X_W @ jnp.vstack(gravity)
+    # Initialize the acceleration of the base link.
+    a_0 = -B_X_W @ W_g
     a = a.at[0].set(a_0)
 
-    if model.is_floating_base:
-        W_v_WB = jnp.vstack(jnp.hstack([xfb[10:13], xfb[7:10]]))
+    if model.floating_base():
 
+        # Base velocity v₀ in body-fixed representation.
         v_0 = B_X_W @ W_v_WB
         v = v.at[0].set(v_0)
 
-        a_0 = B_X_W @ (jnp.vstack(a0fb) - jnp.vstack(gravity))
+        # Base acceleration a₀ in body-fixed representation w/o gravity.
+        a_0 = B_X_W @ (W_v̇_WB - W_g)
         a = a.at[0].set(a_0)
 
+        # Force applied to the base link that produce the base acceleration w/o gravity.
         f_0 = (
             M[0] @ a[0]
             + Cross.vx_star(v[0]) @ M[0] @ v[0]
-            - Adjoint.inverse(B_X_W).T @ jnp.vstack(f_ext[0])
+            - W_X_B.T @ jnp.vstack(W_f[0])
         )
         f = f.at[0].set(f_0)
 
-    ForwardPassCarry = Tuple[
-        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
-    ]
-    forward_pass_carry = (i_X_λi, v, a, i_X_0, f)
+    # ======
+    # Pass 1
+    # ======
+
+    ForwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax]
+    forward_pass_carry: ForwardPassCarry = (v, a, i_X_0, f)
 
     def forward_pass(
         carry: ForwardPassCarry, i: jtp.Int
     ) -> Tuple[ForwardPassCarry, None]:
+
         ii = i - 1
-        i_X_λi, v, a, i_X_0, f = carry
+        v, a, i_X_0, f = carry
 
-        vJ = S[i] * qd[ii]
-        i_X_λi_i = i_X_pre[i] @ pre_X_λi[i]
-        i_X_λi = i_X_λi.at[i].set(i_X_λi_i)
+        # Project the joint velocity into its motion subspace.
+        vJ = S[i] * ṡ[ii]
 
+        # Propagate the link velocity.
         v_i = i_X_λi[i] @ v[λ[i]] + vJ
         v = v.at[i].set(v_i)
 
-        a_i = i_X_λi[i] @ a[λ[i]] + S[i] * qdd[ii] + Cross.vx(v[i]) @ vJ
+        # Propagate the link acceleration.
+        a_i = i_X_λi[i] @ a[λ[i]] + S[i] * s̈[ii] + Cross.vx(v[i]) @ vJ
         a = a.at[i].set(a_i)
 
+        # Compute the link-to-base transform.
         i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
+
+        # Compute link-to-world transform for the 6D force.
         i_Xf_W = Adjoint.inverse(i_X_0[i] @ B_X_W).T
 
+        # Compute the force acting on the link.
         f_i = (
             M[i] @ a[i]
             + Cross.vx_star(v[i]) @ M[i] @ v[i]
-            - i_Xf_W @ jnp.vstack(f_ext[i])
+            - i_Xf_W @ jnp.vstack(W_f[i])
         )
         f = f.at[i].set(f_i)
 
-        return (i_X_λi, v, a, i_X_0, f), None
+        return (v, a, i_X_0, f), None
 
-    (i_X_λi, v, a, i_X_0, f), _ = (
+    (v, a, i_X_0, f), _ = (
         jax.lax.scan(
             f=forward_pass,
             init=forward_pass_carry,
-            xs=np.arange(start=1, stop=model.NB),
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
         )
-        if model.NB > 1
-        else [(i_X_λi, v, a, i_X_0, f), None]
+        if model.number_of_links() > 1
+        else [(v, a, i_X_0, f), None]
     )
 
-    tau = jnp.zeros_like(q)
+    # ======
+    # Pass 2
+    # ======
+
+    τ = jnp.zeros_like(s)
 
     BackwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
-    backward_pass_carry = (tau, f)
+    backward_pass_carry: BackwardPassCarry = (τ, f)
 
     def backward_pass(
         carry: BackwardPassCarry, i: jtp.Int
     ) -> Tuple[BackwardPassCarry, None]:
+
         ii = i - 1
-        tau, f = carry
+        τ, f = carry
 
-        value = S[i].T @ f[i]
-        tau = tau.at[ii].set(value.squeeze())
+        # Project the 6D force to the DoF of the joint.
+        τ_i = S[i].T @ f[i]
+        τ = τ.at[ii].set(τ_i.squeeze())
 
+        # Propagate the force to the parent link.
         def update_f(f: jtp.MatrixJax) -> jtp.MatrixJax:
+
             f_λi = f[λ[i]] + i_X_λi[i].T @ f[i]
             f = f.at[λ[i]].set(f_λi)
+
             return f
 
         f = jax.lax.cond(
-            pred=jnp.array([λ[i] != 0, model.is_floating_base]).any(),
+            pred=jnp.logical_or(λ[i] != 0, model.floating_base()),
             true_fun=update_f,
             false_fun=lambda f: f,
             operand=f,
         )
 
-        return (tau, f), None
+        return (τ, f), None
 
-    (tau, f), _ = (
+    (τ, f), _ = (
         jax.lax.scan(
             f=backward_pass,
             init=backward_pass_carry,
-            xs=np.flip(np.arange(start=1, stop=model.NB)),
+            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
         )
-        if model.NB > 1
-        else [(tau, f), None]
+        if model.number_of_links() > 1
+        else [(τ, f), None]
     )
 
-    # Handle 1 DoF models
-    tau = jnp.atleast_1d(tau.squeeze())
-    tau = jnp.vstack(tau) if tau.size > 0 else jnp.empty(shape=(0, 1))
+    # ==============
+    # Adjust outputs
+    # ==============
 
-    # Express the base 6D force in the world frame
-    W_f0 = B_X_W.T @ jnp.vstack(f[0])
+    # Express the base 6D force in the world frame.
+    W_f0 = B_X_W.T @ f[0]
 
-    return W_f0, tau
+    return W_f0.squeeze(), jnp.atleast_1d(τ.squeeze())

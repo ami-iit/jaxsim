@@ -116,19 +116,24 @@ def test_ad_rnea(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
+    # Get the standard gravity constant.
+    g = jaxsim.rbda.StandardGravity
+
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
+    W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    xfb = data.state.physics_model.xfb()
 
     # Inputs.
-    f = references.link_forces(model=model)
+    W_f_L = references.link_forces(model=model)
 
     # ====
     # Test
@@ -139,14 +144,25 @@ def test_ad_rnea(
     s̈ = jax.random.uniform(subkey2, shape=(model.dofs(),), minval=-1)
 
     # Get a closure exposing only the parameters to be differentiated.
-    rnea = lambda xfb, s, ṡ, s̈, W_v̇_WB, f_ext: jaxsim.rbda.rnea(
-        model=model.physics_model, xfb=xfb, q=s, qd=ṡ, qdd=s̈, a0fb=W_v̇_WB, f_ext=f_ext
+    rnea = lambda W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, W_f_L, g: jaxsim.rbda.rnea(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
+        base_linear_velocity=W_v_WB[0:3],
+        base_angular_velocity=W_v_WB[3:6],
+        joint_velocities=ṡ,
+        base_linear_acceleration=W_v̇_WB[0:3],
+        base_angular_acceleration=W_v̇_WB[3:6],
+        joint_accelerations=s̈,
+        link_forces=W_f_L,
+        standard_gravity=g,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=rnea,
-        args=(xfb, s, ṡ, s̈, W_v̇_WB, f),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, W_f_L, g),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

@@ -816,9 +816,9 @@ def inverse_dynamics(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_accelerations: jtp.Vector | None = None,
-    base_acceleration: jtp.Vector | None = None,
-    external_forces: jtp.Matrix | None = None,
+    joint_accelerations: jtp.VectorLike | None = None,
+    base_acceleration: jtp.VectorLike | None = None,
+    external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute inverse dynamics with the RNEA algorithm.
@@ -840,49 +840,62 @@ def inverse_dynamics(
         to obtain the considered joint accelerations.
     """
 
-    # Build joint accelerations if not provided
-    joint_accelerations = (
-        joint_accelerations
+    # ============
+    # Prepare data
+    # ============
+
+    # Build joint accelerations, if not provided.
+    s̈ = (
+        jnp.atleast_1d(jnp.array(joint_accelerations).squeeze())
         if joint_accelerations is not None
         else jnp.zeros_like(data.joint_positions())
     )
 
-    # Build base acceleration if not provided
-    base_acceleration = (
-        base_acceleration if base_acceleration is not None else jnp.zeros(6)
+    # Build base acceleration, if not provided.
+    v̇_WB = (
+        jnp.array(base_acceleration).squeeze()
+        if base_acceleration is not None
+        else jnp.zeros(6)
     )
 
-    external_forces = (
-        external_forces
+    # Build link forces, if not provided.
+    f_L = (
+        jnp.atleast_2d(jnp.array(external_forces).squeeze())
         if external_forces is not None
         else jnp.zeros(shape=(model.number_of_links(), 6))
     )
 
-    def to_inertial(C_v̇_WB, W_H_C, C_v_WB, W_vl_WC):
+    def to_inertial(C_v̇_WB, W_H_C, C_v_WB, W_v_WC):
+        """
+        Helper to convert the active representation of the base acceleration C_v̇_WB
+        expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
+        """
+
+        from jaxsim.math.cross import Cross
+
         W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
+        C_v_WC = C_X_W @ W_v_WC
 
-        if data.velocity_representation != VelRepr.Mixed:
-            return W_X_C @ C_v̇_WB
-        else:
-            from jaxsim.math.cross import Cross
-
-            C_v_WC = C_X_W @ jnp.hstack([W_vl_WC, jnp.zeros(3)])
-            return W_X_C @ (C_v̇_WB + Cross.vx(C_v_WC) @ C_v_WB)
+        # In Mixed representation, we need to include a cross product in ℝ⁶.
+        # In Inertial and Body representations, the cross product is always zero.
+        return W_X_C @ (C_v̇_WB + Cross.vx(C_v_WC) @ C_v_WB)
 
     match data.velocity_representation:
         case VelRepr.Inertial:
             W_H_C = W_H_W = jnp.eye(4)
-            W_vl_WC = W_vl_WW = jnp.zeros(3)
+            W_v_WC = W_v_WW = jnp.zeros(6)
 
         case VelRepr.Body:
             W_H_C = W_H_B = data.base_transform()
-            W_vl_WC = W_vl_WB = data.base_velocity()[0:3]
+            with data.switch_velocity_representation(VelRepr.Inertial):
+                W_v_WC = W_v_WB = data.base_velocity()
 
         case VelRepr.Mixed:
             W_H_B = data.base_transform()
             W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
-            W_vl_WC = W_vl_W_BW = data.base_velocity()[0:3]
+            W_ṗ_B = data.base_velocity()[0:3]
+            W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
 
         case _:
             raise ValueError(data.velocity_representation)
@@ -891,36 +904,60 @@ def inverse_dynamics(
     # representation. In Mixed representation, this conversion is not a plain
     # transformation with just X, but it also involves a cross product in ℝ⁶.
     W_v̇_WB = to_inertial(
-        C_v̇_WB=base_acceleration,
+        C_v̇_WB=v̇_WB,
         W_H_C=W_H_C,
         C_v_WB=data.base_velocity(),
-        W_vl_WC=W_vl_WC,
+        W_v_WC=W_v_WC,
     )
 
+    # Create a references object that simplifies converting among representations.
     references = js.references.JaxSimModelReferences.build(
         model=model,
         data=data,
-        link_forces=external_forces,
+        link_forces=f_L,
         velocity_representation=data.velocity_representation,
     )
 
-    # Compute RNEA
+    # Extract the link and joint serializations.
+    link_names = model.link_names()
+    joint_names = model.joint_names()
+
+    # Extract the state in inertial-fixed representation.
+    with data.switch_velocity_representation(VelRepr.Inertial):
+        W_p_B = data.base_position()
+        W_v_WB = data.base_velocity()
+        W_Q_B = data.base_orientation(dcm=False)
+        s = data.joint_positions(model=model, joint_names=joint_names)
+        ṡ = data.joint_velocities(model=model, joint_names=joint_names)
+
+    # Extract the inputs in inertial-fixed representation.
     with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_B, τ = jaxsim.rbda.rnea(
-            model=model.physics_model,
-            xfb=data.state.physics_model.xfb(),
-            q=data.state.physics_model.joint_positions,
-            qd=data.state.physics_model.joint_velocities,
-            qdd=joint_accelerations,
-            a0fb=W_v̇_WB,
-            f_ext=references.link_forces(model=model, data=data),
-            standard_gravity=data.standard_gravity(),
-        )
+        W_f_L = references.link_forces(model=model, data=data, link_names=link_names)
 
-    # Adjust shape
-    τ = jnp.atleast_1d(τ.squeeze())
+    # ========================
+    # Compute inverse dynamics
+    # ========================
 
-    # Express W_f_B in the active representation
+    W_f_B, τ = jaxsim.rbda.rnea(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
+        base_linear_velocity=W_v_WB[0:3],
+        base_angular_velocity=W_v_WB[3:6],
+        joint_velocities=ṡ,
+        base_linear_acceleration=W_v̇_WB[0:3],
+        base_angular_acceleration=W_v̇_WB[3:6],
+        joint_accelerations=s̈,
+        link_forces=W_f_L,
+        standard_gravity=data.standard_gravity(),
+    )
+
+    # =============
+    # Adjust output
+    # =============
+
+    # Express W_f_B in the active representation.
     f_B = js.data.JaxSimModelData.inertial_to_other_representation(
         array=W_f_B,
         other_representation=data.velocity_representation,

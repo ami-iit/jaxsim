@@ -1,68 +1,68 @@
-from typing import Tuple
-
 import jax
 import jax.numpy as jnp
-import numpy as np
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.physics.model.physics_model import PhysicsModel
 
 from . import utils
 
 
-def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
+def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Matrix:
     """
-    Compute the Composite Rigid-Body Inertia Matrix (CRBA) for an articulated body or robot given joint positions.
+    Compute the free-floating mass matrix using the Composite Rigid-Body Algorithm (CRBA).
 
     Args:
-        model (PhysicsModel): The physics model of the articulated body or robot.
-        q (jtp.Vector): Joint positions (Generalized coordinates).
+        model: The model to consider.
+        joint_positions: The positions of the joints.
 
     Returns:
-        jtp.Matrix: The Composite Rigid-Body Inertia Matrix (CRBA) of the articulated body or robot.
+        The free-floating mass matrix of the model in body-fixed representation.
     """
 
-    _, q, _, _, _, _ = utils.process_inputs(
-        physics_model=model, xfb=None, q=q, qd=None, tau=None, f_ext=None
+    _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
+        model=model, joint_positions=joint_positions
     )
 
-    Xtree = model.tree_transforms
-    Mc = model.spatial_inertias
-    S = model.motion_subspaces(q=q)
-    Xj = model.joint_transforms(q=q)
+    # Get the 6D spatial inertia matrices of all links.
+    Mc = js.model.link_spatial_inertia_matrices(model=model)
 
-    Xup = jnp.zeros_like(Xtree)
-    i_X_0 = jnp.zeros_like(Xtree)
+    # Get the parent array λ(i).
+    # Note: λ(0) must not be used, it's initialized to -1.
+    λ = model.kin_dyn_parameters.parent_array
+
+    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # These transforms define the relative kinematics of the entire model, including
+    # the base transform for both floating-base and fixed-base models.
+    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+        joint_positions=s, base_transform=jnp.eye(4)
+    )
+
+    # Allocate the buffer of transforms link -> base.
+    i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
-
-    # Parent array mapping: i -> λ(i).
-    # Exception: λ(0) must not be used, it's initialized to -1.
-    λ = model.parent
 
     # ====================
     # Propagate kinematics
     # ====================
 
-    ForwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
-    forward_pass_carry = (Xup, i_X_0)
+    ForwardPassCarry = tuple[jtp.MatrixJax]
+    forward_pass_carry: ForwardPassCarry = (i_X_0,)
 
     def propagate_kinematics(
         carry: ForwardPassCarry, i: jtp.Int
-    ) -> Tuple[ForwardPassCarry, None]:
-        Xup, i_X_0 = carry
+    ) -> tuple[ForwardPassCarry, None]:
 
-        Xup_i = Xj[i] @ Xtree[i]
-        Xup = Xup.at[i].set(Xup_i)
+        (i_X_0,) = carry
 
-        i_X_0_i = Xup[i] @ i_X_0[λ[i]]
+        i_X_0_i = i_X_λi[i] @ i_X_0[λ[i]]
         i_X_0 = i_X_0.at[i].set(i_X_0_i)
 
-        return (Xup, i_X_0), None
+        return (i_X_0,), None
 
-    (Xup, i_X_0), _ = jax.lax.scan(
+    (i_X_0,), _ = jax.lax.scan(
         f=propagate_kinematics,
         init=forward_pass_carry,
-        xs=np.arange(start=1, stop=model.NB),
+        xs=jnp.arange(start=1, stop=model.number_of_links()),
     )
 
     # ===================
@@ -71,16 +71,17 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
 
     M = jnp.zeros(shape=(6 + model.dofs(), 6 + model.dofs()))
 
-    BackwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
-    backward_pass_carry = (Mc, M)
+    BackwardPassCarry = tuple[jtp.MatrixJax, jtp.MatrixJax]
+    backward_pass_carry: BackwardPassCarry = (Mc, M)
 
     def backward_pass(
         carry: BackwardPassCarry, i: jtp.Int
-    ) -> Tuple[BackwardPassCarry, None]:
+    ) -> tuple[BackwardPassCarry, None]:
+
         ii = i - 1
         Mc, M = carry
 
-        Mc_λi = Mc[λ[i]] + Xup[i].T @ Mc[i] @ Xup[i]
+        Mc_λi = Mc[λ[i]] + i_X_λi[i].T @ Mc[i] @ i_X_λi[i]
         Mc = Mc.at[λ[i]].set(Mc_λi)
 
         Fi = Mc[i] @ S[i]
@@ -89,13 +90,13 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
 
         j = i
 
-        CarryInnerFn = Tuple[jtp.Int, jtp.MatrixJax, jtp.MatrixJax]
+        CarryInnerFn = tuple[jtp.Int, jtp.MatrixJax, jtp.MatrixJax]
         carry_inner_fn = (j, Fi, M)
 
         def while_loop_body(carry: CarryInnerFn) -> CarryInnerFn:
             j, Fi, M = carry
 
-            Fi = Xup[j].T @ Fi
+            Fi = i_X_λi[j].T @ Fi
             j = λ[j]
             jj = j - 1
 
@@ -108,8 +109,8 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
 
         # The following functions are part of a (rather messy) workaround for computing
         # a while loop using a for loop with fixed number of iterations.
-        def inner_fn(carry: CarryInnerFn, k: jtp.Int) -> Tuple[CarryInnerFn, None]:
-            def compute_inner(carry: CarryInnerFn) -> Tuple[CarryInnerFn, None]:
+        def inner_fn(carry: CarryInnerFn, k: jtp.Int) -> tuple[CarryInnerFn, None]:
+            def compute_inner(carry: CarryInnerFn) -> tuple[CarryInnerFn, None]:
                 j, Fi, M = carry
                 out = jax.lax.cond(
                     pred=(λ[j] > 0),
@@ -130,7 +131,7 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
         (j, Fi, M), _ = jax.lax.scan(
             f=inner_fn,
             init=carry_inner_fn,
-            xs=np.flip(np.arange(start=1, stop=model.NB)),
+            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
         )
 
         Fi = i_X_0[j].T @ Fi
@@ -145,10 +146,10 @@ def crba(model: PhysicsModel, q: jtp.Vector) -> jtp.Matrix:
     (Mc, M), _ = jax.lax.scan(
         f=backward_pass,
         init=backward_pass_carry,
-        xs=np.flip(np.arange(start=1, stop=model.NB)),
+        xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
     )
 
-    # Store the locked 6D rigid-body inertia matrix Mbb ∈ ℝ⁶ˣ⁶
+    # Store the locked 6D rigid-body inertia matrix Mbb ∈ ℝ⁶ˣ⁶.
     M = M.at[0:6, 0:6].set(Mc[0])
 
     return M

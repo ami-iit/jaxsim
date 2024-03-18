@@ -771,8 +771,8 @@ def free_floating_mass_matrix(
     """
 
     M_body = jaxsim.rbda.crba(
-        model=model.physics_model,
-        q=data.state.physics_model.joint_positions,
+        model=model,
+        joint_positions=data.state.physics_model.joint_positions,
     )
 
     match data.velocity_representation:

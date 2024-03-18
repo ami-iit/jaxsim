@@ -326,6 +326,23 @@ def total_mass(model: JaxSimModel) -> jtp.Float:
     )
 
 
+@jax.jit
+def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
+    """
+    Compute the spatial 6D inertia matrices of all links of the model.
+
+    Args:
+        model: The model to consider.
+
+    Returns:
+        A 3D array containing the stacked spatial 6D inertia matrices of the links.
+    """
+
+    return jax.vmap(js.kin_dyn_parameters.LinkParameters.spatial_inertia)(
+        model.kin_dyn_parameters.link_parameters
+    )
+
+
 # ==============
 # Center of mass
 # ==============

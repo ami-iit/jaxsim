@@ -1,2 +1,2 @@
 from . import fixed_step
-from .common import Integrator, Time, TimeStep
+from .common import Integrator, SystemDynamics, Time, TimeStep

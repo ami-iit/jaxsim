@@ -1,8 +1,8 @@
 import jax.lax
 import jax.numpy as jnp
+import jaxlie
 
 import jaxsim.typing as jtp
-from jaxsim.sixd import so3
 
 
 class Quaternion:
@@ -43,7 +43,7 @@ class Quaternion:
         Returns:
             jtp.Matrix: Direction cosine matrix (DCM).
         """
-        return so3.SO3.from_quaternion_xyzw(
+        return jaxlie.SO3.from_quaternion_xyzw(
             xyzw=Quaternion.to_xyzw(quaternion)
         ).as_matrix()
 
@@ -59,7 +59,7 @@ class Quaternion:
             jtp.Vector: Quaternion in XYZW representation.
         """
         return Quaternion.to_wxyz(
-            xyzw=so3.SO3.from_matrix(matrix=dcm).as_quaternion_xyzw()
+            xyzw=jaxlie.SO3.from_matrix(matrix=dcm).as_quaternion_xyzw()
         )
 
     @staticmethod

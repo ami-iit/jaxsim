@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 
 import jaxsim.api as js
-from jaxsim.high_level.common import VelRepr
+from jaxsim import VelRepr
 
 
 def build_kindyncomputations_from_jaxsim_model(

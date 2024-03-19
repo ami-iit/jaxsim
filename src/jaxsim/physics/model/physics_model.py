@@ -4,6 +4,7 @@ from typing import Dict, Union
 import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
+import jaxlie
 import numpy as np
 from jax_dataclasses import Static
 
@@ -12,7 +13,6 @@ import jaxsim.physics
 import jaxsim.typing as jtp
 from jaxsim.parsers.descriptions import JointDescriptor, JointType
 from jaxsim.physics import default_gravity
-from jaxsim.sixd import se3
 from jaxsim.utils import JaxsimDataclass, not_tracing
 
 from .ground_contact import GroundContact
@@ -185,7 +185,7 @@ class PhysicsModel(JaxsimDataclass):
         # (this is just the pose of the base link in the SDF description)
         base_link = model_description.links_dict[model_description.link_names()[0]]
         R_H_B = model_description.transform(name=base_link.name)
-        tree_transform_0 = se3.SE3.from_matrix(matrix=R_H_B).adjoint()
+        tree_transform_0 = jaxlie.SE3.from_matrix(matrix=R_H_B).adjoint()
 
         # Helper to compute the transform pre(i)_H_λ(i).
         # Given a joint 'i', it is the coordinate transform between its predecessor
@@ -200,7 +200,7 @@ class PhysicsModel(JaxsimDataclass):
         tree_transforms_dict = {
             0: tree_transform_0,
             **{
-                j.index: se3.SE3.from_matrix(matrix=prei_H_λi(j)).adjoint()
+                j.index: jaxlie.SE3.from_matrix(matrix=prei_H_λi(j)).adjoint()
                 for j in model_description.joints
             },
         }

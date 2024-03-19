@@ -5,6 +5,7 @@ import jax.numpy as jnp
 from jax.test_util import check_grads
 
 import jaxsim.api as js
+import jaxsim.rbda
 from jaxsim import VelRepr
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
@@ -58,36 +59,48 @@ def test_ad_aba(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
+    # Get the standard gravity constant.
+    g = jaxsim.math.StandardGravity
+
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
+    W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    xfb = data.state.physics_model.xfb()
 
     # Inputs.
-    f = references.link_forces(model=model)
+    W_f_L = references.link_forces(model=model)
     τ = references.joint_force_references(model=model)
 
     # ====
     # Test
     # ====
 
-    import jaxsim.physics.algos.aba
-
     # Get a closure exposing only the parameters to be differentiated.
-    aba = lambda xfb, s, ṡ, tau, f_ext: jaxsim.physics.algos.aba.aba(
-        model=model.physics_model, xfb=xfb, q=s, qd=ṡ, tau=tau, f_ext=f_ext
+    aba = lambda W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L, g: jaxsim.rbda.aba(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
+        base_linear_velocity=W_v_WB[0:3],
+        base_angular_velocity=W_v_WB[3:6],
+        joint_velocities=ṡ,
+        joint_forces=τ,
+        link_forces=W_f_L,
+        standard_gravity=g,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=aba,
-        args=(xfb, s, ṡ, τ, f),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L, g),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
@@ -103,39 +116,53 @@ def test_ad_rnea(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
+    # Get the standard gravity constant.
+    g = jaxsim.math.StandardGravity
+
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
+    W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    xfb = data.state.physics_model.xfb()
 
     # Inputs.
-    f = references.link_forces(model=model)
+    W_f_L = references.link_forces(model=model)
 
     # ====
     # Test
     # ====
-
-    import jaxsim.physics.algos.rnea
 
     key, subkey1, subkey2 = jax.random.split(key, num=3)
     W_v̇_WB = jax.random.uniform(subkey1, shape=(6,), minval=-1)
     s̈ = jax.random.uniform(subkey2, shape=(model.dofs(),), minval=-1)
 
     # Get a closure exposing only the parameters to be differentiated.
-    rnea = lambda xfb, s, ṡ, s̈, W_v̇_WB, f_ext: jaxsim.physics.algos.rnea.rnea(
-        model=model.physics_model, xfb=xfb, q=s, qd=ṡ, qdd=s̈, a0fb=W_v̇_WB, f_ext=f_ext
+    rnea = lambda W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, W_f_L, g: jaxsim.rbda.rnea(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
+        base_linear_velocity=W_v_WB[0:3],
+        base_angular_velocity=W_v_WB[3:6],
+        joint_velocities=ṡ,
+        base_linear_acceleration=W_v̇_WB[0:3],
+        base_angular_acceleration=W_v̇_WB[3:6],
+        joint_accelerations=s̈,
+        link_forces=W_f_L,
+        standard_gravity=g,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=rnea,
-        args=(xfb, s, ṡ, s̈, W_v̇_WB, f),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, W_f_L, g),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
@@ -151,23 +178,21 @@ def test_ad_crba(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    s = data.joint_positions(model=model)
 
     # ====
     # Test
     # ====
 
-    import jaxsim.physics.algos.crba
-
     # Get a closure exposing only the parameters to be differentiated.
-    crba = lambda s: jaxsim.physics.algos.crba.crba(model=model.physics_model, q=s)
+    crba = lambda s: jaxsim.rbda.crba(model=model, joint_positions=s)
 
     # Check derivatives against finite differences.
     check_grads(
@@ -188,33 +213,33 @@ def test_ad_fk(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
-    xfb = data.state.physics_model.xfb()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
 
     # ====
     # Test
     # ====
 
-    import jaxsim.physics.algos.forward_kinematics
-
     # Get a closure exposing only the parameters to be differentiated.
-    fk = (
-        lambda xfb, s: jaxsim.physics.algos.forward_kinematics.forward_kinematics_model(
-            model=model.physics_model, xfb=xfb, q=s
-        )
+    fk = lambda W_p_B, W_Q_B, s: jaxsim.rbda.forward_kinematics_model(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B,
+        joint_positions=s,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=fk,
-        args=(xfb, s),
+        args=(W_p_B, W_Q_B, s),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
@@ -230,20 +255,18 @@ def test_ad_jacobian(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    s = data.joint_positions(model=model)
 
     # ====
     # Test
     # ====
-
-    import jaxsim.physics.algos.jacobian
 
     # Get the link indices.
     link_indices = js.link.names_to_idxs(model=model, link_names=model.link_names())
@@ -251,8 +274,8 @@ def test_ad_jacobian(
     # Get a closure exposing only the parameters to be differentiated.
     # We differentiate the jacobian of the last link, likely among those
     # farther from the base.
-    jacobian = lambda s: jaxsim.physics.algos.jacobian.jacobian(
-        model=model.physics_model, q=s, body_index=link_indices[-1]
+    jacobian = lambda s: jaxsim.rbda.jacobian(
+        model=model, joint_positions=s, link_index=link_indices[-1]
     )
 
     # Check derivatives against finite differences.
@@ -287,10 +310,8 @@ def test_ad_soft_contacts(
     # Test
     # ====
 
-    import jaxsim.physics.algos.soft_contacts
-
     # Get a closure exposing only the parameters to be differentiated.
-    soft_contacts = lambda p, v, m: jaxsim.physics.algos.soft_contacts.SoftContacts(
+    soft_contacts = lambda p, v, m: jaxsim.rbda.SoftContacts(
         parameters=parameters
     ).contact_model(position=p, velocity=v, tangential_deformation=m)
 
@@ -313,20 +334,22 @@ def test_ad_integration(
 
     key, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=key
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
     # Perturbation used for computing finite differences.
     ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions()
+    W_p_B = data.base_position()
+    W_Q_B = data.base_orientation(dcm=False)
+    s = data.joint_positions(model=model)
+    W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    xfb = data.state.physics_model.xfb()
     m = data.state.soft_contacts.tangential_deformation
 
     # Inputs.
-    f = references.link_forces(model=model)
+    W_f_L = references.link_forces(model=model)
     τ = references.joint_force_references(model=model)
 
     # ====
@@ -353,25 +376,31 @@ def test_ad_integration(
 
     # Function exposing only the parameters to be differentiated.
     def step(
-        xfb: jax.typing.ArrayLike,
+        W_p_B: jax.typing.ArrayLike,
+        W_Q_B: jax.typing.ArrayLike,
         s: jax.typing.ArrayLike,
+        W_v_WB: jax.typing.ArrayLike,
         ṡ: jax.typing.ArrayLike,
         m: jax.typing.ArrayLike,
-        tau: jax.typing.ArrayLike,
-        f_ext: jax.typing.ArrayLike,
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        τ: jax.typing.ArrayLike,
+        W_f_L: jax.typing.ArrayLike,
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+
+        # When JAX tests against finite differences, the injected ε will make the
+        # quaternion non-unitary, which will cause the AD check to fail.
+        W_Q_B = W_Q_B / jnp.linalg.norm(W_Q_B)
 
         data_x0 = data.replace(
-            state=js.ode.ODEState.build(
-                physics_model_state=js.ode.PhysicsModelState.build(
+            state=js.ode_data.ODEState.build(
+                physics_model_state=js.ode_data.PhysicsModelState.build(
+                    base_position=W_p_B,
+                    base_quaternion=W_Q_B,
                     joint_positions=s,
+                    base_linear_velocity=W_v_WB[0:3],
+                    base_angular_velocity=W_v_WB[3:6],
                     joint_velocities=ṡ,
-                    base_position=xfb[4:7],
-                    base_quaternion=xfb[0:4],
-                    base_linear_velocity=xfb[7:10],
-                    base_angular_velocity=xfb[10:13],
                 ),
-                soft_contacts_state=js.ode.SoftContactsState.build(
+                soft_contacts_state=js.ode_data.SoftContactsState.build(
                     tangential_deformation=m
                 ),
             ),
@@ -383,24 +412,26 @@ def test_ad_integration(
             data=data_x0,
             integrator=integrator,
             integrator_state=integrator_state,
-            joint_forces=tau,
-            external_forces=f_ext,
+            joint_forces=τ,
+            external_forces=W_f_L,
         )
 
-        s_xf = data_xf.joint_positions()
-        ṡ_xf = data_xf.joint_velocities()
-        xfb_xf = data_xf.state.physics_model.xfb()
-        m_xf = data_xf.state.soft_contacts.tangential_deformation
+        xf_W_p_B = data_xf.base_position()
+        xf_W_Q_B = data_xf.base_orientation(dcm=False)
+        xf_s = data_xf.joint_positions(model=model)
+        xf_W_v_WB = data_xf.base_velocity()
+        xf_ṡ = data_xf.joint_velocities(model=model)
+        xf_m = data_xf.state.soft_contacts.tangential_deformation
 
-        return xfb_xf, s_xf, ṡ_xf, m_xf
+        return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ, xf_m
 
     # Check derivatives against finite differences.
     check_grads(
         f=step,
-        args=(xfb, s, ṡ, m, τ, f),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, m, τ, W_f_L),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
         # This check (at least on ErgoCub) needs larger tolerances
-        rtol=0.0001,
+        rtol=0.000_100,
     )

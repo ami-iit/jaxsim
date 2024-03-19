@@ -3,10 +3,10 @@ from typing import List
 
 import jax.numpy as jnp
 import jax_dataclasses
+import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.sixd import se3
 from jaxsim.utils import JaxsimDataclass
 
 
@@ -78,7 +78,7 @@ class LinkDescription(JaxsimDataclass):
         I_removed = link.inertia
 
         # Create the SE3 object. Note the inverse.
-        r_H_l = se3.SE3.from_matrix(lumped_H_removed).inverse()
+        r_H_l = jaxlie.SE3.from_matrix(lumped_H_removed).inverse()
         r_X_l = r_H_l.adjoint()
 
         # Move the inertia

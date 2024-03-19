@@ -4,8 +4,10 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.physics.algos import soft_contacts
+
+from .common import VelRepr
 
 
 @jax.jit
@@ -28,16 +30,20 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    from jaxsim.physics.algos.soft_contacts import collidable_points_pos_vel
+    from jaxsim.rbda import collidable_points
 
-    W_p_Ci, W_ṗ_Ci = collidable_points_pos_vel(
-        model=model.physics_model,
-        q=data.state.physics_model.joint_positions,
-        qd=data.state.physics_model.joint_velocities,
-        xfb=data.state.physics_model.xfb(),
-    )
+    with data.switch_velocity_representation(VelRepr.Inertial):
+        W_p_Ci, W_ṗ_Ci = collidable_points.collidable_points_pos_vel(
+            model=model,
+            base_position=data.base_position(),
+            base_quaternion=data.base_orientation(dcm=False),
+            joint_positions=data.joint_positions(model=model),
+            base_linear_velocity=data.base_velocity()[0:3],
+            base_angular_velocity=data.base_velocity()[3:6],
+            joint_velocities=data.joint_velocities(model=model),
+        )
 
-    return W_p_Ci.T, W_ṗ_Ci.T
+    return W_p_Ci, W_ṗ_Ci
 
 
 @jax.jit
@@ -101,24 +107,17 @@ def in_contact(
     if set(link_names) - set(model.link_names()) != set():
         raise ValueError("One or more link names are not part of the model")
 
-    from jaxsim.physics.algos.soft_contacts import collidable_points_pos_vel
-
-    W_p_Ci, _ = collidable_points_pos_vel(
-        model=model.physics_model,
-        q=data.state.physics_model.joint_positions,
-        qd=data.state.physics_model.joint_velocities,
-        xfb=data.state.physics_model.xfb(),
-    )
+    W_p_Ci = collidable_point_positions(model=model, data=data)
 
     terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
-        W_p_Ci[0, :], W_p_Ci[1, :]
+        W_p_Ci[:, 0], W_p_Ci[:, 1]
     )
 
-    below_terrain = W_p_Ci[2, :] <= terrain_height
+    below_terrain = W_p_Ci[:, 2] <= terrain_height
 
     links_in_contact = jax.vmap(
         lambda link_index: jnp.where(
-            model.physics_model.gc.body == link_index,
+            model.kin_dyn_parameters.contact_parameters.body == link_index,
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
@@ -130,16 +129,19 @@ def in_contact(
 @jax.jit
 def estimate_good_soft_contacts_parameters(
     model: js.model.JaxSimModel,
+    *,
+    standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
     static_friction_coefficient: jtp.FloatLike = 0.5,
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> soft_contacts.SoftContactsParams:
+) -> jaxsim.rbda.soft_contacts.SoftContactsParams:
     """
     Estimate good soft contacts parameters for the given model.
 
     Args:
         model: The model to consider.
+        standard_gravity: The standard gravity constant.
         static_friction_coefficient: The static friction coefficient.
         number_of_active_collidable_points_steady_state:
             The number of active collidable points in steady state supporting
@@ -162,12 +164,13 @@ def estimate_good_soft_contacts_parameters(
         """"""
 
         zero_data = js.data.JaxSimModelData.build(
-            model=model, soft_contacts_params=soft_contacts.SoftContactsParams()
+            model=model,
+            soft_contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
         )
 
         W_pz_CoM = js.model.com_position(model=model, data=zero_data)[2]
 
-        if model.physics_model.is_floating_base:
+        if model.floating_base():
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
             return 2 * (W_pz_CoM - W_pz_C.min())
 
@@ -181,12 +184,15 @@ def estimate_good_soft_contacts_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    sc_parameters = soft_contacts.SoftContactsParams.build_default_from_physics_model(
-        physics_model=model.physics_model,
-        static_friction_coefficient=static_friction_coefficient,
-        max_penetration=max_δ,
-        number_of_active_collidable_points_steady_state=nc,
-        damping_ratio=damping_ratio,
+    sc_parameters = (
+        jaxsim.rbda.soft_contacts.SoftContactsParams.build_default_from_jaxsim_model(
+            model=model,
+            standard_gravity=standard_gravity,
+            static_friction_coefficient=static_friction_coefficient,
+            max_penetration=max_δ,
+            number_of_active_collidable_points_steady_state=nc,
+            damping_ratio=damping_ratio,
+        )
     )
 
     return sc_parameters

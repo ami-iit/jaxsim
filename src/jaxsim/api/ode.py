@@ -4,14 +4,13 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-import jaxsim.physics.algos.soft_contacts
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim import VelRepr
-from jaxsim.integrators.common import Time
+from jaxsim.integrators import Time
 from jaxsim.math.quaternion import Quaternion
-from jaxsim.physics.algos.soft_contacts import SoftContactsState
-from jaxsim.physics.model.physics_model_state import PhysicsModelState
-from jaxsim.simulation.ode_data import ODEState
+
+from .common import VelRepr
+from .ode_data import ODEState
 
 
 class SystemDynamicsFromModelAndData(Protocol):
@@ -87,7 +86,7 @@ def system_velocity_dynamics(
         A tuple containing the derivative of the base 6D velocity in inertial-fixed
         representation, the derivative of the joint velocities, the derivative of
         the material deformation, and the dictionary of auxiliary data returned by
-        the system dynamics evalutation.
+        the system dynamics evaluation.
     """
 
     # Build joint torques if not provided
@@ -97,8 +96,8 @@ def system_velocity_dynamics(
         else jnp.zeros_like(data.joint_positions())
     ).astype(float)
 
-    # Build external forces if not provided
-    f_ext = (
+    # Build link forces if not provided
+    W_f_L = (
         jnp.atleast_2d(external_forces.squeeze())
         if external_forces is not None
         else jnp.zeros((model.number_of_links(), 6))
@@ -110,7 +109,7 @@ def system_velocity_dynamics(
 
     # Initialize the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
     # with the terrain.
-    W_f_Li_terrain = jnp.zeros_like(f_ext).astype(float)
+    W_f_Li_terrain = jnp.zeros_like(W_f_L).astype(float)
 
     # Initialize the 6D contact forces W_f ∈ ℝ^{n_c × 3} applied to collidable points,
     # expressed in the world frame.
@@ -124,12 +123,23 @@ def system_velocity_dynamics(
         # all collidable points belonging to the robot.
         W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
-        # Compute the 3D forces applied to each collidable point.
-        W_f_Ci, ṁ = jax.vmap(
-            lambda p, ṗ, m: jaxsim.physics.algos.soft_contacts.SoftContacts(
-                parameters=data.soft_contacts_params, terrain=model.terrain
-            ).contact_model(position=p, velocity=ṗ, tangential_deformation=m)
-        )(W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation.T)
+        # Build the soft contact model.
+        soft_contacts = jaxsim.rbda.soft_contacts.SoftContacts(
+            parameters=data.soft_contacts_params, terrain=model.terrain
+        )
+
+        # Compute the 3D force applied to each collidable point and the
+        # corresponding material deformation rate.
+        W_f_Ci, ṁ = jax.vmap(soft_contacts.contact_model)(
+            W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
+        )
+
+        # Construct the vector defining the parent link index of each collidable point.
+        # We use this vector to sum the 6D forces of all collidable points rigidly
+        # attached to the same link.
+        parent_link_index_of_collidable_points = jnp.array(
+            model.kin_dyn_parameters.contact_parameters.body, dtype=int
+        )
 
         # Sum the forces of all collidable points rigidly attached to a body.
         # Since the contact forces W_f_Ci are expressed in the world frame,
@@ -137,12 +147,7 @@ def system_velocity_dynamics(
         W_f_Li_terrain = jax.vmap(
             lambda nc: (
                 jnp.vstack(
-                    jnp.equal(
-                        jnp.array(
-                            model.kin_dyn_parameters.contact_parameters.body, dtype=int
-                        ),
-                        nc,
-                    ).astype(int)
+                    jnp.equal(parent_link_index_of_collidable_points, nc).astype(int)
                 )
                 * W_f_Ci
             ).sum(axis=0)
@@ -184,7 +189,7 @@ def system_velocity_dynamics(
     τ_total = τ + τ_friction + τ_position_limit
 
     # Compute the total external 6D forces applied to the links
-    W_f_L_total = f_ext + W_f_Li_terrain
+    W_f_L_total = W_f_L + W_f_Li_terrain
 
     # - Joint accelerations: s̈ ∈ ℝⁿ
     # - Base inertial-fixed acceleration: W_v̇_WB = (W_p̈_B, W_ω̇_B) ∈ ℝ⁶
@@ -196,7 +201,7 @@ def system_velocity_dynamics(
             external_forces=W_f_L_total,
         )
 
-    return W_v̇_WB, s̈, ṁ.T, dict()
+    return W_v̇_WB, s̈, ṁ, dict()
 
 
 @jax.jit
@@ -215,8 +220,8 @@ def system_position_dynamics(
         base quaternion, and the derivative of the joint positions.
     """
 
-    ṡ = data.state.physics_model.joint_velocities
-    W_Q_B = data.state.physics_model.base_quaternion
+    ṡ = data.joint_velocities(model=model)
+    W_Q_B = data.base_orientation(dcm=False)
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Mixed):
         W_ṗ_B = data.base_velocity()[0:3]
@@ -270,18 +275,15 @@ def system_dynamics(
     # Create an ODEState object populated with the derivative of each leaf.
     # Our integrators, operating on generic pytrees, will be able to handle it
     # automatically as state derivative.
-    ode_state_derivative = ODEState.build(
-        physics_model_state=PhysicsModelState.build(
-            base_position=W_ṗ_B,
-            base_quaternion=W_Q̇_B,
-            joint_positions=ṡ,
-            base_linear_velocity=W_v̇_WB[0:3],
-            base_angular_velocity=W_v̇_WB[3:6],
-            joint_velocities=s̈,
-        ),
-        soft_contacts_state=SoftContactsState.build(
-            tangential_deformation=ṁ,
-        ),
+    ode_state_derivative = ODEState.build_from_jaxsim_model(
+        model=model,
+        base_position=W_ṗ_B,
+        base_quaternion=W_Q̇_B,
+        joint_positions=ṡ,
+        base_linear_velocity=W_v̇_WB[0:3],
+        base_angular_velocity=W_v̇_WB[3:6],
+        joint_velocities=s̈,
+        tangential_deformation=ṁ,
     )
 
     return ode_state_derivative, aux_dict

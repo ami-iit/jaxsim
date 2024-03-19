@@ -1,6 +1,7 @@
 import abc
 import contextlib
 import dataclasses
+import enum
 import functools
 from typing import ContextManager
 
@@ -11,13 +12,23 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.high_level.common import VelRepr
 from jaxsim.utils import JaxsimDataclass, Mutability
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
+
+
+@enum.unique
+class VelRepr(enum.IntEnum):
+    """
+    Enumeration of all supported 6D velocity representations.
+    """
+
+    Body = enum.auto()
+    Mixed = enum.auto()
+    Inertial = enum.auto()
 
 
 @jax_dataclasses.pytree_dataclass

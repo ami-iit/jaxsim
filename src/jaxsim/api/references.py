@@ -8,8 +8,10 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim import VelRepr
-from jaxsim.simulation.ode_data import ODEInput
+from jaxsim.utils.tracing import not_tracing
+
+from .common import VelRepr
+from .ode_data import ODEInput
 
 try:
     from typing import Self
@@ -94,7 +96,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # Create a zero references object.
         references = JaxSimModelReferences(
-            input=ODEInput.zero(physics_model=model.physics_model),
+            input=ODEInput.zero(model=model),
             velocity_representation=velocity_representation,
         )
 
@@ -131,7 +133,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         valid = True
 
         if model is not None:
-            valid = valid and self.input.valid(physics_model=model.physics_model)
+            valid = valid and self.input.valid(model=model)
 
         return valid
 
@@ -197,7 +199,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             msg = "Missing model data to use a representation different from {}"
             raise ValueError(msg.format(VelRepr.Inertial.name))
 
-        if not data.valid(model=model):
+        if not_tracing(self.input.physics_model.f_ext) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
 
         # Helper function to convert a single 6D force to the active representation.
@@ -251,7 +253,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
             return self.input.physics_model.tau
 
-        if not self.valid(model=model):
+        if not_tracing(self.input.physics_model.tau) and not self.valid(model=model):
             msg = "The actuation object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -302,7 +304,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         if model is None:
             return replace(forces=forces)
 
-        if not self.valid(model=model):
+        if not_tracing(forces) and not self.valid(model=model):
             msg = "The references object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -400,7 +402,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             msg = "Missing model data to use a representation different from {}"
             raise ValueError(msg.format(VelRepr.Inertial.name))
 
-        if not data.valid(model=model):
+        if not_tracing(forces) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
 
         # Helper function to convert a single 6D force to the inertial representation.

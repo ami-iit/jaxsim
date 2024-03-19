@@ -61,7 +61,6 @@ del _jnp_options
 del _np_options
 del _is_editable
 
-from . import high_level, logging, math, simulation, sixd
-from .high_level.common import VelRepr
-from .simulation.ode_integration import IntegratorType
-from .simulation.simulator import JaxSim
+from . import terrain  # isort:skip
+from . import api, integrators, logging, math, rbda
+from .api.common import VelRepr

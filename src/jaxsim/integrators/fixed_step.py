@@ -36,7 +36,7 @@ class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     A: ClassVar[jax.typing.ArrayLike] = jnp.array(
         [
             [0, 0],
-            [1 / 2, 0],
+            [1, 0],
         ]
     ).astype(float)
 

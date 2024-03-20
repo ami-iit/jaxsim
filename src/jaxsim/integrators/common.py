@@ -46,6 +46,9 @@ class SystemDynamics(Protocol[State, StateDerivative]):
 @jax_dataclasses.pytree_dataclass
 class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
+    AfterInitKey: ClassVar[str] = "after_init"
+    InitializingKey: ClassVar[str] = "initializing"
+
     AuxDictDynamicsKey: ClassVar[str] = "aux_dict_dynamics"
 
     dynamics: Static[SystemDynamics[State, StateDerivative]] = dataclasses.field(
@@ -58,7 +61,10 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
     @classmethod
     def build(
-        cls: Type[Self], *, dynamics: SystemDynamics[State, StateDerivative], **kwargs
+        cls: Type[Self],
+        *,
+        dynamics: SystemDynamics[State, StateDerivative],
+        **kwargs,
     ) -> Self:
         """
         Build the integrator object.
@@ -102,9 +108,9 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         with integrator.mutable_context(mutability=Mutability.MUTABLE):
             xf = integrator(x0, t0, dt, **kwargs)
 
-        assert Integrator.AuxDictDynamicsKey in integrator.params
-
-        return xf, integrator.params
+        return xf, integrator.params | {
+            Integrator.AfterInitKey: jnp.array(False).astype(bool)
+        }
 
     @abc.abstractmethod
     def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
@@ -116,7 +122,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         t0: Time,
         dt: TimeStep,
         *,
-        key: jax.Array | None = None,
+        include_dynamics_aux_dict: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
         """
@@ -126,7 +132,6 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             x0: The initial state of the system.
             t0: The initial time of the system.
             dt: The time step of the integration.
-            key: An optional random key to initialize the integrator.
 
         Returns:
             The auxiliary dictionary of the integrator.
@@ -141,17 +146,43 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             the first step will be wrong.
         """
 
-        _, aux_dict_dynamics = self.dynamics(x0, t0)
-
         with self.editable(validate=False) as integrator:
+
+            # Initialize the integrator parameters.
+            # For initialization purpose, the integrators can check if the
+            # `Integrator.InitializingKey` is present in their parameters.
+            # The AfterInitKey is used in the first step after initialization.
+            integrator.params = {
+                Integrator.InitializingKey: jnp.array(True),
+                Integrator.AfterInitKey: jnp.array(False),
+            }
+
+            # Run a dummy call of the integrator.
+            # It is used only to get the params so that we know the structure
+            # of the corresponding pytree.
             _ = integrator(x0, t0, dt, **kwargs)
-            aux_dict_step = integrator.params
 
-        if Integrator.AuxDictDynamicsKey in aux_dict_dynamics:
-            msg = "You cannot create a key '{}' in the __call__ method."
-            raise KeyError(msg.format(Integrator.AuxDictDynamicsKey))
+        # Remove the injected key.
+        _ = integrator.params.pop(Integrator.InitializingKey)
 
-        return {Integrator.AuxDictDynamicsKey: aux_dict_dynamics} | aux_dict_step
+        # Make sure that all leafs of the dictionary are JAX arrays.
+        # Also, since these are dummy parameters, set them all to zero.
+        params_after_init = jax.tree_util.tree_map(
+            lambda l: jnp.zeros_like(l), integrator.params
+        )
+
+        # Mark the next step as first step after initialization.
+        params_after_init = params_after_init | {
+            Integrator.AfterInitKey: jnp.array(True)
+        }
+
+        # Store the zero parameters in the integrator.
+        # When the integrator is stepped, this is used to check if the passed
+        # parameters are valid.
+        with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            self.params = params_after_init
+
+        return params_after_init
 
 
 @jax_dataclasses.pytree_dataclass

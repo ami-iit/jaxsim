@@ -8,6 +8,7 @@ import jax_dataclasses
 from jax_dataclasses import Static
 
 from jaxsim import typing as jtp
+from jaxsim.integrators.fixed_step import ExplicitRungeKuttaSO3Mixin
 from jaxsim.utils import Mutability
 
 from .common import (
@@ -534,3 +535,71 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         )
 
         return integrator
+
+
+@jax_dataclasses.pytree_dataclass
+class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
+
+    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
+        [
+            [0, 0],
+            [1, 0],
+        ]
+    ).astype(float)
+
+    b: ClassVar[jax.typing.ArrayLike] = (
+        jnp.atleast_2d(
+            jnp.array(
+                [
+                    [1 / 2, 1 / 2],
+                    [1, 0],
+                ]
+            ),
+        )
+        .astype(float)
+        .transpose()
+    )
+
+    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
+        [0, 1],
+    ).astype(float)
+
+    row_index_of_solution: ClassVar[int] = 0
+    row_index_of_solution_estimate: ClassVar[int | None] = 1
+
+    order_of_bT_rows: ClassVar[tuple[int, ...]] = (2, 1)
+
+
+@jax_dataclasses.pytree_dataclass
+class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
+
+    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
+        [
+            [0, 0, 0, 0],
+            [1 / 2, 0, 0, 0],
+            [0, 3 / 4, 0, 0],
+            [2 / 9, 1 / 3, 4 / 9, 0],
+        ]
+    ).astype(float)
+
+    b: ClassVar[jax.typing.ArrayLike] = (
+        jnp.atleast_2d(
+            jnp.array(
+                [
+                    [2 / 9, 1 / 3, 4 / 9, 0],
+                    [7 / 24, 1 / 4, 1 / 3, 1 / 8],
+                ]
+            ),
+        )
+        .astype(float)
+        .transpose()
+    )
+
+    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
+        [0, 1 / 2, 3 / 4, 1],
+    ).astype(float)
+
+    row_index_of_solution: ClassVar[int] = 0
+    row_index_of_solution_estimate: ClassVar[int | None] = 1
+
+    order_of_bT_rows: ClassVar[tuple[int, ...]] = (3, 2)

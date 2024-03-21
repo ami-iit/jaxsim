@@ -32,7 +32,7 @@ class JaxsimDataclass(abc.ABC):
             Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
         )
 
-        with JaxsimDataclass.mutable_context(self.copy(), mutability=mutability) as obj:
+        with self.copy().mutable_context(mutability=mutability) as obj:
             yield obj
 
     @contextlib.contextmanager

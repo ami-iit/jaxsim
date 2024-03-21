@@ -1,5 +1,6 @@
 import abc
 import contextlib
+import copy
 import dataclasses
 import functools
 from collections.abc import Iterator
@@ -324,7 +325,10 @@ class JaxsimDataclass(abc.ABC):
         # Make sure that all the new leaves have the same mutability of the object.
         obj.set_mutability(mutability=self.mutability())
 
-        return obj
+        # Return a shallow copy of the object with the new fields replaced.
+        # Note that the shallow copy of the original object contains exactly the same
+        # attributes of the original object (in other words, with the same id).
+        return copy.copy(obj)
 
     def flatten(self) -> jtp.VectorJax:
         """

@@ -2,7 +2,7 @@ import abc
 import contextlib
 import dataclasses
 from collections.abc import Iterator
-from typing import ClassVar
+from typing import Callable, ClassVar, Type
 
 import jax.flatten_util
 import jax_dataclasses
@@ -158,4 +158,11 @@ class JaxsimDataclass(abc.ABC):
         return obj
 
     def flatten(self) -> jtp.VectorJax:
-        return jax.flatten_util.ravel_pytree(self)[0]
+        return self.flatten_fn()(self)
+
+    @classmethod
+    def flatten_fn(cls: Type[Self]) -> Callable[[Self], jtp.VectorJax]:
+        return lambda pytree: jax.flatten_util.ravel_pytree(pytree)[0]
+
+    def unflatten_fn(self: Self) -> Callable[[jtp.VectorJax], Self]:
+        return jax.flatten_util.ravel_pytree(self)[1]

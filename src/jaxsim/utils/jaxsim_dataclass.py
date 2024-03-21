@@ -1,8 +1,9 @@
 import abc
 import contextlib
 import dataclasses
+import functools
 from collections.abc import Iterator
-from typing import Callable, ClassVar, Type
+from typing import Any, Callable, ClassVar, Sequence, Type
 
 import jax.flatten_util
 import jax_dataclasses
@@ -173,6 +174,54 @@ class JaxsimDataclass(abc.ABC):
             for leaf in jax.tree_util.tree_leaves(tree)
             if hasattr(leaf, "weak_type")
         )
+
+    @staticmethod
+    def check_compatibility(*trees: Sequence[Any]) -> None:
+        """
+        Check whether the PyTrees are compatible in structure, shape, and dtype.
+
+        Args:
+            *trees: The PyTrees to compare.
+
+        Raises:
+            ValueError: If the PyTrees have incompatible structures, shapes, or dtypes.
+        """
+
+        target_structure = jax.tree_util.tree_structure(trees[0])
+
+        compatible_structure = functools.reduce(
+            lambda compatible, tree: compatible
+            and jax.tree_util.tree_structure(tree) == target_structure,
+            trees[1:],
+            True,
+        )
+
+        if not compatible_structure:
+            raise ValueError("Pytrees have incompatible structures.")
+
+        target_shapes = JaxsimDataclass.get_leaf_shapes(trees[0])
+
+        compatible_shapes = functools.reduce(
+            lambda compatible, tree: compatible
+            and JaxsimDataclass.get_leaf_shapes(tree) == target_shapes,
+            trees[1:],
+            True,
+        )
+
+        if not compatible_shapes:
+            raise ValueError("Pytrees have incompatible shapes.")
+
+        target_dtypes = JaxsimDataclass.get_leaf_dtypes(trees[0])
+
+        compatible_dtypes = functools.reduce(
+            lambda compatible, tree: compatible
+            and JaxsimDataclass.get_leaf_dtypes(tree) == target_dtypes,
+            trees[1:],
+            True,
+        )
+
+        if not compatible_dtypes:
+            raise ValueError("Pytrees have incompatible dtypes.")
 
     def is_mutable(self, validate: bool = False) -> bool:
         """

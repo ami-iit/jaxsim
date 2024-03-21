@@ -6,6 +6,7 @@ import jax_dataclasses
 import jaxlie
 
 import jaxsim.api as js
+from jaxsim.math import Quaternion
 
 from .common import ExplicitRungeKutta, PyTreeType, Time, TimeStep
 
@@ -103,11 +104,18 @@ class ExplicitRungeKuttaSO3Mixin:
         op = lambda x0_leaf, k_leaf: x0_leaf + dt * k_leaf
         xf: js.ode_data.ODEState = jax.tree_util.tree_map(op, x0, k)
 
+        W_Q_B_t0 = x0.physics_model.base_quaternion
+        W_ω_WB_t0 = x0.physics_model.base_angular_velocity
+
         return xf.replace(
             physics_model=xf.physics_model.replace(
-                base_quaternion=xf.physics_model.base_quaternion
-                / jnp.linalg.norm(xf.physics_model.base_quaternion)
-            ),
+                base_quaternion=Quaternion.integration(
+                    quaternion=W_Q_B_t0,
+                    dt=dt,
+                    omega=W_ω_WB_t0,
+                    omega_in_body_fixed=False,
+                ),
+            )
         )
 
     @classmethod

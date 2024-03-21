@@ -8,11 +8,11 @@ import jax_dataclasses
 from jax_dataclasses import Static
 
 from jaxsim import typing as jtp
-from jaxsim.integrators.fixed_step import ExplicitRungeKuttaSO3Mixin
 from jaxsim.utils import Mutability
 
 from .common import (
     ExplicitRungeKutta,
+    ExplicitRungeKuttaSO3Mixin,
     NextState,
     PyTreeType,
     State,

@@ -46,21 +46,73 @@ class JaxsimDataclass(abc.ABC):
 
         original_mutability = self._mutability()
 
-        def restore_self():
-            self._set_mutability(mutability=Mutability.MUTABLE)
+        original_dtypes = JaxsimDataclass.get_leaf_dtypes(tree=self)
+        original_shapes = JaxsimDataclass.get_leaf_shapes(tree=self)
+        original_weak_types = JaxsimDataclass.get_leaf_weak_types(tree=self)
+        original_structure = jax.tree_util.tree_structure(tree=self)
+
+        def restore_self() -> None:
+            self._set_mutability(mutability=Mutability.MUTABLE_NO_VALIDATION)
             for f in dataclasses.fields(self_copy):
                 setattr(self, f.name, getattr(self_copy, f.name))
 
         try:
             self._set_mutability(mutability)
             yield self
+
+            if mutability is not Mutability.MUTABLE_NO_VALIDATION:
+                new_structure = jax.tree_util.tree_structure(tree=self)
+                if original_structure != new_structure:
+                    msg = "Pytree structure has changed from {} to {}"
+                    raise ValueError(msg.format(original_structure, new_structure))
+
+                new_shapes = JaxsimDataclass.get_leaf_shapes(tree=self)
+                if original_shapes != new_shapes:
+                    msg = "Leaves shapes have changed from {} to {}"
+                    raise ValueError(msg.format(original_shapes, new_shapes))
+
+                new_dtypes = JaxsimDataclass.get_leaf_dtypes(tree=self)
+                if original_dtypes != new_dtypes:
+                    msg = "Leaves dtypes have changed from {} to {}"
+                    raise ValueError(msg.format(original_dtypes, new_dtypes))
+
+                new_weak_types = JaxsimDataclass.get_leaf_weak_types(tree=self)
+                if original_weak_types != new_weak_types:
+                    msg = "Leaves weak types have changed from {} to {}"
+                    raise ValueError(msg.format(original_weak_types, new_weak_types))
+
         except Exception as e:
             if restore_after_exception:
                 restore_self()
             self._set_mutability(original_mutability)
             raise e
+
         finally:
             self._set_mutability(original_mutability)
+
+    @staticmethod
+    def get_leaf_shapes(tree: jtp.PyTree) -> tuple[tuple[int, ...]]:
+        return tuple(  # noqa
+            leaf.shape
+            for leaf in jax.tree_util.tree_leaves(tree)
+            if hasattr(leaf, "shape")
+        )
+
+    @staticmethod
+    def get_leaf_dtypes(tree: jtp.PyTree) -> tuple:
+        return tuple(
+            leaf.dtype
+            for leaf in jax.tree_util.tree_leaves(tree)
+            if hasattr(leaf, "dtype")
+        )
+
+    @staticmethod
+    def get_leaf_weak_types(tree: jtp.PyTree) -> tuple[bool, ...]:
+        return tuple(
+            leaf.weak_type
+            for leaf in jax.tree_util.tree_leaves(tree)
+            if hasattr(leaf, "weak_type")
+        )
 
     def is_mutable(self, validate: bool = False) -> bool:
         """"""

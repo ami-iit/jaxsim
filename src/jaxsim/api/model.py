@@ -1220,7 +1220,7 @@ def step(
     # Step the dynamics forward.
     state_xf, integrator_state_xf = integrator.step(
         x0=state_x0,
-        t0=jnp.array(t0_ns * 1e9).astype(float),
+        t0=jnp.array(t0_ns / 1e9).astype(float),
         dt=dt,
         params=integrator_state_x0,
         **dict(joint_forces=joint_forces, external_forces=external_forces),

@@ -44,7 +44,7 @@ class JaxsimDataclass(abc.ABC):
         if restore_after_exception:
             self_copy = self.copy()
 
-        original_mutability = self._mutability()
+        original_mutability = self.mutability()
 
         original_dtypes = JaxsimDataclass.get_leaf_dtypes(tree=self)
         original_shapes = JaxsimDataclass.get_leaf_shapes(tree=self)
@@ -52,12 +52,12 @@ class JaxsimDataclass(abc.ABC):
         original_structure = jax.tree_util.tree_structure(tree=self)
 
         def restore_self() -> None:
-            self._set_mutability(mutability=Mutability.MUTABLE_NO_VALIDATION)
+            self.set_mutability(mutability=Mutability.MUTABLE_NO_VALIDATION)
             for f in dataclasses.fields(self_copy):
                 setattr(self, f.name, getattr(self_copy, f.name))
 
         try:
-            self._set_mutability(mutability)
+            self.set_mutability(mutability)
             yield self
 
             if mutability is not Mutability.MUTABLE_NO_VALIDATION:
@@ -84,16 +84,16 @@ class JaxsimDataclass(abc.ABC):
         except Exception as e:
             if restore_after_exception:
                 restore_self()
-            self._set_mutability(original_mutability)
+            self.set_mutability(original_mutability)
             raise e
 
         finally:
-            self._set_mutability(original_mutability)
+            self.set_mutability(original_mutability)
 
     @staticmethod
-    def get_leaf_shapes(tree: jtp.PyTree) -> tuple[tuple[int, ...]]:
+    def get_leaf_shapes(tree: jtp.PyTree) -> tuple[tuple[int, ...] | None]:
         return tuple(  # noqa
-            leaf.shape
+            leaf.shape if hasattr(leaf, "shape") else None
             for leaf in jax.tree_util.tree_leaves(tree)
             if hasattr(leaf, "shape")
         )
@@ -101,7 +101,7 @@ class JaxsimDataclass(abc.ABC):
     @staticmethod
     def get_leaf_dtypes(tree: jtp.PyTree) -> tuple:
         return tuple(
-            leaf.dtype
+            leaf.dtype if hasattr(leaf, "dtype") else None
             for leaf in jax.tree_util.tree_leaves(tree)
             if hasattr(leaf, "dtype")
         )
@@ -109,7 +109,7 @@ class JaxsimDataclass(abc.ABC):
     @staticmethod
     def get_leaf_weak_types(tree: jtp.PyTree) -> tuple[bool, ...]:
         return tuple(
-            leaf.weak_type
+            leaf.weak_type if hasattr(leaf, "weak_type") else False
             for leaf in jax.tree_util.tree_leaves(tree)
             if hasattr(leaf, "weak_type")
         )
@@ -123,38 +123,49 @@ class JaxsimDataclass(abc.ABC):
             else self.__mutability__ is Mutability.MUTABLE_NO_VALIDATION
         )
 
-    def set_mutability(self, mutable: bool = True, validate: bool = False) -> None:
-        if not mutable:
-            mutability = Mutability.FROZEN
-        else:
-            mutability = (
-                Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
-            )
-
-        self._set_mutability(mutability=mutability)
-
-    def _mutability(self) -> Mutability:
+    def mutability(self) -> Mutability:
         return self.__mutability__
 
-    def _set_mutability(self, mutability: Mutability) -> None:
+    def set_mutability(self, mutability: Mutability) -> None:
         jax_dataclasses._copy_and_mutate._mark_mutable(
             self, mutable=mutability, visited=set()
         )
 
     def mutable(self: Self, mutable: bool = True, validate: bool = False) -> Self:
-        self.set_mutability(mutable=mutable, validate=validate)
+
+        if mutable:
+            mutability = (
+                Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
+            )
+        else:
+            mutability = Mutability.FROZEN
+
+        self.set_mutability(mutability=mutability)
         return self
 
     def copy(self: Self) -> Self:
+
+        # Make a copy calling tree_map.
         obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
-        obj._set_mutability(mutability=self._mutability())
+
+        # Make sure that the copied object and all the copied leaves have the same
+        # mutability of the original object.
+        obj.set_mutability(mutability=self.mutability())
+
         return obj
 
     def replace(self: Self, validate: bool = True, **kwargs) -> Self:
-        with self.editable(validate=validate) as obj:
+
+        mutability = (
+            Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
+        )
+
+        with self.mutable_context(mutability=mutability) as obj:
             _ = [obj.__setattr__(k, v) for k, v in kwargs.items()]
 
-        obj._set_mutability(mutability=self._mutability())
+        # Make sure that all the new leaves have the same mutability of the object.
+        obj.set_mutability(mutability=self.mutability())
+
         return obj
 
     def flatten(self) -> jtp.VectorJax:

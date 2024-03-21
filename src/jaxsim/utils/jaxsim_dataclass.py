@@ -2,7 +2,8 @@ import abc
 import contextlib
 import copy
 import dataclasses
-from typing import ClassVar, Generator
+from collections.abc import Iterator
+from typing import ClassVar
 
 import jax.flatten_util
 import jax_dataclasses
@@ -25,7 +26,7 @@ class JaxsimDataclass(abc.ABC):
     __mutability__: ClassVar[Mutability] = Mutability.FROZEN
 
     @contextlib.contextmanager
-    def editable(self: Self, validate: bool = True) -> Generator[Self, None, None]:
+    def editable(self: Self, validate: bool = True) -> Iterator[Self]:
         """"""
 
         mutability = (
@@ -38,7 +39,7 @@ class JaxsimDataclass(abc.ABC):
     @contextlib.contextmanager
     def mutable_context(
         self: Self, mutability: Mutability, restore_after_exception: bool = True
-    ) -> Generator[Self, None, None]:
+    ) -> Iterator[Self]:
         """"""
 
         if restore_after_exception:

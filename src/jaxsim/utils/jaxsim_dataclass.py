@@ -19,14 +19,26 @@ except ImportError:
 
 @jax_dataclasses.pytree_dataclass
 class JaxsimDataclass(abc.ABC):
-    """"""
+    """Class extending `jax_dataclasses.pytree_dataclass` instances with utilities."""
 
     # This attribute is set by jax_dataclasses
     __mutability__: ClassVar[Mutability] = Mutability.FROZEN
 
     @contextlib.contextmanager
     def editable(self: Self, validate: bool = True) -> Iterator[Self]:
-        """"""
+        """
+        Context manager to operate on a mutable copy of the object.
+
+        Args:
+            validate: Whether to validate the output PyTree upon exiting the context.
+
+        Yields:
+            A mutable copy of the object.
+
+        Note:
+            This context manager is useful to operate on an r/w copy of a PyTree making
+            sure that the output object does not trigger JIT recompilations.
+        """
 
         mutability = (
             Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
@@ -39,7 +51,23 @@ class JaxsimDataclass(abc.ABC):
     def mutable_context(
         self: Self, mutability: Mutability, restore_after_exception: bool = True
     ) -> Iterator[Self]:
-        """"""
+        """
+        Context manager to temporarily change the mutability of the object.
+
+        Args:
+            mutability: The mutability to set.
+            restore_after_exception:
+                Whether to restore the original object in case of an exception
+                occurring within the context.
+
+        Yields:
+            The object with the new mutability.
+
+        Note:
+            This context manager is useful to operate in place on a PyTree without
+            the need to make a copy while optionally keeping active the checks on
+            the PyTree structure, shapes, and dtypes.
+        """
 
         if restore_after_exception:
             self_copy = self.copy()
@@ -92,6 +120,17 @@ class JaxsimDataclass(abc.ABC):
 
     @staticmethod
     def get_leaf_shapes(tree: jtp.PyTree) -> tuple[tuple[int, ...] | None]:
+        """
+        Helper method to get the leaf shapes of a PyTree.
+
+        Args:
+            tree: The PyTree to consider.
+
+        Returns:
+            A tuple containing the leaf shapes of the PyTree or `None` is the leaf is
+            not a numpy-like array.
+        """
+
         return tuple(  # noqa
             leaf.shape if hasattr(leaf, "shape") else None
             for leaf in jax.tree_util.tree_leaves(tree)
@@ -100,6 +139,17 @@ class JaxsimDataclass(abc.ABC):
 
     @staticmethod
     def get_leaf_dtypes(tree: jtp.PyTree) -> tuple:
+        """
+        Helper method to get the leaf dtypes of a PyTree.
+
+        Args:
+            tree: The PyTree to consider.
+
+        Returns:
+            A tuple containing the leaf dtypes of the PyTree or `None` is the leaf is
+            not a numpy-like array.
+        """
+
         return tuple(
             leaf.dtype if hasattr(leaf, "dtype") else None
             for leaf in jax.tree_util.tree_leaves(tree)
@@ -108,6 +158,16 @@ class JaxsimDataclass(abc.ABC):
 
     @staticmethod
     def get_leaf_weak_types(tree: jtp.PyTree) -> tuple[bool, ...]:
+        """
+        Helper method to get the leaf weak types of a PyTree.
+
+        Args:
+            tree: The PyTree to consider.
+
+        Returns:
+            A tuple marking whether the leaf contains a JAX array with weak type.
+        """
+
         return tuple(
             leaf.weak_type if hasattr(leaf, "weak_type") else False
             for leaf in jax.tree_util.tree_leaves(tree)
@@ -115,7 +175,15 @@ class JaxsimDataclass(abc.ABC):
         )
 
     def is_mutable(self, validate: bool = False) -> bool:
-        """"""
+        """
+        Check whether the object is mutable.
+
+        Args:
+            validate: Additionally checks if the object also has validation enabled.
+
+        Returns:
+            True if the object is mutable, False otherwise.
+        """
 
         return (
             self.__mutability__ is Mutability.MUTABLE
@@ -124,14 +192,38 @@ class JaxsimDataclass(abc.ABC):
         )
 
     def mutability(self) -> Mutability:
+        """
+        Get the mutability type of the object.
+
+        Returns:
+            The mutability type of the object.
+        """
+
         return self.__mutability__
 
     def set_mutability(self, mutability: Mutability) -> None:
+        """
+        Set the mutability of the object in-place.
+
+        Args:
+            mutability: The desired mutability type.
+        """
+
         jax_dataclasses._copy_and_mutate._mark_mutable(
             self, mutable=mutability, visited=set()
         )
 
     def mutable(self: Self, mutable: bool = True, validate: bool = False) -> Self:
+        """
+        Return a mutable reference of the object.
+
+        Args:
+            mutable: Whether to make the object mutable.
+            validate: Whether to enable validation on the object.
+
+        Returns:
+            A mutable reference of the object.
+        """
 
         if mutable:
             mutability = (
@@ -144,6 +236,12 @@ class JaxsimDataclass(abc.ABC):
         return self
 
     def copy(self: Self) -> Self:
+        """
+        Return a copy of the object.
+
+        Returns:
+            A copy of the object.
+        """
 
         # Make a copy calling tree_map.
         obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
@@ -155,6 +253,17 @@ class JaxsimDataclass(abc.ABC):
         return obj
 
     def replace(self: Self, validate: bool = True, **kwargs) -> Self:
+        """
+        Return a new object replacing in-place the specified fields with new values.
+
+        Args:
+            validate:
+                Whether to validate that the new fields do not alter the PyTree.
+            **kwargs: The fields to replace.
+
+        Returns:
+            A reference of the object with the specified fields replaced.
+        """
 
         mutability = (
             Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
@@ -169,11 +278,35 @@ class JaxsimDataclass(abc.ABC):
         return obj
 
     def flatten(self) -> jtp.VectorJax:
+        """
+        Flatten the object into a 1D vector.
+
+        Returns:
+            A 1D vector containing the flattened object.
+        """
+
         return self.flatten_fn()(self)
 
     @classmethod
     def flatten_fn(cls: Type[Self]) -> Callable[[Self], jtp.VectorJax]:
+        """
+        Return a function to flatten the object into a 1D vector.
+
+        Returns:
+            A function to flatten the object into a 1D vector.
+        """
+
         return lambda pytree: jax.flatten_util.ravel_pytree(pytree)[0]
 
     def unflatten_fn(self: Self) -> Callable[[jtp.VectorJax], Self]:
+        """
+        Return a function to unflatten a 1D vector into the object.
+
+        Returns:
+            A function to unflatten a 1D vector into the object.
+
+        Notes:
+            Due to JAX internals, the function to unflatten a PyTree needs to be
+            created from an existing instance of the PyTree.
+        """
         return jax.flatten_util.ravel_pytree(self)[1]

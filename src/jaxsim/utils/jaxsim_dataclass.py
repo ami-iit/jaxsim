@@ -1,6 +1,5 @@
 import abc
 import contextlib
-import copy
 import dataclasses
 from collections.abc import Iterator
 from typing import ClassVar
@@ -153,7 +152,7 @@ class JaxsimDataclass(abc.ABC):
 
     def replace(self: Self, validate: bool = True, **kwargs) -> Self:
         with self.editable(validate=validate) as obj:
-            _ = [obj.__setattr__(k, copy.copy(v)) for k, v in kwargs.items()]
+            _ = [obj.__setattr__(k, v) for k, v in kwargs.items()]
 
         obj._set_mutability(mutability=self._mutability())
         return obj

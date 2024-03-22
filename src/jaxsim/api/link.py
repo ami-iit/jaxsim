@@ -100,7 +100,16 @@ def idxs_to_names(
 
 @jax.jit
 def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
-    """"""
+    """
+    Return the mass of the link.
+
+    Args:
+        model: The model to consider.
+        link_index: The index of the link.
+
+    Returns:
+        The mass of the link.
+    """
 
     return model.kin_dyn_parameters.link_parameters.mass[link_index].astype(float)
 
@@ -109,7 +118,17 @@ def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
 def spatial_inertia(
     model: js.model.JaxSimModel, *, link_index: jtp.IntLike
 ) -> jtp.Matrix:
-    """"""
+    """
+    Compute the 6D spatial inertial of the link.
+
+    Args:
+        model: The model to consider.
+        link_index: The index of the link.
+
+    Returns:
+        The 6×6 matrix representing the spatial inertia of the link expressed in
+        the link frame (body-fixed representation).
+    """
 
     link_parameters = jax.tree_util.tree_map(
         lambda l: l[link_index], model.kin_dyn_parameters.link_parameters
@@ -203,7 +222,7 @@ def jacobian(
             The output velocity representation of the free-floating jacobian.
 
     Returns:
-        The 6x(6+dofs) free-floating jacobian of the link.
+        The 6×(6+n) free-floating jacobian of the link.
 
     Note:
         The input representation of the free-floating jacobian is the active
@@ -214,71 +233,67 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # Compute the doubly left-trivialized free-floating jacobian
+    # Compute the doubly left-trivialized free-floating jacobian.
     L_J_WL_B = jaxsim.rbda.jacobian(
         model=model,
         link_index=link_index,
         joint_positions=data.joint_positions(),
     )
 
+    # We want to return the Jacobian O_J_WL_I, where O is the representation of the
+    # output 6D velocity, and I is the representation of the input generalized velocity.
+
+    # Change the input representation matching the one of data.
     match data.velocity_representation:
 
         case VelRepr.Body:
-            L_J_WL_target = L_J_WL_B
+            L_J_WL_I = L_J_WL_B
 
         case VelRepr.Inertial:
-            dofs = model.dofs()
+
             W_H_B = data.base_transform()
 
             B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
-            zero_6n = jnp.zeros(shape=(6, dofs))
+            B_T_W = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
-            B_T_W = jnp.vstack(
-                [
-                    jnp.block([B_X_W, zero_6n]),
-                    jnp.block([zero_6n.T, jnp.eye(dofs)]),
-                ]
-            )
-
-            L_J_WL_target = L_J_WL_B @ B_T_W
+            L_J_WL_I = L_J_WL_B @ B_T_W
 
         case VelRepr.Mixed:
-            dofs = model.dofs()
+
             W_H_B = data.base_transform()
             BW_H_B = jnp.array(W_H_B).at[0:3, 3].set(jnp.zeros(3))
 
             B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
-            zero_6n = jnp.zeros(shape=(6, dofs))
+            B_T_BW = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
-            B_T_BW = jnp.vstack(
-                [
-                    jnp.block([B_X_BW, zero_6n]),
-                    jnp.block([zero_6n.T, jnp.eye(dofs)]),
-                ]
-            )
-
-            L_J_WL_target = L_J_WL_B @ B_T_BW
+            L_J_WL_I = L_J_WL_B @ B_T_BW
 
         case _:
             raise ValueError(data.velocity_representation)
 
+    # Change the output representation matching specified one.
     match output_vel_repr:
+
         case VelRepr.Body:
-            return L_J_WL_target
+            O_J_WL_I = L_J_WL_I
 
         case VelRepr.Inertial:
+
             W_H_L = transform(model=model, data=data, link_index=link_index)
             W_X_L = jaxlie.SE3.from_matrix(W_H_L).adjoint()
-            return W_X_L @ L_J_WL_target
+            O_J_WL_I = W_X_L @ L_J_WL_I
 
         case VelRepr.Mixed:
+
             W_H_L = transform(model=model, data=data, link_index=link_index)
             LW_H_L = jnp.array(W_H_L).at[0:3, 3].set(jnp.zeros(3))
             LW_X_L = jaxlie.SE3.from_matrix(LW_H_L).adjoint()
-            return LW_X_L @ L_J_WL_target
+            O_J_WL_I = LW_X_L @ L_J_WL_I
 
         case _:
             raise ValueError(output_vel_repr)
+
+    return O_J_WL_I
 
 
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])

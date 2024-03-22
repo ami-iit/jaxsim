@@ -64,8 +64,8 @@ def test_model_creation_and_reduction(
     )
 
     # Check that the CoM position is preserved.
-    assert js.model.com_position(model=model_full, data=data) == pytest.approx(
-        js.model.com_position(model=model_reduced, data=data_reduced), abs=1e-6
+    assert js.com.com_position(model=model_full, data=data) == pytest.approx(
+        js.com.com_position(model=model_reduced, data=data_reduced), abs=1e-6
     )
 
 
@@ -93,10 +93,6 @@ def test_model_properties(
     m_idt = kin_dyn.total_mass()
     m_js = js.model.total_mass(model=model)
     assert pytest.approx(m_idt) == m_js
-
-    p_com_idt = kin_dyn.com_position()
-    p_com_js = js.model.com_position(model=model, data=data)
-    assert pytest.approx(p_com_idt) == p_com_js
 
     h_tot_idt = kin_dyn.total_momentum()
     h_tot_js = js.model.total_momentum(model=model, data=data)

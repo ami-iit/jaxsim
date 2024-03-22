@@ -70,7 +70,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             # We run this in a mutable context with restoration so that any exception
             # occurring, we restore the original object in case it was modified.
             with self.mutable_context(
-                mutability=self._mutability(), restore_after_exception=True
+                mutability=self.mutability(), restore_after_exception=True
             ):
                 yield self
 

@@ -279,3 +279,45 @@ def jacobian(
 
         case _:
             raise ValueError(output_vel_repr)
+
+
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def velocity(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    link_index: jtp.IntLike,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Vector:
+    """
+    Compute the 6D velocity of the link.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        link_index: The index of the link.
+        output_vel_repr:
+            The output velocity representation of the link velocity.
+
+    Returns:
+        The 6D velocity of the link in the specified velocity representation.
+    """
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    # Get the link jacobian having I as input representation (taken from data)
+    # and O as output representation, specified by the user (or taken from data).
+    O_J_WL_I = jacobian(
+        model=model,
+        data=data,
+        link_index=link_index,
+        output_vel_repr=output_vel_repr,
+    )
+
+    # Get the generalized velocity in the input velocity representation.
+    I_ν = data.generalized_velocity()
+
+    # Compute the link velocity in the output velocity representation.
+    return O_J_WL_I @ I_ν

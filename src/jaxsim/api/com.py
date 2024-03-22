@@ -155,3 +155,29 @@ def locked_centroidal_spatial_inertia(
     G_Xf_B = B_Xv_G.transpose()
 
     return G_Xf_B @ B_Mbb_B @ B_Xv_G
+
+
+@jax.jit
+def average_centroidal_velocity_jacobian(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    r"""
+    Compute the Jacobian of the average centroidal velocity of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The Jacobian of the average centroidal velocity of the model.
+
+    Note:
+        The frame corresponding to the output representation of this Jacobian is either
+        :math:`G[W]`, if the active velocity representation is inertial-fixed or mixed,
+        or :math:`G[B]`, if the active velocity representation is body-fixed.
+    """
+
+    G_J = centroidal_momentum_jacobian(model=model, data=data)
+    G_Mbb = locked_centroidal_spatial_inertia(model=model, data=data)
+
+    return jnp.linalg.inv(G_Mbb) @ G_J

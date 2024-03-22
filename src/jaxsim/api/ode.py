@@ -119,7 +119,7 @@ def system_velocity_dynamics(
     # with the terrain.
     W_f_Li_terrain = jnp.zeros_like(W_f_L).astype(float)
 
-    # Initialize the 6D contact forces W_f ∈ ℝ^{n_c × 3} applied to collidable points,
+    # Initialize the 6D contact forces W_f ∈ ℝ^{n_c × 6} applied to collidable points,
     # expressed in the world frame.
     W_f_Ci = None
 
@@ -127,20 +127,10 @@ def system_velocity_dynamics(
     ṁ = jnp.zeros_like(data.state.soft_contacts.tangential_deformation).astype(float)
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-        # Compute the position and linear velocities (mixed representation) of
-        # all collidable points belonging to the robot.
-        W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
-
-        # Build the soft contact model.
-        soft_contacts = jaxsim.rbda.soft_contacts.SoftContacts(
-            parameters=data.soft_contacts_params, terrain=model.terrain
-        )
-
-        # Compute the 3D force applied to each collidable point and the
-        # corresponding material deformation rate.
-        W_f_Ci, ṁ = jax.vmap(soft_contacts.contact_model)(
-            W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
-        )
+        # Compute the 6D forces applied to each collidable point and the
+        # corresponding material deformation rates.
+        with data.switch_velocity_representation(VelRepr.Inertial):
+            W_f_Ci, ṁ = js.contact.collidable_point_dynamics(model=model, data=data)
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly

@@ -8,6 +8,7 @@ import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.integrators import Time
 from jaxsim.math.quaternion import Quaternion
+from jaxsim.utils import Mutability
 
 from .common import VelRepr
 from .ode_data import ODEState
@@ -46,12 +47,19 @@ def wrap_system_dynamics_for_integration(
     # We allow to close `system_dynamics` over additional kwargs.
     kwargs_closed = kwargs
 
+    # Create a local copy of data.
+    # The wrapped dynamics will hold a reference of this object.
+    data_closed = data.copy()
+
+    with data_closed.mutable_context(mutability=Mutability.MUTABLE):
+        data_closed.state = data_closed.state.zero(model=model)
+
     def f(x: ODEState, t: Time, **kwargs) -> tuple[ODEState, dict[str, Any]]:
 
         # Close f over the `data` parameter.
-        with data.editable(validate=True) as data_rw:
+        with data_closed.editable(validate=True) as data_rw:
             data_rw.state = x
-            data_rw.time_ns = jnp.array(t * 1e9).astype(jnp.uint64)
+            data_rw.time_ns = jnp.array(t * 1e9).astype(data_rw.time_ns.dtype)
 
         # Close f over the `model` parameter.
         return system_dynamics(model=model, data=data_rw, **kwargs_closed | kwargs)

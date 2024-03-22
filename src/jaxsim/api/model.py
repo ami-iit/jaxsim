@@ -651,6 +651,10 @@ def forward_dynamics_crb(
         models with a large number of degrees of freedom.
     """
 
+    # ============
+    # Prepare data
+    # ============
+
     # Build joint torques if not provided
     τ = (
         jnp.atleast_1d(joint_forces)
@@ -673,6 +677,10 @@ def forward_dynamics_crb(
 
     # TODO: invert the Mss block exploiting sparsity defined by the parent array λ(i)
 
+    # ========================
+    # Compute forward dynamics
+    # ========================
+
     if model.floating_base():
         # l: number of links.
         # g: generalized coordinates, 6 + number of joints.
@@ -687,6 +695,10 @@ def forward_dynamics_crb(
 
         v̇_WB = jnp.zeros(6)
         ν̇ = jnp.hstack([v̇_WB, s̈.squeeze()])
+
+    # =============
+    # Adjust output
+    # =============
 
     # Extract the base acceleration in the active representation.
     # Note that this is an apparent acceleration (relevant in Mixed representation),
@@ -725,29 +737,17 @@ def free_floating_mass_matrix(
             return M_body
 
         case VelRepr.Inertial:
-            zero_6n = jnp.zeros(shape=(6, model.dofs()))
-            B_X_W = jaxlie.SE3.from_matrix(data.base_transform()).inverse().adjoint()
 
-            invT = jnp.vstack(
-                [
-                    jnp.block([B_X_W, zero_6n]),
-                    jnp.block([zero_6n.T, jnp.eye(model.dofs())]),
-                ]
-            )
+            B_X_W = jaxlie.SE3.from_matrix(data.base_transform()).inverse().adjoint()
+            invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
 
         case VelRepr.Mixed:
-            zero_6n = jnp.zeros(shape=(6, model.dofs()))
-            W_H_BW = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
-            BW_X_W = jaxlie.SE3.from_matrix(W_H_BW).inverse().adjoint()
 
-            invT = jnp.vstack(
-                [
-                    jnp.block([BW_X_W, zero_6n]),
-                    jnp.block([zero_6n.T, jnp.eye(model.dofs())]),
-                ]
-            )
+            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
 

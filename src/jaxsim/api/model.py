@@ -1134,6 +1134,26 @@ def total_momentum_jacobian(
             raise ValueError(output_vel_repr)
 
 
+@jax.jit
+def average_velocity(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
+    """
+    Compute the average velocity of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The average velocity of the model computed in the base frame and expressed
+        in the active representation.
+    """
+
+    ν = data.generalized_velocity()
+    J = average_velocity_jacobian(model=model, data=data)
+
+    return J @ ν
+
+
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def average_velocity_jacobian(
     model: JaxSimModel,

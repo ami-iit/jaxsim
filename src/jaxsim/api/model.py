@@ -1134,6 +1134,69 @@ def total_momentum_jacobian(
             raise ValueError(output_vel_repr)
 
 
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def average_velocity_jacobian(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Matrix:
+    """
+    Compute the Jacobian of the average velocity of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        output_vel_repr: The output velocity representation of the jacobian.
+
+    Returns:
+        The Jacobian of the average centroidal velocity of the model in the desired
+        representation.
+    """
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    # Depending on the velocity representation, the frame G is either G[W] or G[B].
+    G_J = js.com.average_centroidal_velocity_jacobian(model=model, data=data)
+
+    match output_vel_repr:
+
+        case VelRepr.Inertial:
+
+            GW_J = G_J
+            W_p_CoM = js.com.com_position(model=model, data=data)
+
+            W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+            W_X_GW = jaxlie.SE3.from_matrix(W_H_GW).adjoint()
+
+            return W_X_GW @ GW_J
+
+        case VelRepr.Body:
+
+            GB_J = G_J
+            W_p_B = data.base_position()
+            W_p_CoM = js.com.com_position(model=model, data=data)
+            B_R_W = data.base_orientation(dcm=True).transpose()
+
+            B_H_GB = jnp.eye(4).at[0:3, 3].set(B_R_W @ (W_p_CoM - W_p_B))
+            B_X_GB = jaxlie.SE3.from_matrix(B_H_GB).adjoint()
+
+            return B_X_GB @ GB_J
+
+        case VelRepr.Mixed:
+
+            GW_J = G_J
+            W_p_B = data.base_position()
+            W_p_CoM = js.com.com_position(model=model, data=data)
+
+            BW_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM - W_p_B)
+            BW_X_GW = jaxlie.SE3.from_matrix(BW_H_GW).adjoint()
+
+            return BW_X_GW @ GW_J
+
+
 # ======
 # Energy
 # ======

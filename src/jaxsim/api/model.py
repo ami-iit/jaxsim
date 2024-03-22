@@ -854,7 +854,7 @@ def inverse_dynamics(
         expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
         """
 
-        from jaxsim.math.cross import Cross
+        from jaxsim.math import Cross
 
         W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()

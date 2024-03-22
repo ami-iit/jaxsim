@@ -9,8 +9,7 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.math.inertia import Inertia
-from jaxsim.math.joint_model import JointModel, supported_joint_motion
+from jaxsim.math import Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, ModelDescription
 from jaxsim.utils import JaxsimDataclass
 

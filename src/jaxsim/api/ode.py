@@ -7,7 +7,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.integrators import Time
-from jaxsim.math.quaternion import Quaternion
+from jaxsim.math import Quaternion
 from jaxsim.utils import Mutability
 
 from .common import VelRepr

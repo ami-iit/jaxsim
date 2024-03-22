@@ -281,10 +281,24 @@ class KinDynComputations:
 
         return nu.toNumPy()[0:6]
 
+    def frame_velocity(self, frame_name: str) -> npt.NDArray:
+
+        if self.kin_dyn.getFrameIndex(frame_name) < 0:
+            raise ValueError(f"Frame '{frame_name}' does not exist")
+
+        v_WF = self.kin_dyn.getFrameVel(frame_name)
+
+        return v_WF.toNumPy()
+
     def com_position(self) -> npt.NDArray:
 
         W_p_G = self.kin_dyn.getCenterOfMassPosition()
         return W_p_G.toNumPy()
+
+    def com_velocity(self) -> npt.NDArray:
+
+        W_ṗ_G = self.kin_dyn.getCenterOfMassVelocity()
+        return W_ṗ_G.toNumPy()
 
     def mass_matrix(self) -> npt.NDArray:
 
@@ -327,11 +341,58 @@ class KinDynComputations:
 
         return self.kin_dyn.getLinearAngularMomentum().toNumPy().flatten()
 
+    def centroidal_momentum(self) -> npt.NDArray:
+
+        return self.kin_dyn.getCentroidalTotalMomentum().toNumPy().flatten()
+
     def total_momentum_jacobian(self) -> npt.NDArray:
 
         Jh = idt.MatrixDynSize()
 
         if not self.kin_dyn.getLinearAngularMomentumJacobian(Jh):
             raise RuntimeError("Failed to get the total momentum jacobian")
+
+        return Jh.toNumPy()
+
+    def centroidal_momentum_jacobian(self) -> npt.NDArray:
+
+        Jh = idt.MatrixDynSize()
+
+        if not self.kin_dyn.getCentroidalTotalMomentumJacobian(Jh):
+            raise RuntimeError("Failed to get the centroidal momentum jacobian")
+
+        return Jh.toNumPy()
+
+    def locked_spatial_inertia(self) -> npt.NDArray:
+
+        return self.kin_dyn.getRobotLockedInertia().asMatrix().toNumPy()
+
+    def locked_centroidal_spatial_inertia(self) -> npt.NDArray:
+
+        return self.kin_dyn.getCentroidalRobotLockedInertia().asMatrix().toNumPy()
+
+    def average_velocity(self) -> npt.NDArray:
+
+        return self.kin_dyn.getAverageVelocity().toNumPy()
+
+    def average_velocity_jacobian(self) -> npt.NDArray:
+
+        Jh = idt.MatrixDynSize()
+
+        if not self.kin_dyn.getAverageVelocityJacobian(Jh):
+            raise RuntimeError("Failed to get the average velocity jacobian")
+
+        return Jh.toNumPy()
+
+    def average_centroidal_velocity(self) -> npt.NDArray:
+
+        return self.kin_dyn.getCentroidalAverageVelocity().toNumPy()
+
+    def average_centroidal_velocity_jacobian(self) -> npt.NDArray:
+
+        Jh = idt.MatrixDynSize()
+
+        if not self.kin_dyn.getCentroidalAverageVelocityJacobian(Jh):
+            raise RuntimeError("Failed to get the average centroidal velocity jacobian")
 
         return Jh.toNumPy()

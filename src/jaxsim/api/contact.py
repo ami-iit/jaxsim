@@ -168,7 +168,7 @@ def estimate_good_soft_contacts_parameters(
             soft_contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
         )
 
-        W_pz_CoM = js.model.com_position(model=model, data=zero_data)[2]
+        W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
 
         if model.floating_base():
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]

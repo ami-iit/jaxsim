@@ -326,45 +326,6 @@ def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
     )
 
 
-# ==============
-# Center of mass
-# ==============
-
-
-@jax.jit
-def com_position(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
-    """
-    Compute the position of the center of mass of the model.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-
-    Returns:
-        The position of the center of mass of the model w.r.t. the world frame.
-    """
-
-    m = total_mass(model=model)
-
-    W_H_L = forward_kinematics(model=model, data=data)
-    W_H_B = data.base_transform()
-    B_H_W = jaxlie.SE3.from_matrix(W_H_B).inverse().as_matrix()
-
-    def B_p̃_LCoM(i) -> jtp.Vector:
-        m = js.link.mass(model=model, link_index=i)
-        L_p_LCoM = js.link.com_position(
-            model=model, data=data, link_index=i, in_link_frame=True
-        )
-        return m * B_H_W @ W_H_L[i] @ jnp.hstack([L_p_LCoM, 1])
-
-    com_links = jax.vmap(B_p̃_LCoM)(jnp.arange(model.number_of_links()))
-
-    B_p̃_CoM = (1 / m) * com_links.sum(axis=0)
-    B_p̃_CoM = B_p̃_CoM.at[3].set(1)
-
-    return (W_H_B @ B_p̃_CoM)[0:3].astype(float)
-
-
 # ==============================
 # Rigid Body Dynamics Algorithms
 # ==============================
@@ -1169,7 +1130,7 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 
     m = total_mass(model=model)
     gravity = data.gravity.squeeze()
-    W_p̃_CoM = jnp.hstack([com_position(model=model, data=data), 1])
+    W_p̃_CoM = jnp.hstack([js.com.com_position(model=model, data=data), 1])
 
     U = -jnp.hstack([gravity, 0]) @ (m * W_p̃_CoM)
     return U.squeeze().astype(float)

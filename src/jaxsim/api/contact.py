@@ -82,6 +82,58 @@ def collidable_point_velocities(
     return collidable_point_kinematics(model=model, data=data)[1]
 
 
+@jax.jit
+def collidable_point_dynamics(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> tuple[jtp.Matrix, jtp.Matrix]:
+    r"""
+    Compute the 6D force applied to each collidable point and the corresponding
+    material deformation rate.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The 6D force applied to each collidable point and the corresponding
+        material deformation rate.
+
+    Note:
+        The material deformation rate is always returned in the mixed frame
+        `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
+        Instead, the 6D forces are returned in the active representation.
+    """
+
+    # Compute the position and linear velocities (mixed representation) of
+    # all collidable points belonging to the robot.
+    W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
+
+    # Build the soft contact model.
+    soft_contacts = jaxsim.rbda.SoftContacts(
+        parameters=data.soft_contacts_params, terrain=model.terrain
+    )
+
+    # Compute the 6D force expressed in the inertial frame and applied to each
+    # collidable point, and the corresponding material deformation rate.
+    # Note that the material deformation rate is always returned in the mixed frame
+    # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
+    W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.contact_model)(
+        W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
+    )
+
+    # Convert the 6D forces to the active representation.
+    f_Ci = jax.vmap(
+        lambda W_f_C: data.inertial_to_other_representation(
+            array=W_f_C,
+            other_representation=data.velocity_representation,
+            transform=data.base_transform(),
+            is_force=True,
+        )
+    )(W_f_Ci)
+
+    return f_Ci, CW_ṁ
+
+
 @functools.partial(jax.jit, static_argnames=["link_names"])
 def in_contact(
     model: js.model.JaxSimModel,

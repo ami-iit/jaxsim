@@ -1040,34 +1040,80 @@ def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vec
         data: The data of the considered model.
 
     Returns:
-        The total momentum of the model.
+        The total momentum of the model in the active velocity representation.
     """
 
-    # Compute the momentum in body-fixed velocity representation.
-    # Note: the first 6 rows of the mass matrix define the jacobian of the
-    #       floating-base momentum.
-    with data.switch_velocity_representation(velocity_representation=VelRepr.Body):
-        B_ν = data.generalized_velocity()
-        M_B = free_floating_mass_matrix(model=model, data=data)
+    ν = data.generalized_velocity()
+    Jh = total_momentum_jacobian(model=model, data=data)
 
-    # Compute the total momentum expressed in the base frame
-    B_h = M_B[0:6, :] @ B_ν
+    return Jh @ ν
 
-    # Compute the 6D transformation matrix
-    W_H_B = data.base_transform()
-    B_X_W: jtp.Array = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
 
-    # Convert to inertial-fixed representation
-    # (its coordinates transform like 6D forces)
-    W_h = B_X_W.T @ B_h
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def total_momentum_jacobian(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Matrix:
+    """
+    Compute the jacobian of the total momentum.
 
-    # Convert to the active representation of the model
-    return js.data.JaxSimModelData.inertial_to_other_representation(
-        array=W_h,
-        other_representation=data.velocity_representation,
-        transform=W_H_B,
-        is_force=True,
-    ).astype(float)
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        output_vel_repr: The output velocity representation of the jacobian.
+
+    Returns:
+        The jacobian of the total momentum of the model in the active representation.
+    """
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    if output_vel_repr is data.velocity_representation:
+        return free_floating_mass_matrix(model=model, data=data)[0:6]
+
+    with data.switch_velocity_representation(VelRepr.Body):
+        B_Jh_B = free_floating_mass_matrix(model=model, data=data)[0:6]
+
+    match data.velocity_representation:
+        case VelRepr.Body:
+            B_Jh = B_Jh_B
+
+        case VelRepr.Inertial:
+            B_X_W = jaxlie.SE3.from_matrix(data.base_transform()).inverse().adjoint()
+            B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+
+        case VelRepr.Mixed:
+            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
+
+        case _:
+            raise ValueError(data.velocity_representation)
+
+    match output_vel_repr:
+        case VelRepr.Body:
+            return B_Jh
+
+        case VelRepr.Inertial:
+            W_H_B = data.base_transform()
+            B_Xv_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+            W_Xf_B = B_Xv_W.T
+            W_Jh = W_Xf_B @ B_Jh
+            return W_Jh
+
+        case VelRepr.Mixed:
+            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            B_Xv_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            BW_Xf_B = B_Xv_BW.T
+            BW_Jh = BW_Xf_B @ B_Jh
+            return BW_Jh
+
+        case _:
+            raise ValueError(output_vel_repr)
 
 
 # ======

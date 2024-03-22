@@ -94,13 +94,25 @@ def test_model_properties(
     m_js = js.model.total_mass(model=model)
     assert pytest.approx(m_idt) == m_js
 
+    J_Bh_idt = kin_dyn.total_momentum_jacobian()
+    J_Bh_js = js.model.total_momentum_jacobian(model=model, data=data)
+    assert pytest.approx(J_Bh_idt) == J_Bh_js
+
     h_tot_idt = kin_dyn.total_momentum()
     h_tot_js = js.model.total_momentum(model=model, data=data)
     assert pytest.approx(h_tot_idt) == h_tot_js
 
-    Jh_idt = kin_dyn.total_momentum_jacobian()
-    Jh_js = js.model.free_floating_mass_matrix(model=model, data=data)[0:6]
-    assert pytest.approx(Jh_idt) == Jh_js
+    M_locked_idt = kin_dyn.locked_spatial_inertia()
+    M_locked_js = js.model.locked_spatial_inertia(model=model, data=data)
+    assert pytest.approx(M_locked_idt) == M_locked_js
+
+    J_avg_idt = kin_dyn.average_velocity_jacobian()
+    J_avg_js = js.model.average_velocity_jacobian(model=model, data=data)
+    assert pytest.approx(J_avg_idt) == J_avg_js
+
+    v_avg_idt = kin_dyn.average_velocity()
+    v_avg_js = js.model.average_velocity(model=model, data=data)
+    assert pytest.approx(v_avg_idt) == v_avg_js
 
 
 def test_model_rbda(

@@ -83,6 +83,27 @@ def collidable_point_velocities(
 
 
 @jax.jit
+def collidable_point_forces(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    """
+    Compute the 6D forces applied to each collidable point.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The 6D forces applied to each collidable point expressed in the frame
+        corresponding to the active representation.
+    """
+
+    f_Ci, _ = collidable_point_dynamics(model=model, data=data)
+
+    return f_Ci
+
+
+@jax.jit
 def collidable_point_dynamics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Matrix, jtp.Matrix]:

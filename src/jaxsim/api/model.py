@@ -1031,6 +1031,24 @@ def free_floating_bias_forces(
 
 
 @jax.jit
+def locked_spatial_inertia(
+    model: JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    """
+    Compute the locked 6D inertia matrix of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The locked 6D inertia matrix of the model.
+    """
+
+    return total_momentum_jacobian(model=model, data=data)[:, 0:6]
+
+
+@jax.jit
 def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
     """
     Compute the total momentum of the model.

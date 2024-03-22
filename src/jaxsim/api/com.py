@@ -46,6 +46,33 @@ def com_position(
 
 
 @jax.jit
+def centroidal_momentum(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Vector:
+    r"""
+    Compute the centroidal momentum of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The centroidal momentum of the model.
+
+    Note:
+        The centroidal momentum is expressed in the mixed frame
+        :math:`({}^W \mathbf{p}_{\text{CoM}}, [C])`, where :math:`C = W` if the
+        active velocity representation is either inertial-fixed or mixed,
+        and :math:`C = B` if the active velocity representation is body-fixed.
+    """
+
+    ν = data.generalized_velocity()
+    G_J = centroidal_momentum_jacobian(model=model, data=data)
+
+    return G_J @ ν
+
+
+@jax.jit
 def centroidal_momentum_jacobian(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:

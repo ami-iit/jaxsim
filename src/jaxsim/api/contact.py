@@ -177,7 +177,7 @@ def in_contact(
 
     link_names = link_names if link_names is not None else model.link_names()
 
-    if set(link_names) - set(model.link_names()) != set():
+    if (link_names := set(link_names)) and link_names.difference(model.link_names()):
         raise ValueError("One or more link names are not part of the model")
 
     W_p_Ci = collidable_point_positions(model=model, data=data)
@@ -194,7 +194,7 @@ def in_contact(
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
-    )(jnp.arange(model.number_of_links()))
+    )(js.link.names_to_idxs(link_names=link_names, model=model))
 
     return links_in_contact
 

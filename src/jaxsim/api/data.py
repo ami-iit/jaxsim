@@ -731,6 +731,10 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = (-1.0, 1.0),
+    standard_gravity_bounds: tuple[jtp.FloatLike, jtp.FloatLike] = (
+        jaxsim.math.StandardGravity,
+        jaxsim.math.StandardGravity,
+    ),
 ) -> JaxSimModelData:
     """
     Randomly generate a `JaxSimModelData` object.
@@ -743,13 +747,14 @@ def random_model_data(
         base_vel_lin_bounds: The bounds for the base linear velocity.
         base_vel_ang_bounds: The bounds for the base angular velocity.
         joint_vel_bounds: The bounds for the joint velocities.
+        standard_gravity_bounds: The bounds for the standard gravity.
 
     Returns:
         A `JaxSimModelData` object with random data.
     """
 
     key = key if key is not None else jax.random.PRNGKey(seed=0)
-    k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
+    k1, k2, k3, k4, k5, k6, k7 = jax.random.split(key, num=7)
 
     p_min = jnp.array(base_pos_bounds[0], dtype=float)
     p_max = jnp.array(base_pos_bounds[1], dtype=float)
@@ -768,7 +773,9 @@ def random_model_data(
         ),
     )
 
-    with random_data.mutable_context(mutability=Mutability.MUTABLE):
+    with random_data.mutable_context(
+        mutability=Mutability.MUTABLE, restore_after_exception=False
+    ):
 
         physics_model_state = random_data.state.physics_model
 
@@ -797,5 +804,18 @@ def random_model_data(
             physics_model_state.base_angular_velocity = jax.random.uniform(
                 key=k6, shape=(3,), minval=ω_min, maxval=ω_max
             )
+
+        random_data.gravity = (
+            jnp.zeros(3, dtype=random_data.gravity.dtype)
+            .at[2]
+            .set(
+                -jax.random.uniform(
+                    key=k7,
+                    shape=(),
+                    minval=standard_gravity_bounds[0],
+                    maxval=standard_gravity_bounds[1],
+                )
+            )
+        )
 
     return random_data

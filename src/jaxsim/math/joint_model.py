@@ -9,13 +9,14 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.math.rotation import Rotation
 from jaxsim.parsers.descriptions import (
     JointDescriptor,
     JointGenericAxis,
     JointType,
     ModelDescription,
 )
+
+from .rotation import Rotation
 
 
 @jax_dataclasses.pytree_dataclass

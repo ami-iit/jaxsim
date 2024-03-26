@@ -39,6 +39,28 @@ class Adjoint:
         )
 
     @staticmethod
+    def from_transform(transform: jtp.MatrixLike, inverse: bool = False) -> jtp.Matrix:
+        """
+        Create an adjoint matrix from a transformation matrix.
+
+        Args:
+            transform: A 4x4 transformation matrix.
+            inverse: Whether to compute the inverse adjoint.
+
+        Returns:
+            The 6x6 adjoint matrix.
+        """
+
+        A_H_B = jnp.array(transform).astype(float)
+        assert transform.shape == (4, 4)
+
+        return (
+            jaxlie.SE3.from_matrix(matrix=A_H_B).adjoint()
+            if not inverse
+            else jaxlie.SE3.from_matrix(matrix=A_H_B).inverse().adjoint()
+        )
+
+    @staticmethod
     def from_rotation_and_translation(
         rotation: jtp.Matrix = jnp.eye(3),
         translation: jtp.Vector = jnp.zeros(3),

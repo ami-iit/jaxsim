@@ -149,3 +149,11 @@ def test_link_jacobians(
     if data.velocity_representation is VelRepr.Inertial:
         J_WL_model = js.model.generalized_free_floating_jacobian(model=model, data=data)
         assert J_WL_model == pytest.approx(J_WL_links)
+
+    for link_name, link_idx in zip(
+        model.link_names(),
+        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+    ):
+        v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
+        v_WL_js = js.link.velocity(model=model, data=data, link_index=link_idx)
+        assert v_WL_js == pytest.approx(v_WL_idt), link_name

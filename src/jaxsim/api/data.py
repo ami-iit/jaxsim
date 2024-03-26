@@ -479,7 +479,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if model is None:
             return replace(s=positions)
 
-        if not self.valid(model=model):
+        if not_tracing(positions) and not self.valid(model=model):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -525,7 +525,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if model is None:
             return replace(ṡ=velocities)
 
-        if not self.valid(model=model):
+        if not_tracing(velocities) and not self.valid(model=model):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 

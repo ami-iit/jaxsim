@@ -260,9 +260,6 @@ def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimMode
         return a copy of the input model.
     """
 
-    if len(considered_joints) == 0:
-        return model.copy()
-
     # Reduce the model description.
     # If considered_joints contains joints not existing in the model, the method
     # will raise an exception.

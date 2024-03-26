@@ -45,24 +45,33 @@ def wrap_system_dynamics_for_integration(
     """
 
     # We allow to close `system_dynamics` over additional kwargs.
-    kwargs_closed = kwargs
+    kwargs_closed = kwargs.copy()
 
-    # Create a local copy of data.
+    # Create a local copy of model and data.
     # The wrapped dynamics will hold a reference of this object.
-    data_closed = data.copy()
+    model_closed = model.copy()
+    data_closed = data.copy().replace(
+        state=js.ode_data.ODEState.zero(model=model_closed)
+    )
 
-    with data_closed.mutable_context(mutability=Mutability.MUTABLE):
-        data_closed.state = data_closed.state.zero(model=model)
+    def f(x: ODEState, t: Time, **kwargs_f) -> tuple[ODEState, dict[str, Any]]:
 
-    def f(x: ODEState, t: Time, **kwargs) -> tuple[ODEState, dict[str, Any]]:
+        # Allow caller to override the closed data and model objects.
+        data_f = kwargs_f.pop("data", data_closed)
+        model_f = kwargs_f.pop("model", model_closed)
 
-        # Close f over the `data` parameter.
-        with data_closed.editable(validate=True) as data_rw:
+        # Update the state and time stored inside data.
+        with data_f.editable(validate=True) as data_rw:
             data_rw.state = x
             data_rw.time_ns = jnp.array(t * 1e9).astype(data_rw.time_ns.dtype)
 
-        # Close f over the `model` parameter.
-        return system_dynamics(model=model, data=data_rw, **kwargs_closed | kwargs)
+        # Evaluate the system dynamics, allowing to override the kwargs originally
+        # passed when the closure was created.
+        return system_dynamics(
+            model=model_f,
+            data=data_rw,
+            **(kwargs_closed | kwargs_f),
+        )
 
     f: jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]
     return f

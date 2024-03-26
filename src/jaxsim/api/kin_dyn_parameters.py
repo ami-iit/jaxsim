@@ -69,7 +69,7 @@ class KynDynParameters(JaxsimDataclass):
 
         # Create a list of link parameters objects.
         link_parameters_list = [
-            LinkParameters.build_from_spatial_inertia(M=link.inertia)
+            LinkParameters.build_from_spatial_inertia(index=link.index, M=link.inertia)
             for link in ordered_links
         ]
 
@@ -451,6 +451,8 @@ class JointParameters(JaxsimDataclass):
 @jax_dataclasses.pytree_dataclass
 class LinkParameters(JaxsimDataclass):
 
+    index: jtp.Int
+
     mass: jtp.Float
     inertia_elements: jtp.Vector
 
@@ -459,12 +461,13 @@ class LinkParameters(JaxsimDataclass):
     center_of_mass: jtp.Vector
 
     @staticmethod
-    def build_from_spatial_inertia(M: jtp.Matrix) -> LinkParameters:
+    def build_from_spatial_inertia(index: jtp.IntLike, M: jtp.Matrix) -> LinkParameters:
         """"""
 
         m, L_p_CoM, I = Inertia.to_params(M=M)
 
         return LinkParameters(
+            index=jnp.array(index).squeeze().astype(int),
             mass=jnp.array(m).squeeze().astype(float),
             center_of_mass=jnp.atleast_1d(jnp.array(L_p_CoM).squeeze()).astype(float),
             inertia_elements=jnp.atleast_1d(I[jnp.triu_indices(3)].squeeze()).astype(
@@ -474,10 +477,11 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def build_from_inertial_parameters(
-        m: jtp.FloatLike, I: jtp.MatrixLike, c: jtp.VectorLike
+        index: jtp.IntLike, m: jtp.FloatLike, I: jtp.MatrixLike, c: jtp.VectorLike
     ) -> LinkParameters:
 
         return LinkParameters(
+            index=jnp.array(index).squeeze().astype(int),
             mass=jnp.array(m).squeeze().astype(float),
             inertia_elements=jnp.atleast_1d(I[jnp.triu_indices(3)].squeeze()).astype(
                 float
@@ -486,14 +490,21 @@ class LinkParameters(JaxsimDataclass):
         )
 
     @staticmethod
-    def build_from_flat_parameters(parameters: jtp.VectorLike) -> LinkParameters:
+    def build_from_flat_parameters(
+        index: jtp.IntLike, parameters: jtp.VectorLike
+    ) -> LinkParameters:
+
+        index = jnp.array(index).squeeze().astype(int)
 
         m = jnp.array(parameters[0]).squeeze().astype(float)
         c = jnp.atleast_1d(parameters[1:4].squeeze()).astype(float)
         I = jnp.atleast_1d(parameters[4:].squeeze()).astype(float)
 
         return LinkParameters(
-            mass=m, inertia_elements=I[jnp.triu_indices(3)], center_of_mass=c
+            index=index,
+            mass=m,
+            inertia_elements=I[jnp.triu_indices(3)],
+            center_of_mass=c,
         )
 
     @staticmethod

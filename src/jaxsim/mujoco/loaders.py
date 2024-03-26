@@ -374,6 +374,7 @@ class RodModelToMjcf:
             condim="3",
             contype="1",
             conaffinity="1",
+            zaxis=" ".join(map(str, plane_normal)),
         )
 
         _ = ET.SubElement(
@@ -449,6 +450,7 @@ class UrdfToMjcf:
         urdf: str | pathlib.Path,
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -461,7 +463,10 @@ class UrdfToMjcf:
 
         # Convert the ROD model to MJCF.
         return RodModelToMjcf.convert(
-            rod_model=rod_model, considered_joints=considered_joints
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
         )
 
 
@@ -471,6 +476,7 @@ class SdfToMjcf:
         sdf: str | pathlib.Path,
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -483,5 +489,8 @@ class SdfToMjcf:
 
         # Convert the ROD model to MJCF.
         return RodModelToMjcf.convert(
-            rod_model=rod_model, considered_joints=considered_joints
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
         )

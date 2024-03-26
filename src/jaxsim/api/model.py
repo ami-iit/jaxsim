@@ -1356,6 +1356,7 @@ def step(
     integrator_state: dict[str, Any] | None = None,
     joint_forces: jtp.VectorLike | None = None,
     external_forces: jtp.MatrixLike | None = None,
+    **kwargs,
 ) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
     """
     Perform a simulation step.
@@ -1370,12 +1371,14 @@ def step(
         external_forces:
             The external forces to consider.
             The frame in which they are expressed must be `data.velocity_representation`.
+        kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
         A tuple containing the new data of the model
         and the new state of the integrator.
     """
 
+    integrator_kwargs = kwargs if kwargs is not None else dict()
     integrator_state = integrator_state if integrator_state is not None else dict()
 
     # Extract the initial resources.
@@ -1389,7 +1392,10 @@ def step(
         t0=jnp.array(t0_ns / 1e9).astype(float),
         dt=dt,
         params=integrator_state_x0,
-        **dict(joint_forces=joint_forces, external_forces=external_forces),
+        **(
+            dict(joint_forces=joint_forces, external_forces=external_forces)
+            | integrator_kwargs
+        ),
     )
 
     return (

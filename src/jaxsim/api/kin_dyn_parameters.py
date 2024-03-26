@@ -106,6 +106,19 @@ class KynDynParameters(JaxsimDataclass):
         # Create an object that defines the joint model (parent-to-child transforms).
         joint_model = JointModel.build(description=model_description)
 
+        # ===================
+        # Contacts properties
+        # ===================
+
+        # Create the object storing the parameters of collidable points.
+        # Note that, contrarily to LinkParameters and JointsParameters, this object
+        # is not created with vmap. This is because the "body" attribute of the object
+        # must be Static for JIT-related reasons, and tree_map would not consider it
+        # as a leaf.
+        contact_parameters = ContactParameters.build_from(
+            model_description=model_description
+        )
+
         # ===============
         # Tree properties
         # ===============
@@ -164,9 +177,7 @@ class KynDynParameters(JaxsimDataclass):
             link_parameters=link_parameters,
             joint_model=joint_model,
             joint_parameters=joint_parameters,
-            contact_parameters=ContactParameters.build_from(
-                model_description=model_description
-            ),
+            contact_parameters=contact_parameters,
         )
 
     def __eq__(self, other: KynDynParameters) -> bool:

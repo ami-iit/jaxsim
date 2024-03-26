@@ -46,6 +46,36 @@ def com_position(
 
 
 @jax.jit
+def com_linear_velocity(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Vector:
+    r"""
+    Compute the linear velocity of the center of mass of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The linear velocity of the center of mass of the model in the
+        active representation.
+
+    Note:
+        The linear velocity of the center of mass  is expressed in the mixed frame
+        :math:`G = ({}^W \mathbf{p}_{\text{CoM}}, [C])`, where :math:`[C] = [W]` if the
+        active velocity representation is either inertial-fixed or mixed,
+        and :math:`[C] = [B]` if the active velocity representation is body-fixed.
+    """
+
+    # Extract the linear component of the 6D average centroidal velocity.
+    # This is expressed in G[B] in body-fixed representation, and in G[W] in
+    # inertial-fixed or mixed representation.
+    G_vl_WG = average_centroidal_velocity(model=model, data=data)[0:3]
+
+    return G_vl_WG
+
+
+@jax.jit
 def centroidal_momentum(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Vector:

@@ -92,7 +92,15 @@ class KynDynParameters(JaxsimDataclass):
         joint_parameters = (
             jax.tree_util.tree_map(lambda *l: jnp.stack(l), *joint_parameters_list)
             if len(ordered_joints) > 0
-            else None
+            else JointParameters(
+                index=jnp.array([], dtype=int),
+                friction_static=jnp.array([], dtype=float),
+                friction_viscous=jnp.array([], dtype=float),
+                position_limits_min=jnp.array([], dtype=float),
+                position_limits_max=jnp.array([], dtype=float),
+                position_limit_spring=jnp.array([], dtype=float),
+                position_limit_damper=jnp.array([], dtype=float),
+            )
         )
 
         # Create an object that defines the joint model (parent-to-child transforms).

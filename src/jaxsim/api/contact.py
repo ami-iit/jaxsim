@@ -7,7 +7,6 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 
-from . import link as Link
 from .common import VelRepr
 
 
@@ -191,11 +190,11 @@ def in_contact(
 
     links_in_contact = jax.vmap(
         lambda link_index: jnp.where(
-            model.physics_model.gc.body == link_index,
+            model.kin_dyn_parameters.contact_parameters.body == link_index,
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
-    )(Link.names_to_idxs(link_names=link_names, model=model))
+    )(js.link.names_to_idxs(link_names=link_names, model=model))
 
     return links_in_contact
 

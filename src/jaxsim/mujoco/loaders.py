@@ -1,7 +1,7 @@
 import pathlib
 import tempfile
 import warnings
-from typing import Any
+from typing import Any, Callable
 
 import mujoco as mj
 import rod.urdf.exporter
@@ -49,6 +49,7 @@ class RodModelToMjcf:
     @staticmethod
     def assets_from_rod_model(
         rod_model: rod.Model,
+        heightmap: pathlib.Path | Callable | None = None,
     ) -> dict[str, bytes]:
         """"""
 
@@ -129,6 +130,8 @@ class RodModelToMjcf:
     def convert(
         rod_model: rod.Model,
         considered_joints: list[str] | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: pathlib.Path | Callable | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -198,8 +201,6 @@ class RodModelToMjcf:
         )
 
         urdf_string = ET.tostring(root, pretty_print=True).decode()
-        # print(urdf_string)
-        # raise
 
         # ------------------------------
         # Post-process all dummy visuals
@@ -232,7 +233,9 @@ class RodModelToMjcf:
         # ------------------------
 
         # Load the URDF model into Mujoco.
-        assets = RodModelToMjcf.assets_from_rod_model(rod_model=rod_model)
+        assets = RodModelToMjcf.assets_from_rod_model(
+            rod_model=rod_model, heightmap=heightmap
+        )
         mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)  # noqa
 
         # Get the joint names.
@@ -358,6 +361,19 @@ class RodModelToMjcf:
             texuniform="true",
         )
 
+        _ = (
+            ET.SubElement(
+                asset_element,
+                "hfield",
+                name="terrain",
+                nrow="100",
+                ncol="100",
+                size="5 5 1 1",
+            )
+            if heightmap
+            else None
+        )
+
         # ----------------------------------
         # Populate the scene with the assets
         # ----------------------------------
@@ -368,13 +384,14 @@ class RodModelToMjcf:
             worldbody_scene_element,
             "geom",
             name="floor",
-            type="plane",
+            type="plane" if not heightmap else "hfield",
             size="0 0 0.05",
             material="plane_material",
             condim="3",
             contype="1",
             conaffinity="1",
             zaxis=" ".join(map(str, plane_normal)),
+            **({"hfield": "terrain"} if heightmap else {}),
         )
 
         _ = ET.SubElement(
@@ -451,6 +468,7 @@ class UrdfToMjcf:
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -477,6 +495,7 @@ class SdfToMjcf:
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 

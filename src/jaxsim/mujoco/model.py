@@ -1,6 +1,6 @@
 import functools
 import pathlib
-from typing import Any
+from typing import Any, Callable
 
 import mujoco as mj
 import numpy as np
@@ -27,7 +27,9 @@ class MujocoModelHelper:
 
     @staticmethod
     def build_from_xml(
-        mjcf_description: str | pathlib.Path, assets: dict[str, Any] = None
+        mjcf_description: str | pathlib.Path,
+        assets: dict[str, Any] = None,
+        heightmap: Callable | None = None,
     ) -> "MujocoModelHelper":
         """"""
 
@@ -40,6 +42,13 @@ class MujocoModelHelper:
 
         # Create the Mujoco model from the XML and, optionally, the assets dictionary
         model = mj.MjModel.from_xml_string(xml=mjcf_description, assets=assets)  # noqa
+        data = mj.MjData(model)
+
+        if heightmap:
+            nrow = model.hfield_nrow.item()
+            ncol = model.hfield_ncol.item()
+            new_hfield = generate_hfield(heightmap, (nrow, ncol))
+            model.hfield_data = new_hfield
 
         return MujocoModelHelper(model=model, data=mj.MjData(model))
 
@@ -350,3 +359,31 @@ class MujocoModelHelper:
                 ]
             ).squeeze()
         )
+
+
+def generate_hfield(heightmap: Callable, size: tuple[int, int] = (10, 10)) -> str:
+    """
+    Generates a numpy array representing the heightmap of
+    The map will have the following format:
+    ```
+    heightmap[0, 0] heightmap[0, 1] ... heightmap[0, size[1]-1]
+    heightmap[1, 0] heightmap[1, 1] ... heightmap[1, size[1]-1]
+    ...
+    heightmap[size[0]-1, 0] heightmap[size[0]-1, 1] ... heightmap[size[0]-1, size[1]-1]
+    ```
+
+    Args:
+        heightmap: A function that takes two arguments (x, y) and returns the height
+            at that point.
+        size: A tuple of two integers representing the size of the grid.
+
+    Returns:
+        np.ndarray: The terrain heightmap
+    """
+
+    # Generate the grid.
+    x = np.linspace(0, 1, size[0])
+    y = np.linspace(0, 1, size[1])
+
+    # Generate the heightmap.
+    return np.array([[heightmap(xi, yi) for xi in x] for yi in y]).flatten()

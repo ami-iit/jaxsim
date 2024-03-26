@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jaxlie
 
 import jaxsim.api as js
+import jaxsim.math
 import jaxsim.typing as jtp
 
 from .common import VelRepr
@@ -42,6 +43,54 @@ def com_position(
     B_p̃_CoM = B_p̃_CoM.at[3].set(1)
 
     return (W_H_B @ B_p̃_CoM)[0:3].astype(float)
+
+
+@jax.jit
+def centroidal_momentum_jacobian(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    r"""
+    Compute the Jacobian of the centroidal momentum of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The Jacobian of the centroidal momentum of the model.
+
+    Note:
+        The frame corresponding to the output representation of this Jacobian is either
+        :math:`G[W]`, if the active velocity representation is inertial-fixed or mixed,
+        or :math:`G[B]`, if the active velocity representation is body-fixed.
+
+    Note:
+        This Jacobian is also known in the literature as Centroidal Momentum Matrix.
+    """
+
+    # Compute the Jacobian of the total momentum with body-fixed output representation.
+    # We convert the output representation either to G[W] or G[B] below.
+    B_Jh = js.model.total_momentum_jacobian(
+        model=model, data=data, output_vel_repr=VelRepr.Body
+    )
+
+    W_H_B = data.base_transform()
+    B_H_W = jaxsim.math.Transform.inverse(W_H_B)
+
+    W_p_CoM = com_position(model=model, data=data)
+
+    match data.velocity_representation:
+        case VelRepr.Inertial | VelRepr.Mixed:
+            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+        case VelRepr.Body:
+            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
+        case _:
+            raise ValueError(data.velocity_representation)
+
+    # Compute the transform for 6D forces.
+    G_Xf_B = jaxsim.math.Adjoint.from_transform(transform=B_H_W @ W_H_G).T
+
+    return G_Xf_B @ B_Jh
 
 
 @jax.jit

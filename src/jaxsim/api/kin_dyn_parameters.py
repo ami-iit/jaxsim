@@ -403,6 +403,8 @@ class KynDynParameters(JaxsimDataclass):
 @jax_dataclasses.pytree_dataclass
 class JointParameters(JaxsimDataclass):
 
+    index: jtp.Int
+
     friction_static: jtp.Float
     friction_viscous: jtp.Float
 
@@ -436,6 +438,7 @@ class JointParameters(JaxsimDataclass):
         ).squeeze()
 
         return JointParameters(
+            index=jnp.array(joint_description.index).squeeze().astype(int),
             friction_static=friction_static.astype(float),
             friction_viscous=friction_viscous.astype(float),
             position_limits_min=position_limits_min.astype(float),

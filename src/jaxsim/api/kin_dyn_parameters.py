@@ -284,12 +284,15 @@ class KynDynParameters(JaxsimDataclass):
         )
 
     @jax.jit
-    def joint_transforms(self, joint_positions: jtp.VectorLike) -> jtp.Array:
+    def joint_transforms(
+        self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
+    ) -> jtp.Array:
         """
         Return the transforms of the joints.
 
         Args:
             joint_positions: The joint positions.
+            base_transform: The homogeneous matrix defining the base pose.
 
         Returns:
             The stacked transforms
@@ -297,21 +300,30 @@ class KynDynParameters(JaxsimDataclass):
             of each joint.
         """
 
-        return self.joint_transforms_and_motion_subspaces(joint_positions)[0]
+        return self.joint_transforms_and_motion_subspaces(
+            joint_positions=joint_positions,
+            base_transform=base_transform,
+        )[0]
 
     @jax.jit
-    def joint_motion_subspaces(self, joint_positions: jtp.VectorLike) -> jtp.Array:
+    def joint_motion_subspaces(
+        self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
+    ) -> jtp.Array:
         """
         Return the motion subspaces of the joints.
 
         Args:
             joint_positions: The joint positions.
+            base_transform: The homogeneous matrix defining the base pose.
 
         Returns:
             The stacked motion subspaces :math:`\mathbf{S}(s)` of each joint.
         """
 
-        return self.joint_transforms_and_motion_subspaces(joint_positions)[1]
+        return self.joint_transforms_and_motion_subspaces(
+            joint_positions=joint_positions,
+            base_transform=base_transform,
+        )[1]
 
     @jax.jit
     def joint_transforms_and_motion_subspaces(

@@ -307,28 +307,23 @@ class JaxsimDataclass(abc.ABC):
         Return a new object replacing in-place the specified fields with new values.
 
         Args:
-            validate:
-                Whether to validate that the new fields do not alter the PyTree.
+            validate: Whether to validate that the new fields do not alter the PyTree.
             **kwargs: The fields to replace.
 
         Returns:
             A reference of the object with the specified fields replaced.
         """
 
-        mutability = (
-            Mutability.MUTABLE if validate else Mutability.MUTABLE_NO_VALIDATION
-        )
+        # Use the dataclasses replace method.
+        obj = dataclasses.replace(self, **kwargs)
 
-        with self.mutable_context(mutability=mutability) as obj:
-            _ = [obj.__setattr__(k, v) for k, v in kwargs.items()]
+        if validate:
+            JaxsimDataclass.check_compatibility(self, obj)
 
         # Make sure that all the new leaves have the same mutability of the object.
         obj.set_mutability(mutability=self.mutability())
 
-        # Return a shallow copy of the object with the new fields replaced.
-        # Note that the shallow copy of the original object contains exactly the same
-        # attributes of the original object (in other words, with the same id).
-        return copy.copy(obj)
+        return obj
 
     def flatten(self) -> jtp.VectorJax:
         """

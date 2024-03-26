@@ -382,51 +382,64 @@ def generalized_free_floating_jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # The body frame of the link.jacobian method is the link frame L.
-    # In this method, we want instead to use the base link B as body frame.
-    # Therefore, we always get the link jacobian having Inertial as output
-    # representation, and then we convert it to the desired output representation.
-    match output_vel_repr:
+    # Compute the doubly-left free-floating full jacobian.
+    B_J_full_WX_B, _ = jaxsim.rbda.jacobian_full_doubly_left(
+        model=model,
+        joint_positions=data.joint_positions(),
+    )
+
+    # Update the input velocity representation such that `J_WL_I @ I_ν`.
+    match data.velocity_representation:
         case VelRepr.Inertial:
-            to_output = lambda W_J_WL: W_J_WL
+            W_H_B = data.base_transform()
+            B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+            B_J_full_WX_I = B_J_full_WX_W = B_J_full_WX_B @ jax.scipy.linalg.block_diag(
+                B_X_W, jnp.eye(model.dofs())
+            )
 
         case VelRepr.Body:
-
-            def to_output(W_J_WL: jtp.Matrix) -> jtp.Matrix:
-                W_H_B = data.base_transform()
-                B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
-                return B_X_W @ W_J_WL
+            B_J_full_WX_I = B_J_full_WX_B
 
         case VelRepr.Mixed:
+            W_R_B = data.base_orientation(dcm=True)
+            BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
+            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_J_full_WX_I = B_J_full_WX_BW = (
+                B_J_full_WX_B
+                @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
+            )
 
-            def to_output(W_J_WL: jtp.Matrix) -> jtp.Matrix:
-                W_H_B = data.base_transform()
-                W_H_BW = jnp.array(W_H_B).at[0:3, 0:3].set(jnp.eye(3))
-                BW_X_W = jaxlie.SE3.from_matrix(W_H_BW).inverse().adjoint()
-                return BW_X_W @ W_J_WL
+        case _:
+            raise ValueError(data.velocity_representation)
+
+    # Update the output velocity representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
+    match output_vel_repr:
+        case VelRepr.Inertial:
+            W_H_B = data.base_transform()
+            W_X_B = jaxlie.SE3.from_matrix(W_H_B).adjoint()
+            O_J_full_WX_I = W_J_full_WX_I = W_X_B @ B_J_full_WX_I
+
+        case VelRepr.Body:
+            O_J_full_WX_I = B_J_full_WX_I
+
+        case VelRepr.Mixed:
+            W_R_B = data.base_orientation(dcm=True)
+            BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
+            BW_X_B = jaxlie.SE3.from_matrix(BW_H_B).adjoint()
+            O_J_full_WX_I = BW_J_full_WX_I = BW_X_B @ B_J_full_WX_I
 
         case _:
             raise ValueError(output_vel_repr)
 
-    # Compute first the link jacobians having the active representation of `data`
-    # as input representation (matching the one of ν), and inertial as output
-    # representation (i.e. W_J_WL_C where C is C_ν).
-    # Then, with to_output, we convert this jacobian to the desired output
-    # representation, that can either be W (inertial), B (body), or B[W] (mixed).
-    # This is necessary because for example the body-fixed free-floating jacobian
-    # of a link is L_J_WL, but here being inside model we need B_J_WL.
-    J_free_floating = jax.vmap(
-        lambda i: to_output(
-            W_J_WL=js.link.jacobian(
-                model=model,
-                data=data,
-                link_index=i,
-                output_vel_repr=VelRepr.Inertial,
-            )
-        )
-    )(jnp.arange(model.number_of_links()))
+    κ_bool = model.kin_dyn_parameters.support_body_array_bool
 
-    return J_free_floating
+    O_J_WL_I = jax.vmap(
+        lambda κ: jnp.where(
+            jnp.hstack([jnp.ones(5), κ]), O_J_full_WX_I, jnp.zeros_like(O_J_full_WX_I)
+        )
+    )(κ_bool)
+
+    return O_J_WL_I
 
 
 @functools.partial(jax.jit, static_argnames=["prefer_aba"])

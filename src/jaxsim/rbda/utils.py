@@ -138,4 +138,15 @@ def process_inputs(
     # Create the 6D gravity acceleration.
     W_g = jnp.zeros(6).at[2].set(-standard_gravity)
 
-    return W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, τ, f, W_g
+    return (
+        W_p_B.astype(float),
+        W_Q_B.astype(float),
+        s.astype(float),
+        W_v_WB.astype(float),
+        ṡ.astype(float),
+        W_v̇_WB.astype(float),
+        s̈.astype(float),
+        τ.astype(float),
+        f.astype(float),
+        W_g.astype(float),
+    )

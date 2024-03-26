@@ -10,15 +10,24 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Skew, StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
+from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsParams:
+class SoftContactsParams(JaxsimDataclass):
     """Parameters of the soft contacts model."""
 
-    K: float = dataclasses.field(default_factory=lambda: jnp.array(1e6, dtype=float))
-    D: float = dataclasses.field(default_factory=lambda: jnp.array(2000, dtype=float))
-    mu: float = dataclasses.field(default_factory=lambda: jnp.array(0.5, dtype=float))
+    K: jtp.Float = dataclasses.field(
+        default_factory=lambda: jnp.array(1e6, dtype=float)
+    )
+
+    D: jtp.Float = dataclasses.field(
+        default_factory=lambda: jnp.array(2000, dtype=float)
+    )
+
+    mu: jtp.Float = dataclasses.field(
+        default_factory=lambda: jnp.array(0.5, dtype=float)
+    )
 
     @staticmethod
     def build(

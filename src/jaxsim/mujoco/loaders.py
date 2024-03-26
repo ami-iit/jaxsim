@@ -413,8 +413,8 @@ class RodModelToMjcf:
             "camera",
             name="track",
             mode="trackcom",
-            pos="1 0 5",
-            zaxis="0 0 1",
+            pos="1.930 -2.279 0.556",
+            xyaxes="0.771 0.637 0.000 -0.116 0.140 0.983",
             fovy="60",
         )
 

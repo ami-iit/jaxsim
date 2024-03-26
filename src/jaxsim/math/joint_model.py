@@ -23,6 +23,21 @@ from .rotation import Rotation
 class JointModel:
     """
     Class describing the joint kinematics of a robot model.
+
+    Attributes:
+        λ_H_pre:
+            The homogeneous transformation between the parent link and
+            the predecessor frame of each joint.
+        suc_H_i:
+            The homogeneous transformation between the successor frame and
+            the child link of each joint.
+        joint_dofs: The number of DoFs of each joint.
+        joint_names: The names of each joint.
+        joint_types: The types of each joint.
+
+    Note:
+        Due to the presence of the static attributes, this class needs to be created
+        already in a vectorized form. In other words, it cannot be created using vmap.
     """
 
     λ_H_pre: jax.Array
@@ -106,7 +121,7 @@ class JointModel:
     def parent_H_child(
         self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
     ) -> tuple[jtp.Matrix, jtp.Array]:
-        """
+        r"""
         Compute the homogeneous transformation between the parent link and
         the child link of a joint, and the corresponding motion subspace.
 
@@ -116,7 +131,7 @@ class JointModel:
 
         Returns:
             A tuple containing the homogeneous transformation
-            :math:`{}^{\lambda(\text{i})} \mathbf{H}_\text{i}(s)`
+            :math:`{}^{\lambda(i)} \mathbf{H}_i(s)`
             and the motion subspace :math:`\mathbf{S}(s)`.
         """
 
@@ -135,7 +150,7 @@ class JointModel:
     def child_H_parent(
         self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
     ) -> tuple[jtp.Matrix, jtp.Array]:
-        """
+        r"""
         Compute the homogeneous transformation between the child link and
         the parent link of a joint, and the corresponding motion subspace.
 
@@ -145,7 +160,7 @@ class JointModel:
 
         Returns:
             A tuple containing the homogeneous transformation
-            :math:`{}^{\text{i}} \mathbf{H}_{\lambda(\text{i})}(s)`
+            :math:`{}^{i} \mathbf{H}_{\lambda(i)}(s)`
             and the motion subspace :math:`\mathbf{S}(s)`.
         """
 
@@ -158,7 +173,7 @@ class JointModel:
         return i_Hi_λ, S
 
     def parent_H_predecessor(self, joint_index: jtp.IntLike) -> jtp.Matrix:
-        """
+        r"""
         Return the homogeneous transformation between the parent link and
         the predecessor frame of a joint.
 
@@ -167,7 +182,7 @@ class JointModel:
 
         Returns:
             The homogeneous transformation
-            :math:`{}^{\lambda(\text{i})} \mathbf{H}_{\text{pre}(\text{i})}`.
+            :math:`{}^{\lambda(i)} \mathbf{H}_{\text{pre}(i)}`.
         """
 
         return self.λ_H_pre[joint_index]
@@ -175,7 +190,7 @@ class JointModel:
     def predecessor_H_successor(
         self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
     ) -> tuple[jtp.Matrix, jtp.Array]:
-        """
+        r"""
         Compute the homogeneous transformation between the predecessor and
         the successor frame of a joint, and the corresponding motion subspace.
 
@@ -185,7 +200,7 @@ class JointModel:
 
         Returns:
             A tuple containing the homogeneous transformation
-            :math:`{}^{\text{pre}(\text{i})} \mathbf{H}_{\text{suc}(\text{i})}(s)`
+            :math:`{}^{\text{pre}(i)} \mathbf{H}_{\text{suc}(i)}(s)`
             and the motion subspace :math:`\mathbf{S}(s)`.
         """
 
@@ -197,7 +212,7 @@ class JointModel:
         return pre_H_suc, S
 
     def successor_H_child(self, joint_index: jtp.IntLike) -> jtp.Matrix:
-        """
+        r"""
         Return the homogeneous transformation between the successor frame and
         the child link of a joint.
 
@@ -206,7 +221,7 @@ class JointModel:
 
         Returns:
             The homogeneous transformation
-            :math:`{}^{\text{suc}(\text{i})} \mathbf{H}_{\text{i}}`.
+            :math:`{}^{\text{suc}(i)} \mathbf{H}_i`.
         """
 
         return self.suc_H_i[joint_index]

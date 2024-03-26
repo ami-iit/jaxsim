@@ -158,6 +158,33 @@ def locked_centroidal_spatial_inertia(
 
 
 @jax.jit
+def average_centroidal_velocity(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Vector:
+    r"""
+    Compute the average centroidal velocity of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The average centroidal velocity of the model.
+
+    Note:
+        The average velocity is expressed in the mixed frame
+        :math:`G = ({}^W \mathbf{p}_{\text{CoM}}, [C])`, where :math:`[C] = [W]` if the
+        active velocity representation is either inertial-fixed or mixed,
+        and :math:`[C] = [B]` if the active velocity representation is body-fixed.
+    """
+
+    ν = data.generalized_velocity()
+    G_J = average_centroidal_velocity_jacobian(model=model, data=data)
+
+    return G_J @ ν
+
+
+@jax.jit
 def average_centroidal_velocity_jacobian(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:

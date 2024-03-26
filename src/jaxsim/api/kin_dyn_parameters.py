@@ -392,7 +392,7 @@ class KynDynParameters(JaxsimDataclass):
         inertia_elements = LinkParameters.flatten_inertia_tensor(I=inertia)
 
         link_parameters = self.link_parameters.replace(
-            mass=self.link_parameters.inertia_elements.at[link_index].set(
+            inertia_elements=self.link_parameters.inertia_elements.at[link_index].set(
                 inertia_elements
             )
         )

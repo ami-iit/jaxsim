@@ -40,12 +40,12 @@ Features
   :maxdepth: 2
   :caption: JAXsim API
 
-  modules/high_level
+  modules/api
+  modules/integrators
+  modules/rbda
   modules/math
+  modules/mujoco
   modules/parsers
-  modules/physics
-  modules/simulation
-  modules/typing
   modules/utils
 
 
@@ -76,7 +76,7 @@ Here below we summarize the differences between the projects:
 Contributing
 ------------
 
-Pull requests are welcome. 
+Pull requests are welcome.
 For major changes, please open an issue first to discuss what you would like to change.
 
 Citing

@@ -213,12 +213,13 @@ class KynDynParameters(JaxsimDataclass):
 
     def __hash__(self) -> int:
 
-        h = 0
-        h += hash(self.number_of_links())
-        h += hash(self.number_of_joints())
-        h += hash(tuple(self.parent_array.tolist()))
+        h = (
+            hash(self.number_of_links()),
+            hash(self.number_of_joints()),
+            hash(tuple(self.parent_array.tolist())),
+        )
 
-        return h
+        return hash(h)
 
     # =============================
     # Helpers to extract parameters

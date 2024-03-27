@@ -6,7 +6,7 @@ a separate process that communicates with the main simulation process. This
 allows for the simulation to run at full speed while the visualizer can run at
 a different frame rate.
 
-.. currentmodule:: jaxsim.mujoco.visualizer
+.. currentmodule:: jaxsim.mujoco
 
 Loaders
 ~~~~~~~

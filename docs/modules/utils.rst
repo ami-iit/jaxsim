@@ -1,7 +1,4 @@
-.. _utils:
-
-
-Utils 
+Utils
 =====
 
 .. automodule:: jaxsim.utils

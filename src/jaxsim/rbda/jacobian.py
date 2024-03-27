@@ -24,7 +24,7 @@ def jacobian(
         joint_positions: The positions of the joints.
 
     Returns:
-        The doubly-left free-floating Jacobian of the link.
+        The free-floating left-trivialized Jacobian of the link :math:`{}^L J_{W,L/B}`.
     """
 
     _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
@@ -105,10 +105,97 @@ def jacobian(
 
         return J, None
 
-    W_J_WL_W, _ = jax.lax.scan(
+    L_J_WL_B, _ = jax.lax.scan(
         f=compute_jacobian,
         init=J,
         xs=np.arange(start=1, stop=model.number_of_links()),
     )
 
-    return W_J_WL_W
+    return L_J_WL_B
+
+
+@jax.jit
+def jacobian_full_doubly_left(
+    model: js.model.JaxSimModel,
+    *,
+    joint_positions: jtp.VectorLike,
+) -> tuple[jtp.Matrix, jtp.Array]:
+    r"""
+    Compute the doubly-left full free-floating Jacobian of a model.
+
+    The full Jacobian is a 6x(6+n) matrix with all the columns filled.
+    It is useful to run the algorithm once, and then extract the link Jacobian by
+    filtering the columns of the full Jacobian using the support parent array
+    :math:`\kappa(i)` of the link.
+
+    Args:
+        model: The model to consider.
+        joint_positions: The positions of the joints.
+
+    Returns:
+        The doubly-left full free-floating Jacobian of a model.
+    """
+
+    _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
+        model=model, joint_positions=joint_positions
+    )
+
+    # Get the parent array λ(i).
+    # Note: λ(0) must not be used, it's initialized to -1.
+    λ = model.kin_dyn_parameters.parent_array
+
+    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # These transforms define the relative kinematics of the entire model, including
+    # the base transform for both floating-base and fixed-base models.
+    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+        joint_positions=s, base_transform=jnp.eye(4)
+    )
+
+    # Allocate the buffer of transforms base -> link.
+    B_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))
+    B_X_i = B_X_i.at[0].set(jnp.eye(6))
+
+    # =============================
+    # Compute doubly-left Jacobian
+    # =============================
+
+    # Allocate the Jacobian matrix.
+    # The Jbb section of the doubly-left Jacobian is an identity matrix.
+    J = jnp.zeros(shape=(6, 6 + model.dofs()))
+    J = J.at[0:6, 0:6].set(jnp.eye(6))
+
+    ComputeFullJacobianCarry = tuple[jtp.MatrixJax, jtp.MatrixJax]
+    compute_full_jacobian_carry: ComputeFullJacobianCarry = (B_X_i, J)
+
+    def compute_full_jacobian(
+        carry: ComputeFullJacobianCarry, i: jtp.Int
+    ) -> tuple[ComputeFullJacobianCarry, None]:
+
+        ii = i - 1
+        B_X_i, J = carry
+
+        # Compute the base (0) to link (i) adjoint matrix.
+        B_Xi_i = B_X_i[λ[i]] @ Adjoint.inverse(i_X_λi[i])
+        B_X_i = B_X_i.at[i].set(B_Xi_i)
+
+        # Compute the ii-th column of the B_S_BL(s) matrix.
+        B_Sii_BL = B_Xi_i @ S[i]
+        J = J.at[0:6, 6 + ii].set(B_Sii_BL.squeeze())
+
+        return (B_X_i, J), None
+
+    (B_X_i, J), _ = jax.lax.scan(
+        f=compute_full_jacobian,
+        init=compute_full_jacobian_carry,
+        xs=np.arange(start=1, stop=model.number_of_links()),
+    )
+
+    # Convert adjoints to SE(3) transforms.
+    # Returning them here prevents calling FK in case the output representation
+    # of the Jacobian needs to be changed.
+    B_H_L = jax.vmap(lambda B_X_L: Adjoint.to_transform(B_X_L))(B_X_i)
+
+    # Adjust shape of doubly-left free-floating full Jacobian.
+    B_J_full_WL_B = J.squeeze().astype(float)
+
+    return B_J_full_WL_B, B_H_L

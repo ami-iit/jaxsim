@@ -42,4 +42,5 @@ dependencies:
   - sphinx-jinja2-compat
   - sphinx-multiversion
   - sphinx_rtd_theme
+  - sphinx-book-theme
   - sphinx-toolbox

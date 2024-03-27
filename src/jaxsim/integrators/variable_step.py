@@ -1,5 +1,10 @@
 import functools
-from typing import Any, ClassVar, Generic, Self, Type
+from typing import Any, ClassVar, Generic, Type
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 import jax
 import jax.flatten_util

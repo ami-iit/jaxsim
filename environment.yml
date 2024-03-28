@@ -38,6 +38,7 @@ dependencies:
   - sphinx
   - sphinx-autodoc-typehints
   - sphinx-copybutton
+  - sphinx-design
   - sphinx_fontawesome
   - sphinx-jinja2-compat
   - sphinx-multiversion

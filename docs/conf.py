@@ -58,6 +58,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_multiversion",
     "enum_tools.autoenum",
+    "sphinx_design",
 ]
 
 # -- Options for intersphinx extension

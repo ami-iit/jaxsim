@@ -1,13 +1,9 @@
-Math 
+Math
 ====
 
 .. currentmodule:: jaxsim.math
-   
-.. automodule:: jaxsim.math.adjoint
-    :members:
-    :undoc-members:
 
-.. automodule:: jaxsim.math.conv
+.. automodule:: jaxsim.math.adjoint
     :members:
     :undoc-members:
 
@@ -16,14 +12,6 @@ Math
     :undoc-members:
 
 .. automodule:: jaxsim.math.inertia
-    :members:
-    :undoc-members:
-
-.. automodule:: jaxsim.math.joint
-    :members:
-    :undoc-members:
-
-.. automodule:: jaxsim.math.plucker
     :members:
     :undoc-members:
 

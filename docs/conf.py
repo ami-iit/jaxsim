@@ -4,23 +4,7 @@ import sys
 
 from pkg_resources import get_distribution
 
-
-def _add_annotations_import(path):
-    with open(path, "r+") as f:
-        contents = f.read()
-        if not contents.startswith("from __future__ import annotations"):
-            f.seek(0, 0)
-            f.write("from __future__ import annotations  " + contents)
-
-
-def _recursive_add_annotations_import():
-    for path, _, files in os.walk("../jaxsim/"):
-        for file in [f for f in files if f.endswith(".py")]:
-            _add_annotations_import(os.path.join(path, file))
-
-
-if "READTHEDOCS" in os.environ:
-    _recursive_add_annotations_import()
+import jaxsim
 
 # -- Version information
 

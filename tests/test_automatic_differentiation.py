@@ -413,7 +413,7 @@ def test_ad_integration(
             integrator=integrator,
             integrator_state=integrator_state,
             joint_forces=τ,
-            external_forces=W_f_L,
+            link_forces=W_f_L,
         )
 
         xf_W_p_B = data_xf.base_position()

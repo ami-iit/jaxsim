@@ -273,7 +273,7 @@ def test_model_fd_id_consistency(
         model=model,
         data=data,
         joint_forces=references.joint_force_references(),
-        external_forces=references.link_forces(model=model, data=data),
+        link_forces=references.link_forces(model=model, data=data),
     )
 
     # Compute forward dynamics with CRB
@@ -281,7 +281,7 @@ def test_model_fd_id_consistency(
         model=model,
         data=data,
         joint_forces=references.joint_force_references(),
-        external_forces=references.link_forces(model=model, data=data),
+        link_forces=references.link_forces(model=model, data=data),
     )
 
     assert pytest.approx(s̈_aba) == s̈_crb
@@ -293,7 +293,7 @@ def test_model_fd_id_consistency(
         data=data,
         joint_accelerations=s̈_aba,
         base_acceleration=v̇_WB_aba,
-        external_forces=references.link_forces(model=model, data=data),
+        link_forces=references.link_forces(model=model, data=data),
     )
 
     # Check consistency between FD and ID
@@ -307,7 +307,7 @@ def test_model_fd_id_consistency(
             data=data,
             joint_accelerations=s̈_aba,
             base_acceleration=v̇_WB_aba,
-            external_forces=references.link_forces(model=model, data=data)
+            link_forces=references.link_forces(model=model, data=data)
             .at[0]
             .set(jnp.zeros(6)),
         )

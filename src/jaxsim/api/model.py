@@ -52,6 +52,8 @@ class JaxSimModel(JaxsimDataclass):
     def build_from_model_description(
         model_description: str | pathlib.Path | rod.Model,
         model_name: str | None = None,
+        *,
+        terrain: jaxsim.terrain.Terrain | None = None,
         is_urdf: bool | None = None,
         considered_joints: list[str] | None = None,
     ) -> JaxSimModel:
@@ -65,6 +67,8 @@ class JaxSimModel(JaxsimDataclass):
             model_name:
                 The optional name of the model that overrides the one in
                 the description.
+            terrain:
+                The optional terrain to consider.
             is_urdf:
                 Whether the model description is a URDF or an SDF. This is
                 automatically inferred if the model description is a path to a file.
@@ -92,7 +96,9 @@ class JaxSimModel(JaxsimDataclass):
 
         # Build the model
         model = JaxSimModel.build(
-            model_description=intermediate_description, model_name=model_name
+            model_description=intermediate_description,
+            model_name=model_name,
+            terrain=terrain,
         )
 
         # Store the origin of the model, in case downstream logic needs it
@@ -105,6 +111,8 @@ class JaxSimModel(JaxsimDataclass):
     def build(
         model_description: jaxsim.parsers.descriptions.ModelDescription,
         model_name: str | None = None,
+        *,
+        terrain: jaxsim.terrain.Terrain | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -115,6 +123,8 @@ class JaxSimModel(JaxsimDataclass):
                 of the model.
             model_name:
                 The optional name of the model overriding the physics model name.
+            terrain:
+                The optional terrain to consider.
 
         Returns:
             The built Model object.
@@ -130,6 +140,7 @@ class JaxSimModel(JaxsimDataclass):
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
+            terrain=terrain or JaxSimModel.__dataclass_fields__["terrain"].default,
         )
 
         return model

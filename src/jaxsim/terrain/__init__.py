@@ -1,2 +1,2 @@
 from . import terrain
-from .terrain import FlatTerrain, Terrain
+from .terrain import FlatTerrain, PlaneTerrain, Terrain

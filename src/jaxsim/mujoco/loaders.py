@@ -1,7 +1,7 @@
 import pathlib
 import tempfile
 import warnings
-from typing import Any
+from typing import Any, Callable
 
 import mujoco as mj
 import rod.urdf.exporter
@@ -41,6 +41,36 @@ def load_rod_model(
         raise ValueError(f"Model '{model_name}' not found in the resource")
 
     return models[model_name]
+
+
+def generate_hfield(heightmap: Callable, size: tuple[int, int] = (10, 10)) -> str:
+    """"""
+
+    import numpy as np
+
+    # Generate the heightmap.
+    heightmap = heightmap(size)
+
+    # Check the heightmap dimensions.
+    if heightmap.shape != size:
+        raise ValueError(
+            f"Heightmap dimensions {heightmap.shape} do not match the size {size}"
+        )
+
+    # Create the hfield file.
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=".hfield") as hfield_file:
+
+        # Write the header.
+        hfield_file.write(f"{size[0]} {size[1]}\n")
+
+        # Write the heightmap.
+        for row in heightmap:
+            hfield_file.write(" ".join(map(str, row)) + "\n")
+
+        # Move the current position to the beginning.
+        hfield_file.seek(0)
+
+        return hfield_file.name
 
 
 class RodModelToMjcf:
@@ -129,6 +159,8 @@ class RodModelToMjcf:
     def convert(
         rod_model: rod.Model,
         considered_joints: list[str] | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: pathlib.Path | Callable | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -364,17 +396,37 @@ class RodModelToMjcf:
 
         worldbody_scene_element = ET.SubElement(mujoco_element, "worldbody")
 
-        _ = ET.SubElement(
-            worldbody_scene_element,
-            "geom",
-            name="floor",
-            type="plane",
-            size="0 0 0.05",
-            material="plane_material",
-            condim="3",
-            contype="1",
-            conaffinity="1",
-        )
+        if heightmap:
+            _ = ET.SubElement(
+                worldbody_scene_element,
+                "geom",
+                name="floor",
+                type="hfield",
+                size="10 10 0.05",
+                material="plane_material",
+                condim="3",
+                contype="1",
+                conaffinity="1",
+                zaxis=" ".join(map(str, plane_normal)),
+                file=(
+                    heightmap
+                    if isinstance(heightmap, pathlib.Path)
+                    else generate_hfield(heightmap)
+                ),
+            )
+        else:
+            _ = ET.SubElement(
+                worldbody_scene_element,
+                "geom",
+                name="floor",
+                type="plane",
+                size="0 0 0.05",
+                material="plane_material",
+                condim="3",
+                contype="1",
+                conaffinity="1",
+                zaxis=" ".join(map(str, plane_normal)),
+            )
 
         _ = ET.SubElement(
             worldbody_scene_element,
@@ -412,8 +464,8 @@ class RodModelToMjcf:
             "camera",
             name="track",
             mode="trackcom",
-            pos="1 0 5",
-            zaxis="0 0 1",
+            pos="1.930 -2.279 0.556",
+            xyaxes="0.771 0.637 0.000 -0.116 0.140 0.983",
             fovy="60",
         )
 
@@ -449,6 +501,8 @@ class UrdfToMjcf:
         urdf: str | pathlib.Path,
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: str | Callable | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -461,7 +515,10 @@ class UrdfToMjcf:
 
         # Convert the ROD model to MJCF.
         return RodModelToMjcf.convert(
-            rod_model=rod_model, considered_joints=considered_joints
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
         )
 
 
@@ -471,6 +528,8 @@ class SdfToMjcf:
         sdf: str | pathlib.Path,
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: str | Callable | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -483,5 +542,8 @@ class SdfToMjcf:
 
         # Convert the ROD model to MJCF.
         return RodModelToMjcf.convert(
-            rod_model=rod_model, considered_joints=considered_joints
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
         )

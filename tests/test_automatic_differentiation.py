@@ -14,6 +14,13 @@ from jaxsim import VelRepr
 # CI tests take too long. Therefore, we only check first-order derivatives.
 AD_ORDER = os.environ.get("JAXSIM_TEST_AD_ORDER", 1)
 
+# Define the step size used to compute finite differences depending on the
+# floating point resolution.
+ε = os.environ.get(
+    "JAXSIM_TEST_FD_STEP_SIZE",
+    jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3),
+)
+
 
 def get_random_data_and_references(
     model: js.model.JaxSimModel,
@@ -61,9 +68,6 @@ def test_ad_aba(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # Get the standard gravity constant.
     g = jaxsim.math.StandardGravity
@@ -118,9 +122,6 @@ def test_ad_rnea(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # Get the standard gravity constant.
     g = jaxsim.math.StandardGravity
@@ -181,9 +182,6 @@ def test_ad_crba(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
-
     # State in VelRepr.Inertial representation.
     s = data.joint_positions(model=model)
 
@@ -215,9 +213,6 @@ def test_ad_fk(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()
@@ -258,9 +253,6 @@ def test_ad_jacobian(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
-
     # State in VelRepr.Inertial representation.
     s = data.joint_positions(model=model)
 
@@ -294,9 +286,6 @@ def test_ad_soft_contacts(
 ):
 
     model = jaxsim_models_types
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     key, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
     p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
@@ -336,9 +325,6 @@ def test_ad_integration(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()

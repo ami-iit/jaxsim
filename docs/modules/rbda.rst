@@ -5,6 +5,16 @@ This module provides a set of algorithms for rigid body dynamics.
 
 .. currentmodule:: jaxsim.rbda
 
+.. autosummary::
+    :toctree: _autosummary
+
+    aba
+    collidable_points
+    crba
+    forward_kinematics
+    jacobian
+    soft_contacts
+    utils
 
 Articulated Body Algorithm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

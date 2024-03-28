@@ -78,14 +78,7 @@ Features
   :maxdepth: 2
   :caption: JAXsim API
 
-  modules/api
-  modules/integrators
-  modules/rbda
-  modules/math
-  modules/mujoco
-  modules/parsers
-  modules/utils
-  modules/typing
+  modules/index
 
 Examples
 --------

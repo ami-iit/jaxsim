@@ -85,7 +85,7 @@ Features
   modules/mujoco
   modules/parsers
   modules/utils
-
+  modules/typing
 
 Examples
 --------

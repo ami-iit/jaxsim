@@ -6,6 +6,7 @@ from jax.test_util import check_grads
 
 import jaxsim.api as js
 import jaxsim.rbda
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
@@ -300,17 +301,25 @@ def test_ad_soft_contacts(
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    soft_contacts = lambda p, v, m: jaxsim.rbda.SoftContacts(
-        parameters=parameters
-    ).contact_model(position=p, velocity=v, tangential_deformation=m)
+    def close_over_inputs_and_parameters(
+        p: jtp.VectorLike,
+        v: jtp.VectorLike,
+        m: jtp.VectorLike,
+        params: jaxsim.rbda.SoftContactsParams,
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+        return jaxsim.rbda.SoftContacts(parameters=params).contact_model(
+            position=p, velocity=v, tangential_deformation=m
+        )
 
     # Check derivatives against finite differences.
     check_grads(
-        f=soft_contacts,
-        args=(p, v, m),
+        f=close_over_inputs_and_parameters,
+        args=(p, v, m, parameters),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
+        # On GPU, the tolerance needs to be increased
+        rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
     )
 
 

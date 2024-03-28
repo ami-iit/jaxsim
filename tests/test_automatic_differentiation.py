@@ -418,6 +418,4 @@ def test_ad_integration(
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
-        # This check (at least on ErgoCub) needs larger tolerances
-        rtol=0.000_100,
     )

@@ -3,6 +3,7 @@ Integrators
 
 .. currentmodule:: jaxsim.integrators
 
+
 Common
 ~~~~~~
 

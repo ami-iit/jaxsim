@@ -1,8 +1,7 @@
-API
-==========
+Functional API
+==============
 
 .. currentmodule:: jaxsim.api
-
 
 Model
 ~~~~~

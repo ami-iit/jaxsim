@@ -100,11 +100,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Gazebo Classic
+#      - name: Install Gazebo Classic
+#        if: contains(matrix.os, 'ubuntu')
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install gazebo
+
+      # https://gazebosim.org/docs/harmonic/install_ubuntu
+      - name: Install Gazebo Sim
         if: contains(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
-          sudo apt-get install gazebo
+          sudo apt-get install lsb-release wget gnupg
+          sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install gz-harmonic
 
       - name: Run the Python tests
         if: contains(matrix.os, 'ubuntu')

@@ -2,9 +2,9 @@ from typing import Tuple
 
 import jax
 import jax.numpy as jnp
+import jaxlie
 
 import jaxsim.typing as jtp
-from jaxsim.sixd import so3
 
 from .skew import Skew
 
@@ -21,7 +21,7 @@ class Rotation:
         Returns:
             jtp.Matrix: 3D rotation matrix.
         """
-        return so3.SO3.from_x_radians(theta=theta).as_matrix()
+        return jaxlie.SO3.from_x_radians(theta=theta).as_matrix()
 
     @staticmethod
     def y(theta: jtp.Float) -> jtp.Matrix:
@@ -34,7 +34,7 @@ class Rotation:
         Returns:
             jtp.Matrix: 3D rotation matrix.
         """
-        return so3.SO3.from_y_radians(theta=theta).as_matrix()
+        return jaxlie.SO3.from_y_radians(theta=theta).as_matrix()
 
     @staticmethod
     def z(theta: jtp.Float) -> jtp.Matrix:
@@ -47,7 +47,7 @@ class Rotation:
         Returns:
             jtp.Matrix: 3D rotation matrix.
         """
-        return so3.SO3.from_z_radians(theta=theta).as_matrix()
+        return jaxlie.SO3.from_z_radians(theta=theta).as_matrix()
 
     @staticmethod
     def from_axis_angle(vector: jtp.Vector) -> jtp.Matrix:

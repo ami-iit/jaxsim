@@ -10,20 +10,16 @@ import jax_dataclasses
 import jaxlie
 import numpy as np
 
-import jaxsim.api
-import jaxsim.physics.algos.aba
-import jaxsim.physics.algos.crba
-import jaxsim.physics.algos.forward_kinematics
-import jaxsim.physics.algos.rnea
-import jaxsim.physics.model.physics_model
-import jaxsim.physics.model.physics_model_state
+import jaxsim.api as js
+import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.high_level.common import VelRepr
-from jaxsim.physics.algos import soft_contacts
-from jaxsim.simulation.ode_data import ODEState
+from jaxsim.math import Quaternion
 from jaxsim.utils import Mutability
+from jaxsim.utils.tracing import not_tracing
 
 from . import common
+from .common import VelRepr
+from .ode_data import ODEState
 
 try:
     from typing import Self
@@ -41,14 +37,13 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    soft_contacts_params: soft_contacts.SoftContactsParams = dataclasses.field(
-        repr=False
-    )
+    soft_contacts_params: jaxsim.rbda.SoftContactsParams = dataclasses.field(repr=False)
+
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
     )
 
-    def valid(self, model: jaxsim.api.model.JaxSimModel | None = None) -> bool:
+    def valid(self, model: js.model.JaxSimModel | None = None) -> bool:
         """
         Check if the current state is valid for the given model.
 
@@ -60,15 +55,16 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         valid = True
+        valid = valid and self.standard_gravity() > 0
 
         if model is not None:
-            valid = valid and self.state.valid(physics_model=model.physics_model)
+            valid = valid and self.state.valid(model=model)
 
         return valid
 
     @staticmethod
     def zero(
-        model: jaxsim.api.model.JaxSimModel,
+        model: js.model.JaxSimModel,
         velocity_representation: VelRepr = VelRepr.Inertial,
     ) -> JaxSimModelData:
         """
@@ -88,16 +84,16 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @staticmethod
     def build(
-        model: jaxsim.api.model.JaxSimModel,
+        model: js.model.JaxSimModel,
         base_position: jtp.Vector | None = None,
         base_quaternion: jtp.Vector | None = None,
         joint_positions: jtp.Vector | None = None,
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
-        gravity: jtp.Vector | None = None,
-        soft_contacts_state: soft_contacts.SoftContactsState | None = None,
-        soft_contacts_params: soft_contacts.SoftContactsParams | None = None,
+        standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
+        soft_contacts_state: js.ode_data.SoftContactsState | None = None,
+        soft_contacts_params: jaxsim.rbda.SoftContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
@@ -114,7 +110,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity:
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
-            gravity: The gravity 3D vector.
+            standard_gravity: The standard gravity constant.
             soft_contacts_state: The state of the soft contacts.
             soft_contacts_params: The parameters of the soft contacts.
             velocity_representation: The velocity representation to use.
@@ -142,9 +138,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity if base_angular_velocity is not None else jnp.zeros(3)
         ).squeeze()
 
-        gravity = jnp.array(
-            gravity if gravity is not None else model.physics_model.gravity[0:3]
-        ).squeeze()
+        gravity = jnp.zeros(3).at[2].set(-standard_gravity)
 
         joint_positions = jnp.atleast_1d(
             joint_positions.squeeze()
@@ -167,7 +161,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         soft_contacts_params = (
             soft_contacts_params
             if soft_contacts_params is not None
-            else jaxsim.api.contact.estimate_good_soft_contacts_parameters(model=model)
+            else js.contact.estimate_good_soft_contacts_parameters(
+                model=model, standard_gravity=standard_gravity
+            )
         )
 
         W_H_B = jaxlie.SE3.from_rotation_and_translation(
@@ -184,20 +180,22 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             is_force=False,
         )
 
-        ode_state = ODEState.build(
-            physics_model=model.physics_model,
-            physics_model_state=jaxsim.physics.model.physics_model_state.PhysicsModelState(
-                base_position=base_position.astype(float),
-                base_quaternion=base_quaternion.astype(float),
-                joint_positions=joint_positions.astype(float),
-                base_linear_velocity=v_WB[0:3].astype(float),
-                base_angular_velocity=v_WB[3:6].astype(float),
-                joint_velocities=joint_velocities.astype(float),
+        ode_state = ODEState.build_from_jaxsim_model(
+            model=model,
+            base_position=base_position.astype(float),
+            base_quaternion=base_quaternion.astype(float),
+            joint_positions=joint_positions.astype(float),
+            base_linear_velocity=v_WB[0:3].astype(float),
+            base_angular_velocity=v_WB[3:6].astype(float),
+            joint_velocities=joint_velocities.astype(float),
+            tangential_deformation=(
+                soft_contacts_state.tangential_deformation
+                if soft_contacts_state is not None
+                else None
             ),
-            soft_contacts_state=soft_contacts_state,
         )
 
-        if not ode_state.valid(physics_model=model.physics_model):
+        if not ode_state.valid(model=model):
             raise ValueError(ode_state)
 
         return JaxSimModelData(
@@ -222,10 +220,20 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.time_ns.astype(float) / 1e9
 
+    def standard_gravity(self) -> jtp.Float:
+        """
+        Get the standard gravity constant.
+
+        Returns:
+            The standard gravity constant.
+        """
+
+        return -self.gravity[2]
+
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_positions(
         self,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> jtp.Vector:
         """
@@ -250,22 +258,27 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         if model is None:
+            if joint_names is not None:
+                raise ValueError("Joint names cannot be provided without a model")
+
             return self.state.physics_model.joint_positions
 
-        if not self.valid(model=model):
+        if not_tracing(self.state.physics_model.joint_positions) and not self.valid(
+            model=model
+        ):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
         joint_names = joint_names if joint_names is not None else model.joint_names()
 
         return self.state.physics_model.joint_positions[
-            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_velocities(
         self,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> jtp.Vector:
         """
@@ -290,16 +303,21 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         if model is None:
+            if joint_names is not None:
+                raise ValueError("Joint names cannot be provided without a model")
+
             return self.state.physics_model.joint_velocities
 
-        if not self.valid(model=model):
+        if not_tracing(self.state.physics_model.joint_velocities) and not self.valid(
+            model=model
+        ):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
         joint_names = joint_names if joint_names is not None else model.joint_names()
 
         return self.state.physics_model.joint_velocities[
-            jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
         ]
 
     @jax.jit
@@ -325,26 +343,27 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             The base orientation.
         """
 
+        # Extract the base quaternion.
+        W_Q_B = self.state.physics_model.base_quaternion.squeeze()
+
         # Always normalize the quaternion to avoid numerical issues.
         # If the active scheme does not integrate the quaternion on its manifold,
         # we introduce a Baumgarte stabilization to let the quaternion converge to
         # a unit quaternion. In this case, it is not guaranteed that the quaternion
         # stored in the state is a unit quaternion.
-        base_unit_quaternion = (
-            self.state.physics_model.base_quaternion.squeeze()
-            / jnp.linalg.norm(self.state.physics_model.base_quaternion)
+        W_Q_B = jax.lax.select(
+            pred=jnp.allclose(jnp.linalg.norm(W_Q_B), 1.0, atol=1e-6, rtol=0.0),
+            on_true=W_Q_B,
+            on_false=W_Q_B / jnp.linalg.norm(W_Q_B),
         )
-
-        # Slice to convert quaternion wxyz -> xyzw
-        to_xyzw = np.array([1, 2, 3, 0])
 
         return (
-            base_unit_quaternion
+            W_Q_B
             if not dcm
             else jaxlie.SO3.from_quaternion_xyzw(
-                base_unit_quaternion[to_xyzw]
+                Quaternion.to_xyzw(wxyz=W_Q_B)
             ).as_matrix()
-        )
+        ).astype(float)
 
     @jax.jit
     def base_transform(self) -> jtp.MatrixJax:
@@ -430,7 +449,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     def reset_joint_positions(
         self,
         positions: jtp.VectorLike,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> Self:
         """
@@ -460,7 +479,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if model is None:
             return replace(s=positions)
 
-        if not self.valid(model=model):
+        if not_tracing(positions) and not self.valid(model=model):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -468,7 +487,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return replace(
             s=self.state.physics_model.joint_positions.at[
-                jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+                js.joint.names_to_idxs(joint_names=joint_names, model=model)
             ].set(positions)
         )
 
@@ -476,7 +495,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     def reset_joint_velocities(
         self,
         velocities: jtp.VectorLike,
-        model: jaxsim.api.model.JaxSimModel | None = None,
+        model: js.model.JaxSimModel | None = None,
         joint_names: tuple[str, ...] | None = None,
     ) -> Self:
         """
@@ -506,7 +525,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if model is None:
             return replace(ṡ=velocities)
 
-        if not self.valid(model=model):
+        if not_tracing(velocities) and not self.valid(model=model):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -514,7 +533,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return replace(
             ṡ=self.state.physics_model.joint_velocities.at[
-                jaxsim.api.joint.names_to_idxs(joint_names=joint_names, model=model)
+                js.joint.names_to_idxs(joint_names=joint_names, model=model)
             ].set(velocities)
         )
 
@@ -692,7 +711,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
 
 def random_model_data(
-    model: jaxsim.api.model.JaxSimModel,
+    model: js.model.JaxSimModel,
     *,
     key: jax.Array | None = None,
     velocity_representation: VelRepr | None = None,
@@ -712,6 +731,10 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = (-1.0, 1.0),
+    standard_gravity_bounds: tuple[jtp.FloatLike, jtp.FloatLike] = (
+        jaxsim.math.StandardGravity,
+        jaxsim.math.StandardGravity,
+    ),
 ) -> JaxSimModelData:
     """
     Randomly generate a `JaxSimModelData` object.
@@ -724,13 +747,14 @@ def random_model_data(
         base_vel_lin_bounds: The bounds for the base linear velocity.
         base_vel_ang_bounds: The bounds for the base angular velocity.
         joint_vel_bounds: The bounds for the joint velocities.
+        standard_gravity_bounds: The bounds for the standard gravity.
 
     Returns:
         A `JaxSimModelData` object with random data.
     """
 
     key = key if key is not None else jax.random.PRNGKey(seed=0)
-    k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
+    k1, k2, k3, k4, k5, k6, k7 = jax.random.split(key, num=7)
 
     p_min = jnp.array(base_pos_bounds[0], dtype=float)
     p_max = jnp.array(base_pos_bounds[1], dtype=float)
@@ -749,7 +773,9 @@ def random_model_data(
         ),
     )
 
-    with random_data.mutable_context(mutability=Mutability.MUTABLE):
+    with random_data.mutable_context(
+        mutability=Mutability.MUTABLE, restore_after_exception=False
+    ):
 
         physics_model_state = random_data.state.physics_model
 
@@ -761,20 +787,35 @@ def random_model_data(
             *jax.random.uniform(key=k2, shape=(3,), minval=0, maxval=2 * jnp.pi)
         ).as_quaternion_xyzw()[np.array([3, 0, 1, 2])]
 
-        physics_model_state.joint_positions = jaxsim.api.joint.random_joint_positions(
-            model=model, key=k3
-        )
+        if model.number_of_joints() > 0:
+            physics_model_state.joint_positions = js.joint.random_joint_positions(
+                model=model, key=k3
+            )
 
-        physics_model_state.base_linear_velocity = jax.random.uniform(
-            key=k4, shape=(3,), minval=v_min, maxval=v_max
-        )
+            physics_model_state.joint_velocities = jax.random.uniform(
+                key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+            )
 
-        physics_model_state.base_angular_velocity = jax.random.uniform(
-            key=k5, shape=(3,), minval=ω_min, maxval=ω_max
-        )
+        if model.floating_base():
+            physics_model_state.base_linear_velocity = jax.random.uniform(
+                key=k5, shape=(3,), minval=v_min, maxval=v_max
+            )
 
-        physics_model_state.joint_velocities = jax.random.uniform(
-            key=k6, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+            physics_model_state.base_angular_velocity = jax.random.uniform(
+                key=k6, shape=(3,), minval=ω_min, maxval=ω_max
+            )
+
+        random_data.gravity = (
+            jnp.zeros(3, dtype=random_data.gravity.dtype)
+            .at[2]
+            .set(
+                -jax.random.uniform(
+                    key=k7,
+                    shape=(),
+                    minval=standard_gravity_bounds[0],
+                    maxval=standard_gravity_bounds[1],
+                )
+            )
         )
 
     return random_data

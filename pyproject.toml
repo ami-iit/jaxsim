@@ -19,7 +19,7 @@ multi_line_output = 3
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-rsxX -v --strict-markers --forked"
+addopts = "-rsxX -v --strict-markers"
 testpaths = [
     "tests",
 ]

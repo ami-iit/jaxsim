@@ -1,7 +1,7 @@
 import jax.numpy as jnp
+import jaxlie
 
 import jaxsim.typing as jtp
-from jaxsim.sixd import so3
 
 from .quaternion import Quaternion
 from .skew import Skew
@@ -31,11 +31,33 @@ class Adjoint:
         assert quaternion.size == 4
         assert translation.size == 3
 
-        Q_sixd = so3.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(quaternion))
+        Q_sixd = jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(quaternion))
         Q_sixd = Q_sixd if not normalize_quaternion else Q_sixd.normalize()
 
         return Adjoint.from_rotation_and_translation(
             rotation=Q_sixd.as_matrix(), translation=translation, inverse=inverse
+        )
+
+    @staticmethod
+    def from_transform(transform: jtp.MatrixLike, inverse: bool = False) -> jtp.Matrix:
+        """
+        Create an adjoint matrix from a transformation matrix.
+
+        Args:
+            transform: A 4x4 transformation matrix.
+            inverse: Whether to compute the inverse adjoint.
+
+        Returns:
+            The 6x6 adjoint matrix.
+        """
+
+        A_H_B = jnp.array(transform).astype(float)
+        assert transform.shape == (4, 4)
+
+        return (
+            jaxlie.SE3.from_matrix(matrix=A_H_B).adjoint()
+            if not inverse
+            else jaxlie.SE3.from_matrix(matrix=A_H_B).inverse().adjoint()
         )
 
     @staticmethod

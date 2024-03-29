@@ -1,8 +1,8 @@
 import jax.lax
 import jax.numpy as jnp
+import jaxlie
 
 import jaxsim.typing as jtp
-from jaxsim.sixd import so3
 
 
 class Quaternion:
@@ -43,7 +43,7 @@ class Quaternion:
         Returns:
             jtp.Matrix: Direction cosine matrix (DCM).
         """
-        return so3.SO3.from_quaternion_xyzw(
+        return jaxlie.SO3.from_quaternion_xyzw(
             xyzw=Quaternion.to_xyzw(quaternion)
         ).as_matrix()
 
@@ -59,7 +59,7 @@ class Quaternion:
             jtp.Vector: Quaternion in XYZW representation.
         """
         return Quaternion.to_wxyz(
-            xyzw=so3.SO3.from_matrix(matrix=dcm).as_quaternion_xyzw()
+            xyzw=jaxlie.SO3.from_matrix(matrix=dcm).as_quaternion_xyzw()
         )
 
     @staticmethod
@@ -133,3 +133,44 @@ class Quaternion:
         )
 
         return jnp.vstack(qd)
+
+    @staticmethod
+    def integration(
+        quaternion: jtp.VectorLike,
+        dt: jtp.FloatLike,
+        omega: jtp.VectorLike,
+        omega_in_body_fixed: jtp.BoolLike = False,
+    ) -> jtp.Vector:
+        """
+        Integrate a quaternion in SO(3) given an angular velocity.
+
+        Args:
+            quaternion: The quaternion to integrate.
+            dt: The time step.
+            omega: The angular velocity vector.
+            omega_in_body_fixed:
+                Whether the angular velocity is in body-fixed representation
+                as opposed to the default inertial-fixed representation.
+
+        Returns:
+            The integrated quaternion.
+        """
+
+        ω_AB = jnp.array(omega).squeeze().astype(float)
+        A_Q_B = jnp.array(quaternion).squeeze().astype(float)
+
+        # Build the initial SO(3) quaternion.
+        W_Q_B_t0 = jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(wxyz=A_Q_B))
+
+        # Integrate the quaternion on the manifold.
+        W_Q_B_tf = jax.lax.select(
+            pred=omega_in_body_fixed,
+            on_true=Quaternion.to_wxyz(
+                xyzw=(W_Q_B_t0 @ jaxlie.SO3.exp(tangent=dt * ω_AB)).as_quaternion_xyzw()
+            ),
+            on_false=Quaternion.to_wxyz(
+                xyzw=(jaxlie.SO3.exp(tangent=dt * ω_AB) @ W_Q_B_t0).as_quaternion_xyzw()
+            ),
+        )
+
+        return W_Q_B_tf

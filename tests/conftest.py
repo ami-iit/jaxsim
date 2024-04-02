@@ -2,7 +2,6 @@ import os
 import pathlib
 
 import jax
-import jax.numpy as jnp
 import pytest
 import rod
 
@@ -176,14 +175,12 @@ def jaxsim_model_ergocub() -> js.model.JaxSimModel:
         The JaxSim model of the ErgoCub robot.
     """
 
-    os_environ_original = os.environ.copy()
-
     try:
         os.environ["ROBOT_DESCRIPTION_COMMIT"] = "v0.7.1"
 
         import robot_descriptions.ergocub_description
     finally:
-        os.environ = os_environ_original
+        _ = os.environ.pop("ROBOT_DESCRIPTION_COMMIT", None)
 
     model_urdf_path = pathlib.Path(
         robot_descriptions.ergocub_description.URDF_PATH.replace(

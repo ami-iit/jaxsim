@@ -1,7 +1,7 @@
 import pathlib
 import tempfile
 import warnings
-from typing import Any, Callable
+from typing import Any
 
 import mujoco as mj
 import rod.urdf.exporter
@@ -49,7 +49,6 @@ class RodModelToMjcf:
     @staticmethod
     def assets_from_rod_model(
         rod_model: rod.Model,
-        heightmap: pathlib.Path | Callable | None = None,
     ) -> dict[str, bytes]:
         """"""
 
@@ -131,7 +130,7 @@ class RodModelToMjcf:
         rod_model: rod.Model,
         considered_joints: list[str] | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
-        heightmap: pathlib.Path | Callable | None = None,
+        heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -233,9 +232,7 @@ class RodModelToMjcf:
         # ------------------------
 
         # Load the URDF model into Mujoco.
-        assets = RodModelToMjcf.assets_from_rod_model(
-            rod_model=rod_model, heightmap=heightmap
-        )
+        assets = RodModelToMjcf.assets_from_rod_model(rod_model=rod_model)
         mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)  # noqa
 
         # Get the joint names.
@@ -425,6 +422,7 @@ class RodModelToMjcf:
             raise RuntimeError("Failed to find the <worldbody> element of the model")
 
         # Camera attached to the model
+        # It can be manually copied from `python -m mujoco.viewer --mjcf=<URDF_PATH>`
         _ = ET.SubElement(
             worldbody_element,
             "camera",

@@ -7,6 +7,8 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.transform import Rotation
 
+HeightmapCallable = Callable[[jtp.FloatLike, jtp.FloatLike], jtp.FloatLike]
+
 
 class MujocoModelHelper:
     """
@@ -29,7 +31,7 @@ class MujocoModelHelper:
     def build_from_xml(
         mjcf_description: str | pathlib.Path,
         assets: dict[str, Any] = None,
-        heightmap: Callable | None = None,
+        heightmap: HeightmapCallable | None = None,
     ) -> "MujocoModelHelper":
         """"""
 
@@ -361,7 +363,9 @@ class MujocoModelHelper:
         )
 
 
-def generate_hfield(heightmap: Callable, size: tuple[int, int] = (10, 10)) -> str:
+def generate_hfield(
+    heightmap: HeightmapCallable, size: tuple[int, int] = (10, 10)
+) -> str:
     """
     Generates a numpy array representing the heightmap of
     The map will have the following format:

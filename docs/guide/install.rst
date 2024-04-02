@@ -6,12 +6,12 @@ Installation
 Prerequisites
 -------------
 
-JAXsim requires Python 3.11 or later. 
+JAXsim requires Python 3.11 or later.
 
 Basic Installation
 ------------------
 
-You can install the project with using `conda`_: 
+You can install the project with using `conda`_:
 
 .. code-block:: bash
 

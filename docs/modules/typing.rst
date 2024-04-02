@@ -1,4 +1,4 @@
-Typing 
+Typing
 ======
 
 .. currentmodule:: jaxsim.typing

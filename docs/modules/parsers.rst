@@ -1,4 +1,4 @@
-Parsers 
+Parsers
 =======
 
 .. automodule:: jaxsim.parsers.descriptions.collision

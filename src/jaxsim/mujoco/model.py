@@ -7,6 +7,8 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.transform import Rotation
 
+import jaxsim.typing as jtp
+
 HeightmapCallable = Callable[[jtp.FloatLike, jtp.FloatLike], jtp.FloatLike]
 
 

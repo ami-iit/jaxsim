@@ -324,7 +324,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     def post_process_state(
         cls, x0: State, t0: Time, xf: NextState, dt: TimeStep
     ) -> NextState:
-        """
+        r"""
         Post-process the integrated state at :math:`t_f = t_0 + \Delta t`.
 
         Args:
@@ -529,7 +529,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         # Return the index of the row of A providing the fsal derivative (that is the
         # possibly intermediate kᵢ derivative).
         # Note that if multiple rows match (it should not), we return the first match.
-        return True, int(jnp.where(rows_of_A_with_fsal == True)[0].tolist()[0])
+        return True, int(jnp.where(rows_of_A_with_fsal)[0].tolist()[0])
 
 
 class ExplicitRungeKuttaSO3Mixin:

@@ -1,6 +1,5 @@
 import abc
 import contextlib
-import copy
 import dataclasses
 import functools
 from collections.abc import Iterator

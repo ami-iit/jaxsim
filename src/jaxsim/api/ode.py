@@ -8,7 +8,6 @@ import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.integrators import Time
 from jaxsim.math import Quaternion
-from jaxsim.utils import Mutability
 
 from .common import VelRepr
 from .ode_data import ODEState

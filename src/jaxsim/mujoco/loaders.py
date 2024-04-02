@@ -129,6 +129,8 @@ class RodModelToMjcf:
     def convert(
         rod_model: rod.Model,
         considered_joints: list[str] | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -198,8 +200,6 @@ class RodModelToMjcf:
         )
 
         urdf_string = ET.tostring(root, pretty_print=True).decode()
-        # print(urdf_string)
-        # raise
 
         # ------------------------------
         # Post-process all dummy visuals
@@ -358,6 +358,19 @@ class RodModelToMjcf:
             texuniform="true",
         )
 
+        _ = (
+            ET.SubElement(
+                asset_element,
+                "hfield",
+                name="terrain",
+                nrow="100",
+                ncol="100",
+                size="5 5 1 1",
+            )
+            if heightmap
+            else None
+        )
+
         # ----------------------------------
         # Populate the scene with the assets
         # ----------------------------------
@@ -368,12 +381,14 @@ class RodModelToMjcf:
             worldbody_scene_element,
             "geom",
             name="floor",
-            type="plane",
+            type="plane" if not heightmap else "hfield",
             size="0 0 0.05",
             material="plane_material",
             condim="3",
             contype="1",
             conaffinity="1",
+            zaxis=" ".join(map(str, plane_normal)),
+            **({"hfield": "terrain"} if heightmap else {}),
         )
 
         _ = ET.SubElement(
@@ -407,13 +422,14 @@ class RodModelToMjcf:
             raise RuntimeError("Failed to find the <worldbody> element of the model")
 
         # Camera attached to the model
+        # It can be manually copied from `python -m mujoco.viewer --mjcf=<URDF_PATH>`
         _ = ET.SubElement(
             worldbody_element,
             "camera",
             name="track",
             mode="trackcom",
-            pos="1 0 5",
-            zaxis="0 0 1",
+            pos="1.930 -2.279 0.556",
+            xyaxes="0.771 0.637 0.000 -0.116 0.140 0.983",
             fovy="60",
         )
 
@@ -449,6 +465,8 @@ class UrdfToMjcf:
         urdf: str | pathlib.Path,
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -461,7 +479,10 @@ class UrdfToMjcf:
 
         # Convert the ROD model to MJCF.
         return RodModelToMjcf.convert(
-            rod_model=rod_model, considered_joints=considered_joints
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
         )
 
 
@@ -471,6 +492,8 @@ class SdfToMjcf:
         sdf: str | pathlib.Path,
         considered_joints: list[str] | None = None,
         model_name: str | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """"""
 
@@ -483,5 +506,8 @@ class SdfToMjcf:
 
         # Convert the ROD model to MJCF.
         return RodModelToMjcf.convert(
-            rod_model=rod_model, considered_joints=considered_joints
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
         )

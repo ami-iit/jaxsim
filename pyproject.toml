@@ -64,4 +64,5 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 # Ignore `E402` (import violations) in all `__init__.py` files
 "**/{tests,docs,tools}/*" = ["E402"]
+"**/{tests}/*" = ["B007"]
 "__init__.py" = ["F401"]

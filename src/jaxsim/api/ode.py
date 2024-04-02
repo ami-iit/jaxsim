@@ -88,7 +88,7 @@ def system_velocity_dynamics(
     data: js.data.JaxSimModelData,
     *,
     joint_forces: jtp.Vector | None = None,
-    external_forces: jtp.Vector | None = None,
+    link_forces: jtp.Vector | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector, jtp.Matrix, dict[str, Any]]:
     """
     Compute the dynamics of the system velocity.
@@ -97,7 +97,7 @@ def system_velocity_dynamics(
         model: The model to consider.
         data: The data of the considered model.
         joint_forces: The joint forces to apply.
-        external_forces: The external forces to apply to the links.
+        link_forces: The 6D forces to apply to the links.
 
     Returns:
         A tuple containing the derivative of the base 6D velocity in inertial-fixed
@@ -115,8 +115,8 @@ def system_velocity_dynamics(
 
     # Build link forces if not provided
     W_f_L = (
-        jnp.atleast_2d(external_forces.squeeze())
-        if external_forces is not None
+        jnp.atleast_2d(link_forces.squeeze())
+        if link_forces is not None
         else jnp.zeros((model.number_of_links(), 6))
     ).astype(float)
 
@@ -205,7 +205,7 @@ def system_velocity_dynamics(
             model=model,
             data=data,
             joint_forces=τ_total,
-            external_forces=W_f_L_total,
+            link_forces=W_f_L_total,
         )
 
     return W_v̇_WB, s̈, ṁ, dict()
@@ -251,7 +251,7 @@ def system_dynamics(
     data: js.data.JaxSimModelData,
     *,
     joint_forces: jtp.Vector | None = None,
-    external_forces: jtp.Vector | None = None,
+    link_forces: jtp.Vector | None = None,
 ) -> tuple[ODEState, dict[str, Any]]:
     """
     Compute the dynamics of the system.
@@ -260,7 +260,7 @@ def system_dynamics(
         model: The model to consider.
         data: The data of the considered model.
         joint_forces: The joint forces to apply.
-        external_forces: The external forces to apply to the links.
+        link_forces: The 6D forces to apply to the links.
 
     Returns:
         A tuple with an `ODEState` object storing in each of its attributes the
@@ -273,7 +273,7 @@ def system_dynamics(
         model=model,
         data=data,
         joint_forces=joint_forces,
-        external_forces=external_forces,
+        link_forces=link_forces,
     )
 
     # Extract the velocities.

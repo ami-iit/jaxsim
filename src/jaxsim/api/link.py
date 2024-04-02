@@ -233,62 +233,61 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # Compute the doubly left-trivialized free-floating jacobian.
-    L_J_WL_B = jaxsim.rbda.jacobian(
+    # Compute the doubly-left free-floating full jacobian.
+    B_J_full_WX_B, B_H_Li = jaxsim.rbda.jacobian_full_doubly_left(
         model=model,
-        link_index=link_index,
         joint_positions=data.joint_positions(),
     )
 
-    # We want to return the Jacobian O_J_WL_I, where O is the representation of the
-    # output 6D velocity, and I is the representation of the input generalized velocity.
+    # Compute the actual doubly-left free-floating jacobian of the link.
+    κ = model.kin_dyn_parameters.support_body_array_bool[link_index]
+    B_J_WL_B = jnp.hstack([jnp.ones(5), κ]) * B_J_full_WX_B
 
-    # Change the input representation matching the one of data.
+    # Adjust the input representation such that `J_WL_I @ I_ν`.
     match data.velocity_representation:
+        case VelRepr.Inertial:
+            W_H_B = data.base_transform()
+            B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+            B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(
+                B_X_W, jnp.eye(model.dofs())
+            )
 
         case VelRepr.Body:
-            L_J_WL_I = L_J_WL_B
-
-        case VelRepr.Inertial:
-
-            W_H_B = data.base_transform()
-
-            B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
-            B_T_W = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
-
-            L_J_WL_I = L_J_WL_B @ B_T_W
+            B_J_WL_I = B_J_WL_B
 
         case VelRepr.Mixed:
-
-            W_H_B = data.base_transform()
-            BW_H_B = jnp.array(W_H_B).at[0:3, 3].set(jnp.zeros(3))
-
+            W_R_B = data.base_orientation(dcm=True)
+            BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
-            B_T_BW = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
-
-            L_J_WL_I = L_J_WL_B @ B_T_BW
+            B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(
+                B_X_BW, jnp.eye(model.dofs())
+            )
 
         case _:
             raise ValueError(data.velocity_representation)
 
-    # Change the output representation matching specified one.
+    B_H_L = B_H_Li[link_index]
+
+    # Adjust the output representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
     match output_vel_repr:
+        case VelRepr.Inertial:
+            W_H_B = data.base_transform()
+            W_X_B = jaxlie.SE3.from_matrix(W_H_B).adjoint()
+            O_J_WL_I = W_J_WL_I = W_X_B @ B_J_WL_I
 
         case VelRepr.Body:
+            L_X_B = jaxlie.SE3.from_matrix(B_H_L).inverse().adjoint()
+            L_J_WL_I = L_X_B @ B_J_WL_I
             O_J_WL_I = L_J_WL_I
 
-        case VelRepr.Inertial:
-
-            W_H_L = transform(model=model, data=data, link_index=link_index)
-            W_X_L = jaxlie.SE3.from_matrix(W_H_L).adjoint()
-            O_J_WL_I = W_X_L @ L_J_WL_I
-
         case VelRepr.Mixed:
-
-            W_H_L = transform(model=model, data=data, link_index=link_index)
-            LW_H_L = jnp.array(W_H_L).at[0:3, 3].set(jnp.zeros(3))
-            LW_X_L = jaxlie.SE3.from_matrix(LW_H_L).adjoint()
-            O_J_WL_I = LW_X_L @ L_J_WL_I
+            W_H_B = data.base_transform()
+            W_H_L = W_H_B @ B_H_L
+            LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
+            LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
+            LW_X_B = jaxlie.SE3.from_matrix(LW_H_B).adjoint()
+            LW_J_WL_I = LW_X_B @ B_J_WL_I
+            O_J_WL_I = LW_J_WL_I
 
         case _:
             raise ValueError(output_vel_repr)

@@ -6,6 +6,7 @@ from jax.test_util import check_grads
 
 import jaxsim.api as js
 import jaxsim.rbda
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
@@ -13,6 +14,13 @@ from jaxsim import VelRepr
 # However, checking the second-order derivatives is particularly slow and makes
 # CI tests take too long. Therefore, we only check first-order derivatives.
 AD_ORDER = os.environ.get("JAXSIM_TEST_AD_ORDER", 1)
+
+# Define the step size used to compute finite differences depending on the
+# floating point resolution.
+ε = os.environ.get(
+    "JAXSIM_TEST_FD_STEP_SIZE",
+    jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3),
+)
 
 
 def get_random_data_and_references(
@@ -61,9 +69,6 @@ def test_ad_aba(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # Get the standard gravity constant.
     g = jaxsim.math.StandardGravity
@@ -118,9 +123,6 @@ def test_ad_rnea(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # Get the standard gravity constant.
     g = jaxsim.math.StandardGravity
@@ -181,9 +183,6 @@ def test_ad_crba(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
-
     # State in VelRepr.Inertial representation.
     s = data.joint_positions(model=model)
 
@@ -215,9 +214,6 @@ def test_ad_fk(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()
@@ -258,9 +254,6 @@ def test_ad_jacobian(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
-
     # State in VelRepr.Inertial representation.
     s = data.joint_positions(model=model)
 
@@ -295,9 +288,6 @@ def test_ad_soft_contacts(
 
     model = jaxsim_models_types
 
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
-
     key, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
     p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
     v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
@@ -311,17 +301,25 @@ def test_ad_soft_contacts(
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    soft_contacts = lambda p, v, m: jaxsim.rbda.SoftContacts(
-        parameters=parameters
-    ).contact_model(position=p, velocity=v, tangential_deformation=m)
+    def close_over_inputs_and_parameters(
+        p: jtp.VectorLike,
+        v: jtp.VectorLike,
+        m: jtp.VectorLike,
+        params: jaxsim.rbda.SoftContactsParams,
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+        return jaxsim.rbda.SoftContacts(parameters=params).contact_model(
+            position=p, velocity=v, tangential_deformation=m
+        )
 
     # Check derivatives against finite differences.
     check_grads(
-        f=soft_contacts,
-        args=(p, v, m),
+        f=close_over_inputs_and_parameters,
+        args=(p, v, m, parameters),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
+        # On GPU, the tolerance needs to be increased
+        rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
     )
 
 
@@ -336,9 +334,6 @@ def test_ad_integration(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
-
-    # Perturbation used for computing finite differences.
-    ε = jnp.finfo(jnp.array(0.0)).resolution ** (1 / 3)
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()
@@ -413,7 +408,7 @@ def test_ad_integration(
             integrator=integrator,
             integrator_state=integrator_state,
             joint_forces=τ,
-            external_forces=W_f_L,
+            link_forces=W_f_L,
         )
 
         xf_W_p_B = data_xf.base_position()
@@ -432,6 +427,4 @@ def test_ad_integration(
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
-        # This check (at least on ErgoCub) needs larger tolerances
-        rtol=0.000_100,
     )

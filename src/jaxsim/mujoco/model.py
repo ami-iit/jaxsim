@@ -365,7 +365,7 @@ class MujocoModelHelper:
 
 def generate_hfield(
     heightmap: HeightmapCallable, size: tuple[int, int] = (10, 10)
-) -> str:
+) -> npt.NDArray:
     """
     Generates a numpy array representing the heightmap of
     The map will have the following format:

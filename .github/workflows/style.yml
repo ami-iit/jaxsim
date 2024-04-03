@@ -22,7 +22,7 @@ jobs:
       - name: '🐍 Initialize Python'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
+          python-version: "3.*"
 
       - name: "📝 Black Code Formatter"
         uses: psf/black@stable
@@ -42,7 +42,7 @@ jobs:
       - name: '🐍 Initialize Python'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
+          python-version: "3.*"
 
       # Workaround for https://github.com/isort/isort-action/issues/70
       - run: pip install colorama

@@ -45,3 +45,4 @@ dependencies:
   - sphinx_rtd_theme
   - sphinx-book-theme
   - sphinx-toolbox
+  - pip

@@ -21,12 +21,12 @@ The simplest way to run the examples is by accessing the provided Google Colab n
 
 For local execution, follow these steps:
 
-1. **Install `pixi`:** 
+1. **Install `pixi`:**
 
 As per the [official documentation](https://pixi.sh/#installation):
 
 ```bash
-curl -fsSL https://pixi.sh/install.sh | bash 
+curl -fsSL https://pixi.sh/install.sh | bash
 ```
 
 2. **Run the Example Notebook:**

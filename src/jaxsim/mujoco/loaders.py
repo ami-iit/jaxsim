@@ -13,7 +13,17 @@ def load_rod_model(
     is_urdf: bool | None = None,
     model_name: str | None = None,
 ) -> rod.Model:
-    """"""
+    """
+    Loads a ROD model from a URDF/SDF file or a ROD model.
+
+    Args:
+        model_description: The URDF/SDF file or ROD model to load.
+        is_urdf: Whether the model description is a URDF file.
+        model_name: The name of the model to load from the resource.
+
+    Returns:
+        rod.Model: The loaded ROD model.
+    """
 
     # Parse the SDF resource.
     sdf_element = rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
@@ -50,7 +60,15 @@ class RodModelToMjcf:
     def assets_from_rod_model(
         rod_model: rod.Model,
     ) -> dict[str, bytes]:
-        """"""
+        """
+        Generates a dictionary of assets from a ROD model.
+
+        Args:
+            rod_model: The ROD model to extract the assets from.
+
+        Returns:
+            dict: A dictionary of assets.
+        """
 
         import resolve_robotics_uri_py
 
@@ -85,7 +103,17 @@ class RodModelToMjcf:
         base_link_name: str,
         floating_joint_name: str = "world_to_base",
     ) -> str:
-        """"""
+        """
+        Adds a floating joint to a URDF string.
+
+        Args:
+            urdf_string: The URDF string to modify.
+            base_link_name: The name of the base link to attach the floating joint.
+            floating_joint_name: The name of the floating joint to add.
+
+        Returns:
+            str: The modified URDF string.
+        """
 
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".urdf") as urdf_file:
 
@@ -132,7 +160,16 @@ class RodModelToMjcf:
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """"""
+        """
+        Converts a ROD model to a Mujoco MJCF string.
+
+        Args:
+            rod_model: The ROD model to convert.
+            considered_joints: The list of joint names to consider in the conversion.
+
+        Returns:
+            tuple: A tuple containing the MJCF string and the assets dictionary.
+        """
 
         # -------------------------------------
         # Convert the model description to URDF
@@ -468,7 +505,17 @@ class UrdfToMjcf:
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """"""
+        """
+        Converts a URDF file to a Mujoco MJCF string.
+
+        Args:
+            urdf: The URDF file to convert.
+            considered_joints: The list of joint names to consider in the conversion.
+            model_name: The name of the model to convert.
+
+        Returns:
+            tuple: A tuple containing the MJCF string and the assets dictionary.
+        """
 
         # Get the ROD model.
         rod_model = load_rod_model(
@@ -495,7 +542,17 @@ class SdfToMjcf:
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """"""
+        """
+        Converts a SDF file to a Mujoco MJCF string.
+
+        Args:
+            sdf: The SDF file to convert.
+            considered_joints: The list of joint names to consider in the conversion.
+            model_name: The name of the model to convert.
+
+        Returns:
+            tuple: A tuple containing the MJCF string and the assets dictionary.
+        """
 
         # Get the ROD model.
         rod_model = load_rod_model(

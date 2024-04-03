@@ -92,7 +92,7 @@ jobs:
       - name: Document installed pip packages
         shell: bash
         run: pip list --verbose
-      
+
       - name: Import the package
         run: python -c "import jaxsim"
 

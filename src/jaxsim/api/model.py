@@ -986,8 +986,8 @@ def free_floating_gravity_forces(
 def free_floating_bias_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Vector:
-    """
-    Compute the free-floating bias forces :math:`h(\\mathbf{q}, \boldsymbol{\nu})`
+    r"""
+    Compute the free-floating bias forces :math:`h(\mathbf{q}, \boldsymbol{\nu})`
     of the model.
 
     Args:

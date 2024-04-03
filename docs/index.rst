@@ -3,30 +3,68 @@ JAXsim
 
 A scalable physics engine and multibody dynamics library implemented with JAX. With JIT batteries 🔋
 
-.. warning::
-    This project is still experimental, APIs could change without notice.
-
 .. note::
     This simulator currently focuses on locomotion applications. Only contacts with ground are supported.
 
 Features
 --------
 
-- Physics engine in reduced coordinates implemented with `JAX <https://github.com/google/jax/>`_ in Python.
-- JIT compilation of Python code for increased performance.
-- Transparent support to execute logic on CPUs, GPUs, and TPUs.
-- Parallel multi-body simulations on hardware accelerators for significantly increased throughput.
-- Support for SDF models (and, upon conversion, URDF models).
-- Collision detection between bodies and uneven ground surface.
-- Soft contacts model supporting full friction cone and sticking / slipping transition.
-- Complete support for inertial properties of rigid bodies.
-- Revolute, prismatic, and fixed joints support.
-- Integrators: forward Euler, semi-implicit Euler, Runge-Kutta 4.
-- High-level classes for object-oriented programming.
-- High-level classes to compute multi-body dynamics quantities from simulation state.
-- High-level classes wrapping the low-level functional RBDAs with support of `multiple velocities representations <https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2>`_.
-- Default validation of JAX pytrees to prevent JIT re-compilations.
-- Preliminary support for automatic differentiation of RBDAs.
+.. grid::
+
+   .. grid-item::
+      :columns: 12 12 12 6
+
+      .. card:: Performance
+         :class-card: sd-border-0
+         :shadow: none
+         :class-title: sd-fs-5
+
+         .. div:: sd-font-normal
+
+            Physics engine in reduced coordinates implemented with `JAX <https://github.com/google/jax/>`_.
+            Compatibility with JIT compilation for increased performance and transparent support to execute logic on CPUs, GPUs, and TPUs.
+            Parallel multi-body simulations on hardware accelerators for significantly increased throughput
+
+   .. grid-item::
+      :columns: 12 12 12 6
+
+      .. card:: Model Parsing
+         :class-card: sd-border-0
+         :shadow: none
+         :class-title: sd-fs-5
+
+         .. div:: sd-font-normal
+
+            Support for SDF models (and, upon conversion, URDF models). Revolute, prismatic, and fixed joints supported.
+
+   .. grid-item::
+      :columns: 12 12 12 6
+
+      .. card:: Automatic Differentiation
+         :class-card: sd-border-0
+         :shadow: none
+         :class-title: sd-fs-5
+
+         .. div:: sd-font-normal
+
+            Support for automatic differentiation of rigid body dynamics algorithms (RBDAs) for model-based robotics research.
+            Soft contacts model supporting full friction cone and sticking / slipping transition.
+
+   .. grid-item::
+      :columns: 12 12 12 6
+
+      .. card:: Complex Dynamics
+         :class-card: sd-border-0
+         :shadow: none
+         :class-title: sd-fs-5
+
+         .. div:: sd-font-normal
+
+            JAXsim provides a variety of integrators for the simulation of multibody dynamics, including RK4, Heun, Euler, and more.
+            Support of `multiple velocities representations <https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2>`_.
+
+
+----
 
 .. toctree::
   :hidden:
@@ -37,17 +75,10 @@ Features
 
 .. toctree::
   :hidden:
-  :maxdepth: 2
+  :maxdepth: 1
   :caption: JAXsim API
 
-  modules/high_level
-  modules/math
-  modules/parsers
-  modules/physics
-  modules/simulation
-  modules/typing
-  modules/utils
-
+  modules/index
 
 Examples
 --------
@@ -73,23 +104,6 @@ Here below we summarize the differences between the projects:
 - Contrarily to brax, JAXsim only supports collision detection between bodies and a compliant ground surface.
 - The RBDAs of JAXsim support automatic differentiation, but this functionality has not been thoroughly tested.
 
-Contributing
-------------
-
-Pull requests are welcome. 
-For major changes, please open an issue first to discuss what you would like to change.
-
-Citing
-------
-
-.. code-block:: bibtex
-
-    @software{ferigo_jaxsim_2022,
-      author = {Diego Ferigo and Silvio Traversaro and Daniele Pucci},
-      title = {{JAXsim}: A Physics Engine in Reduced Coordinates and Multibody Dynamics Library for Control and Robot Learning},
-      url = {http://github.com/ami-iit/jaxsim},
-      year = {2022},
-    }
 
 People
 ------

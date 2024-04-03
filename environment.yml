@@ -38,8 +38,11 @@ dependencies:
   - sphinx
   - sphinx-autodoc-typehints
   - sphinx-copybutton
+  - sphinx-design
   - sphinx_fontawesome
   - sphinx-jinja2-compat
   - sphinx-multiversion
   - sphinx_rtd_theme
+  - sphinx-book-theme
   - sphinx-toolbox
+  - pip

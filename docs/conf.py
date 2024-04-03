@@ -4,6 +4,12 @@ import sys
 
 from pkg_resources import get_distribution
 
+if os.environ.get("READTHEDOCS"):
+    checkout_name = os.path.basename(os.path.dirname(os.path.realpath(__file__)))
+    os.environ["CONDA_PREFIX"] = os.path.realpath(
+        os.path.join("..", "..", "conda", checkout_name)
+    )
+
 import jaxsim
 
 # -- Version information

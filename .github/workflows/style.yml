@@ -24,10 +24,13 @@ jobs:
         with:
           python-version: "3.*"
 
+      # Note: the black version needs to be in sync with what
+      # specified in setup.cfg.
       - name: "📝 Black Code Formatter"
         uses: psf/black@stable
         with:
           options: --check --diff --color
+          version: "~= 24.0"
 
   isort:
 

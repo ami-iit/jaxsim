@@ -290,6 +290,15 @@ class KinDynComputations:
 
         return v_WF.toNumPy()
 
+    def frame_bias_acc(self, frame_name: str) -> npt.NDArray:
+
+        if self.kin_dyn.getFrameIndex(frame_name) < 0:
+            raise ValueError(f"Frame '{frame_name}' does not exist")
+
+        J̇ν = self.kin_dyn.getFrameBiasAcc(frame_name)
+
+        return J̇ν.toNumPy()
+
     def com_position(self) -> npt.NDArray:
 
         W_p_G = self.kin_dyn.getCenterOfMassPosition()

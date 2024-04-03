@@ -100,12 +100,6 @@ jobs:
         with:
           fetch-depth: 0
 
-#      - name: Install Gazebo Classic
-#        if: contains(matrix.os, 'ubuntu')
-#        run: |
-#          sudo apt-get update
-#          sudo apt-get install gazebo
-
       # https://gazebosim.org/docs/harmonic/install_ubuntu
       - name: Install Gazebo Sim
         if: contains(matrix.os, 'ubuntu')

@@ -10,7 +10,6 @@ on:
 jobs:
 
   black:
-
     name: black
     runs-on: ubuntu-latest
 
@@ -22,15 +21,17 @@ jobs:
       - name: '🐍 Initialize Python'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
+          python-version: "3.*"
 
+      # Note: the black version needs to be in sync with what
+      # specified in setup.cfg.
       - name: "📝 Black Code Formatter"
         uses: psf/black@stable
         with:
-          options: --check --diff --color
+          options: "--check --diff --color"
+          version: "~= 24.0"
 
   isort:
-
     name: isort
     runs-on: ubuntu-latest
 
@@ -42,7 +43,7 @@ jobs:
       - name: '🐍 Initialize Python'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8"
+          python-version: "3.*"
 
       # Workaround for https://github.com/isort/isort-action/issues/70
       - run: pip install colorama
@@ -50,10 +51,9 @@ jobs:
       - name: "📝 isort"
         uses: isort/isort-action@master
         with:
-          configuration: --check --diff --color
+          configuration: "--check --diff --color"
 
   ruff:
-
     name: ruff
     runs-on: ubuntu-latest
 

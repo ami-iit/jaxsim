@@ -14,7 +14,7 @@ dependencies:
   - typing_extensions # python<3.12
   # Optional dependencies from setup.cfg
   # [style]
-  - black
+  - black == 24.*
   - isort
   # [testing]
   - idyntree

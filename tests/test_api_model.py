@@ -161,6 +161,13 @@ def test_model_rbda(
     )
     assert pytest.approx(HH_idt) == HH_js
 
+    # Bias accelerations
+    Jν_js = js.model.link_bias_accelerations(model=model, data=data)
+    Jν_idt = jnp.stack(
+        [kin_dyn.frame_bias_acc(frame_name=name) for name in model.link_names()]
+    )
+    assert pytest.approx(Jν_idt) == Jν_js
+
 
 def test_model_jacobian(
     jaxsim_models_types: js.model.JaxSimModel,

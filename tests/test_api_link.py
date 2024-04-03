@@ -157,3 +157,35 @@ def test_link_jacobians(
         v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
         v_WL_js = js.link.velocity(model=model, data=data, link_index=link_idx)
         assert v_WL_js == pytest.approx(v_WL_idt), link_name
+
+
+def test_link_bias_acceleration(
+    jaxsim_models_types: js.model.JaxSimModel,
+    velocity_representation: VelRepr,
+    prng_key: jax.Array,
+):
+
+    model = jaxsim_models_types
+
+    key, subkey = jax.random.split(prng_key, num=2)
+    data = js.data.random_model_data(
+        model=model,
+        key=subkey,
+        velocity_representation=velocity_representation,
+    )
+
+    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model, data=data
+    )
+
+    # =====
+    # Tests
+    # =====
+
+    for name, index in zip(
+        model.link_names(),
+        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+    ):
+        Jν_idt = kin_dyn.frame_bias_acc(frame_name=name)
+        Jν_js = js.link.bias_acceleration(model=model, data=data, link_index=index)
+        assert pytest.approx(Jν_idt) == Jν_js

@@ -335,3 +335,27 @@ def velocity(
 
     # Compute the link velocity in the output velocity representation.
     return O_J_WL_I @ I_ν
+
+
+@jax.jit
+def bias_acceleration(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    link_index: jtp.IntLike,
+) -> jtp.Vector:
+    """
+    Compute the bias acceleration of the link.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        link_index: The index of the link.
+
+    Returns:
+        The 6D bias acceleration of the link.
+    """
+
+    # Compute the bias acceleration of all links in the active representation.
+    O_v̇_WL = js.model.link_bias_accelerations(model=model, data=data)[link_index]
+    return O_v̇_WL

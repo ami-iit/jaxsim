@@ -2,20 +2,25 @@ name: jaxsim
 channels:
   - conda-forge
 dependencies:
+  # ===========================
   # Dependencies from setup.cfg
+  # ===========================
   - python=3.11
   - coloredlogs
   - jax >= 0.4.13
-  - jaxlib
+  - jaxlib >= 0.4.13
   - jaxlie >= 1.3.0
   - jax-dataclasses >= 1.4.0
   - pptree
   - rod >= 0.2.0
   - typing_extensions # python<3.12
+  # ====================================
   # Optional dependencies from setup.cfg
+  # ====================================
   # [style]
   - black == 24.*
   - isort
+  - pre-commit
   # [testing]
   - idyntree
   - pytest
@@ -25,16 +30,15 @@ dependencies:
   - lxml
   - mediapy
   - mujoco >= 3.0.0
-  # System dependencies to run the tests
-  - gz-sim7
-  # Other packages
-  - ipython
+  # ==========================
   # Documentation dependencies
+  # ==========================
   - cachecontrol
   - enum_tools
   - filecache
   - filelock
   - jinja2
+  - pip
   - sphinx
   - sphinx-autodoc-typehints
   - sphinx-copybutton
@@ -45,4 +49,10 @@ dependencies:
   - sphinx_rtd_theme
   - sphinx-book-theme
   - sphinx-toolbox
-  - pip
+  # ========================================
+  # Other dependencies for GitHub Codespaces
+  # ========================================
+  # System dependencies to run the tests
+  - gz-sim7
+  # Other packages
+  - ipython

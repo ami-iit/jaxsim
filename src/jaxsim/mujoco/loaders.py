@@ -1,3 +1,4 @@
+import dataclasses
 import pathlib
 import tempfile
 import warnings
@@ -159,6 +160,7 @@ class RodModelToMjcf:
         considered_joints: list[str] | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
+        cameras: list[dict[str, str]] | dict[str, str] = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a ROD model to a Mujoco MJCF string.
@@ -166,6 +168,9 @@ class RodModelToMjcf:
         Args:
             rod_model: The ROD model to convert.
             considered_joints: The list of joint names to consider in the conversion.
+            plane_normal: The normal vector of the plane.
+            heightmap: Whether to generate a heightmap.
+            cameras: The list of cameras to add to the scene.
 
         Returns:
             tuple: A tuple containing the MJCF string and the assets dictionary.
@@ -470,6 +475,14 @@ class RodModelToMjcf:
             fovy="60",
         )
 
+        # Add user-defined camera
+        cameras = cameras if cameras is not None else {}
+        for camera in cameras if isinstance(cameras, list) else [cameras]:
+            mj_camera = MujocoCamera.build(**camera)
+            _ = ET.SubElement(
+                worldbody_element, "camera", dataclasses.asdict(mj_camera)
+            )
+
         # ------------------------------------------------
         # Add a light following the  CoM of the first link
         # ------------------------------------------------
@@ -504,6 +517,7 @@ class UrdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
+        cameras: list[dict[str, str]] | dict[str, str] = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a URDF file to a Mujoco MJCF string.
@@ -512,6 +526,9 @@ class UrdfToMjcf:
             urdf: The URDF file to convert.
             considered_joints: The list of joint names to consider in the conversion.
             model_name: The name of the model to convert.
+            plane_normal: The normal vector of the plane.
+            heightmap: Whether to generate a heightmap.
+            cameras: The list of cameras to add to the scene.
 
         Returns:
             tuple: A tuple containing the MJCF string and the assets dictionary.
@@ -530,6 +547,7 @@ class UrdfToMjcf:
             considered_joints=considered_joints,
             plane_normal=plane_normal,
             heightmap=heightmap,
+            cameras=cameras,
         )
 
 
@@ -541,6 +559,7 @@ class SdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
+        cameras: list[dict[str, str]] | dict[str, str] = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a SDF file to a Mujoco MJCF string.
@@ -549,6 +568,9 @@ class SdfToMjcf:
             sdf: The SDF file to convert.
             considered_joints: The list of joint names to consider in the conversion.
             model_name: The name of the model to convert.
+            plane_normal: The normal vector of the plane.
+            heightmap: Whether to generate a heightmap.
+            cameras: The list of cameras to add to the scene.
 
         Returns:
             tuple: A tuple containing the MJCF string and the assets dictionary.
@@ -567,4 +589,27 @@ class SdfToMjcf:
             considered_joints=considered_joints,
             plane_normal=plane_normal,
             heightmap=heightmap,
+            cameras=cameras,
         )
+
+
+@dataclasses.dataclass
+class MujocoCamera:
+    name: str
+    mode: str
+    pos: str
+    xyaxes: str
+    fovy: str
+
+    @classmethod
+    def build(cls, **kwargs):
+        if not all(isinstance(value, str) for value in kwargs.values()):
+            raise ValueError("Values must be strings")
+
+        if len(kwargs["pos"].split()) != 3:
+            raise ValueError("pos must have three values separated by space")
+
+        if len(kwargs["xyaxes"].split()) != 6:
+            raise ValueError("xyaxes must have six values separated by space")
+
+        return cls(**kwargs)

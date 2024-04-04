@@ -476,7 +476,7 @@ class RodModelToMjcf:
         )
 
         # Add user-defined camera
-        cameras = cameras if cameras is not None else {}
+        cameras = cameras if cameras is not None else []
         for camera in cameras if isinstance(cameras, list) else [cameras]:
             mj_camera = MujocoCamera.build(**camera)
             _ = ET.SubElement(

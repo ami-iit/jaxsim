@@ -67,3 +67,52 @@ select = [
 "**/{tests}/*" = ["B007"]
 "__init__.py" = ["F401"]
 "docs/conf.py" = ["F401"]
+
+[tool.pixi.project]
+name = "jaxsim"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.dependencies]
+coloredlogs = "*"
+jax = "*"
+jaxlib = "*"
+jaxlie = "*"
+jax-dataclasses = "*"
+pptree = "*"
+rod = "*"
+typing_extensions = "*"
+lxml = "*"
+mediapy = "*"
+mujoco = "*"
+sdformat14 = "*"
+
+[tool.pixi.feature.test.tasks]
+pipcheck = "pip check"
+test =  { cmd = "pytest",  depends_on = ["pipcheck"]}
+
+[tool.pixi.feature.test.dependencies]
+black = "24.*"
+isort = "*"
+pre-commit = "*"
+idyntree = "*"
+pytest = "*"
+pytest-icdiff = "*"
+robot_descriptions = "*"
+pip = "*"
+
+[tool.pixi.feature.gpu]
+platforms = ["linux-64"]
+system-requirements = {cuda = "12.1"}
+# cuda-nvcc and cuda-cupti are just a workaround for
+# https://github.com/conda-forge/jaxlib-feedstock/pull/241
+dependencies = {cuda-version = "12.*", cuda-nvcc  = "*", cuda-cupti = "*", jaxlib = "* *cuda*"}
+
+[tool.pixi.pypi-dependencies]
+jaxsim = { path = "./", editable = true}
+
+[tool.pixi.environments]
+default = { solve-group = "cpugroup" }
+gpu = { features = ["gpu"], solve-group = "gpugroup" }
+test-cpu = { features = ["test"], solve-group = "cpugroup" }
+test-gpu = { features = ["test", "gpu"], solve-group = "gpugroup" }

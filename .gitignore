@@ -139,3 +139,6 @@ src/jaxsim/_version.py
 
 # ruff
 .ruff_cache/
+# pixi environments
+.pixi
+

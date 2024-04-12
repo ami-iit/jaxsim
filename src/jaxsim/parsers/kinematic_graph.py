@@ -281,6 +281,9 @@ class KinematicGraph:
         links_dict = copy.deepcopy(full_graph.links_dict)
         joints_dict = copy.deepcopy(full_graph.joints_dict)
 
+        # Create the object to compute forward kinematics.
+        fk = KinematicGraphTransforms(graph=full_graph)
+
         # The following steps are implemented below in order to create the reduced graph:
         #
         # 1. Lump the mass of the removed links into their parent
@@ -329,7 +332,7 @@ class KinematicGraph:
             # Lump the link
             lumped_link = parent_of_link_to_remove.lump_with(
                 link=link_to_remove,
-                lumped_H_removed=full_graph.relative_transform(
+                lumped_H_removed=fk.relative_transform(
                     relative_to=parent_of_link_to_remove.name, name=link_to_remove.name
                 ),
             )
@@ -370,7 +373,7 @@ class KinematicGraph:
             # Update the pose. Note that after the lumping process, the dict entry
             # links_dict[joint.parent.name] contains the final lumped link
             with joint.mutable_context(mutability=Mutability.MUTABLE):
-                joint.pose = full_graph.relative_transform(
+                joint.pose = fk.relative_transform(
                     relative_to=links_dict[joint.parent.name].name, name=joint.name
                 )
             with joint.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
@@ -424,7 +427,7 @@ class KinematicGraph:
 
             # Update the connection of the frame
             frame.parent = new_parent_link
-            frame.pose = full_graph.relative_transform(
+            frame.pose = fk.relative_transform(
                 relative_to=new_parent_link.name, name=frame.name
             )
 
@@ -461,65 +464,6 @@ class KinematicGraph:
             List[str]: A list of frame names.
         """
         return list(self.frames_dict.keys())
-
-    def transform(self, name: str) -> npt.NDArray:
-        """
-        Compute the transformation matrix for a given link, joint, or frame.
-
-        Args:
-            name (str): The name of the link, joint, or frame.
-
-        Returns:
-            npt.NDArray: The transformation matrix.
-        """
-        if name in self.transform_cache:
-            return self.transform_cache[name]
-
-        if name in self.joint_names():
-            joint = self.joints_dict[name]
-
-            if joint.initial_position != 0.0:
-                msg = f"Ignoring unsupported initial position of joint '{name}'"
-                logging.warning(msg=msg)
-
-            transform = self.transform(name=joint.parent.name) @ joint.pose
-            self.transform_cache[name] = transform
-            return self.transform_cache[name]
-
-        if name in self.link_names():
-            link = self.links_dict[name]
-
-            if link.name == self.root.name:
-                return link.pose
-
-            parent_joint = self.joints_connection_dict[(link.parent.name, link.name)]
-            transform = self.transform(name=parent_joint.name) @ link.pose
-            self.transform_cache[name] = transform
-            return self.transform_cache[name]
-
-        # It can only be a plain frame
-        if name not in self.frame_names():
-            raise ValueError(name)
-
-        frame = self.frames_dict[name]
-        transform = self.transform(name=frame.parent.name) @ frame.pose
-        self.transform_cache[name] = transform
-        return self.transform_cache[name]
-
-    def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
-        """
-        Compute the relative transformation matrix between two elements in the kinematic graph.
-
-        Args:
-            relative_to (str): The name of the reference element.
-            name (str): The name of the element to compute the relative transformation for.
-
-        Returns:
-            npt.NDArray: The relative transformation matrix.
-        """
-        return np.linalg.inv(self.transform(name=relative_to)) @ self.transform(
-            name=name
-        )
 
     def print_tree(self) -> None:
         """
@@ -606,3 +550,79 @@ class KinematicGraph:
             return list(iter(self))[key]
 
         raise TypeError(type(key).__name__)
+
+
+# ====================
+# Other useful classes
+# ====================
+
+
+@dataclasses.dataclass(frozen=True)
+class KinematicGraphTransforms:
+
+    graph: KinematicGraph
+
+    transform_cache: dict[str, npt.NDArray] = dataclasses.field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+
+    def transform(self, name: str) -> npt.NDArray:
+        """
+        Compute the transformation matrix for a given link, joint, or frame.
+
+        Args:
+            name (str): The name of the link, joint, or frame.
+
+        Returns:
+            npt.NDArray: The transformation matrix.
+        """
+        if name in self.transform_cache:
+            return self.transform_cache[name]
+
+        if name in self.graph.joint_names():
+            joint = self.graph.joints_dict[name]
+
+            if joint.initial_position != 0.0:
+                msg = f"Ignoring unsupported initial position of joint '{name}'"
+                logging.warning(msg=msg)
+
+            transform = self.transform(name=joint.parent.name) @ joint.pose
+            self.transform_cache[name] = transform
+            return self.transform_cache[name]
+
+        if name in self.graph.link_names():
+            link = self.graph.links_dict[name]
+
+            if link.name == self.graph.root.name:
+                return link.pose
+
+            parent_joint = self.graph.joints_connection_dict[
+                (link.parent.name, link.name)
+            ]
+            transform = self.transform(name=parent_joint.name) @ link.pose
+            self.transform_cache[name] = transform
+            return self.transform_cache[name]
+
+        # It can only be a plain frame
+        if name not in self.graph.frame_names():
+            raise ValueError(name)
+
+        frame = self.graph.frames_dict[name]
+        transform = self.transform(name=frame.parent.name) @ frame.pose
+        self.transform_cache[name] = transform
+        return self.transform_cache[name]
+
+    def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
+        """
+        Compute the relative transformation matrix between two elements in the kinematic graph.
+
+        Args:
+            relative_to (str): The name of the reference element.
+            name (str): The name of the element to compute the relative transformation for.
+
+        Returns:
+            npt.NDArray: The relative transformation matrix.
+        """
+        return np.linalg.inv(self.transform(name=relative_to)) @ self.transform(
+            name=name
+        )

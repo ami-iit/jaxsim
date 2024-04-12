@@ -15,6 +15,7 @@ from jaxsim.parsers.descriptions import (
     JointType,
     ModelDescription,
 )
+from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
 
 from .rotation import Rotation
 
@@ -87,21 +88,19 @@ class JointModel:
         # w.r.t. the implicit __model__ SDF frame is not the identity).
         suc_H_i = suc_H_i.at[0].set(ordered_links[0].pose)
 
+        # Create the object to compute forward kinematics.
+        fk = KinematicGraphTransforms(graph=description)
+
         # Compute the parent-to-predecessor and successor-to-child transforms for
         # each joint belonging to the model.
         # Note that the joint indices starts from i=1 given our joint model,
         # therefore the entries at index 0 are not updated.
         for joint in ordered_joints:
             λ_H_pre = λ_H_pre.at[joint.index].set(
-                description.relative_transform(
-                    relative_to=joint.parent.name,
-                    name=joint.name,
-                )
+                fk.relative_transform(relative_to=joint.parent.name, name=joint.name)
             )
             suc_H_i = suc_H_i.at[joint.index].set(
-                description.relative_transform(
-                    relative_to=joint.name, name=joint.child.name
-                )
+                fk.relative_transform(relative_to=joint.name, name=joint.child.name)
             )
 
         # Define the DoFs of the base link.

@@ -4,7 +4,7 @@ from typing import List
 
 from jaxsim import logging
 
-from ..kinematic_graph import KinematicGraph, RootPose
+from ..kinematic_graph import KinematicGraph, KinematicGraphTransforms, RootPose
 from .collision import CollidablePoint, CollisionShape
 from .joint import JointDescription
 from .link import LinkDescription
@@ -75,6 +75,9 @@ class ModelDescription(KinematicGraph):
                 considered_joints=considered_joints
             )
 
+        # Create the object to compute forward kinematics.
+        fk = KinematicGraphTransforms(graph=kinematic_graph)
+
         # Store here the final model collisions
         final_collisions: List[CollisionShape] = []
 
@@ -121,7 +124,7 @@ class ModelDescription(KinematicGraph):
                 # relative pose
                 moved_cp = cp.change_link(
                     new_link=real_parent_link_of_shape,
-                    new_H_old=kinematic_graph.relative_transform(
+                    new_H_old=fk.relative_transform(
                         relative_to=real_parent_link_of_shape.name,
                         name=cp.parent_link.name,
                     ),

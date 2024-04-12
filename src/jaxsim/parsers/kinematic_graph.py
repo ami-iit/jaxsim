@@ -581,61 +581,104 @@ class KinematicGraphTransforms:
 
     def transform(self, name: str) -> npt.NDArray:
         """
-        Compute the transformation matrix for a given link, joint, or frame.
+        Compute the SE(3) transform of elements belonging to the kinematic graph.
 
         Args:
-            name (str): The name of the link, joint, or frame.
+            name: The name of a link, a joint, or a frame.
 
         Returns:
-            npt.NDArray: The transformation matrix.
+            The 4x4 transform matrix of the element w.r.t. the model frame.
         """
+
+        # If the transform was already computed, return it.
         if name in self.transform_cache:
             return self.transform_cache[name]
 
+        # If the name is a joint, compute M_H_J transform.
         if name in self.graph.joint_names():
+
+            # Get the joint.
             joint = self.graph.joints_dict[name]
 
             if joint.initial_position != 0.0:
                 msg = f"Ignoring unsupported initial position of joint '{name}'"
                 logging.warning(msg=msg)
 
-            transform = self.transform(name=joint.parent.name) @ joint.pose
-            self.transform_cache[name] = transform
+            # Get the transform of the parent link.
+            M_H_L = self.transform(name=joint.parent.name)
+
+            # Rename the pose of the predecessor joint frame w.r.t. its parent link.
+            L_H_pre = joint.pose
+
+            # Compute the joint transform from the predecessor to the successor frame.
+            # Note: we assume that the joint angle is always 0.
+            pre_H_J = np.eye(4)
+
+            # Compute the M_H_J transform.
+            self.transform_cache[name] = M_H_L @ L_H_pre @ pre_H_J
             return self.transform_cache[name]
 
+        # If the name is a link, compute M_H_L transform.
         if name in self.graph.link_names():
+
+            # Get the link.
             link = self.graph.links_dict[name]
 
+            # Handle the pose between the __model__ frame and the root link.
             if link.name == self.graph.root.name:
-                return link.pose
+                M_H_B = link.pose
+                return M_H_B
 
+            # Get the joint between the link and its parent.
             parent_joint = self.graph.joints_connection_dict[
                 (link.parent.name, link.name)
             ]
-            transform = self.transform(name=parent_joint.name) @ link.pose
-            self.transform_cache[name] = transform
+
+            # Get the transform of the parent joint.
+            M_H_J = self.transform(name=parent_joint.name)
+
+            # Rename the pose of the link w.r.t. its parent joint.
+            J_H_L = link.pose
+
+            # Compute the M_H_L transform.
+            self.transform_cache[name] = M_H_J @ J_H_L
             return self.transform_cache[name]
 
-        # It can only be a plain frame
+        # It can only be a plain frame.
         if name not in self.graph.frame_names():
             raise ValueError(name)
 
+        # Get the frame.
         frame = self.graph.frames_dict[name]
-        transform = self.transform(name=frame.parent.name) @ frame.pose
-        self.transform_cache[name] = transform
+
+        # Get the transform of the parent link.
+        M_H_L = self.transform(name=frame.parent.name)
+
+        # Rename the pose of the frame w.r.t. its parent link.
+        L_H_F = frame.pose
+
+        # Compute the M_H_F transform.
+        self.transform_cache[name] = M_H_L @ L_H_F
         return self.transform_cache[name]
 
     def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
         """
-        Compute the relative transformation matrix between two elements in the kinematic graph.
+        Compute the SE(3) relative transform of elements belonging to the kinematic graph.
 
         Args:
-            relative_to (str): The name of the reference element.
-            name (str): The name of the element to compute the relative transformation for.
+            relative_to: The name of the reference element.
+            name: The name of a link, a joint, or a frame.
 
         Returns:
-            npt.NDArray: The relative transformation matrix.
+            The 4x4 transform matrix of the element w.r.t. the desired frame.
         """
-        return np.linalg.inv(self.transform(name=relative_to)) @ self.transform(
-            name=name
-        )
+
+        import jaxsim.math
+
+        M_H_target = self.transform(name=name)
+        M_H_R = self.transform(name=relative_to)
+
+        # Compute the relative transform R_H_target, where R is the reference frame,
+        # and i the frame of the desired link|joint|frame.
+        return np.array(jaxsim.math.Transform.inverse(M_H_R)) @ M_H_target
+

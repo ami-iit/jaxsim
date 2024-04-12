@@ -1,5 +1,4 @@
 import os
-from typing import Union
 
 import jaxlie
 import numpy as np
@@ -60,57 +59,43 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
     return M_L.astype(dtype=float)
 
 
-def axis_to_jtype(
-    axis: rod.Axis, type: str
-) -> Union[descriptions.JointType, descriptions.JointDescriptor]:
+def joint_to_joint_type(
+    joint: rod.Joint,
+) -> descriptions.JointType | descriptions.JointDescriptor:
     """
-    Convert an SDF axis to a joint type.
+    Extract the joint type from an SDF joint.
 
     Args:
-        axis: The SDF axis.
-        type: The SDF joint type.
+        joint: The parsed SDF joint.
 
     Returns:
         The corresponding joint type description.
     """
 
-    if type == "fixed":
+    axis = joint.axis
+    joint_type = joint.type
+
+    if joint_type == "fixed":
         return descriptions.JointType.F
 
     if not (axis.xyz is not None and axis.xyz.xyz is not None):
         raise ValueError("Failed to read axis xyz data")
 
-    axis_xyz = np.array(axis.xyz.xyz)
+    # Make sure that the axis is a unary vector.
+    axis_xyz = np.array(axis.xyz.xyz).astype(float)
+    axis_xyz = axis_xyz / np.linalg.norm(axis_xyz)
 
-    if np.allclose(axis_xyz, [1, 0, 0]) and type in {"revolute", "continuous"}:
-        return descriptions.JointType.Rx
-
-    if np.allclose(axis_xyz, [0, 1, 0]) and type in {"revolute", "continuous"}:
-        return descriptions.JointType.Ry
-
-    if np.allclose(axis_xyz, [0, 0, 1]) and type in {"revolute", "continuous"}:
-        return descriptions.JointType.Rz
-
-    if np.allclose(axis_xyz, [1, 0, 0]) and type == "prismatic":
-        return descriptions.JointType.Px
-
-    if np.allclose(axis_xyz, [0, 1, 0]) and type == "prismatic":
-        return descriptions.JointType.Py
-
-    if np.allclose(axis_xyz, [0, 0, 1]) and type == "prismatic":
-        return descriptions.JointType.Pz
-
-    if type == "revolute":
+    if joint_type in {"revolute", "continuous"}:
         return descriptions.JointGenericAxis(
-            code=descriptions.JointType.R, axis=np.array(axis_xyz, dtype=float)
+            joint_type=descriptions.JointType.R, axis=axis_xyz
         )
 
-    if type == "prismatic":
+    if joint_type == "prismatic":
         return descriptions.JointGenericAxis(
-            code=descriptions.JointType.P, axis=np.array(axis_xyz, dtype=float)
+            joint_type=descriptions.JointType.P, axis=axis_xyz
         )
 
-    raise ValueError("Joint not supported", axis_xyz, type)
+    raise ValueError("Joint not supported", axis_xyz, joint_type)
 
 
 def create_box_collision(

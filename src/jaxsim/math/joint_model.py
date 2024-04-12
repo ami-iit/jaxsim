@@ -242,16 +242,16 @@ def supported_joint_motion(
     """
 
     if isinstance(joint_type, JointType):
-        code = joint_type
+        type_enum = joint_type
     elif isinstance(joint_type, JointDescriptor):
-        code = joint_type.code
+        type_enum = joint_type.joint_type
     else:
         raise ValueError(joint_type)
 
     # Prepare the joint position
     s = jnp.array(joint_position).astype(float)
 
-    match code:
+    match type_enum:
 
         case JointType.R:
             joint_type: JointGenericAxis
@@ -276,57 +276,6 @@ def supported_joint_motion(
 
         case JointType.F:
             raise ValueError("Fixed joints shouldn't be here")
-
-        case JointType.Rx:
-
-            pre_H_suc = jaxlie.SE3.from_rotation(
-                rotation=jaxlie.SO3.from_x_radians(theta=s)
-            )
-
-            S = jnp.vstack([0, 0, 0, 1.0, 0, 0])
-
-        case JointType.Ry:
-
-            pre_H_suc = jaxlie.SE3.from_rotation(
-                rotation=jaxlie.SO3.from_y_radians(theta=s)
-            )
-
-            S = jnp.vstack([0, 0, 0, 0, 1.0, 0])
-
-        case JointType.Rz:
-
-            pre_H_suc = jaxlie.SE3.from_rotation(
-                rotation=jaxlie.SO3.from_z_radians(theta=s)
-            )
-
-            S = jnp.vstack([0, 0, 0, 0, 0, 1.0])
-
-        case JointType.Px:
-
-            pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
-                rotation=jaxlie.SO3.identity(),
-                translation=jnp.array([s, 0.0, 0.0]),
-            )
-
-            S = jnp.vstack([1.0, 0, 0, 0, 0, 0])
-
-        case JointType.Py:
-
-            pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
-                rotation=jaxlie.SO3.identity(),
-                translation=jnp.array([0.0, s, 0.0]),
-            )
-
-            S = jnp.vstack([0, 1.0, 0, 0, 0, 0])
-
-        case JointType.Pz:
-
-            pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
-                rotation=jaxlie.SO3.identity(),
-                translation=jnp.array([0.0, 0.0, s]),
-            )
-
-            S = jnp.vstack([0, 0, 1.0, 0, 0, 0])
 
         case _:
             raise ValueError(joint_type)

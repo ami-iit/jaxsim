@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import enum
 from typing import Tuple, Union
@@ -6,79 +8,61 @@ import jax_dataclasses
 import numpy as np
 import numpy.typing as npt
 
+import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .link import LinkDescription
 
 
+@enum.unique
+@enum.verify(enum.CONTINUOUS)
 class JointType(enum.IntEnum):
     """
-    Enumeration of joint types for robot joints.
-
-    Args:
-        F: Fixed joint (no movement).
-        R: Revolute joint (rotation).
-        P: Prismatic joint (translation).
-        Rx: Revolute joint with rotation about the X-axis.
-        Ry: Revolute joint with rotation about the Y-axis.
-        Rz: Revolute joint with rotation about the Z-axis.
-        Px: Prismatic joint with translation along the X-axis.
-        Py: Prismatic joint with translation along the Y-axis.
-        Pz: Prismatic joint with translation along the Z-axis.
+    Type of supported joints.
     """
 
-    F = enum.auto()  # Fixed
-    R = enum.auto()  # Revolute
-    P = enum.auto()  # Prismatic
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        # Start auto Enum value from 0 instead of 1
+        return count
 
-    # Revolute joints, single axis
-    Rx = enum.auto()
-    Ry = enum.auto()
-    Rz = enum.auto()
+    #: Fixed joint.
+    F = enum.auto()
 
-    # Prismatic joints, single axis
-    Px = enum.auto()
-    Py = enum.auto()
-    Pz = enum.auto()
+    #: Revolute joint (1 DoF around axis).
+    R = enum.auto()
+
+    #: Prismatic joint (1 DoF along axis).
+    P = enum.auto()
 
 
-@dataclasses.dataclass
+@jax_dataclasses.pytree_dataclass
 class JointDescriptor:
     """
-    Description of a joint type with a specific code.
-
-    Args:
-        code (JointType): The code representing the joint type.
-
+    Base class for joint types requiring to store additional metadata.
     """
 
-    code: JointType
-
-    def __hash__(self) -> int:
-        return hash(self.__repr__())
+    #: The joint type.
+    joint_type: JointType
 
 
-@dataclasses.dataclass
+@jax_dataclasses.pytree_dataclass
 class JointGenericAxis(JointDescriptor):
     """
-    Description of a joint type with a generic axis.
-
-    Attributes:
-        axis (npt.NDArray): The axis of rotation or translation for the joint.
-
+    A joint requiring the specification of a 3D axis.
     """
 
-    axis: npt.NDArray
-
-    def __post_init__(self):
-        if np.allclose(self.axis, 0.0):
-            raise ValueError(self.axis)
-
-    def __eq__(self, other):
-        return super().__eq__(other) and np.allclose(self.axis, other.axis)
+    #: The axis of rotation or translation of the joint (must have norm 1).
+    axis: jtp.Vector
 
     def __hash__(self) -> int:
-        return hash(self.__repr__())
+        return hash((self.joint_type, tuple(np.array(self.axis).tolist())))
+
+    def __eq__(self, other: JointGenericAxis) -> bool:
+        if not isinstance(other, JointGenericAxis):
+            return False
+
+        return hash(self) == hash(other)
 
 
 @jax_dataclasses.pytree_dataclass

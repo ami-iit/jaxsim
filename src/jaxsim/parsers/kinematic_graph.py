@@ -575,9 +575,56 @@ class KinematicGraphTransforms:
 
     graph: KinematicGraph
 
-    transform_cache: dict[str, npt.NDArray] = dataclasses.field(
+    _transform_cache: dict[str, npt.NDArray] = dataclasses.field(
         default_factory=dict, init=False, repr=False, compare=False
     )
+
+    _initial_joint_positions: dict[str, float] = dataclasses.field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+
+        super().__setattr__(
+            "_initial_joint_positions",
+            {joint.name: joint.initial_position for joint in self.graph.joints},
+        )
+
+    @property
+    def initial_joint_positions(self) -> npt.NDArray:
+
+        return np.atleast_1d(
+            np.array(list(self._initial_joint_positions.values()))
+        ).astype(float)
+
+    @initial_joint_positions.setter
+    def initial_joint_positions(
+        self,
+        positions: npt.NDArray | Sequence,
+        joint_names: Sequence[str] | None = None,
+    ) -> None:
+
+        joint_names = (
+            joint_names
+            if joint_names is not None
+            else list(self._initial_joint_positions.keys())
+        )
+
+        s = np.atleast_1d(np.array(positions).squeeze())
+
+        if s.size != len(joint_names):
+            raise ValueError(s.size, len(joint_names))
+
+        for joint_name in joint_names:
+            if joint_name not in self._initial_joint_positions:
+                raise ValueError(joint_name)
+
+        # Clear transform cache.
+        self._transform_cache.clear()
+
+        # Update initial joint positions.
+        for joint_name, position in zip(joint_names, s):
+            self._initial_joint_positions[joint_name] = position
 
     def transform(self, name: str) -> npt.NDArray:
         """
@@ -591,18 +638,14 @@ class KinematicGraphTransforms:
         """
 
         # If the transform was already computed, return it.
-        if name in self.transform_cache:
-            return self.transform_cache[name]
+        if name in self._transform_cache:
+            return self._transform_cache[name]
 
         # If the name is a joint, compute M_H_J transform.
         if name in self.graph.joint_names():
 
             # Get the joint.
             joint = self.graph.joints_dict[name]
-
-            if joint.initial_position != 0.0:
-                msg = f"Ignoring unsupported initial position of joint '{name}'"
-                logging.warning(msg=msg)
 
             # Get the transform of the parent link.
             M_H_L = self.transform(name=joint.parent.name)
@@ -611,12 +654,14 @@ class KinematicGraphTransforms:
             L_H_pre = joint.pose
 
             # Compute the joint transform from the predecessor to the successor frame.
-            # Note: we assume that the joint angle is always 0.
-            pre_H_J = np.eye(4)
+            pre_H_J = self.pre_H_suc(
+                joint_type=joint.jtype,
+                joint_position=self._initial_joint_positions[joint.name],
+            )
 
             # Compute the M_H_J transform.
-            self.transform_cache[name] = M_H_L @ L_H_pre @ pre_H_J
-            return self.transform_cache[name]
+            self._transform_cache[name] = M_H_L @ L_H_pre @ pre_H_J
+            return self._transform_cache[name]
 
         # If the name is a link, compute M_H_L transform.
         if name in self.graph.link_names():
@@ -641,8 +686,8 @@ class KinematicGraphTransforms:
             J_H_L = link.pose
 
             # Compute the M_H_L transform.
-            self.transform_cache[name] = M_H_J @ J_H_L
-            return self.transform_cache[name]
+            self._transform_cache[name] = M_H_J @ J_H_L
+            return self._transform_cache[name]
 
         # It can only be a plain frame.
         if name not in self.graph.frame_names():
@@ -658,8 +703,8 @@ class KinematicGraphTransforms:
         L_H_F = frame.pose
 
         # Compute the M_H_F transform.
-        self.transform_cache[name] = M_H_L @ L_H_F
-        return self.transform_cache[name]
+        self._transform_cache[name] = M_H_L @ L_H_F
+        return self._transform_cache[name]
 
     def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
         """
@@ -682,3 +727,16 @@ class KinematicGraphTransforms:
         # and i the frame of the desired link|joint|frame.
         return np.array(jaxsim.math.Transform.inverse(M_H_R)) @ M_H_target
 
+    @staticmethod
+    def pre_H_suc(
+        joint_type: descriptions.JointType | descriptions.JointDescriptor,
+        joint_position: float | None = None,
+    ) -> npt.NDArray:
+
+        import jaxsim.math
+
+        return np.array(
+            jaxsim.math.supported_joint_motion(
+                joint_type=joint_type, joint_position=joint_position
+            )[0]
+        )

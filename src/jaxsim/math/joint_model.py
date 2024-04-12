@@ -275,7 +275,8 @@ def supported_joint_motion(
             S = jnp.vstack(jnp.hstack([joint_type.axis.squeeze(), jnp.zeros(3)]))
 
         case JointType.F:
-            raise ValueError("Fixed joints shouldn't be here")
+            pre_H_suc = jaxlie.SE3.identity()
+            S = jnp.zeros(shape=(6, 1))
 
         case _:
             raise ValueError(joint_type)

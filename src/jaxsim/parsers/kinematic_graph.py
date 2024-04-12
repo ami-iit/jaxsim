@@ -9,6 +9,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Sequence,
     Tuple,
     Union,
 )
@@ -41,7 +42,7 @@ class RootPose(NamedTuple):
 
 
 @dataclasses.dataclass(frozen=True)
-class KinematicGraph:
+class KinematicGraph(Sequence[descriptions.LinkDescription]):
     """
     Represents a kinematic graph of links and joints.
 
@@ -518,6 +519,10 @@ class KinematicGraph:
 
                 yield child
 
+    # =================
+    # Sequence protocol
+    # =================
+
     def __iter__(self) -> Iterable[descriptions.LinkDescription]:
         yield from KinematicGraph.breadth_first_search(root=self.root)
 
@@ -550,6 +555,14 @@ class KinematicGraph:
             return list(iter(self))[key]
 
         raise TypeError(type(key).__name__)
+
+    def count(self, value: descriptions.LinkDescription) -> int:
+        return list(iter(self)).count(value)
+
+    def index(
+        self, value: descriptions.LinkDescription, start: int = 0, stop: int = -1
+    ) -> int:
+        return list(iter(self)).index(value, start, stop)
 
 
 # ====================

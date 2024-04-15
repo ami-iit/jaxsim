@@ -142,7 +142,9 @@ class ModelDescription(KinematicGraph):
             root=kinematic_graph.root,
             joints=kinematic_graph.joints,
             frames=kinematic_graph.frames,
+            _joints_removed=kinematic_graph._joints_removed,
         )
+
         assert kinematic_graph.root.name == base_link_name, kinematic_graph.root.name
 
         return model
@@ -161,15 +163,12 @@ class ModelDescription(KinematicGraph):
             ValueError: If the specified joints are not part of the model.
         """
 
-        msg = "The model reduction logic assumes that removed joints have zero angles"
-        logging.info(msg=msg)
-
         if len(set(considered_joints) - set(self.joint_names())) != 0:
             extra_joints = set(considered_joints) - set(self.joint_names())
             msg = f"Found joints not part of the model: {extra_joints}"
             raise ValueError(msg)
 
-        return ModelDescription.build_model_from(
+        reduced_model_description = ModelDescription.build_model_from(
             name=self.name,
             links=list(self.links_dict.values()),
             joints=self.joints,
@@ -179,6 +178,12 @@ class ModelDescription(KinematicGraph):
             model_pose=self.root_pose,
             considered_joints=considered_joints,
         )
+
+        # Include the unconnected/removed joints from the original model.
+        for joint in self._joints_removed:
+            reduced_model_description._joints_removed.append(joint)
+
+        return reduced_model_description
 
     def update_collision_shape_of_link(self, link_name: str, enabled: bool) -> None:
         """

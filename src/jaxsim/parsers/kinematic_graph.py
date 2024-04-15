@@ -77,6 +77,12 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         repr=False, compare=False, default_factory=dict
     )
 
+    # Private attribute storing the unconnected joints from the parsed model and
+    # the joints removed after model reduction.
+    _joints_removed: list[descriptions.JointDescription] = dataclasses.field(
+        default_factory=list, repr=False, compare=False
+    )
+
     @functools.cached_property
     def links_dict(self) -> Dict[str, descriptions.LinkDescription]:
         return {l.name: l for l in iter(self)}
@@ -154,15 +160,24 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         # Couple links and joints and create the graph of links.
         # Note that the pose of the frames is not updated; it's the caller's
         # responsibility to update their pose if they want to use them.
-        graph_root_node, graph_joints, graph_frames = KinematicGraph.create_graph(
-            links=links, joints=joints, root_link_name=root_link_name
+        graph_root_node, graph_joints, graph_frames, unconnected_joints = (
+            KinematicGraph.create_graph(
+                links=links, joints=joints, root_link_name=root_link_name
+            )
         )
 
         for frame in graph_frames:
             logging.warning(msg=f"Ignoring unconnected link / frame: '{frame.name}'")
 
+        for joint in unconnected_joints:
+            logging.warning(msg=f"Ignoring unconnected joint: '{joint.name}'")
+
         return KinematicGraph(
-            root=graph_root_node, joints=graph_joints, frames=[], root_pose=root_pose
+            root=graph_root_node,
+            joints=graph_joints,
+            frames=[],
+            root_pose=root_pose,
+            _joints_removed=unconnected_joints,
         )
 
     @staticmethod
@@ -174,9 +189,10 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         descriptions.LinkDescription,
         List[descriptions.JointDescription],
         List[descriptions.LinkDescription],
+        list[descriptions.JointDescription],
     ]:
         """
-        Create a kinematic graph from lists of links and joints.
+        Create a kinematic graph from the lists of parsed links and joints.
 
         Args:
             links (List[descriptions.LinkDescription]): A list of link descriptions.
@@ -184,8 +200,9 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             root_link_name (str): The name of the root link.
 
         Returns:
-            Tuple[descriptions.LinkDescription, List[descriptions.JointDescription], List[descriptions.LinkDescription]]:
-                A tuple containing the root link, list of joints, and list of frames in the graph.
+            A tuple containing the root node with the full kinematic graph as child nodes,
+            the list of joints associated to graph nodes, the list of frames rigidly
+            attached to graph nodes, and the list of joints not part of the graph.
         """
 
         # Create a dict that maps link name to the link, for easy retrieval
@@ -247,6 +264,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             links_dict[root_link_name].mutable(mutable=False),
             list(set(joints) - set(removed_joints)),
             frames,
+            list(set(removed_joints)),
         )
 
     def reduce(self, considered_joints: List[str]) -> "KinematicGraph":
@@ -400,10 +418,12 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
         # Create the reduced graph data. We pass the full list of links so that those
         # that are not part of the graph will be returned as frames.
-        reduced_root_node, reduced_joints, reduced_frames = KinematicGraph.create_graph(
-            links=list(full_graph_links_dict.values()),
-            joints=[joints_dict[joint_name] for joint_name in considered_joints],
-            root_link_name=full_graph.root.name,
+        reduced_root_node, reduced_joints, reduced_frames, unconnected_joints = (
+            KinematicGraph.create_graph(
+                links=list(full_graph_links_dict.values()),
+                joints=[joints_dict[joint_name] for joint_name in considered_joints],
+                root_link_name=full_graph.root.name,
+            )
         )
 
         # Create the reduced graph
@@ -412,6 +432,11 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             joints=reduced_joints,
             frames=reduced_frames,
             root_pose=full_graph.root_pose,
+            _joints_removed=(
+                self._joints_removed
+                + unconnected_joints
+                + [joints_dict[name] for name in joint_names_to_remove]
+            ),
         )
 
         # ================================================================

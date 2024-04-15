@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 import functools
 import pathlib
@@ -257,24 +258,50 @@ class JaxSimModel(JaxsimDataclass):
 # =====================
 
 
-def reduce(model: JaxSimModel, considered_joints: tuple[str, ...]) -> JaxSimModel:
+def reduce(
+    model: JaxSimModel,
+    considered_joints: tuple[str, ...],
+    joint_positions_locked: dict[str, jtp.Float] | None = None,
+) -> JaxSimModel:
     """
     Reduce the model by lumping together the links connected by removed joints.
 
     Args:
         model: The model to reduce.
         considered_joints: The sequence of joints to consider.
-
-    Note:
-        If considered_joints contains joints not existing in the model, the method
-        will raise an exception. If considered_joints is empty, the method will
-        return a copy of the input model.
+        joint_positions_locked:
+            A dictionary containing the positions of the joints to be considered
+            in the reduction process. The removed joints in the reduced model
+            will have their position locked to the value in this dictionary.
+            If a joint is not present in the dictionary, its position is set to zero.
     """
 
+    joint_positions_locked = (
+        joint_positions_locked if joint_positions_locked is not None else {}
+    )
+
+    # If locked joints are passed, make sure that they are valid.
+    if not set(joint_positions_locked).issubset(model.joint_names()):
+        new_joints = set(model.joint_names()) - set(joint_positions_locked)
+        raise ValueError(f"Passed joints not existing in the model: {new_joints}")
+
+    # Copy the model description with a deep copy of the joints.
+    intermediate_description = dataclasses.replace(
+        model.description.get(), joints=copy.deepcopy(model.description.get().joints)
+    )
+
+    # Update the initial position of the joints.
+    # This is necessary to compute the correct pose of the link pairs connected
+    # to removed joints.
+    for joint_name in model.joint_names():
+        j = intermediate_description.joints_dict[joint_name]
+        with j.mutable_context():
+            j.initial_position = float(joint_positions_locked.get(joint_name, 0.0))
+
     # Reduce the model description.
-    # If considered_joints contains joints not existing in the model, the method
-    # will raise an exception.
-    reduced_intermediate_description = model.description.obj.reduce(
+    # If `considered_joints` contains joints not existing in the model,
+    # the method will raise an exception.
+    reduced_intermediate_description = intermediate_description.reduce(
         considered_joints=list(considered_joints)
     )
 

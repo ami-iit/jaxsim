@@ -104,9 +104,7 @@ pip = "*"
 [tool.pixi.feature.gpu]
 platforms = ["linux-64"]
 system-requirements = {cuda = "12.1"}
-# cuda-nvcc and cuda-cupti are just a workaround for
-# https://github.com/conda-forge/jaxlib-feedstock/pull/241
-dependencies = {cuda-version = "12.*", cuda-nvcc  = "*", cuda-cupti = "*", jaxlib = "* *cuda*"}
+dependencies = {cuda-version = "12.*", jaxlib = "* *cuda*"}
 
 [tool.pixi.pypi-dependencies]
 jaxsim = { path = "./", editable = true}

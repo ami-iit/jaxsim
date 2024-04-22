@@ -71,6 +71,10 @@ class JaxSimModel(JaxsimDataclass):
             )
         )
 
+    contact_model: js.contact.ContactModel | None = dataclasses.field(
+        default=None, repr=False, compare=False, hash=False
+    )
+
     # ========================
     # Initialization and state
     # ========================
@@ -179,6 +183,9 @@ class JaxSimModel(JaxsimDataclass):
             ),
             terrain=terrain,
             contact_model=contact_model or SoftContacts(terrain=terrain),
+            terrain=terrain or JaxSimModel.__dataclass_fields__["terrain"].default,
+            contact_model=contact_model
+            or JaxSimModel.__dataclass_fields__["contact_model"].default,
         )
 
         return model

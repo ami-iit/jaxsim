@@ -18,7 +18,6 @@ except ImportError:
 from typing import Type
 
 import jaxsim.api as js
-import jaxsim.rbda
 import jaxsim.terrain
 import jaxsim.typing as jtp
 
@@ -144,15 +143,14 @@ def collidable_point_dynamics(
         `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
         Instead, the 6D forces are returned in the active representation.
     """
+    from jaxsim.rbda import SoftContacts
 
     # Compute the position and linear velocities (mixed representation) of
     # all collidable points belonging to the robot.
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
     # Build the contact model.
-    soft_contacts = jaxsim.rbda.SoftContacts(
-        parameters=data.contacts_params, terrain=model.terrain
-    )
+    soft_contacts = SoftContacts(parameters=data.contacts_params, terrain=model.terrain)
 
     # Compute the 6D force expressed in the inertial frame and applied to each
     # collidable point, and the corresponding material deformation rate.
@@ -252,13 +250,14 @@ def estimate_good_soft_contacts_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
+    from jaxsim.rbda import SoftContactsParams
 
     def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
         """"""
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
-            contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
+            contacts_params=SoftContactsParams(),
         )
 
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
@@ -277,15 +276,13 @@ def estimate_good_soft_contacts_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    sc_parameters = (
-        jaxsim.rbda.soft_contacts.SoftContactsParams.build_default_from_jaxsim_model(
-            model=model,
-            standard_gravity=standard_gravity,
-            static_friction_coefficient=static_friction_coefficient,
-            max_penetration=max_δ,
-            number_of_active_collidable_points_steady_state=nc,
-            damping_ratio=damping_ratio,
-        )
+    sc_parameters = SoftContactsParams.build_default_from_jaxsim_model(
+        model=model,
+        standard_gravity=standard_gravity,
+        static_friction_coefficient=static_friction_coefficient,
+        max_penetration=max_δ,
+        number_of_active_collidable_points_steady_state=nc,
+        damping_ratio=damping_ratio,
     )
 
     return sc_parameters

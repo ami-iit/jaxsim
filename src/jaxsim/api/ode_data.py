@@ -182,9 +182,13 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
+<<<<<<< HEAD
             contact_state=getattr(
                 importlib.import_module(f"jaxsim.api.{module_name}"), class_name
             ).build_from_jaxsim_model(
+=======
+            contact_state=type(model.contact_model).build_from_jaxsim_model(
+>>>>>>> 7707074 (Dynamically import the correct contact state)
                 model=model,
                 **(
                     dict(tangential_deformation=tangential_deformation)
@@ -219,23 +223,20 @@ class ODEState(JaxsimDataclass):
         )
 
         # Get the contact model from the `JaxSimModel`
-        try:
-            prefix = type(model.contact_model).__name__.split("Contact")[0]
-        except AttributeError:
-            logging.warning(
-                "Unable to determine contact state class prefix. Using default soft contacts."
-            )
-            prefix = "Soft"
+        prefix = type(model.contact_model).__name__.split("Contact")[0]
 
-        module_name = f"{prefix.lower()}_contacts"
-        class_name = f"{prefix.capitalize()}ContactsState"
+        if prefix:
+            module_name = f"{prefix.lower()}_contacts"
+            class_name = f"{prefix.capitalize()}ContactsState"
+        else:
+            raise ValueError("Unable to determine contact state class prefix.")
+
+        state_cls = importlib.import_module(f"jaxsim.rbda.{module_name}.{class_name}")
+
+        assert state_cls is not None, f"Module '{module_name}.{class_name}' not found."
 
         contact_state = (
-            contact_state
-            if contact_state is not None
-            else getattr(
-                importlib.import_module(f"jaxsim.api.{module_name}"), class_name
-            ).zero(model=model)
+            contact_state if contact_state is not None else state_cls.build(model=model)
         )
 
         return ODEState(physics_model=physics_model_state, contact_state=contact_state)

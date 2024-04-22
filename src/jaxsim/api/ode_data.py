@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+
 import jax.numpy as jnp
 import jax_dataclasses
 
@@ -116,11 +118,11 @@ class ODEState(JaxsimDataclass):
 
     Attributes:
         physics_model: The state of the physics model.
-        soft_contacts: The state of the soft-contacts model.
+        contact_state: The state of the contact model.
     """
 
     physics_model: PhysicsModelState
-    soft_contacts: SoftContactsState
+    contact_state: js.contact.ContactsState
 
     @staticmethod
     def build_from_jaxsim_model(
@@ -156,6 +158,7 @@ class ODEState(JaxsimDataclass):
         Note:
             If any of the state components are not provided, they are built from the
             `JaxSimModel` and initialized to zero.
+            The contact model will be inherited from the `model`.
         """
 
         return ODEState.build(
@@ -169,7 +172,7 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
-            soft_contacts_state=SoftContactsState.build_from_jaxsim_model(
+            contact_state=type(model.contact_model).build_from_jaxsim_model(
                 model=model,
                 tangential_deformation=tangential_deformation,
             ),
@@ -178,15 +181,15 @@ class ODEState(JaxsimDataclass):
     @staticmethod
     def build(
         physics_model_state: PhysicsModelState | None = None,
-        soft_contacts_state: SoftContactsState | None = None,
+        contact_state: js.contact.ContactsState | None = None,
         model: js.model.JaxSimModel | None = None,
     ) -> ODEState:
         """
-        Build an `ODEState` from a `PhysicsModelState` and a `SoftContactsState`.
+        Build an `ODEState` from a `PhysicsModelState` and a `ContactsState`.
 
         Args:
             physics_model_state: The state of the physics model.
-            soft_contacts_state: The state of the soft-contacts model.
+            contact_state: The state of the contact model.
             model: The `JaxSimModel` associated with the ODE state.
 
         Returns:
@@ -199,15 +202,24 @@ class ODEState(JaxsimDataclass):
             else PhysicsModelState.zero(model=model)
         )
 
-        soft_contacts_state = (
-            soft_contacts_state
-            if soft_contacts_state is not None
-            else SoftContactsState.zero(model=model)
+        # Get the contact model from the `JaxSimModel`
+        prefix = type(model.contact_model).__name__.split("Contact")[0]
+
+        if prefix:
+            module_name = f"{prefix.lower()}_contacts"
+            class_name = f"{prefix.capitalize()}ContactsState"
+        else:
+            raise ValueError("Unable to determine contact state class prefix.")
+
+        state_cls = importlib.import_module(f"jaxsim.rbda.{module_name}.{class_name}")
+
+        assert state_cls is not None, f"Module '{module_name}.{class_name}' not found."
+
+        contact_state = (
+            contact_state if contact_state is not None else state_cls.build(model=model)
         )
 
-        return ODEState(
-            physics_model=physics_model_state, soft_contacts=soft_contacts_state
-        )
+        return ODEState(physics_model=physics_model_state, contact_state=contact_state)
 
     @staticmethod
     def zero(model: js.model.JaxSimModel) -> ODEState:
@@ -236,7 +248,7 @@ class ODEState(JaxsimDataclass):
             `True` if the ODE state is valid for the given model, `False` otherwise.
         """
 
-        return self.physics_model.valid(model=model) and self.soft_contacts.valid(
+        return self.physics_model.valid(model=model) and self.contact_state.valid(
             model=model
         )
 

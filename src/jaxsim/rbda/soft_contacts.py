@@ -10,11 +10,10 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Skew, StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
-from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsParams(JaxsimDataclass):
+class SoftContactsParams(js.contact.ContactParams):
     """Parameters of the soft contacts model."""
 
     K: jtp.Float = dataclasses.field(
@@ -127,7 +126,7 @@ class SoftContactsParams(JaxsimDataclass):
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsState(js.contact.ContactState):
+class SoftContactsState(js.contact.ContactsState):
     """
     Class storing the state of the soft contacts model.
 

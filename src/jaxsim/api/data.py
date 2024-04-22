@@ -11,9 +11,8 @@ import jaxlie
 import numpy as np
 
 import jaxsim.api as js
-import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.math import Quaternion
+from jaxsim.math import Quaternion, StandardGravity
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
@@ -37,7 +36,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    contacts_params: jaxsim.api.contact.ContactParams = dataclasses.field(repr=False)
+    contacts_params: js.contact.ContactParams = dataclasses.field(repr=False)
 
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
@@ -109,9 +108,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
-        standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
+        standard_gravity: jtp.FloatLike = StandardGravity,
         contacts_state: js.contact.ContactsState | None = None,
-        contacts_params: jaxsim.api.contact.ContactParams | None = None,
+        contacts_params: js.contact.ContactParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
@@ -176,10 +175,12 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             else jnp.array(0, dtype=jnp.uint64)
         )
 
+        from jaxsim.rbda import SoftContacts
+
         contacts_params = (
             contacts_params
             if contacts_params is not None
-            and not isinstance(model.contact_model, jaxsim.rbda.SoftContacts)
+            and not isinstance(model.contact_model, SoftContacts)
             else js.contact.estimate_good_soft_contacts_parameters(
                 model=model, standard_gravity=standard_gravity
             )
@@ -210,7 +211,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             tangential_deformation=(
                 contacts_state.tangential_deformation
                 if contacts_state is not None
-                and isinstance(model.contact_model, jaxsim.rbda.SoftContacts)
+                and isinstance(model.contact_model, SoftContacts)
                 else None
             ),
         )
@@ -752,8 +753,8 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = (-1.0, 1.0),
     standard_gravity_bounds: tuple[jtp.FloatLike, jtp.FloatLike] = (
-        jaxsim.math.StandardGravity,
-        jaxsim.math.StandardGravity,
+        StandardGravity,
+        StandardGravity,
     ),
 ) -> JaxSimModelData:
     """

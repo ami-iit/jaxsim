@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+
 import jax.numpy as jnp
 import jax_dataclasses
 
@@ -116,11 +118,11 @@ class ODEState(JaxsimDataclass):
 
     Attributes:
         physics_model: The state of the physics model.
-        soft_contacts: The state of the soft-contacts model.
+        contact_state: The state of the contact model.
     """
 
     physics_model: PhysicsModelState
-    soft_contacts: SoftContactsState
+    contact_state: js.contact.ContactsState
 
     @staticmethod
     def build_from_jaxsim_model(
@@ -156,6 +158,7 @@ class ODEState(JaxsimDataclass):
         Note:
             If any of the state components are not provided, they are built from the
             `JaxSimModel` and initialized to zero.
+            The contact model will be inherited from the `model`.
         """
 
         return ODEState.build(
@@ -169,7 +172,7 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
-            soft_contacts_state=SoftContactsState.build_from_jaxsim_model(
+            contact_state=type(model.contact_model).build_from_jaxsim_model(
                 model=model,
                 tangential_deformation=tangential_deformation,
             ),
@@ -178,15 +181,15 @@ class ODEState(JaxsimDataclass):
     @staticmethod
     def build(
         physics_model_state: PhysicsModelState | None = None,
-        soft_contacts_state: SoftContactsState | None = None,
+        contact_state: js.contact.ContactsState | None = None,
         model: js.model.JaxSimModel | None = None,
     ) -> ODEState:
         """
-        Build an `ODEState` from a `PhysicsModelState` and a `SoftContactsState`.
+        Build an `ODEState` from a `PhysicsModelState` and a `ContactsState`.
 
         Args:
             physics_model_state: The state of the physics model.
-            soft_contacts_state: The state of the soft-contacts model.
+            contact_state: The state of the contact model.
             model: The `JaxSimModel` associated with the ODE state.
 
         Returns:
@@ -199,15 +202,24 @@ class ODEState(JaxsimDataclass):
             else PhysicsModelState.zero(model=model)
         )
 
-        soft_contacts_state = (
-            soft_contacts_state
-            if soft_contacts_state is not None
-            else SoftContactsState.zero(model=model)
+        # Get the contact model from the `JaxSimModel`
+        prefix = type(model.contact_model).__name__.split("Contact")[0]
+
+        if prefix:
+            module_name = f"{prefix.lower()}_contacts"
+            class_name = f"{prefix.capitalize()}ContactsState"
+        else:
+            raise ValueError("Unable to determine contact state class prefix.")
+
+        state_cls = importlib.import_module(f"jaxsim.rbda.{module_name}.{class_name}")
+
+        assert state_cls is not None, f"Module '{module_name}.{class_name}' not found."
+
+        contact_state = (
+            contact_state if contact_state is not None else state_cls.build(model=model)
         )
 
-        return ODEState(
-            physics_model=physics_model_state, soft_contacts=soft_contacts_state
-        )
+        return ODEState(physics_model=physics_model_state, contact_state=contact_state)
 
     @staticmethod
     def zero(model: js.model.JaxSimModel) -> ODEState:
@@ -236,7 +248,7 @@ class ODEState(JaxsimDataclass):
             `True` if the ODE state is valid for the given model, `False` otherwise.
         """
 
-        return self.physics_model.valid(model=model) and self.soft_contacts.valid(
+        return self.physics_model.valid(model=model) and self.contact_state.valid(
             model=model
         )
 
@@ -588,138 +600,6 @@ class PhysicsModelInput(JaxsimDataclass):
         expected_shape = (model.number_of_links(), 6)
 
         if shape != expected_shape:
-            return False
-
-        return True
-
-
-# ===========================================
-# Define the state of the soft-contacts model
-# ===========================================
-
-
-@jax_dataclasses.pytree_dataclass
-class SoftContactsState(JaxsimDataclass):
-    """
-    Class storing the state of the soft contacts model.
-
-    Attributes:
-        tangential_deformation:
-            The matrix of 3D tangential material deformations corresponding to
-            each collidable point.
-    """
-
-    tangential_deformation: jtp.Matrix
-
-    def __hash__(self) -> int:
-
-        return hash(
-            tuple(jnp.atleast_1d(self.tangential_deformation.flatten()).tolist())
-        )
-
-    def __eq__(self, other: SoftContactsState) -> bool:
-
-        if not isinstance(other, SoftContactsState):
-            return False
-
-        return hash(self) == hash(other)
-
-    @staticmethod
-    def build_from_jaxsim_model(
-        model: js.model.JaxSimModel | None = None,
-        tangential_deformation: jtp.Matrix | None = None,
-    ) -> SoftContactsState:
-        """
-        Build a `SoftContactsState` from a `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` associated with the soft contacts state.
-            tangential_deformation: The matrix of 3D tangential material deformations.
-
-        Returns:
-            The `SoftContactsState` built from the `JaxSimModel`.
-
-        Note:
-            If any of the state components are not provided, they are built from the
-            `JaxSimModel` and initialized to zero.
-        """
-
-        return SoftContactsState.build(
-            tangential_deformation=tangential_deformation,
-            number_of_collidable_points=len(
-                model.kin_dyn_parameters.contact_parameters.body
-            ),
-        )
-
-    @staticmethod
-    def build(
-        tangential_deformation: jtp.Matrix | None = None,
-        number_of_collidable_points: int | None = None,
-    ) -> SoftContactsState:
-        """
-        Create a `SoftContactsState`.
-
-        Args:
-            tangential_deformation:
-                The matrix of 3D tangential material deformations corresponding to
-                each collidable point.
-            number_of_collidable_points: The number of collidable points.
-
-        Returns:
-            A `SoftContactsState` instance.
-        """
-
-        tangential_deformation = (
-            tangential_deformation
-            if tangential_deformation is not None
-            else jnp.zeros(shape=(number_of_collidable_points, 3))
-        )
-
-        if tangential_deformation.shape[1] != 3:
-            raise RuntimeError("The tangential deformation matrix must have 3 columns.")
-
-        if (
-            number_of_collidable_points is not None
-            and tangential_deformation.shape[0] != number_of_collidable_points
-        ):
-            msg = "The number of collidable points must match the number of rows "
-            msg += "in the tangential deformation matrix."
-            raise RuntimeError(msg)
-
-        return SoftContactsState(
-            tangential_deformation=jnp.array(tangential_deformation).astype(float)
-        )
-
-    @staticmethod
-    def zero(model: js.model.JaxSimModel) -> SoftContactsState:
-        """
-        Build a zero `SoftContactsState` from a `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` associated with the soft contacts state.
-
-        Returns:
-            A zero `SoftContactsState` instance.
-        """
-
-        return SoftContactsState.build_from_jaxsim_model(model=model)
-
-    def valid(self, model: js.model.JaxSimModel) -> bool:
-        """
-        Check if the `SoftContactsState` is valid for a given `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` to validate the `SoftContactsState` against.
-
-        Returns:
-            `True` if the soft contacts state is valid for the given `JaxSimModel`,
-            `False` otherwise.
-        """
-
-        shape = self.tangential_deformation.shape
-        expected = (len(model.kin_dyn_parameters.contact_parameters.body), 3)
-
-        if shape != expected:
             return False
 
         return True

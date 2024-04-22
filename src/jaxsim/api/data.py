@@ -37,7 +37,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    soft_contacts_params: jaxsim.rbda.SoftContactsParams = dataclasses.field(repr=False)
+    contacts_params: jaxsim.api.contact.ContactParams = dataclasses.field(repr=False)
 
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
@@ -110,8 +110,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-        soft_contacts_state: js.ode_data.SoftContactsState | None = None,
-        soft_contacts_params: jaxsim.rbda.SoftContactsParams | None = None,
+        contacts_state: js.contact.ContactsState | None = None,
+        contacts_params: jaxsim.api.contact.ContactParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
@@ -129,8 +129,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
             standard_gravity: The standard gravity constant.
-            soft_contacts_state: The state of the soft contacts.
-            soft_contacts_params: The parameters of the soft contacts.
+            contacts_state: The state of the contact model.
+            contacts_params: The parameters of the contact model.
             velocity_representation: The velocity representation to use.
             time: The time at which the state is created.
 
@@ -176,9 +176,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             else jnp.array(0, dtype=jnp.uint64)
         )
 
-        soft_contacts_params = (
-            soft_contacts_params
-            if soft_contacts_params is not None
+        contacts_params = (
+            contacts_params
+            if contacts_params is not None
+            and not isinstance(model.contact_model, jaxsim.rbda.SoftContacts)
             else js.contact.estimate_good_soft_contacts_parameters(
                 model=model, standard_gravity=standard_gravity
             )
@@ -207,8 +208,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity=v_WB[3:6].astype(float),
             joint_velocities=joint_velocities.astype(float),
             tangential_deformation=(
-                soft_contacts_state.tangential_deformation
-                if soft_contacts_state is not None
+                contacts_state.tangential_deformation
+                if contacts_state is not None
+                and isinstance(model.contact_model, jaxsim.rbda.SoftContacts)
                 else None
             ),
         )
@@ -220,7 +222,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             time_ns=time_ns,
             state=ode_state,
             gravity=gravity.astype(float),
-            soft_contacts_params=soft_contacts_params,
+            contacts_params=contacts_params,
             velocity_representation=velocity_representation,
         )
 

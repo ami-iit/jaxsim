@@ -4,7 +4,7 @@ import copy
 import dataclasses
 import functools
 import pathlib
-from typing import Any
+from typing import Any, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -56,7 +56,7 @@ class JaxSimModel(JaxsimDataclass):
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
         is_urdf: bool | None = None,
-        considered_joints: list[str] | None = None,
+        considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -293,7 +293,7 @@ def reduce(
     # Update the initial position of the joints.
     # This is necessary to compute the correct pose of the link pairs connected
     # to removed joints.
-    for joint_name in model.joint_names():
+    for joint_name in set(model.joint_names()) - set(considered_joints):
         j = intermediate_description.joints_dict[joint_name]
         with j.mutable_context():
             j.initial_position = float(joint_positions_locked.get(joint_name, 0.0))

@@ -1,10 +1,25 @@
+from __future__ import annotations
+
+import abc
+import dataclasses
 import functools
 
 import jax
 import jax.numpy as jnp
+import jax_dataclasses
+
+from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
+from typing import Type
 
 import jaxsim.api as js
 import jaxsim.rbda
+import jaxsim.terrain
 import jaxsim.typing as jtp
 
 from .common import VelRepr
@@ -134,9 +149,9 @@ def collidable_point_dynamics(
     # all collidable points belonging to the robot.
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
-    # Build the soft contact model.
+    # Build the contact model.
     soft_contacts = jaxsim.rbda.SoftContacts(
-        parameters=data.soft_contacts_params, terrain=model.terrain
+        parameters=data.contacts_params, terrain=model.terrain
     )
 
     # Compute the 6D force expressed in the inertial frame and applied to each
@@ -243,7 +258,7 @@ def estimate_good_soft_contacts_parameters(
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
-            soft_contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
+            contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
         )
 
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
@@ -395,3 +410,99 @@ def jacobian(
             raise ValueError(output_vel_repr)
 
     return O_J_WC
+
+
+@jax_dataclasses.pytree_dataclass
+class ContactsState(JaxsimDataclass, abc.ABC):
+    """
+    Abstract class storing the state of the contacts model.
+
+    Attributes:
+        number_of_collidable_points: The number of collidable points.
+    """
+
+    number_of_collidable_points: int
+
+    @classmethod
+    def build(
+        cls: Type[Self],
+        *,
+        number_of_collidable_points: int | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Build the contact state object.
+
+        Args:
+            number_of_collidable_points: The number of collidable points.
+            **kwargs: Additional keyword arguments to build the contact state.
+
+        Returns:
+            The contact state object.
+        """
+
+        return cls(number_of_collidable_points=number_of_collidable_points, **kwargs)
+
+    def zero(self) -> Self:
+        """
+        Build a zero contact state.
+
+        Returns:
+            The zero contact state.
+        """
+
+        return self.build()
+
+
+@jax_dataclasses.pytree_dataclass
+class ContactParams(JaxsimDataclass, abc.ABC):
+    """
+    Abstract class representing the parameters of a contact model.
+    """
+
+    @abc.abstractmethod
+    def build(self) -> ContactParams:
+        """
+        Create a `ContactParams` instance with specified parameters.
+
+        Returns:
+            The `ContactParams` instance.
+        """
+
+        raise NotImplementedError
+
+
+@jax_dataclasses.pytree_dataclass
+class ContactModel(abc.ABC):
+    """
+    Abstract class representing a contact model.
+
+    Attributes:
+        parameters: The parameters of the contact model.
+        terrain: The terrain model.
+    """
+
+    parameters: ContactParams = dataclasses.field(default_factory=ContactParams)
+    terrain: jaxsim.terrain.Terrain = dataclasses.field(
+        default_factory=jaxsim.terrain.FlatTerrain
+    )
+
+    @abc.abstractmethod
+    def contact_model(
+        self,
+        position: jtp.Vector,
+        velocity: jtp.Vector,
+        **kwargs,
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact forces.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The velocity of the collidable point.
+
+        Returns:
+            A tuple containing the contact force and additional information.
+        """
+
+        raise NotImplementedError

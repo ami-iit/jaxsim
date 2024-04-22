@@ -46,6 +46,10 @@ class JaxSimModel(JaxsimDataclass):
         dataclasses.field(default=None, repr=False, compare=False, hash=False)
     )
 
+    contact_model: js.contact.ContactModel | None = dataclasses.field(
+        default=None, repr=False, compare=False, hash=False
+    )
+
     def __eq__(self, other: JaxSimModel) -> bool:
 
         if not isinstance(other, JaxSimModel):
@@ -74,7 +78,8 @@ class JaxSimModel(JaxsimDataclass):
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
         is_urdf: bool | None = None,
-        considered_joints: Sequence[str] | None = None,
+        considered_joints: list[str] | None = None,
+        contact_model: js.contact.ContactModel | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -93,6 +98,8 @@ class JaxSimModel(JaxsimDataclass):
                 automatically inferred if the model description is a path to a file.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
+            contact_model:
+                The optional contact model to consider. If None, the soft contact model is used.
 
         Returns:
             The built Model object.
@@ -118,6 +125,7 @@ class JaxSimModel(JaxsimDataclass):
             model_description=intermediate_description,
             model_name=model_name,
             terrain=terrain,
+            contact_model=contact_model,
         )
 
         # Store the origin of the model, in case downstream logic needs it
@@ -132,6 +140,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
+        contact_model: js.contact.ContactModel | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -144,6 +153,8 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model overriding the physics model name.
             terrain:
                 The optional terrain to consider.
+            contact_model:
+                The optional contact model to consider. If None, the soft contact model is used.
 
         Returns:
             The built Model object.
@@ -160,6 +171,8 @@ class JaxSimModel(JaxsimDataclass):
                 model_description=model_description
             ),
             terrain=terrain or JaxSimModel.__dataclass_fields__["terrain"].default,
+            contact_model=contact_model
+            or JaxSimModel.__dataclass_fields__["contact_model"].default,
         )
 
         return model

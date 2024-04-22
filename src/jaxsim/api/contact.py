@@ -313,7 +313,7 @@ class ContactsState(JaxsimDataclass, abc.ABC):
     """
 
     @classmethod
-    def build(cls: Type[Self], **kwargs) -> Self:
+    def build(cls, **kwargs) -> ContactsState:
         """
         Build the contact state object.
 
@@ -323,7 +323,8 @@ class ContactsState(JaxsimDataclass, abc.ABC):
 
         return cls(**kwargs)
 
-    def zero(self, **kwargs) -> Self:
+    @classmethod
+    def zero(cls, **kwargs) -> ContactsState:
         """
         Build a zero contact state.
 
@@ -331,7 +332,7 @@ class ContactsState(JaxsimDataclass, abc.ABC):
             The zero contact state.
         """
 
-        return self.build(**kwargs)
+        return cls.build(**kwargs)
 
     def valid(self, **kwargs) -> bool:
         """

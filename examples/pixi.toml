@@ -17,11 +17,9 @@ install = "python -m pip install git+https://github.com/ami-iit/jaxsim.git"
 [dependencies]
 cuda-nvcc = {channel = "nvidia", version = ">=12.3,<12.4"}
 cudatoolkit = {channel = "nvidia"}
-ffmpeg = "*"
 jax-dataclasses = "*"
 jaxlib = "* *cuda*"
 jaxlie = "*"
-libgz-sim7 = "*"
 lxml = "*"
 mediapy = "*"
 mujoco = "*"
@@ -29,4 +27,5 @@ notebook = "*"
 pip = "*"
 pptree = "*"
 rod = "*"
+sdformat14 = "*"
 typing-extensions = "*"

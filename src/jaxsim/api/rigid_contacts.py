@@ -5,13 +5,14 @@ import dataclasses
 import jax.numpy as jnp
 import jax_dataclasses
 
-import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.terrain import FlatTerrain, Terrain
 
+from .contact import ContactModel, ContactParams
+
 
 @jax_dataclasses.pytree_dataclass
-class RigidContactsParams(js.contact.ContactParams):
+class RigidContactsParams(ContactParams):
     """
     Create a SoftContactsParams instance with specified parameters.
     """
@@ -21,7 +22,7 @@ class RigidContactsParams(js.contact.ContactParams):
 
 
 @jax_dataclasses.pytree_dataclass
-class RigidContacts(js.contact.ContactModel):
+class RigidContacts(ContactModel):
     """Soft contacts model."""
 
     parameters: RigidContactsParams = dataclasses.field(

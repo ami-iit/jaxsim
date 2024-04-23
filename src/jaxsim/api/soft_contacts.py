@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .model import JaxSimModel
+
 import dataclasses
 
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
 
-import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Skew, StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
 
+from .contact import ContactModel, ContactParams, ContactsState
+
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsParams(js.contact.ContactParams):
+class SoftContactsParams(ContactParams):
     """Parameters of the soft contacts model."""
 
     K: jtp.Float = dataclasses.field(
@@ -69,7 +75,7 @@ class SoftContactsParams(js.contact.ContactParams):
 
     @staticmethod
     def build_default_from_jaxsim_model(
-        model: js.model.JaxSimModel,
+        model: JaxSimModel,
         *,
         standard_gravity: jtp.FloatLike = StandardGravity,
         static_friction_coefficient: jtp.FloatLike = 0.5,
@@ -126,7 +132,7 @@ class SoftContactsParams(js.contact.ContactParams):
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsState(js.contact.ContactsState):
+class SoftContactsState(ContactsState):
     """
     Class storing the state of the soft contacts model.
 
@@ -140,7 +146,7 @@ class SoftContactsState(js.contact.ContactsState):
 
     @staticmethod
     def build_from_jaxsim_model(
-        model: js.model.JaxSimModel | None = None,
+        model: JaxSimModel | None = None,
         tangential_deformation: jtp.Matrix | None = None,
     ) -> SoftContactsState:
         """
@@ -205,7 +211,7 @@ class SoftContactsState(js.contact.ContactsState):
         )
 
     @staticmethod
-    def zero(model: js.model.JaxSimModel) -> SoftContactsState:
+    def zero(model: JaxSimModel) -> SoftContactsState:
         """
         Build a zero `SoftContactsState` from a `JaxSimModel`.
 
@@ -218,7 +224,7 @@ class SoftContactsState(js.contact.ContactsState):
 
         return SoftContactsState.build_from_jaxsim_model(model=model)
 
-    def valid(self, model: js.model.JaxSimModel) -> bool:
+    def valid(self, model: JaxSimModel) -> bool:
         """
         Check if the `SoftContactsState` is valid for a given `JaxSimModel`.
 
@@ -240,7 +246,7 @@ class SoftContactsState(js.contact.ContactsState):
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContacts(js.contact.ContactModel):
+class SoftContacts(ContactModel):
     """Soft contacts model."""
 
     parameters: SoftContactsParams = dataclasses.field(

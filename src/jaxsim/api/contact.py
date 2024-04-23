@@ -143,7 +143,7 @@ def collidable_point_dynamics(
         `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
         Instead, the 6D forces are returned in the active representation.
     """
-    from jaxsim.rbda import SoftContacts
+    from .soft_contacts import SoftContacts
 
     # Compute the position and linear velocities (mixed representation) of
     # all collidable points belonging to the robot.
@@ -226,7 +226,7 @@ def estimate_good_soft_contacts_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> jaxsim.rbda.soft_contacts.SoftContactsParams:
+) -> jaxsim.api.soft_contacts.SoftContactsParams:
     """
     Estimate good soft contacts parameters for the given model.
 
@@ -250,7 +250,7 @@ def estimate_good_soft_contacts_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
-    from jaxsim.rbda import SoftContactsParams
+    from .soft_contacts import SoftContactsParams
 
     def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
         """"""

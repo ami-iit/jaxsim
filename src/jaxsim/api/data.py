@@ -19,6 +19,7 @@ from jaxsim.utils.tracing import not_tracing
 from . import common
 from .common import VelRepr
 from .ode_data import ODEState
+from .soft_contacts import SoftContacts
 
 try:
     from typing import Self
@@ -174,8 +175,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             if time is not None
             else jnp.array(0, dtype=jnp.uint64)
         )
-
-        from jaxsim.rbda import SoftContacts
 
         contacts_params = (
             contacts_params

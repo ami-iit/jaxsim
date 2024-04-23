@@ -182,13 +182,9 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
-<<<<<<< HEAD
             contact_state=getattr(
                 importlib.import_module(f"jaxsim.api.{module_name}"), class_name
             ).build_from_jaxsim_model(
-=======
-            contact_state=type(model.contact_model).build_from_jaxsim_model(
->>>>>>> 7707074 (Dynamically import the correct contact state)
                 model=model,
                 **(
                     dict(tangential_deformation=tangential_deformation)

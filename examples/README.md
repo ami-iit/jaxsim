@@ -1,6 +1,6 @@
 # JAXsim Notebook Examples
 
-This folder includes a Jupyter Notebook demonstrating practical usage of JAXsim for system simulations.
+This folder includes a Jupyter Notebook demonstrating the practical usage of JAXsim for system simulations.
 
 ### Examples
 
@@ -17,6 +17,7 @@ To execute these examples utilizing JAXsim with hardware acceleration, there are
 ### Option 1: Google Colab (Recommended)
 
 The simplest way to run the examples is by accessing the provided Google Colab notebook link mentioned above. This will enable you to execute the examples in a hosted environment.
+
 ### Option 2: Local Execution with `pixi`
 
 For local execution, follow these steps:
@@ -31,10 +32,6 @@ curl -fsSL https://pixi.sh/install.sh | bash
 
 2. **Run the Example Notebook:**
 
-Use `pixi run <notebook_name>` to execute the example notebook locally, e.g.:
-
-```bash
-pixi run PD_controller
-```
+Use `pixi run examples` from the project source directory to execute the example notebook locally.
 
 This command will automatically handle the installation of necessary dependencies and execute the examples within a self-contained environment

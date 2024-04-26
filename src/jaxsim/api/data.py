@@ -176,14 +176,16 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             else jnp.array(0, dtype=jnp.uint64)
         )
 
-        contacts_params = (
-            contacts_params
-            if contacts_params is not None
-            and not isinstance(model.contact_model, SoftContacts)
-            else js.contact.estimate_good_soft_contacts_parameters(
-                model=model, standard_gravity=standard_gravity
+        if isinstance(model.contact_model, SoftContacts):
+            contacts_params = (
+                contacts_params
+                if contacts_params is not None
+                else js.contact.estimate_good_soft_contacts_parameters(
+                    model=model, standard_gravity=standard_gravity
+                )
             )
-        )
+        else:
+            contacts_params = model.contact_model.parameters
 
         W_H_B = jaxlie.SE3.from_rotation_and_translation(
             translation=base_position,

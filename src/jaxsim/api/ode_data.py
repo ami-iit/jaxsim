@@ -161,6 +161,15 @@ class ODEState(JaxsimDataclass):
             The contact model will be inherited from the `model`.
         """
 
+        # Get the contact model from the `JaxSimModel`
+        prefix = type(model.contact_model).__name__.split("Contact")[0]
+
+        if prefix:
+            module_name = f"{prefix.lower()}_contacts"
+            class_name = f"{prefix.capitalize()}ContactsState"
+        else:
+            raise ValueError("Unable to determine contact state class prefix.")
+
         return ODEState.build(
             model=model,
             physics_model_state=PhysicsModelState.build_from_jaxsim_model(
@@ -172,9 +181,15 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
-            contact_state=type(model.contact_model).build_from_jaxsim_model(
+            contact_state=getattr(
+                importlib.import_module(f"jaxsim.api.{module_name}"), class_name
+            ).build_from_jaxsim_model(
                 model=model,
-                tangential_deformation=tangential_deformation,
+                **(
+                    dict(tangential_deformation=tangential_deformation)
+                    if tangential_deformation is not None
+                    else dict()
+                ),
             ),
         )
 
@@ -211,12 +226,12 @@ class ODEState(JaxsimDataclass):
         else:
             raise ValueError("Unable to determine contact state class prefix.")
 
-        state_cls = importlib.import_module(f"jaxsim.rbda.{module_name}.{class_name}")
-
-        assert state_cls is not None, f"Module '{module_name}.{class_name}' not found."
-
         contact_state = (
-            contact_state if contact_state is not None else state_cls.build(model=model)
+            contact_state
+            if contact_state is not None
+            else getattr(
+                importlib.import_module(f"jaxsim.api.{module_name}"), class_name
+            ).zero(model=model)
         )
 
         return ODEState(physics_model=physics_model_state, contact_state=contact_state)

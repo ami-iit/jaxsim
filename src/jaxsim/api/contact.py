@@ -292,34 +292,20 @@ def estimate_good_soft_contacts_parameters(
 class ContactsState(JaxsimDataclass, abc.ABC):
     """
     Abstract class storing the state of the contacts model.
-
-    Attributes:
-        number_of_collidable_points: The number of collidable points.
     """
 
-    number_of_collidable_points: int
-
     @classmethod
-    def build(
-        cls: Type[Self],
-        *,
-        number_of_collidable_points: int | None = None,
-        **kwargs,
-    ) -> Self:
+    def build(cls: Type[Self], **kwargs) -> Self:
         """
         Build the contact state object.
-
-        Args:
-            number_of_collidable_points: The number of collidable points.
-            **kwargs: Additional keyword arguments to build the contact state.
 
         Returns:
             The contact state object.
         """
 
-        return cls(number_of_collidable_points=number_of_collidable_points, **kwargs)
+        return cls(**kwargs)
 
-    def zero(self) -> Self:
+    def zero(self, **kwargs) -> Self:
         """
         Build a zero contact state.
 
@@ -327,7 +313,14 @@ class ContactsState(JaxsimDataclass, abc.ABC):
             The zero contact state.
         """
 
-        return self.build()
+        return self.build(**kwargs)
+
+    def valid(self, **kwargs) -> bool:
+        """
+        Check if the contacts state is valid.
+        """
+
+        return True
 
 
 @jax_dataclasses.pytree_dataclass
@@ -346,6 +339,16 @@ class ContactParams(JaxsimDataclass, abc.ABC):
         """
 
         raise NotImplementedError
+
+    def valid(self, *args, **kwargs) -> bool:
+        """
+        Check if the parameters are valid.
+
+        Returns:
+            True if the parameters are valid, False otherwise.
+        """
+
+        return True
 
 
 @jax_dataclasses.pytree_dataclass

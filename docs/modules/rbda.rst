@@ -34,7 +34,7 @@ Composite Rigid Body Algorithm
 .. automodule:: jaxsim.rbda.crba
     :members:
 
-Forward Kinetmatics
+Forward Kinematics
 ~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: jaxsim.rbda.forward_kinematics

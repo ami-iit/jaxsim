@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import dataclasses
 import functools
@@ -267,16 +269,22 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             list(set(removed_joints)),
         )
 
-    def reduce(self, considered_joints: List[str]) -> "KinematicGraph":
+    def reduce(self, considered_joints: List[str]) -> KinematicGraph:
         """
-        Reduce the kinematic graph by removing specified joints and lumping the mass and inertia of removed links into their parent links.
+        Reduce the kinematic graph by removing unspecified joints.
+
+        When a joint is removed, the mass and inertia of its child link are lumped
+        with those of its parent link, obtaining a new link that combines the two.
+        The description of the removed joint specifies the default angle (usually 0)
+        that is considered when the joint is removed.
 
         Args:
-            considered_joints (List[str]): A list of joint names to consider.
+            considered_joints: A list of joint names to consider.
 
         Returns:
-            KinematicGraph: The reduced kinematic graph.
+            The reduced kinematic graph.
         """
+
         # The current object represents the complete kinematic graph
         full_graph = self
 
@@ -430,7 +438,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         reduced_graph = KinematicGraph(
             root=reduced_root_node,
             joints=reduced_joints,
-            frames=reduced_frames,
+            frames=self.frames + reduced_frames,
             root_pose=full_graph.root_pose,
             _joints_removed=(
                 self._joints_removed

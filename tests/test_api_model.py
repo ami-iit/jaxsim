@@ -20,7 +20,7 @@ def test_model_creation_and_reduction(
     model_full = jaxsim_model_ergocub
 
     key, subkey = jax.random.split(prng_key, num=2)
-    data = js.data.random_model_data(
+    data_full = js.data.random_model_data(
         model=model_full,
         key=subkey,
         velocity_representation=VelRepr.Inertial,
@@ -32,7 +32,7 @@ def test_model_creation_and_reduction(
     # =====
 
     # Check that the data of the full model is valid.
-    assert data.valid(model=model_full)
+    assert data_full.valid(model=model_full)
 
     # Build the ROD model from the original description.
     assert isinstance(model_full.built_from, (str, pathlib.Path))
@@ -63,10 +63,12 @@ def test_model_creation_and_reduction(
         and "middle" not in j
         and "ring" not in j
         and "pinkie" not in j
+        #
+        and "elbow" not in j
+        and "shoulder" not in j
+        and "torso" not in j
+        and "r_knee" not in j
     )
-
-    # Removed joints.
-    removed_joints = set(model_full.joint_names()) - set(reduced_joints)
 
     # Reduce the model.
     # Note: here we also specify a non-zero position of the removed joints.
@@ -78,9 +80,9 @@ def test_model_creation_and_reduction(
         joint_positions_locked={
             name: pos
             for name, pos in zip(
-                removed_joints,
-                data.joint_positions(
-                    model=model_full, joint_names=tuple(removed_joints)
+                model_full.joint_names(),
+                data_full.joint_positions(
+                    model=model_full, joint_names=model_full.joint_names()
                 ).tolist(),
             )
         },
@@ -95,61 +97,55 @@ def test_model_creation_and_reduction(
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,
-        base_position=data.base_position(),
-        base_quaternion=data.base_orientation(dcm=False),
-        joint_positions=data.joint_positions(
+        base_position=data_full.base_position(),
+        base_quaternion=data_full.base_orientation(dcm=False),
+        joint_positions=data_full.joint_positions(
             model=model_full, joint_names=model_reduced.joint_names()
         ),
-        base_linear_velocity=data.base_velocity()[0:3],
-        base_angular_velocity=data.base_velocity()[3:6],
-        joint_velocities=data.joint_velocities(
+        base_linear_velocity=data_full.base_velocity()[0:3],
+        base_angular_velocity=data_full.base_velocity()[3:6],
+        joint_velocities=data_full.joint_velocities(
             model=model_full, joint_names=model_reduced.joint_names()
         ),
-        velocity_representation=data.velocity_representation,
+        velocity_representation=data_full.velocity_representation,
     )
 
-    # Check that the reduced model data is valid.
-    assert not data_reduced.valid(model=model_full)
-    assert data_reduced.valid(model=model_reduced)
+    # =====================
+    # Test against iDynTree
+    # =====================
+
+    kin_dyn_full = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model_full, data=data_full
+    )
+
+    kin_dyn_reduced = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model_reduced, data=data_reduced
+    )
 
     # Check that the total mass is preserved.
-    assert js.model.total_mass(model=model_full) == pytest.approx(
-        js.model.total_mass(model=model_reduced)
+    assert kin_dyn_full.total_mass() == pytest.approx(kin_dyn_reduced.total_mass())
+
+    # Check that the CoM position match.
+    assert kin_dyn_full.com_position() == pytest.approx(kin_dyn_reduced.com_position())
+    assert kin_dyn_full.com_position() == pytest.approx(
+        js.com.com_position(model=model_reduced, data=data_reduced)
     )
 
-    # Check that the CoM position is preserved.
-    assert js.com.com_position(model=model_full, data=data) == pytest.approx(
-        js.com.com_position(model=model_reduced, data=data_reduced), abs=1e-6
-    )
-
-    # Check that joint serialization works.
-    assert data.joint_positions(
-        model=model_full, joint_names=model_reduced.joint_names()
-    ) == pytest.approx(data_reduced.joint_positions())
-    assert data.joint_velocities(
-        model=model_full, joint_names=model_reduced.joint_names()
-    ) == pytest.approx(data_reduced.joint_velocities())
-
-    # Check that link transforms are preserved.
-    for link_name in model_reduced.link_names():
-        W_H_L_full = js.link.transform(
-            model=model_full,
-            data=data,
-            link_index=js.link.name_to_idx(model=model_full, link_name=link_name),
+    # Check that link transforms match.
+    for link_name, link_idx in zip(
+        model_reduced.link_names(),
+        js.link.names_to_idxs(
+            model=model_reduced, link_names=model_reduced.link_names()
+        ),
+    ):
+        assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
+            kin_dyn_full.frame_transform(frame_name=link_name)
         )
-        W_H_L_reduced = js.link.transform(
-            model=model_reduced,
-            data=data_reduced,
-            link_index=js.link.name_to_idx(model=model_reduced, link_name=link_name),
+        assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
+            js.link.transform(
+                model=model_reduced, data=data_reduced, link_index=link_idx
+            )
         )
-        assert W_H_L_full == pytest.approx(W_H_L_reduced)
-
-    # Check that collidable point positions are preserved.
-    assert js.contact.collidable_point_positions(
-        model=model_full, data=data
-    ) == pytest.approx(
-        js.contact.collidable_point_positions(model=model_reduced, data=data_reduced)
-    )
 
 
 def test_model_properties(

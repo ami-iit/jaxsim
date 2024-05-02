@@ -246,6 +246,13 @@ class KinDynComputations:
             self.kin_dyn.getFrameName(i) for i in range(self.kin_dyn.getNrOfLinks())
         ]
 
+    def frame_names(self) -> list[str]:
+
+        return [
+            self.kin_dyn.getFrameName(i)
+            for i in range(self.kin_dyn.getNrOfLinks(), self.kin_dyn.getNrOfFrames())
+        ]
+
     def joint_positions(self) -> npt.NDArray:
 
         vector = idt.VectorDynSize()
@@ -318,6 +325,26 @@ class KinDynComputations:
         H = np.eye(4)
         H[0:3, 3] = H_idt.getPosition().toNumPy()
         H[0:3, 0:3] = H_idt.getRotation().toNumPy()
+
+        return H
+
+    def frame_relative_transform(
+        self, ref_frame_name: str, frame_name: str
+    ) -> npt.NDArray:
+
+        if self.kin_dyn.getFrameIndex(ref_frame_name) < 0:
+            raise ValueError(f"Frame '{ref_frame_name}' does not exist")
+
+        if self.kin_dyn.getFrameIndex(frame_name) < 0:
+            raise ValueError(f"Frame '{frame_name}' does not exist")
+
+        ref_H_frame: idt.Transform = self.kin_dyn.getRelativeTransform(
+            ref_frame_name, frame_name
+        )
+
+        H = np.eye(4)
+        H[0:3, 3] = ref_H_frame.getPosition().toNumPy()
+        H[0:3, 0:3] = ref_H_frame.getRotation().toNumPy()
 
         return H
 

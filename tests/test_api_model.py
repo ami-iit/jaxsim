@@ -14,17 +14,17 @@ from . import utils_idyntree
 
 def test_model_creation_and_reduction(
     jaxsim_model_ergocub: js.model.JaxSimModel,
-    jaxsim_model_ergocub_reduced: js.model.JaxSimModel,
+    prng_key: jax.Array,
 ):
 
     model_full = jaxsim_model_ergocub
-    model_reduced = jaxsim_model_ergocub_reduced
 
-    # Build the data of the full model.
-    data = js.data.JaxSimModelData.build(
+    key, subkey = jax.random.split(prng_key, num=2)
+    data_full = js.data.random_model_data(
         model=model_full,
-        base_position=jnp.array([0, 0, 0.8]),
+        key=subkey,
         velocity_representation=VelRepr.Inertial,
+        base_pos_bounds=((0, 0, 0.8), (0, 0, 0.8)),
     )
 
     # =====
@@ -32,7 +32,7 @@ def test_model_creation_and_reduction(
     # =====
 
     # Check that the data of the full model is valid.
-    assert data.valid(model=model_full)
+    assert data_full.valid(model=model_full)
 
     # Build the ROD model from the original description.
     assert isinstance(model_full.built_from, (str, pathlib.Path))
@@ -47,26 +47,105 @@ def test_model_creation_and_reduction(
     # Check that all non-fixed joints are in the full model.
     assert set(joint_names_in_description) == set(model_full.joint_names())
 
+    # ================
+    # Reduce the model
+    # ================
+
+    # Get the names of the joints to keep in the reduced model.
+    reduced_joints = tuple(
+        j
+        for j in model_full.joint_names()
+        if "camera" not in j
+        and "neck" not in j
+        and "wrist" not in j
+        and "thumb" not in j
+        and "index" not in j
+        and "middle" not in j
+        and "ring" not in j
+        and "pinkie" not in j
+        #
+        and "elbow" not in j
+        and "shoulder" not in j
+        and "torso" not in j
+        and "r_knee" not in j
+    )
+
+    # Reduce the model.
+    # Note: here we also specify a non-zero position of the removed joints.
+    # The process should take into account the corresponding joint transforms
+    # when the link-joint-link chains are lumped together.
+    model_reduced = js.model.reduce(
+        model=model_full,
+        considered_joints=reduced_joints,
+        locked_joint_positions={
+            name: pos
+            for name, pos in zip(
+                model_full.joint_names(),
+                data_full.joint_positions(
+                    model=model_full, joint_names=model_full.joint_names()
+                ).tolist(),
+            )
+        },
+    )
+
+    # Check DoFs.
+    assert model_full.dofs() != model_reduced.dofs()
+
+    # Check that all non-fixed joints are in the reduced model.
+    assert set(reduced_joints) == set(model_reduced.joint_names())
+
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,
-        base_position=jnp.array([0, 0, 0.8]),
-        velocity_representation=VelRepr.Inertial,
+        base_position=data_full.base_position(),
+        base_quaternion=data_full.base_orientation(dcm=False),
+        joint_positions=data_full.joint_positions(
+            model=model_full, joint_names=model_reduced.joint_names()
+        ),
+        base_linear_velocity=data_full.base_velocity()[0:3],
+        base_angular_velocity=data_full.base_velocity()[3:6],
+        joint_velocities=data_full.joint_velocities(
+            model=model_full, joint_names=model_reduced.joint_names()
+        ),
+        velocity_representation=data_full.velocity_representation,
     )
 
-    # Check that the reduced model data is valid.
-    assert not data_reduced.valid(model=model_full)
-    assert data_reduced.valid(model=model_reduced)
+    # =====================
+    # Test against iDynTree
+    # =====================
+
+    kin_dyn_full = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model_full, data=data_full
+    )
+
+    kin_dyn_reduced = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model_reduced, data=data_reduced
+    )
 
     # Check that the total mass is preserved.
-    assert js.model.total_mass(model=model_full) == pytest.approx(
-        js.model.total_mass(model=model_reduced)
+    assert kin_dyn_full.total_mass() == pytest.approx(kin_dyn_reduced.total_mass())
+
+    # Check that the CoM position match.
+    assert kin_dyn_full.com_position() == pytest.approx(kin_dyn_reduced.com_position())
+    assert kin_dyn_full.com_position() == pytest.approx(
+        js.com.com_position(model=model_reduced, data=data_reduced)
     )
 
-    # Check that the CoM position is preserved.
-    assert js.com.com_position(model=model_full, data=data) == pytest.approx(
-        js.com.com_position(model=model_reduced, data=data_reduced), abs=1e-6
-    )
+    # Check that link transforms match.
+    for link_name, link_idx in zip(
+        model_reduced.link_names(),
+        js.link.names_to_idxs(
+            model=model_reduced, link_names=model_reduced.link_names()
+        ),
+    ):
+        assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
+            kin_dyn_full.frame_transform(frame_name=link_name)
+        )
+        assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
+            js.link.transform(
+                model=model_reduced, data=data_reduced, link_index=link_idx
+            )
+        )
 
 
 def test_model_properties(

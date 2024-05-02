@@ -22,7 +22,7 @@ dependencies:
   - isort
   - pre-commit
   # [testing]
-  - idyntree
+  - idyntree >= 12.2.1
   - pytest
   - pytest-icdiff
   - robot_descriptions

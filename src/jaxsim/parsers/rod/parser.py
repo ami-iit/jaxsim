@@ -134,7 +134,7 @@ def extract_model_data(
                 name=j.name,
                 parent=world_link,
                 child=links_dict[j.child],
-                jtype=utils.axis_to_jtype(axis=j.axis, type=j.type),
+                jtype=utils.joint_to_joint_type(joint=j),
                 axis=(
                     np.array(j.axis.xyz.xyz)
                     if j.axis is not None
@@ -201,7 +201,7 @@ def extract_model_data(
             name=j.name,
             parent=links_dict[j.parent],
             child=links_dict[j.child],
-            jtype=utils.axis_to_jtype(axis=j.axis, type=j.type),
+            jtype=utils.joint_to_joint_type(joint=j),
             axis=(
                 np.array(j.axis.xyz.xyz)
                 if j.axis is not None

@@ -12,7 +12,10 @@ from jaxsim import VelRepr
 
 
 def build_kindyncomputations_from_jaxsim_model(
-    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    considered_joints: list[str] | None = None,
+    removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
 ) -> KinDynComputations:
     """
     Build a `KinDynComputations` from `JaxSimModel` and `JaxSimModelData`.
@@ -20,6 +23,10 @@ def build_kindyncomputations_from_jaxsim_model(
     Args:
         model: The `JaxSimModel` from which to build the `KinDynComputations`.
         data: The `JaxSimModelData` from which to build the `KinDynComputations`.
+        considered_joints:
+            The list of joint names to consider in the `KinDynComputations`.
+        removed_joint_positions:
+            A dictionary defining the positions of the removed joints (default is 0).
 
     Returns:
         The `KinDynComputations` built from the `JaxSimModel` and `JaxSimModelData`.
@@ -34,12 +41,41 @@ def build_kindyncomputations_from_jaxsim_model(
     ) or (isinstance(model.built_from, str) and "<robot" not in model.built_from):
         raise ValueError("iDynTree only supports URDF models")
 
+    if not data.valid(model=model):
+        raise ValueError("Invalid data object for the provided model.")
+
+    # By default, enforce iDynTree to use the same serialization of the JaxSimModel.
+    considered_joints = (
+        considered_joints if considered_joints is not None else model.joint_names()
+    )
+
+    # Get the default positions already stored in the model description.
+    removed_joint_positions_default = {
+        str(j.name): float(j.initial_position)
+        for j in model.description.get()._joints_removed
+        if j.name not in considered_joints
+    }
+
+    # Pass this dict even if there are no removed joints.
+    removed_joint_positions = removed_joint_positions_default | (
+        removed_joint_positions
+        if removed_joint_positions is not None
+        else {
+            name: pos
+            for name, pos in zip(
+                model.joint_names(),
+                data.joint_positions(model=model, joint_names=model.joint_names()),
+            )
+        }
+    )
+
     # Create the KinDynComputations from the same URDF model.
     kin_dyn = KinDynComputations.build(
         urdf=model.built_from,
-        considered_joints=list(model.joint_names()),
+        considered_joints=considered_joints,
         vel_repr=data.velocity_representation,
         gravity=np.array(data.gravity),
+        removed_joint_positions=removed_joint_positions,
     )
 
     # Copy the state of the JaxSim model.
@@ -63,6 +99,9 @@ def store_jaxsim_data_in_kindyncomputations(
     Returns:
         The updated `KinDynComputations` with the state of `JaxSimModelData`.
     """
+
+    if kin_dyn.dofs() != data.joint_positions().size:
+        raise ValueError(data)
 
     with data.switch_velocity_representation(kin_dyn.vel_repr):
         kin_dyn.set_robot_state(
@@ -91,7 +130,8 @@ class KinDynComputations:
         gravity: npt.NDArray = dataclasses.field(
             default_factory=lambda: np.array([0, 0, -10.0])
         ),
-    ) -> "KinDynComputations":
+        removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
+    ) -> KinDynComputations:
 
         # Read the URDF description
         urdf_string = urdf.read_text() if isinstance(urdf, pathlib.Path) else urdf
@@ -99,11 +139,20 @@ class KinDynComputations:
         # Create the model loader
         mdl_loader = idt.ModelLoader()
 
+        # Handle removed_joint_positions if None
+        removed_joint_positions = (
+            {str(name): float(pos) for name, pos in removed_joint_positions.items()}
+            if removed_joint_positions is not None
+            else dict()
+        )
+
         # Load the URDF description
         if not (
             mdl_loader.loadModelFromString(urdf_string)
             if considered_joints is None
-            else mdl_loader.loadReducedModelFromString(urdf_string, considered_joints)
+            else mdl_loader.loadReducedModelFromString(
+                urdf_string, considered_joints, removed_joint_positions
+            )
         ):
             raise RuntimeError("Failed to load URDF description")
 
@@ -197,6 +246,13 @@ class KinDynComputations:
             self.kin_dyn.getFrameName(i) for i in range(self.kin_dyn.getNrOfLinks())
         ]
 
+    def frame_names(self) -> list[str]:
+
+        return [
+            self.kin_dyn.getFrameName(i)
+            for i in range(self.kin_dyn.getNrOfLinks(), self.kin_dyn.getNrOfFrames())
+        ]
+
     def joint_positions(self) -> npt.NDArray:
 
         vector = idt.VectorDynSize()
@@ -269,6 +325,26 @@ class KinDynComputations:
         H = np.eye(4)
         H[0:3, 3] = H_idt.getPosition().toNumPy()
         H[0:3, 0:3] = H_idt.getRotation().toNumPy()
+
+        return H
+
+    def frame_relative_transform(
+        self, ref_frame_name: str, frame_name: str
+    ) -> npt.NDArray:
+
+        if self.kin_dyn.getFrameIndex(ref_frame_name) < 0:
+            raise ValueError(f"Frame '{ref_frame_name}' does not exist")
+
+        if self.kin_dyn.getFrameIndex(frame_name) < 0:
+            raise ValueError(f"Frame '{frame_name}' does not exist")
+
+        ref_H_frame: idt.Transform = self.kin_dyn.getRelativeTransform(
+            ref_frame_name, frame_name
+        )
+
+        H = np.eye(4)
+        H[0:3, 3] = ref_H_frame.getPosition().toNumPy()
+        H[0:3, 0:3] = ref_H_frame.getRotation().toNumPy()
 
         return H
 

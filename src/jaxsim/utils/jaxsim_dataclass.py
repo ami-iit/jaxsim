@@ -50,7 +50,9 @@ class JaxsimDataclass(abc.ABC):
 
     @contextlib.contextmanager
     def mutable_context(
-        self: Self, mutability: Mutability, restore_after_exception: bool = True
+        self: Self,
+        mutability: Mutability = Mutability.MUTABLE,
+        restore_after_exception: bool = True,
     ) -> Iterator[Self]:
         """
         Context manager to temporarily change the mutability of the object.
@@ -86,7 +88,7 @@ class JaxsimDataclass(abc.ABC):
                 setattr(self, f.name, getattr(self_copy, f.name))
 
         try:
-            self.set_mutability(mutability)
+            self.set_mutability(mutability=mutability)
             yield self
 
             if mutability is not Mutability.MUTABLE_NO_VALIDATION:

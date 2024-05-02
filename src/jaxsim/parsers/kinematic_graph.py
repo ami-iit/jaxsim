@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import dataclasses
 import functools
@@ -9,6 +11,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Sequence,
     Tuple,
     Union,
 )
@@ -41,7 +44,7 @@ class RootPose(NamedTuple):
 
 
 @dataclasses.dataclass(frozen=True)
-class KinematicGraph:
+class KinematicGraph(Sequence[descriptions.LinkDescription]):
     """
     Represents a kinematic graph of links and joints.
 
@@ -74,6 +77,12 @@ class KinematicGraph:
 
     extra_info: Dict[str, Any] = dataclasses.field(
         repr=False, compare=False, default_factory=dict
+    )
+
+    # Private attribute storing the unconnected joints from the parsed model and
+    # the joints removed after model reduction.
+    _joints_removed: list[descriptions.JointDescription] = dataclasses.field(
+        default_factory=list, repr=False, compare=False
     )
 
     @functools.cached_property
@@ -153,15 +162,24 @@ class KinematicGraph:
         # Couple links and joints and create the graph of links.
         # Note that the pose of the frames is not updated; it's the caller's
         # responsibility to update their pose if they want to use them.
-        graph_root_node, graph_joints, graph_frames = KinematicGraph.create_graph(
-            links=links, joints=joints, root_link_name=root_link_name
+        graph_root_node, graph_joints, graph_frames, unconnected_joints = (
+            KinematicGraph.create_graph(
+                links=links, joints=joints, root_link_name=root_link_name
+            )
         )
 
         for frame in graph_frames:
             logging.warning(msg=f"Ignoring unconnected link / frame: '{frame.name}'")
 
+        for joint in unconnected_joints:
+            logging.warning(msg=f"Ignoring unconnected joint: '{joint.name}'")
+
         return KinematicGraph(
-            root=graph_root_node, joints=graph_joints, frames=[], root_pose=root_pose
+            root=graph_root_node,
+            joints=graph_joints,
+            frames=[],
+            root_pose=root_pose,
+            _joints_removed=unconnected_joints,
         )
 
     @staticmethod
@@ -173,9 +191,10 @@ class KinematicGraph:
         descriptions.LinkDescription,
         List[descriptions.JointDescription],
         List[descriptions.LinkDescription],
+        list[descriptions.JointDescription],
     ]:
         """
-        Create a kinematic graph from lists of links and joints.
+        Create a kinematic graph from the lists of parsed links and joints.
 
         Args:
             links (List[descriptions.LinkDescription]): A list of link descriptions.
@@ -183,8 +202,9 @@ class KinematicGraph:
             root_link_name (str): The name of the root link.
 
         Returns:
-            Tuple[descriptions.LinkDescription, List[descriptions.JointDescription], List[descriptions.LinkDescription]]:
-                A tuple containing the root link, list of joints, and list of frames in the graph.
+            A tuple containing the root node with the full kinematic graph as child nodes,
+            the list of joints associated to graph nodes, the list of frames rigidly
+            attached to graph nodes, and the list of joints not part of the graph.
         """
 
         # Create a dict that maps link name to the link, for easy retrieval
@@ -246,18 +266,25 @@ class KinematicGraph:
             links_dict[root_link_name].mutable(mutable=False),
             list(set(joints) - set(removed_joints)),
             frames,
+            list(set(removed_joints)),
         )
 
-    def reduce(self, considered_joints: List[str]) -> "KinematicGraph":
+    def reduce(self, considered_joints: List[str]) -> KinematicGraph:
         """
-        Reduce the kinematic graph by removing specified joints and lumping the mass and inertia of removed links into their parent links.
+        Reduce the kinematic graph by removing unspecified joints.
+
+        When a joint is removed, the mass and inertia of its child link are lumped
+        with those of its parent link, obtaining a new link that combines the two.
+        The description of the removed joint specifies the default angle (usually 0)
+        that is considered when the joint is removed.
 
         Args:
-            considered_joints (List[str]): A list of joint names to consider.
+            considered_joints: A list of joint names to consider.
 
         Returns:
-            KinematicGraph: The reduced kinematic graph.
+            The reduced kinematic graph.
         """
+
         # The current object represents the complete kinematic graph
         full_graph = self
 
@@ -280,6 +307,9 @@ class KinematicGraph:
         # Extract data we need to modify from the full graph
         links_dict = copy.deepcopy(full_graph.links_dict)
         joints_dict = copy.deepcopy(full_graph.joints_dict)
+
+        # Create the object to compute forward kinematics.
+        fk = KinematicGraphTransforms(graph=full_graph)
 
         # The following steps are implemented below in order to create the reduced graph:
         #
@@ -329,7 +359,7 @@ class KinematicGraph:
             # Lump the link
             lumped_link = parent_of_link_to_remove.lump_with(
                 link=link_to_remove,
-                lumped_H_removed=full_graph.relative_transform(
+                lumped_H_removed=fk.relative_transform(
                     relative_to=parent_of_link_to_remove.name, name=link_to_remove.name
                 ),
             )
@@ -370,7 +400,7 @@ class KinematicGraph:
             # Update the pose. Note that after the lumping process, the dict entry
             # links_dict[joint.parent.name] contains the final lumped link
             with joint.mutable_context(mutability=Mutability.MUTABLE):
-                joint.pose = full_graph.relative_transform(
+                joint.pose = fk.relative_transform(
                     relative_to=links_dict[joint.parent.name].name, name=joint.name
                 )
             with joint.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
@@ -396,18 +426,25 @@ class KinematicGraph:
 
         # Create the reduced graph data. We pass the full list of links so that those
         # that are not part of the graph will be returned as frames.
-        reduced_root_node, reduced_joints, reduced_frames = KinematicGraph.create_graph(
-            links=list(full_graph_links_dict.values()),
-            joints=[joints_dict[joint_name] for joint_name in considered_joints],
-            root_link_name=full_graph.root.name,
+        reduced_root_node, reduced_joints, reduced_frames, unconnected_joints = (
+            KinematicGraph.create_graph(
+                links=list(full_graph_links_dict.values()),
+                joints=[joints_dict[joint_name] for joint_name in considered_joints],
+                root_link_name=full_graph.root.name,
+            )
         )
 
         # Create the reduced graph
         reduced_graph = KinematicGraph(
             root=reduced_root_node,
             joints=reduced_joints,
-            frames=reduced_frames,
+            frames=self.frames + reduced_frames,
             root_pose=full_graph.root_pose,
+            _joints_removed=(
+                self._joints_removed
+                + unconnected_joints
+                + [joints_dict[name] for name in joint_names_to_remove]
+            ),
         )
 
         # ================================================================
@@ -424,7 +461,7 @@ class KinematicGraph:
 
             # Update the connection of the frame
             frame.parent = new_parent_link
-            frame.pose = full_graph.relative_transform(
+            frame.pose = fk.relative_transform(
                 relative_to=new_parent_link.name, name=frame.name
             )
 
@@ -461,65 +498,6 @@ class KinematicGraph:
             List[str]: A list of frame names.
         """
         return list(self.frames_dict.keys())
-
-    def transform(self, name: str) -> npt.NDArray:
-        """
-        Compute the transformation matrix for a given link, joint, or frame.
-
-        Args:
-            name (str): The name of the link, joint, or frame.
-
-        Returns:
-            npt.NDArray: The transformation matrix.
-        """
-        if name in self.transform_cache:
-            return self.transform_cache[name]
-
-        if name in self.joint_names():
-            joint = self.joints_dict[name]
-
-            if joint.initial_position != 0.0:
-                msg = f"Ignoring unsupported initial position of joint '{name}'"
-                logging.warning(msg=msg)
-
-            transform = self.transform(name=joint.parent.name) @ joint.pose
-            self.transform_cache[name] = transform
-            return self.transform_cache[name]
-
-        if name in self.link_names():
-            link = self.links_dict[name]
-
-            if link.name == self.root.name:
-                return link.pose
-
-            parent_joint = self.joints_connection_dict[(link.parent.name, link.name)]
-            transform = self.transform(name=parent_joint.name) @ link.pose
-            self.transform_cache[name] = transform
-            return self.transform_cache[name]
-
-        # It can only be a plain frame
-        if name not in self.frame_names():
-            raise ValueError(name)
-
-        frame = self.frames_dict[name]
-        transform = self.transform(name=frame.parent.name) @ frame.pose
-        self.transform_cache[name] = transform
-        return self.transform_cache[name]
-
-    def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
-        """
-        Compute the relative transformation matrix between two elements in the kinematic graph.
-
-        Args:
-            relative_to (str): The name of the reference element.
-            name (str): The name of the element to compute the relative transformation for.
-
-        Returns:
-            npt.NDArray: The relative transformation matrix.
-        """
-        return np.linalg.inv(self.transform(name=relative_to)) @ self.transform(
-            name=name
-        )
 
     def print_tree(self) -> None:
         """
@@ -574,6 +552,10 @@ class KinematicGraph:
 
                 yield child
 
+    # =================
+    # Sequence protocol
+    # =================
+
     def __iter__(self) -> Iterable[descriptions.LinkDescription]:
         yield from KinematicGraph.breadth_first_search(root=self.root)
 
@@ -606,3 +588,188 @@ class KinematicGraph:
             return list(iter(self))[key]
 
         raise TypeError(type(key).__name__)
+
+    def count(self, value: descriptions.LinkDescription) -> int:
+        return list(iter(self)).count(value)
+
+    def index(
+        self, value: descriptions.LinkDescription, start: int = 0, stop: int = -1
+    ) -> int:
+        return list(iter(self)).index(value, start, stop)
+
+
+# ====================
+# Other useful classes
+# ====================
+
+
+@dataclasses.dataclass(frozen=True)
+class KinematicGraphTransforms:
+
+    graph: KinematicGraph
+
+    _transform_cache: dict[str, npt.NDArray] = dataclasses.field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+
+    _initial_joint_positions: dict[str, float] = dataclasses.field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+
+        super().__setattr__(
+            "_initial_joint_positions",
+            {joint.name: joint.initial_position for joint in self.graph.joints},
+        )
+
+    @property
+    def initial_joint_positions(self) -> npt.NDArray:
+
+        return np.atleast_1d(
+            np.array(list(self._initial_joint_positions.values()))
+        ).astype(float)
+
+    @initial_joint_positions.setter
+    def initial_joint_positions(
+        self,
+        positions: npt.NDArray | Sequence,
+        joint_names: Sequence[str] | None = None,
+    ) -> None:
+
+        joint_names = (
+            joint_names
+            if joint_names is not None
+            else list(self._initial_joint_positions.keys())
+        )
+
+        s = np.atleast_1d(np.array(positions).squeeze())
+
+        if s.size != len(joint_names):
+            raise ValueError(s.size, len(joint_names))
+
+        for joint_name in joint_names:
+            if joint_name not in self._initial_joint_positions:
+                raise ValueError(joint_name)
+
+        # Clear transform cache.
+        self._transform_cache.clear()
+
+        # Update initial joint positions.
+        for joint_name, position in zip(joint_names, s):
+            self._initial_joint_positions[joint_name] = position
+
+    def transform(self, name: str) -> npt.NDArray:
+        """
+        Compute the SE(3) transform of elements belonging to the kinematic graph.
+
+        Args:
+            name: The name of a link, a joint, or a frame.
+
+        Returns:
+            The 4x4 transform matrix of the element w.r.t. the model frame.
+        """
+
+        # If the transform was already computed, return it.
+        if name in self._transform_cache:
+            return self._transform_cache[name]
+
+        # If the name is a joint, compute M_H_J transform.
+        if name in self.graph.joint_names():
+
+            # Get the joint.
+            joint = self.graph.joints_dict[name]
+
+            # Get the transform of the parent link.
+            M_H_L = self.transform(name=joint.parent.name)
+
+            # Rename the pose of the predecessor joint frame w.r.t. its parent link.
+            L_H_pre = joint.pose
+
+            # Compute the joint transform from the predecessor to the successor frame.
+            pre_H_J = self.pre_H_suc(
+                joint_type=joint.jtype,
+                joint_position=self._initial_joint_positions[joint.name],
+            )
+
+            # Compute the M_H_J transform.
+            self._transform_cache[name] = M_H_L @ L_H_pre @ pre_H_J
+            return self._transform_cache[name]
+
+        # If the name is a link, compute M_H_L transform.
+        if name in self.graph.link_names():
+
+            # Get the link.
+            link = self.graph.links_dict[name]
+
+            # Handle the pose between the __model__ frame and the root link.
+            if link.name == self.graph.root.name:
+                M_H_B = link.pose
+                return M_H_B
+
+            # Get the joint between the link and its parent.
+            parent_joint = self.graph.joints_connection_dict[
+                (link.parent.name, link.name)
+            ]
+
+            # Get the transform of the parent joint.
+            M_H_J = self.transform(name=parent_joint.name)
+
+            # Rename the pose of the link w.r.t. its parent joint.
+            J_H_L = link.pose
+
+            # Compute the M_H_L transform.
+            self._transform_cache[name] = M_H_J @ J_H_L
+            return self._transform_cache[name]
+
+        # It can only be a plain frame.
+        if name not in self.graph.frame_names():
+            raise ValueError(name)
+
+        # Get the frame.
+        frame = self.graph.frames_dict[name]
+
+        # Get the transform of the parent link.
+        M_H_L = self.transform(name=frame.parent.name)
+
+        # Rename the pose of the frame w.r.t. its parent link.
+        L_H_F = frame.pose
+
+        # Compute the M_H_F transform.
+        self._transform_cache[name] = M_H_L @ L_H_F
+        return self._transform_cache[name]
+
+    def relative_transform(self, relative_to: str, name: str) -> npt.NDArray:
+        """
+        Compute the SE(3) relative transform of elements belonging to the kinematic graph.
+
+        Args:
+            relative_to: The name of the reference element.
+            name: The name of a link, a joint, or a frame.
+
+        Returns:
+            The 4x4 transform matrix of the element w.r.t. the desired frame.
+        """
+
+        import jaxsim.math
+
+        M_H_target = self.transform(name=name)
+        M_H_R = self.transform(name=relative_to)
+
+        # Compute the relative transform R_H_target, where R is the reference frame,
+        # and i the frame of the desired link|joint|frame.
+        return np.array(jaxsim.math.Transform.inverse(M_H_R)) @ M_H_target
+
+    @staticmethod
+    def pre_H_suc(
+        joint_type: descriptions.JointType | descriptions.JointDescriptor,
+        joint_position: float | None = None,
+    ) -> npt.NDArray:
+
+        import jaxsim.math
+
+        return np.array(
+            jaxsim.math.supported_joint_motion(
+                joint_type=joint_type, joint_position=joint_position
+            )[0]
+        )

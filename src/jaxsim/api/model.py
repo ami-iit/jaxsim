@@ -261,7 +261,7 @@ class JaxSimModel(JaxsimDataclass):
 def reduce(
     model: JaxSimModel,
     considered_joints: tuple[str, ...],
-    joint_positions_locked: dict[str, jtp.Float] | None = None,
+    locked_joint_positions: dict[str, jtp.Float] | None = None,
 ) -> JaxSimModel:
     """
     Reduce the model by lumping together the links connected by removed joints.
@@ -269,20 +269,20 @@ def reduce(
     Args:
         model: The model to reduce.
         considered_joints: The sequence of joints to consider.
-        joint_positions_locked:
+        locked_joint_positions:
             A dictionary containing the positions of the joints to be considered
             in the reduction process. The removed joints in the reduced model
-            will have their position locked to the value in this dictionary.
-            If a joint is not present in the dictionary, its position is set to zero.
+            will have their position locked to their value in this dictionary.
+            If a joint is not part of the dictionary, its position is set to zero.
     """
 
-    joint_positions_locked = (
-        joint_positions_locked if joint_positions_locked is not None else {}
+    locked_joint_positions = (
+        locked_joint_positions if locked_joint_positions is not None else {}
     )
 
     # If locked joints are passed, make sure that they are valid.
-    if not set(joint_positions_locked).issubset(model.joint_names()):
-        new_joints = set(model.joint_names()) - set(joint_positions_locked)
+    if not set(locked_joint_positions).issubset(model.joint_names()):
+        new_joints = set(model.joint_names()) - set(locked_joint_positions)
         raise ValueError(f"Passed joints not existing in the model: {new_joints}")
 
     # Copy the model description with a deep copy of the joints.
@@ -296,7 +296,7 @@ def reduce(
     for joint_name in set(model.joint_names()) - set(considered_joints):
         j = intermediate_description.joints_dict[joint_name]
         with j.mutable_context():
-            j.initial_position = float(joint_positions_locked.get(joint_name, 0.0))
+            j.initial_position = float(locked_joint_positions.get(joint_name, 0.0))
 
     # Reduce the model description.
     # If `considered_joints` contains joints not existing in the model,

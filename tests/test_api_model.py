@@ -77,7 +77,7 @@ def test_model_creation_and_reduction(
     model_reduced = js.model.reduce(
         model=model_full,
         considered_joints=reduced_joints,
-        joint_positions_locked={
+        locked_joint_positions={
             name: pos
             for name, pos in zip(
                 model_full.joint_names(),

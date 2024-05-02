@@ -15,7 +15,6 @@ from .link import LinkDescription
 
 
 @enum.unique
-@enum.verify(enum.CONTINUOUS)
 class JointType(enum.IntEnum):
     """
     Type of supported joints.

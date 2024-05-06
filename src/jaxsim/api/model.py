@@ -4,7 +4,7 @@ import copy
 import dataclasses
 import functools
 import pathlib
-from typing import Any, Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp

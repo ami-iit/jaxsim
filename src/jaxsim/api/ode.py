@@ -132,13 +132,19 @@ def system_velocity_dynamics(
     W_f_Ci = None
 
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
-    ṁ = jnp.zeros_like(data.state.soft_contacts.tangential_deformation).astype(float)
+    ṁ = (
+        jnp.zeros_like(data.state.contact_state.tangential_deformation).astype(float)
+        if hasattr(data.state.contact_state, "tangential_deformation")
+        else None
+    )
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
         # Compute the 6D forces applied to each collidable point and the
         # corresponding material deformation rates.
         with data.switch_velocity_representation(VelRepr.Inertial):
-            W_f_Ci, ṁ = js.contact.collidable_point_dynamics(model=model, data=data)
+            W_f_Ci, ṁ = js.contact.collidable_point_dynamics(
+                model=model, data=data, tau=τ
+            )
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly

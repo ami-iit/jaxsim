@@ -10,4 +10,6 @@ from . import (
     ode,
     ode_data,
     references,
+    rigid_contacts,
+    soft_contacts,
 )

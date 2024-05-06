@@ -2,14 +2,24 @@ from __future__ import annotations
 
 import dataclasses
 
+import jax
 import jax.numpy as jnp
 import jax_dataclasses
 
 import jaxsim.typing as jtp
+from jaxsim.math import Skew
 from jaxsim.terrain import FlatTerrain, Terrain
 
+from . import link
+from .common import VelRepr
 from .contact import ContactModel, ContactParams, ContactsState
-from .model import JaxSimModel
+from .data import JaxSimModelData
+from .model import (
+    JaxSimModel,
+    free_floating_bias_forces,
+    free_floating_mass_matrix,
+    link_bias_accelerations,
+)
 
 
 @jax_dataclasses.pytree_dataclass
@@ -54,9 +64,9 @@ class RigidContacts(ContactModel):
         self,
         position: jtp.Vector,
         velocity: jtp.Vector,
-        jdot_nu: jtp.Vector,
-        j: jtp.Vector,
-        nu: jtp.Vector,
+        model: JaxSimModel,
+        data: JaxSimModelData,
+        tau: jtp.Vector,
     ) -> tuple[jtp.Vector, jtp.Vector]:
         """
         Compute the contact forces and material deformation rate.
@@ -64,13 +74,77 @@ class RigidContacts(ContactModel):
         Args:
             position: The position of the collidable point.
             velocity: The linear velocity of the collidable point.
+            model: The model to consider.
+            data: The data of the considered model.
+            tau: The joint torques.
 
         Returns:
             A tuple containing the contact force and material deformation rate.
         """
 
-        # Compute the contact force.
-        contact_force = jnp.zeros_like(j)
+        W_p_Ci, CW_vl_WC = position, velocity
+
+        S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
+        h = free_floating_bias_forces(model=model, data=data)
+
+        M = free_floating_mass_matrix(model=model, data=data)
+        M_inv = jnp.linalg.inv(M)
+
+        J̇ν = link_bias_accelerations(model=model, data=data)
+
+        τ = jnp.atleast_1d(tau.squeeze())
+
+        def process_point_dynamics(
+            body_position: jtp.Vector,  # , model: JaxSimModel, data: JaxSimModelData
+        ) -> tuple[jtp.Vector, jtp.Vector]:
+            """
+            Process the dynamics of a single point.
+
+            Args:
+                body: The body index of the considered point.
+                model: The model to consider.
+                data: The data of the considered model.
+
+            Returns:
+                The contact force acting on the point.
+            """
+            body, position = body_position
+            W_p_Ci = jnp.array(position)
+
+            # W_H_B = link.transform(model=model, data=data, link_index=body)
+            # B_H_C = W_H_B.at[0:3, 3].set(W_p_Ci)
+
+            B_Jh = link.jacobian(
+                model=model,
+                data=data,
+                link_index=body,
+                output_vel_repr=VelRepr.Body,
+            )
+
+            # C_Xf_B = Adjoint.from_transform(transform=W_H_B @ B_H_C).T
+
+            C_Xf_B = jnp.vstack(
+                [
+                    jnp.block([jnp.eye(3), jnp.zeros(shape=(3, 3))]),
+                    jnp.block([Skew.wedge(W_p_Ci), jnp.eye(3)]),
+                ]
+            )
+
+            JC_i = C_Xf_B @ B_Jh
+
+            f_i = JC_i @ M_inv @ JC_i.T @ (J̇ν[body] + JC_i @ M_inv @ (S @ τ - h))
+
+            return f_i
+
+        body_position = (
+            jnp.array(model.kin_dyn_parameters.contact_parameters.body),
+            W_p_Ci,
+        )
+        f = jax.vmap(process_point_dynamics)(
+            body_position,
+        )
+
+        return f, jnp.zeros(shape=(model.dofs(), 6))
 
 
 @jax_dataclasses.pytree_dataclass

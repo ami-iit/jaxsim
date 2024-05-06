@@ -124,7 +124,7 @@ def collidable_point_forces(
 
 @jax.jit
 def collidable_point_dynamics(
-    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData, **kwargs
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
     r"""
     Compute the 6D force applied to each collidable point and the corresponding
@@ -143,22 +143,40 @@ def collidable_point_dynamics(
         `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
         Instead, the 6D forces are returned in the active representation.
     """
+    from .rigid_contacts import RigidContacts
     from .soft_contacts import SoftContacts
 
     # Compute the position and linear velocities (mixed representation) of
     # all collidable points belonging to the robot.
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
-    # Build the contact model.
-    soft_contacts = SoftContacts(parameters=data.contacts_params, terrain=model.terrain)
+    match model.contact_model:
+        case s if isinstance(s, SoftContacts):
+            # Build the contact model.
+            soft_contacts = SoftContacts(
+                parameters=data.contacts_params, terrain=model.terrain
+            )
 
-    # Compute the 6D force expressed in the inertial frame and applied to each
-    # collidable point, and the corresponding material deformation rate.
-    # Note that the material deformation rate is always returned in the mixed frame
-    # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
-    W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.contact_model)(
-        W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
-    )
+            # Compute the 6D force expressed in the inertial frame and applied to each
+            # collidable point, and the corresponding material deformation rate.
+            # Note that the material deformation rate is always returned in the mixed frame
+            # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
+            W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.contact_model)(
+                W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
+            )
+
+        case r if isinstance(r, RigidContacts):
+            # Build the contact model
+            rigid_contacts = RigidContacts(
+                parameters=data.contacts_params, terrain=model.terrain
+            )
+
+            W_f_Ci, CW_ṁ = rigid_contacts.contact_model(
+                W_p_Ci, W_ṗ_Ci, model, data, **kwargs
+            )
+
+        case _:
+            raise ValueError("Invalid contact model")
 
     # Convert the 6D forces to the active representation.
     f_Ci = jax.vmap(

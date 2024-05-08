@@ -46,12 +46,6 @@ Jacobians
 .. automodule:: jaxsim.rbda.jacobian
     :members:
 
-Soft Contacts
-~~~~~~~~~~~~~
-
-.. automodule:: jaxsim.rbda.soft_contacts
-    :members:
-
 Utilities
 ~~~~~~~~~
 

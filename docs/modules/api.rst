@@ -21,6 +21,12 @@ Contact
 .. automodule:: jaxsim.api.contact
     :members:
 
+.. automodule:: jaxsim.api.soft_contact
+    :members:
+
+.. automodule:: jaxsim.api.rigid_contact
+    :members:
+
 KinDynParameters
 ~~~~~~~~~~~~~~~~
 

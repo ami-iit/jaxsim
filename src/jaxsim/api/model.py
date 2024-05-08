@@ -353,6 +353,7 @@ def reduce(
         model_description=reduced_intermediate_description,
         model_name=model.name(),
         terrain=model.terrain,
+        contact_model=model.contact_model,
     )
 
     # Store the origin of the model, in case downstream logic needs it

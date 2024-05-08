@@ -219,13 +219,16 @@ class ODEState(JaxsimDataclass):
         )
 
         # Get the contact model from the `JaxSimModel`
-        prefix = type(model.contact_model).__name__.split("Contact")[0]
+        try:
+            prefix = type(model.contact_model).__name__.split("Contact")[0]
+        except AttributeError:
+            logging.warning(
+                "Unable to determine contact state class prefix. Using default soft contacts."
+            )
+            prefix = "Soft"
 
-        if prefix:
-            module_name = f"{prefix.lower()}_contacts"
-            class_name = f"{prefix.capitalize()}ContactsState"
-        else:
-            raise ValueError("Unable to determine contact state class prefix.")
+        module_name = f"{prefix.lower()}_contacts"
+        class_name = f"{prefix.capitalize()}ContactsState"
 
         state_cls = importlib.import_module(f"jaxsim.rbda.{module_name}.{class_name}")
 

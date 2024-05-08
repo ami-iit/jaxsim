@@ -127,8 +127,13 @@ class RigidContacts(ContactModel):
 
             JC_i = C_Xf_B @ B_Jh
 
-            f_i = -jnp.linalg.inv(JC_i @ M_inv @ JC_i.T) @ (
-                J̇ν[body] + JC_i @ M_inv @ (S @ τ - h)
+            px, py, pz = position
+            active_contact = pz < self.terrain.height(x=px, y=py)
+
+            f_i = (
+                -jnp.linalg.inv(JC_i @ M_inv @ JC_i.T)
+                @ (J̇ν[body] + JC_i @ M_inv @ (S @ τ - h))
+                * jnp.array(active_contact, dtype=float)
             )
 
             return f_i

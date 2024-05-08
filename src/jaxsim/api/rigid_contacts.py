@@ -66,7 +66,7 @@ class RigidContacts(ContactModel):
         velocity: jtp.Vector,
         model: JaxSimModel,
         data: JaxSimModelData,
-        tau: jtp.Vector,
+        tau: jtp.Vector | None = None,
     ) -> tuple[jtp.Vector, jtp.Vector]:
         """
         Compute the contact forces and material deformation rate.
@@ -92,7 +92,7 @@ class RigidContacts(ContactModel):
 
         J̇ν = link_bias_accelerations(model=model, data=data)
 
-        τ = jnp.atleast_1d(tau.squeeze())
+        τ = tau if tau is not None else jnp.zeros(model.dofs())
 
         def process_point_dynamics(
             body_position: jtp.Vector,
@@ -109,6 +109,7 @@ class RigidContacts(ContactModel):
                 The contact force acting on the point.
             """
             body, position = body_position
+
             W_p_Ci = jnp.array(position)
 
             B_Jh = link.jacobian(

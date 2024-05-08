@@ -172,7 +172,7 @@ def collidable_point_dynamics(
             )
 
             W_f_Ci, CW_ṁ = rigid_contacts.contact_model(
-                W_p_Ci, W_ṗ_Ci, model, data, **kwargs
+                position=W_p_Ci, velocity=W_ṗ_Ci, model=model, data=data, **kwargs
             )
 
         case _:

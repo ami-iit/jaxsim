@@ -95,22 +95,20 @@ class RigidContacts(ContactModel):
         τ = tau if tau is not None else jnp.zeros(model.dofs())
 
         def process_point_dynamics(
-            body_position: jtp.Vector,
+            body_pos_vel: jtp.Vector,
         ) -> tuple[jtp.Vector, jtp.Vector]:
             """
             Process the dynamics of a single point.
 
             Args:
-                body: The body index of the considered point.
+                body_pos_vel: The body, position, and velocity of the considered point.
                 model: The model to consider.
                 data: The data of the considered model.
 
             Returns:
                 The contact force acting on the point.
             """
-            body, position = body_position
-
-            W_p_Ci = jnp.array(position)
+            body, W_p_Ci, CW_vl_WC_i = body_pos_vel
 
             B_Jh = link.jacobian(
                 model=model,
@@ -128,23 +126,32 @@ class RigidContacts(ContactModel):
 
             JC_i = C_Xf_B @ B_Jh
 
-            px, py, pz = position
+            px, py, pz = W_p_Ci
             active_contact = pz < self.terrain.height(x=px, y=py)
 
-            f_i = (
-                -jnp.linalg.inv(JC_i @ M_inv @ JC_i.T)
-                @ (J̇ν[body] + JC_i @ M_inv @ (S @ τ - h))
-                * jnp.array(active_contact, dtype=float)
+            f_i = -jnp.linalg.inv(JC_i @ M_inv @ JC_i.T) @ (
+                J̇ν[body]
+                + JC_i @ M_inv @ (S @ τ - h)
+                + 30 * jnp.array([0, 0, W_p_Ci[2], 0, 0, 0])
+                + 40 * jnp.array([0, 0, CW_vl_WC_i[2], 0, 0, 0])
             )
 
-            return f_i
+            return jax.lax.cond(
+                active_contact,
+                true_fun=lambda _: f_i,
+                false_fun=lambda _: jnp.zeros(shape=(6,)),
+                operand=None,
+            )
 
-        body_position = (
+        body_pos_vel = (
             jnp.array(model.kin_dyn_parameters.contact_parameters.body),
             W_p_Ci,
+            CW_vl_WC,
         )
+
+        # with jax.disable_jit(True):
         f = jax.vmap(process_point_dynamics)(
-            body_position,
+            body_pos_vel,
         )
 
         return f, jnp.zeros(shape=(model.dofs(), 6))

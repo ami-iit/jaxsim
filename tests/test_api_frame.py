@@ -1,10 +1,44 @@
 import jax
+import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxsim.api as js
 from jaxsim import VelRepr
 
 from . import utils_idyntree
+
+
+def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
+
+    model = jaxsim_models_types
+
+    # =====
+    # Tests
+    # =====
+
+    if len(model.description.get().frames) == 0:
+        return
+
+    frame_indices = jnp.array(
+        [
+            frame.index
+            for frame in model.description.get().frames
+            if frame.index is not None
+        ]
+    )
+    frame_names = np.array([frame.name for frame in model.description.get().frames])
+
+    for frame_idx, frame_name in zip(frame_indices, frame_names):
+        assert js.frame.name_to_idx(model=model, frame_name=frame_name) == frame_idx
+
+    assert js.frame.names_to_idxs(
+        model=model, frame_names=tuple(frame_names)
+    ) == pytest.approx(frame_indices)
+
+    assert js.frame.idxs_to_names(
+        model=model, frame_indices=frame_indices
+    ) == pytest.approx(frame_names)
 
 
 def test_frame_transforms(

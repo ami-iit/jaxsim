@@ -7,6 +7,7 @@ import jaxlie
 import numpy as np
 
 import jaxsim.api as js
+import jaxsim.math
 import jaxsim.typing as jtp
 
 from .common import VelRepr

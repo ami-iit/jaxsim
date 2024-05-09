@@ -1,5 +1,6 @@
 # IDEs
 .idea*
+.vscode/
 
 # Matlab
 *.m~
@@ -141,4 +142,3 @@ src/jaxsim/_version.py
 .ruff_cache/
 # pixi environments
 .pixi
-

@@ -79,3 +79,46 @@ def test_frame_transforms(
         assert W_H_F == pytest.approx(
             kin_dyn.frame_transform(frame_name=frame_name)
         ), frame_name
+
+
+def test_frame_jacobians(
+    jaxsim_models_types: js.model.JaxSimModel,
+    velocity_representation: VelRepr,
+    prng_key: jax.Array,
+):
+    model = jaxsim_models_types
+
+    key, subkey = jax.random.split(prng_key, num=2)
+    data = js.data.random_model_data(
+        model=model,
+        key=subkey,
+        velocity_representation=velocity_representation,
+    )
+
+    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model, data=data
+    )
+
+    if len(model.description.get().frames) == 0:
+        return
+
+    frame_indexes = [
+        frame.index
+        for frame in model.description.get().frames
+        if frame.index is not None
+    ]
+    frame_names = [frame.name for frame in model.description.get().frames]
+
+    # =====
+    # Tests
+    # =====
+
+    J_WL_frames = [
+        js.frame.jacobian(model=model, data=data, frame_index=idx)
+        for idx in frame_indexes
+    ]
+
+    for J_WL, frame_name in zip(J_WL_frames, frame_names):
+        assert J_WL == pytest.approx(
+            kin_dyn.jacobian_frame(frame_name=frame_name), abs=1e-9
+        ), frame_name

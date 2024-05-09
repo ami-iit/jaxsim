@@ -120,17 +120,29 @@ def jaxsim_model_box() -> js.model.JaxSimModel:
     rod_model = (
         rod.builder.primitives.BoxBuilder(x=0.3, y=0.2, z=0.1, mass=1.0, name="box")
         .build_model()
-        .add_link()
+        .add_link(name="box_link")
         .add_inertial()
         .add_visual()
         .add_collision()
         .build()
     )
 
+    rod_model.add_frame(
+        rod.Frame(
+            name="box_frame",
+            attached_to="box_link",
+            pose=rod.Pose(relative_to="box_link", pose=[1, 1, 1, 0.5, 0.4, 0.3]),
+        )
+    )
+
+    print(rod_model)
+
     # Export the URDF string.
     urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True
+        sdf=rod_model, pretty=True, gazebo_preserve_fixed_joints=True
     )
+
+    print(urdf_string)
 
     return build_jaxsim_model(model_description=urdf_string)
 

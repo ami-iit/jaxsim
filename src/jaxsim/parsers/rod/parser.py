@@ -25,6 +25,7 @@ class SDFData(NamedTuple):
 
     link_descriptions: List[descriptions.LinkDescription]
     joint_descriptions: List[descriptions.JointDescription]
+    frame_descriptions: List[descriptions.LinkDescription]
     collision_shapes: List[descriptions.CollisionShape]
 
     sdf_model: rod.Model | None = None
@@ -112,6 +113,23 @@ def extract_model_data(
 
     # Create a dictionary to find easily links
     links_dict: Dict[str, descriptions.LinkDescription] = {l.name: l for l in links}
+
+    # ============
+    # Parse frames
+    # ============
+
+    # Parse the frames (unconnected)
+    frames = [
+        descriptions.LinkDescription(
+            name=f.name,
+            mass=jnp.array(0.0, dtype=float),
+            inertia=jnp.zeros(shape=(3, 3)),
+            parent=links_dict[f.attached_to],
+            pose=f.pose.transform() if f.pose is not None else jnp.eye(4),
+        )
+        for f in sdf_model.frames()
+        if f.attached_to in links_dict
+    ]
 
     # =========================
     # Process fixed-base models
@@ -309,6 +327,7 @@ def extract_model_data(
         model_name=sdf_model.name,
         link_descriptions=links,
         joint_descriptions=joints,
+        frame_descriptions=frames,
         collision_shapes=collisions,
         fixed_base=sdf_model.is_fixed_base(),
         base_link_name=sdf_model.get_canonical_link(),
@@ -354,6 +373,16 @@ def build_model_description(
             for j in sdf_data.joint_descriptions
             if j.jtype is not descriptions.JointType.Fixed
         ],
+    )
+
+    # Keep only the frames whose parent link is part of the parsed model.
+    frames_with_existing_parent_link = [
+        f for f in sdf_data.frame_descriptions if f.parent.name in model
+    ]
+
+    # Include the SDF frames originally stored in the SDF.
+    model = dataclasses.replace(
+        model, frames=frames_with_existing_parent_link + model.frames
     )
 
     # Store the parsed SDF tree as extra info

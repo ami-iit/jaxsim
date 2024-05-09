@@ -92,9 +92,9 @@ def idxs_to_names(
     )
 
 
-# =========
+# ==========
 # Frame APIs
-# =========
+# ==========
 
 
 @functools.partial(jax.jit, static_argnames=("frame_index",))
@@ -175,7 +175,7 @@ def jacobian(
         case VelRepr.Body:
             W_H_L = js.link.transform(model=model, data=data, link_index=L)
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_L = jnp.linalg.inv(W_H_F) @ W_H_L
+            F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
             F_X_L = jaxlie.SE3.from_matrix(F_H_L).adjoint()
             F_J_WL = F_X_L @ L_J_WL
             O_J_WL_I = F_J_WL
@@ -183,7 +183,7 @@ def jacobian(
         case VelRepr.Mixed:
             W_H_L = js.link.transform(model=model, data=data, link_index=L)
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_L = jnp.linalg.inv(W_H_F) @ W_H_L
+            F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
             FW_H_F = W_H_F.at[0:3, 3].set(jnp.zeros(3))
             FW_H_L = FW_H_F @ F_H_L
             FW_X_L = jaxlie.SE3.from_matrix(FW_H_L).adjoint()

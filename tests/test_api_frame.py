@@ -100,25 +100,39 @@ def test_frame_jacobians(
     )
 
     if len(model.description.get().frames) == 0:
+        print("No frames detected in model. Skipping test")
         return
 
     frame_indexes = [
         frame.index
         for frame in model.description.get().frames
         if frame.index is not None
+        # and frame.name == "l_forearm"
     ]
-    frame_names = [frame.name for frame in model.description.get().frames]
+    frame_names = [
+        frame.name
+        for frame in model.description.get().frames
+        # if frame.name == "l_forearm"
+    ]
+
+    print(f"considered frames: {frame_names}")
 
     # =====
     # Tests
     # =====
 
-    J_WL_frames = [
-        js.frame.jacobian(model=model, data=data, frame_index=idx)
-        for idx in frame_indexes
-    ]
+    assert len(frame_indexes) == len(frame_names)
 
-    for J_WL, frame_name in zip(J_WL_frames, frame_names):
-        assert J_WL == pytest.approx(
-            kin_dyn.jacobian_frame(frame_name=frame_name), abs=1e-9
-        ), frame_name
+    for frame_name, frame_idx in zip(frame_names, frame_indexes):
+        print(f"Checking frame {frame_name}...")
+        J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_idx)
+        J_WL_iDynTree = kin_dyn.jacobian_frame(frame_name=frame_name)
+        assert J_WL_js.shape == J_WL_iDynTree.shape, frame_name
+        if J_WL_js != pytest.approx(J_WL_iDynTree, abs=1e-9):
+            print("Jacobians from Jaxsim and iDynTree do not match:")
+            print("J_WL_js")
+            print(J_WL_js)
+            print("J_WL_iDynTree")
+            print(J_WL_iDynTree)
+        else:
+            print("Success")

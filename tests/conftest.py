@@ -4,6 +4,8 @@ import pathlib
 import jax
 import pytest
 import rod
+import rod.urdf
+import rod.urdf.exporter
 
 import jaxsim
 import jaxsim.api as js
@@ -135,14 +137,10 @@ def jaxsim_model_box() -> js.model.JaxSimModel:
         )
     )
 
-    print(rod_model)
-
     # Export the URDF string.
     urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
         sdf=rod_model, pretty=True, gazebo_preserve_fixed_joints=True
     )
-
-    print(urdf_string)
 
     return build_jaxsim_model(model_description=urdf_string)
 
@@ -176,6 +174,86 @@ def jaxsim_model_sphere() -> js.model.JaxSimModel:
     )
 
     return build_jaxsim_model(model_description=urdf_string)
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a single pendulum.
+
+    Returns:
+        The JaxSim model of a single pendulum.
+    """
+
+    rod_model = rod.Sdf(
+        version="1.7",
+        model=rod.Model(
+            name="single_pendulum",
+            link=[
+                rod.Link(
+                    name="base_link",
+                    inertial=rod.Inertial(mass=100.0, inertia=rod.Inertia()),
+                    collision=rod.Collision(
+                        geometry=rod.Geometry(rod.Box(size=[0.15, 0.15, 2.15])),
+                        pose=rod.Pose(pose=[0, 0, 1, 0, 0, 0]),
+                        name="base_link_fixed_joint_lump__base_collision",
+                    ),
+                    visual=rod.Visual(
+                        geometry=rod.Geometry(rod.Box(size=[0.15, 0.15, 2.15])),
+                        pose=rod.Pose(pose=[0, 0, 1, 0, 0, 0]),
+                        name="base_link_fixed_joint_lump__base_visual",
+                    ),
+                ),
+                rod.Link(
+                    name="upper_link",
+                    inertial=rod.Inertial(mass=0.5, inertia=rod.Inertia()),
+                    collision=rod.Collision(
+                        geometry=rod.Geometry(rod.Box(size=[0.15, 0.15, 1.0])),
+                        pose=rod.Pose(pose=[0, 0, 0.5, 0, 0, 0]),
+                        name="upper_link_collision",
+                    ),
+                    visual=rod.Visual(
+                        geometry=rod.Geometry(rod.Box(size=[0.15, 0.15, 1.0])),
+                        pose=rod.Pose(pose=[0, 0, 0.5, 0, 0, 0]),
+                        name="upper_link_visual",
+                    ),
+                ),
+            ],
+            joint=[
+                rod.Joint(
+                    name="fixed_base",
+                    type="fixed",
+                    parent="world",
+                    child="base_link",
+                ),
+                rod.Joint(
+                    name="upper_joint",
+                    type="revolute",
+                    parent="base_link",
+                    child="upper_link",
+                    axis=rod.Axis(
+                        xyz=rod.Xyz([1, 0, 0]),
+                        limit=rod.Limit(lower=-5, upper=5),
+                    ),
+                ),
+            ],
+            frame=[
+                rod.Frame(
+                    name="custom_frame",
+                    attached_to="upper_link",
+                    pose=rod.Pose(pose=[0.5, 0.5, 0.5, 0.1, 0.2, 0.3]),
+                )
+            ],
+        ),
+    )
+
+    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
+        sdf=rod_model.models()[0]
+    )
+
+    model = build_jaxsim_model(model_description=urdf_string)
+
+    return model
 
 
 @pytest.fixture(scope="session")
@@ -231,7 +309,9 @@ def jaxsim_model_ergocub_reduced(jaxsim_model_ergocub) -> js.model.JaxSimModel:
         and "torso" not in j and "elbow" not in j and "shoulder" not in j
     )
 
-    return js.model.reduce(model=model_full, considered_joints=reduced_joints)
+    model = js.model.reduce(model=model_full, considered_joints=reduced_joints)
+
+    return model
 
 
 @pytest.fixture(scope="session")

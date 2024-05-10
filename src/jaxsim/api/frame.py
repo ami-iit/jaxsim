@@ -117,12 +117,12 @@ def transform(
         The 4x4 matrix representing the transform.
     """
 
-    frame = model.description.get().frames[frame_index - model.number_of_links()]
-    parent_link_index = frame.parent.index
-    W_H_parent = js.link.transform(model=model, data=data, link_index=parent_link_index)
-    parent_H_frame = frame.pose
+    F = model.description.get().frames[frame_index - model.number_of_links()]
+    L = F.parent.index
+    W_H_L = js.link.transform(model=model, data=data, link_index=L)
+    L_H_F = F.pose
 
-    return W_H_parent @ parent_H_frame
+    return W_H_L @ L_H_F
 
 
 @functools.partial(jax.jit, static_argnames=["frame_index", "output_vel_repr"])

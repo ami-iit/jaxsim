@@ -92,7 +92,7 @@ def test_frame_transforms(
             f'In iDynTree the frame "{frame_name}" is connected to link {parent_link_name_iDynTree}'
         )
         logging.debug(
-            f'In Jaxsim the frame "{frame_name}" is connected to link {model.description.get().frames[frame_idx].parent.name}'
+            f'In Jaxsim the frame "{frame_name}" is connected to link {model.description.get().frames[frame_idx - model.number_of_links()].parent.name}'
         )
         if not result:
             logging.error(f"Assertion failed for frame: {frame_name}")

@@ -348,6 +348,13 @@ class KinDynComputations:
 
         return H
 
+    def frame_parent_link_name(self, frame_name: str) -> str:
+        return self.kin_dyn.model().getLinkName(
+            self.kin_dyn.model().getFrameLink(
+                self.kin_dyn.model().getFrameIndex(frame_name)
+            )
+        )
+
     def base_velocity(self) -> npt.NDArray:
 
         nu = idt.VectorDynSize()

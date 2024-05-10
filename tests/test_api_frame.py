@@ -108,11 +108,13 @@ def test_frame_jacobians(
         for frame in model.description.get().frames
         if frame.index is not None
         # and frame.name == "l_forearm"
+        and frame.name in kin_dyn.frame_names()
     ]
     frame_names = [
         frame.name
         for frame in model.description.get().frames
         # if frame.name == "l_forearm"
+        if frame.name in kin_dyn.frame_names()
     ]
 
     print(f"considered frames: {frame_names}")

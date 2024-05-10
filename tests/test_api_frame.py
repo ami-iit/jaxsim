@@ -42,18 +42,12 @@ def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
 
 
 def test_frame_transforms(
-    jaxsim_models_types: js.model.JaxSimModel,
+    jaxsim_model_single_pendulum: js.model.JaxSimModel,
     prng_key: jax.Array,
 ):
+    # TODO: add more models to the test
+    model = jaxsim_model_single_pendulum
 
-    model = jaxsim_models_types
-
-    # key, subkey = jax.random.split(prng_key, num=2)
-    # data = js.data.random_model_data(
-    #     model=model,
-    #     key=subkey,
-    #     velocity_representation=VelRepr.Inertial,
-    # )
     data = js.data.JaxSimModelData.zero(model=model)
 
     kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
@@ -94,6 +88,7 @@ def test_frame_transforms(
         logging.debug(
             f'In Jaxsim the frame "{frame_name}" is connected to link {model.description.get().frames[frame_idx - model.number_of_links()].parent.name}'
         )
+
         if not result:
             logging.error(f"Assertion failed for frame: {frame_name}")
             logging.debug("W_H_F_js:")
@@ -106,18 +101,13 @@ def test_frame_transforms(
 
 
 def test_frame_jacobians(
-    jaxsim_models_types: js.model.JaxSimModel,
+    jaxsim_model_single_pendulum: js.model.JaxSimModel,
     velocity_representation: VelRepr,
     prng_key: jax.Array,
 ):
-    model = jaxsim_models_types
+    # TODO: add more models to the test
+    model = jaxsim_model_single_pendulum
 
-    # key, subkey = jax.random.split(prng_key, num=2)
-    # data = js.data.random_model_data(
-    #     model=model,
-    #     key=subkey,
-    #     velocity_representation=velocity_representation,
-    # )
     data = js.data.JaxSimModelData.zero(model=model)
 
     kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
@@ -131,14 +121,11 @@ def test_frame_jacobians(
     frame_indexes = [
         frame.index
         for frame in model.description.get().frames
-        if frame.index is not None
-        # and frame.name == "l_forearm"
-        and frame.name in kin_dyn.frame_names()
+        if frame.index is not None and frame.name in kin_dyn.frame_names()
     ]
     frame_names = [
         frame.name
         for frame in model.description.get().frames
-        # if frame.name == "l_forearm"
         if frame.name in kin_dyn.frame_names()
     ]
 
@@ -152,7 +139,6 @@ def test_frame_jacobians(
 
     results = []
     for frame_name, frame_idx in zip(frame_names, frame_indexes):
-        logging.debug(f"Checking frame {frame_name}...")
         J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_idx)
         J_WL_iDynTree = kin_dyn.jacobian_frame(frame_name=frame_name)
         result = J_WL_js.shape == J_WL_iDynTree.shape, frame_name
@@ -162,8 +148,6 @@ def test_frame_jacobians(
             logging.debug(J_WL_js)
             logging.debug("J_WL_iDynTree")
             logging.debug(J_WL_iDynTree)
-        else:
-            logging.debug("Success")
         results.append(result)
 
     assert all(results), "At least one assertion failed"

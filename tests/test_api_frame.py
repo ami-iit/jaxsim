@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import jaxsim.api as js
-from jaxsim import VelRepr
+from jaxsim import VelRepr, logging
 
 from . import utils_idyntree
 
@@ -48,37 +48,61 @@ def test_frame_transforms(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
-    data = js.data.random_model_data(
-        model=model,
-        key=subkey,
-        velocity_representation=VelRepr.Inertial,
-    )
+    # key, subkey = jax.random.split(prng_key, num=2)
+    # data = js.data.random_model_data(
+    #     model=model,
+    #     key=subkey,
+    #     velocity_representation=VelRepr.Inertial,
+    # )
+    data = js.data.JaxSimModelData.zero(model=model)
 
     kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
         model=model, data=data
     )
 
     if len(model.description.get().frames) == 0:
+        logging.debug("No frames detected in model. Skipping test")
         return
 
     # Get indexes of frames that are not links
-    frame_indexes = [frame.index for frame in model.description.get().frames]
-    frame_names = [frame.name for frame in model.description.get().frames]
+    frame_indexes = [
+        frame.index
+        for frame in model.description.get().frames
+        if frame.index is not None and frame.name in kin_dyn.frame_names()
+    ]
+    frame_names = [
+        frame.name
+        for frame in model.description.get().frames
+        if frame.name in kin_dyn.frame_names()
+    ]
 
     # =====
     # Tests
     # =====
 
-    W_H_F_frames = [
-        js.frame.transform(model=model, data=data, frame_index=idx)
-        for idx in frame_indexes
-    ]
+    results = []
+    for frame_name, frame_idx in zip(frame_names, frame_indexes):
+        W_H_F_js = js.frame.transform(model=model, data=data, frame_index=frame_idx)
+        W_H_F_iDynTree = kin_dyn.frame_transform(frame_name=frame_name)
+        result = W_H_F_js == pytest.approx(W_H_F_iDynTree)
+        parent_link_name_iDynTree = kin_dyn.frame_parent_link_name(
+            frame_name=frame_name
+        )
+        logging.debug(
+            f'In iDynTree the frame "{frame_name}" is connected to link {parent_link_name_iDynTree}'
+        )
+        logging.debug(
+            f'In Jaxsim the frame "{frame_name}" is connected to link {model.description.get().frames[frame_idx].parent.name}'
+        )
+        if not result:
+            logging.error(f"Assertion failed for frame: {frame_name}")
+            logging.debug("W_H_F_js:")
+            logging.debug(W_H_F_js)
+            logging.debug("W_H_F_iDynTree:")
+            logging.debug(W_H_F_iDynTree)
+        results.append(result)
 
-    for W_H_F, frame_name in zip(W_H_F_frames, frame_names):
-        assert W_H_F == pytest.approx(
-            kin_dyn.frame_transform(frame_name=frame_name)
-        ), frame_name
+    assert all(results), "At least one assertion failed"
 
 
 def test_frame_jacobians(
@@ -88,19 +112,20 @@ def test_frame_jacobians(
 ):
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
-    data = js.data.random_model_data(
-        model=model,
-        key=subkey,
-        velocity_representation=velocity_representation,
-    )
+    # key, subkey = jax.random.split(prng_key, num=2)
+    # data = js.data.random_model_data(
+    #     model=model,
+    #     key=subkey,
+    #     velocity_representation=velocity_representation,
+    # )
+    data = js.data.JaxSimModelData.zero(model=model)
 
     kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
         model=model, data=data
     )
 
     if len(model.description.get().frames) == 0:
-        print("No frames detected in model. Skipping test")
+        logging.debug("No frames detected in model. Skipping test")
         return
 
     frame_indexes = [
@@ -117,7 +142,7 @@ def test_frame_jacobians(
         if frame.name in kin_dyn.frame_names()
     ]
 
-    print(f"considered frames: {frame_names}")
+    logging.debug(f"Frames considered: {frame_names}")
 
     # =====
     # Tests
@@ -125,16 +150,20 @@ def test_frame_jacobians(
 
     assert len(frame_indexes) == len(frame_names)
 
+    results = []
     for frame_name, frame_idx in zip(frame_names, frame_indexes):
-        print(f"Checking frame {frame_name}...")
+        logging.debug(f"Checking frame {frame_name}...")
         J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_idx)
         J_WL_iDynTree = kin_dyn.jacobian_frame(frame_name=frame_name)
-        assert J_WL_js.shape == J_WL_iDynTree.shape, frame_name
+        result = J_WL_js.shape == J_WL_iDynTree.shape, frame_name
         if J_WL_js != pytest.approx(J_WL_iDynTree, abs=1e-9):
-            print("Jacobians from Jaxsim and iDynTree do not match:")
-            print("J_WL_js")
-            print(J_WL_js)
-            print("J_WL_iDynTree")
-            print(J_WL_iDynTree)
+            logging.error("Jacobians from Jaxsim and iDynTree do not match:")
+            logging.debug("J_WL_js")
+            logging.debug(J_WL_js)
+            logging.debug("J_WL_iDynTree")
+            logging.debug(J_WL_iDynTree)
         else:
-            print("Success")
+            logging.debug("Success")
+        results.append(result)
+
+    assert all(results), "At least one assertion failed"

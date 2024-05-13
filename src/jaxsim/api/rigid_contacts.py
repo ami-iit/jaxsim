@@ -5,6 +5,7 @@ import dataclasses
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
 
 import jaxsim.typing as jtp
 from jaxsim.math import Skew
@@ -94,22 +95,9 @@ class RigidContacts(ContactModel):
 
         τ = tau if tau is not None else jnp.zeros(model.dofs())
 
-        def process_point_dynamics(
-            body_pos_vel: jtp.Vector,
-        ) -> tuple[jtp.Vector, jtp.Vector]:
-            """
-            Process the dynamics of a single point.
+        link_forces = jnp.zeros(shape=(W_p_Ci.shape[0], 6))
 
-            Args:
-                body_pos_vel: The body, position, and velocity of the considered point.
-                model: The model to consider.
-                data: The data of the considered model.
-
-            Returns:
-                The contact force acting on the point.
-            """
-            body, W_p_Ci, CW_vl_WC_i = body_pos_vel
-
+        def compute_contact_wrenches(body):
             B_Jh = link.jacobian(
                 model=model,
                 data=data,
@@ -117,41 +105,48 @@ class RigidContacts(ContactModel):
                 output_vel_repr=VelRepr.Body,
             )
 
+            return -jnp.linalg.inv(B_Jh @ M_inv @ B_Jh.T) @ (
+                J̇ν[body] + B_Jh @ M_inv @ (S @ τ - h)
+            )
+
+        link_forces = jax.vmap(compute_contact_wrenches)(
+            jnp.array(np.unique(model.kin_dyn_parameters.contact_parameters.body))
+        )
+
+        def process_point_dynamics(
+            body_pos: jtp.Vector,
+        ) -> tuple[jtp.Vector, jtp.Vector]:
+            """
+            Process the dynamics of a single point.
+
+            Args:
+                body_pos: The body and position of the considered point.
+                model: The model to consider.
+                data: The data of the considered model.
+
+            Returns:
+                The contact force acting on the point.
+            """
+            body, W_p_Ci = body_pos
+
             C_Xf_B = jnp.vstack(
                 [
-                    jnp.block([jnp.eye(3), Skew.wedge(W_p_Ci)]),
-                    jnp.block([jnp.zeros(shape=(3, 3)), jnp.eye(3)]),
+                    jnp.block([jnp.eye(3), jnp.zeros(shape=(3, 3))]),
+                    jnp.block([Skew.wedge(W_p_Ci), jnp.eye(3)]),
                 ]
             )
 
-            JC_i = C_Xf_B @ B_Jh
+            f_i = C_Xf_B @ link_forces[body]
 
-            px, py, pz = W_p_Ci
-            active_contact = pz < self.terrain.height(x=px, y=py)
+            return f_i
 
-            f_i = -jnp.linalg.inv(JC_i @ M_inv @ JC_i.T) @ (
-                J̇ν[body]
-                + JC_i @ M_inv @ (S @ τ - h)
-                + 30 * jnp.array([0, 0, W_p_Ci[2], 0, 0, 0])
-                + 40 * jnp.array([0, 0, CW_vl_WC_i[2], 0, 0, 0])
-            )
-
-            return jax.lax.cond(
-                active_contact,
-                true_fun=lambda _: f_i,
-                false_fun=lambda _: jnp.zeros(shape=(6,)),
-                operand=None,
-            )
-
-        body_pos_vel = (
+        body_pos = (
             jnp.array(model.kin_dyn_parameters.contact_parameters.body),
             W_p_Ci,
-            CW_vl_WC,
         )
 
-        # with jax.disable_jit(True):
-        f = jax.vmap(process_point_dynamics)(
-            body_pos_vel,
+        f = jax.vmap(process_point_dynamics)(body_pos) / len(
+            model.kin_dyn_parameters.contact_parameters.body
         )
 
         return f, jnp.zeros(shape=(model.dofs(), 6))

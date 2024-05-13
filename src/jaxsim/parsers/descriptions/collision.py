@@ -154,3 +154,16 @@ class SphereCollision(CollisionShape):
             return False
 
         return hash(self) == hash(other)
+
+
+@dataclasses.dataclass
+class MeshCollision(CollisionShape):
+
+    center: npt.NDArray[np.float64]
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, MeshCollision):
+            return False
+        return len(self.collidable_points) == len(
+            other.collidable_points
+        ) and super().__eq__(other)

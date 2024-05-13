@@ -1,13 +1,20 @@
 import os
+import enum
 
 import numpy as np
 import numpy.typing as npt
 import rod
+import trimesh
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia
 from jaxsim.parsers import descriptions
 
+
+class MeshMappingMethods(enum.Enum):
+    VertexExtraction = 0,
+    RandomSurfaceSampling = 1,
+    UniformSurfaceSampling = 2
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
     """
@@ -201,4 +208,39 @@ def create_sphere_collision(
 
     return descriptions.SphereCollision(
         collidable_points=collidable_points, center=center_wrt_link
+    )
+
+def create_mesh_collision(
+    collision: rod.Collision,
+    link_description: descriptions.LinkDescription,
+    mesh: trimesh.base.Trimesh,
+    method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
+    nsamples: int = 1000,
+) -> descriptions.MeshCollision:
+    match method:
+        case MeshMappingMethods.VertexExtraction:
+            points = mesh.vertices
+        case MeshMappingMethods.RandomSurfaceSampling:
+            points = mesh.sample(nsamples)
+        case MeshMappingMethods.UniformSurfaceSampling:
+            raise NotImplementedError("Uniform surface sampling not implemented")
+        case _:
+            raise ValueError("Invalid mesh mapping method")
+
+    points = mesh.vertices
+    H = collision.pose.transform() if collision.pose is not None else np.eye(4) # pose of the collision object
+    center_of_collision_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1] # @ = matrix multiplication, hstack = stack arrays in sequence horizontally => center of the collision object
+    mesh_points_wrt_link = (
+        H @ np.hstack([points, np.vstack([1.0] * points.shape[0])]).T
+    )[0:3, :]
+    collidable_points = [
+        descriptions.CollidablePoint(
+            parent_link=link_description,
+            position=point,
+            enabled=True,
+        )
+        for point in mesh_points_wrt_link.T
+    ]
+    return descriptions.MeshCollision(
+        collidable_points=collidable_points, center=center_of_collision_wrt_link
     )

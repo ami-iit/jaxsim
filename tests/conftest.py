@@ -169,6 +169,7 @@ def ergocub_model_description_path() -> pathlib.Path:
     Returns:
         The path to the URDF model description of the ErgoCub robot.
     """
+    import json
 
     try:
         os.environ["ROBOT_DESCRIPTION_COMMIT"] = "v0.7.1"
@@ -179,6 +180,10 @@ def ergocub_model_description_path() -> pathlib.Path:
         _ = os.environ.pop("ROBOT_DESCRIPTION_COMMIT", None)
 
     from robot_descriptions._package_dirs import get_package_dirs
+
+    os.environ["ROBOT_DESCRIPTION_URI_PATH"] = (
+        robot_descriptions.ergocub_description.PACKAGE_PATH
+    )
 
     model_urdf_path = pathlib.Path(
         robot_descriptions.ergocub_description.URDF_PATH.replace(
@@ -244,13 +249,16 @@ def jaxsim_model_ur10() -> js.model.JaxSimModel:
     Returns:
         The JaxSim model of the UR10 robot.
     """
+    import json
 
     import robot_descriptions.ur10_description
     from robot_descriptions._package_dirs import get_package_dirs
 
     model_urdf_path = pathlib.Path(robot_descriptions.ur10_description.URDF_PATH)
 
-    os.environ["MESH_PATH"] = get_package_dirs(robot_descriptions.ur10_description)
+    os.environ["MESH_PATH"] = json.dumps(
+        get_package_dirs(robot_descriptions.ur10_description)
+    )
 
     return build_jaxsim_model(model_description=model_urdf_path)
 

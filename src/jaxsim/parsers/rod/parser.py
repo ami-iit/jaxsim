@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import os
 import pathlib
 from typing import NamedTuple
@@ -6,6 +7,8 @@ from typing import NamedTuple
 import jax.numpy as jnp
 import numpy as np
 import rod
+import trimesh
+from resolve_robotics_uri_py import resolve_robotics_uri
 
 from jaxsim import logging
 from jaxsim.math import Quaternion
@@ -333,6 +336,35 @@ def extract_model_data(
                 )
 
                 collisions.append(sphere_collision)
+
+            if (
+                collision.geometry.mesh is not None
+                and collision.geometry.mesh.uri is not None
+            ):
+                file_obj = resolve_robotics_uri(
+                    uri=collision.geometry.mesh.uri,
+                    package_dirs=json.loads(os.environ.get("MESH_PATH", None)),
+                )
+                _file_type = None
+                try:
+                    _file_type = file_obj.split(".")[-1]
+                except ValueError as e:
+                    raise e(f"Failed to get file type from {file_obj}")
+                logging.debug(
+                    f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+                )
+                mesh_collision = utils.create_mesh_collision(
+                    collision=collision,
+                    link_description=links_dict[link.name],
+                    mesh=trimesh.load(
+                        file_obj=open(file_obj, "w", encoding="utf-8"),
+                        file_type=_file_type,
+                    ).apply_scale(collision.geometry.mesh.scale),
+                    method=utils.MeshMappingMethods.RandomSurfaceSampling,
+                    nsamples=5,
+                )
+
+                collisions.append(mesh_collision)
 
     return SDFData(
         model_name=sdf_model.name,

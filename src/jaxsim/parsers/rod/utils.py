@@ -61,7 +61,7 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
 
 def joint_to_joint_type(
     joint: rod.Joint,
-) -> descriptions.JointType | descriptions.JointDescriptor:
+) -> descriptions.JointType:
     """
     Extract the joint type from an SDF joint.
 
@@ -76,7 +76,7 @@ def joint_to_joint_type(
     joint_type = joint.type
 
     if joint_type == "fixed":
-        return descriptions.JointType.F
+        return descriptions.JointType.Fixed
 
     if not (axis.xyz is not None and axis.xyz.xyz is not None):
         raise ValueError("Failed to read axis xyz data")
@@ -86,14 +86,10 @@ def joint_to_joint_type(
     axis_xyz = axis_xyz / np.linalg.norm(axis_xyz)
 
     if joint_type in {"revolute", "continuous"}:
-        return descriptions.JointGenericAxis(
-            joint_type=descriptions.JointType.R, axis=axis_xyz
-        )
+        return descriptions.JointType.Revolute
 
     if joint_type == "prismatic":
-        return descriptions.JointGenericAxis(
-            joint_type=descriptions.JointType.P, axis=axis_xyz
-        )
+        return descriptions.JointType.Prismatic
 
     raise ValueError("Joint not supported", axis_xyz, joint_type)
 

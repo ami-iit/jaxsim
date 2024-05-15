@@ -352,7 +352,7 @@ def build_model_description(
         considered_joints=[
             j.name
             for j in sdf_data.joint_descriptions
-            if j.jtype is not descriptions.JointType.F
+            if j.jtype is not descriptions.JointType.Fixed
         ],
     )
 

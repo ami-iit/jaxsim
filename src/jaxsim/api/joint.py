@@ -3,7 +3,6 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
@@ -30,17 +29,9 @@ def name_to_idx(model: js.model.JaxSimModel, *, joint_name: str) -> jtp.Int:
         # Note: the index of the joint for RBDAs starts from 1, but
         # the index for accessing the right element starts from 0.
         # Therefore, there is a -1.
-        return (
-            jnp.array(
-                np.argwhere(
-                    np.array(model.kin_dyn_parameters.joint_model.joint_names)
-                    == joint_name
-                )
-                - 1
-            )
-            .squeeze()
-            .astype(int)
-        )
+        return jnp.array(
+            model.kin_dyn_parameters.joint_model.joint_names.index(joint_name) - 1
+        ).squeeze()
     return jnp.array(-1).astype(int)
 
 

@@ -382,21 +382,17 @@ class KynDynParameters(JaxsimDataclass):
         )
 
         # Compute the transforms and motion subspaces of the joints.
-        # TODO: understand how to use joint_indices to access joint_types, right now
-        #       it fails when used within a JIT context.
-        pre_H_suc_and_S = [
-            supported_joint_motion(
-                joint_type=self.joint_model.joint_types[i + 1],
-                joint_position=jnp.array(s),
-            )
-            for i, s in enumerate(jnp.array(joint_positions).astype(float))
-        ]
+        pre_H_suc_J, S_J = jax.vmap(supported_joint_motion)(
+            jnp.array(self.joint_model.joint_types[1:]),
+            jnp.array(self.joint_model.joint_axis),
+            jnp.array(joint_positions).astype(float),
+        )
 
         # Extract the transforms and motion subspaces of the joints.
         # We stack the base transform W_H_B at index 0, and a dummy motion subspace
         # for either the fixed or free-floating joint connecting the world to the base.
-        pre_H_suc = jnp.stack([W_H_B] + [H for H, _ in pre_H_suc_and_S])
-        S = jnp.stack([jnp.vstack(jnp.zeros(6))] + [S for _, S in pre_H_suc_and_S])
+        pre_H_suc = jnp.vstack([W_H_B[None, ...], pre_H_suc_J])
+        S = jnp.vstack([jnp.zeros((6, 1))[None, ...], S_J])
 
         # Extract the successor-to-child fixed transforms.
         # Note that here we include also the index 0 since suc_H_child[0] stores the

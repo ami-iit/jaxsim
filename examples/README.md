@@ -4,23 +4,15 @@ This folder includes a Jupyter Notebook demonstrating the practical usage of JAX
 
 ### Examples
 
-- [PD_controller](https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/PD_controller.ipynb) - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
-- [Parallel_computing](https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/Parallel_computing.ipynb) - An example demonstrating how to simulate vectorized models in parallel using JAXsim.
+- [PD_controller](./PD_controller.ipynb) - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
+- [Parallel_computing](./Parallel_computing.ipynb) - An example demonstrating how to simulate vectorized models in parallel using JAXsim.
 
 > [!TIP]
 > Stay tuned for more examples!
 
 ## Running the Examples
 
-To execute these examples utilizing JAXsim with hardware acceleration, there are a couple of options available:
-
-### Option 1: Google Colab (Recommended)
-
-The simplest way to run the examples is by accessing the provided Google Colab notebook link mentioned above. This will enable you to execute the examples in a hosted environment.
-
-### Option 2: Local Execution with `pixi`
-
-For local execution, follow these steps:
+To execute these examples utilizing JAXsim with hardware acceleration, you can use [pixi](https://pixi.sh) to run the examples in a local environment:
 
 1. **Install `pixi`:**
 

@@ -689,6 +689,7 @@ class KinematicGraphTransforms:
             # Compute the joint transform from the predecessor to the successor frame.
             pre_H_J = self.pre_H_suc(
                 joint_type=joint.jtype,
+                joint_axis=joint.axis,
                 joint_position=self._initial_joint_positions[joint.name],
             )
 
@@ -762,7 +763,8 @@ class KinematicGraphTransforms:
 
     @staticmethod
     def pre_H_suc(
-        joint_type: descriptions.JointType | descriptions.JointDescriptor,
+        joint_type: descriptions.JointType,
+        joint_axis: descriptions.JointGenericAxis,
         joint_position: float | None = None,
     ) -> npt.NDArray:
 
@@ -770,6 +772,8 @@ class KinematicGraphTransforms:
 
         return np.array(
             jaxsim.math.supported_joint_motion(
-                joint_type=joint_type, joint_position=joint_position
+                joint_type=joint_type,
+                joint_axis=joint_axis,
+                joint_position=joint_position,
             )[0]
         )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import enum
 from typing import Tuple, Union
 
 import jax_dataclasses
@@ -14,39 +13,35 @@ from jaxsim.utils import JaxsimDataclass, Mutability
 from .link import LinkDescription
 
 
-@enum.unique
-class JointType(enum.IntEnum):
+class _JointTypeMeta(type):
+    def __new__(cls, name, bases, dct):
+        cls_instance = super().__new__(cls, name, bases, dct)
+
+        # Assign integer values to the descriptors
+        cls_instance.F = 0
+        cls_instance.R = 1
+        cls_instance.P = 2
+
+        return cls_instance
+
+
+class JointType(metaclass=_JointTypeMeta):
     """
     Type of supported joints.
     """
 
-    @staticmethod
-    def _generate_next_value_(name, start, count, last_values):
-        # Start auto Enum value from 0 instead of 1
-        return count
+    class F:
+        pass
 
-    #: Fixed joint.
-    F = enum.auto()
+    class R:
+        pass
 
-    #: Revolute joint (1 DoF around axis).
-    R = enum.auto()
-
-    #: Prismatic joint (1 DoF along axis).
-    P = enum.auto()
+    class P:
+        pass
 
 
 @jax_dataclasses.pytree_dataclass
-class JointDescriptor:
-    """
-    Base class for joint types requiring to store additional metadata.
-    """
-
-    #: The joint type.
-    joint_type: JointType
-
-
-@jax_dataclasses.pytree_dataclass
-class JointGenericAxis(JointDescriptor):
+class JointGenericAxis:
     """
     A joint requiring the specification of a 3D axis.
     """
@@ -55,7 +50,7 @@ class JointGenericAxis(JointDescriptor):
     axis: jtp.Vector
 
     def __hash__(self) -> int:
-        return hash((self.joint_type, tuple(np.array(self.axis).tolist())))
+        return hash((tuple(np.array(self.axis).tolist())))
 
     def __eq__(self, other: JointGenericAxis) -> bool:
         if not isinstance(other, JointGenericAxis):
@@ -73,7 +68,7 @@ class JointDescription(JaxsimDataclass):
         name (str): The name of the joint.
         axis (npt.NDArray): The axis of rotation or translation for the joint.
         pose (npt.NDArray): The pose transformation matrix of the joint.
-        jtype (Union[JointType, JointDescriptor]): The type of the joint.
+        jtype (JointType): The type of the joint.
         child (LinkDescription): The child link attached to the joint.
         parent (LinkDescription): The parent link attached to the joint.
         index (Optional[int]): An optional index for the joint.
@@ -89,7 +84,7 @@ class JointDescription(JaxsimDataclass):
     name: jax_dataclasses.Static[str]
     axis: npt.NDArray
     pose: npt.NDArray
-    jtype: jax_dataclasses.Static[Union[JointType, JointDescriptor]]
+    jtype: jax_dataclasses.Static[JointType]
     child: LinkDescription = dataclasses.dataclass(repr=False)
     parent: LinkDescription = dataclasses.dataclass(repr=False)
 

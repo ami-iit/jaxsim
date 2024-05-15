@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import functools
-
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
@@ -9,12 +7,7 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.parsers.descriptions import (
-    JointDescriptor,
-    JointGenericAxis,
-    JointType,
-    ModelDescription,
-)
+from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
 
 from .rotation import Rotation
@@ -46,7 +39,8 @@ class JointModel:
 
     joint_dofs: Static[tuple[int, ...]]
     joint_names: Static[tuple[str, ...]]
-    joint_types: Static[tuple[JointType | JointDescriptor, ...]]
+    joint_types: Static[tuple[JointType, ...]]
+    joint_axis: Static[tuple[JointGenericAxis, ...]]
 
     @staticmethod
     def build(description: ModelDescription) -> JointModel:
@@ -115,6 +109,7 @@ class JointModel:
             joint_dofs=tuple([base_dofs] + [int(1) for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
             joint_types=tuple([JointType.F] + [j.jtype for j in ordered_joints]),
+            joint_axis=tuple([j.axis for j in ordered_joints]),
         )
 
     def parent_H_child(
@@ -226,59 +221,54 @@ class JointModel:
         return self.suc_H_i[joint_index]
 
 
-@functools.partial(jax.jit, static_argnames=["joint_type"])
+@jax.jit
 def supported_joint_motion(
-    joint_type: JointType | JointDescriptor, joint_position: jtp.VectorLike
+    joint_type: JointType, joint_axis: JointGenericAxis, joint_position: jtp.VectorLike
 ) -> tuple[jtp.Matrix, jtp.Array]:
     """
     Compute the homogeneous transformation and motion subspace of a joint.
 
     Args:
         joint_type: The type of the joint.
+        joint_axis: The axis of rotation or translation of the joint.
         joint_position: The position of the joint.
 
     Returns:
         A tuple containing the homogeneous transformation and the motion subspace.
     """
 
-    if isinstance(joint_type, JointType):
-        type_enum = joint_type
-    elif isinstance(joint_type, JointDescriptor):
-        type_enum = joint_type.joint_type
-    else:
-        raise ValueError(joint_type)
-
     # Prepare the joint position
     s = jnp.array(joint_position).astype(float)
 
-    match type_enum:
+    def compute_F():
+        return jaxlie.SE3.identity(), jnp.zeros(shape=(6, 1))
 
-        case JointType.R:
-            joint_type: JointGenericAxis
-
-            pre_H_suc = jaxlie.SE3.from_rotation(
-                rotation=jaxlie.SO3.from_matrix(
-                    Rotation.from_axis_angle(vector=s * joint_type.axis)
-                )
+    def compute_R():
+        pre_H_suc = jaxlie.SE3.from_rotation(
+            rotation=jaxlie.SO3.from_matrix(
+                Rotation.from_axis_angle(vector=s * joint_axis)
             )
+        )
 
-            S = jnp.vstack(jnp.hstack([jnp.zeros(3), joint_type.axis.squeeze()]))
+        S = jnp.vstack(jnp.hstack([jnp.zeros(3), joint_axis.squeeze()]))
+        return pre_H_suc, S
 
-        case JointType.P:
-            joint_type: JointGenericAxis
+    def compute_P():
+        pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
+            rotation=jaxlie.SO3.identity(),
+            translation=jnp.array(s * joint_axis),
+        )
 
-            pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
-                rotation=jaxlie.SO3.identity(),
-                translation=jnp.array(s * joint_type.axis),
-            )
+        S = jnp.vstack(jnp.hstack([joint_axis.squeeze(), jnp.zeros(3)]))
+        return pre_H_suc, S
 
-            S = jnp.vstack(jnp.hstack([joint_type.axis.squeeze(), jnp.zeros(3)]))
-
-        case JointType.F:
-            pre_H_suc = jaxlie.SE3.identity()
-            S = jnp.zeros(shape=(6, 1))
-
-        case _:
-            raise ValueError(joint_type)
+    pre_H_suc, S = jax.lax.switch(
+        index=joint_type,
+        branches=(
+            compute_F,  # JointType.F
+            compute_R,  # JointType.R
+            compute_P,  # JointType.P
+        ),
+    )
 
     return pre_H_suc.as_matrix(), S

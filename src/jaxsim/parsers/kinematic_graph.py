@@ -771,9 +771,7 @@ class KinematicGraphTransforms:
         import jaxsim.math
 
         return np.array(
-            jaxsim.math.supported_joint_motion(
-                joint_type=joint_type,
-                joint_axis=joint_axis,
-                joint_position=joint_position,
-            )[0]
+            jaxsim.math.supported_joint_motion(joint_type, joint_position, joint_axis)[
+                0
+            ]
         )

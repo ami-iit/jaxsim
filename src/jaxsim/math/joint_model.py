@@ -199,8 +199,9 @@ class JointModel:
         """
 
         pre_H_suc, S = supported_joint_motion(
-            joint_type=self.joint_types[joint_index],
-            joint_position=joint_position,
+            self.joint_types[joint_index],
+            joint_position,
+            self.joint_axis[joint_index],
         )
 
         return pre_H_suc, S
@@ -223,7 +224,10 @@ class JointModel:
 
 @jax.jit
 def supported_joint_motion(
-    joint_type: JointType, joint_axis: JointGenericAxis, joint_position: jtp.VectorLike
+    joint_type: JointType,
+    joint_position: jtp.VectorLike,
+    joint_axis: JointGenericAxis,
+    /,
 ) -> tuple[jtp.Matrix, jtp.Array]:
     """
     Compute the homogeneous transformation and motion subspace of a joint.

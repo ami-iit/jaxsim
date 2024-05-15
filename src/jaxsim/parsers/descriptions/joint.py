@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Tuple, Union
+from typing import ClassVar, Tuple, Union
 
 import jax_dataclasses
 import numpy as np
@@ -13,31 +13,11 @@ from jaxsim.utils import JaxsimDataclass, Mutability
 from .link import LinkDescription
 
 
-class _JointTypeMeta(type):
-    def __new__(cls, name, bases, dct):
-        cls_instance = super().__new__(cls, name, bases, dct)
-
-        # Assign integer values to the descriptors
-        cls_instance.F = 0
-        cls_instance.R = 1
-        cls_instance.P = 2
-
-        return cls_instance
-
-
-class JointType(metaclass=_JointTypeMeta):
-    """
-    Type of supported joints.
-    """
-
-    class F:
-        pass
-
-    class R:
-        pass
-
-    class P:
-        pass
+@dataclasses.dataclass(frozen=True)
+class JointType:
+    Fixed: ClassVar[int] = 0
+    Revolute: ClassVar[int] = 1
+    Prismatic: ClassVar[int] = 2
 
 
 @jax_dataclasses.pytree_dataclass

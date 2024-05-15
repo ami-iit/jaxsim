@@ -108,7 +108,7 @@ class JointModel:
             # Static attributes
             joint_dofs=tuple([base_dofs] + [int(1) for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
-            joint_types=tuple([JointType.F] + [j.jtype for j in ordered_joints]),
+            joint_types=tuple([JointType.Fixed] + [j.jtype for j in ordered_joints]),
             joint_axis=tuple([j.axis for j in ordered_joints]),
         )
 
@@ -265,9 +265,9 @@ def supported_joint_motion(
     pre_H_suc, S = jax.lax.switch(
         index=joint_type,
         branches=(
-            compute_F,  # JointType.F
-            compute_R,  # JointType.R
-            compute_P,  # JointType.P
+            compute_F,  # JointType.Fixed
+            compute_R,  # JointType.Revolute
+            compute_P,  # JointType.Prismatic
         ),
     )
 

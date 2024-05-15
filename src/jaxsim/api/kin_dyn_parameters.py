@@ -394,8 +394,8 @@ class KynDynParameters(JaxsimDataclass):
         # Extract the transforms and motion subspaces of the joints.
         # We stack the base transform W_H_B at index 0, and a dummy motion subspace
         # for either the fixed or free-floating joint connecting the world to the base.
-        pre_H_suc = jnp.vstack([W_H_B[None, ...], pre_H_suc_J])
-        S = jnp.vstack([jnp.zeros((6, 1))[None, ...], S_J])
+        pre_H_suc = jnp.vstack([W_H_B[jnp.newaxis, ...], pre_H_suc_J])
+        S = jnp.vstack([jnp.zeros((6, 1))[jnp.newaxis, ...], S_J])
 
         # Extract the successor-to-child fixed transforms.
         # Note that here we include also the index 0 since suc_H_child[0] stores the

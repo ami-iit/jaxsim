@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import rod
 import trimesh
-from resolve_robotics_uri_py import resolve_robotics_uri
+from rod.utils.resolve_uris import resolve_local_uri
 
 from jaxsim import logging
 from jaxsim.math import Quaternion
@@ -341,25 +341,24 @@ def extract_model_data(
                 collision.geometry.mesh is not None
                 and collision.geometry.mesh.uri is not None
             ):
-                file_obj = resolve_robotics_uri(
-                    uri=collision.geometry.mesh.uri,
-                    package_dirs=json.loads(os.environ.get("MESH_PATH", None)),
-                )
+                file_obj = resolve_local_uri(uri=collision.geometry.mesh.uri)
                 _file_type = None
                 try:
-                    _file_type = file_obj.split(".")[-1]
+                    _file_type = str(file_obj).split(".")[-1]
                 except ValueError as e:
                     raise e(f"Failed to get file type from {file_obj}")
                 logging.debug(
                     f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
                 )
+                mesh = trimesh.load(
+                    file_obj=open(file_obj, "w", encoding="utf-8"),
+                    file_type=_file_type,
+                ).apply_scale(collision.geometry.mesh.scale)
+
                 mesh_collision = utils.create_mesh_collision(
                     collision=collision,
                     link_description=links_dict[link.name],
-                    mesh=trimesh.load(
-                        file_obj=open(file_obj, "w", encoding="utf-8"),
-                        file_type=_file_type,
-                    ).apply_scale(collision.geometry.mesh.scale),
+                    mesh=mesh,
                     method=utils.MeshMappingMethods.RandomSurfaceSampling,
                     nsamples=5,
                 )

@@ -117,11 +117,18 @@ def transform(
         The 4x4 matrix representing the transform.
     """
 
-    F = model.description.get().frames[frame_index - model.number_of_links()]
-    L = F.parent.index
+    # Get the intermediate representation parsed from the model description.
+    ir = model.description.get()
+
+    # Extract the indices of the frame and the link it is attached to.
+    F = ir.frames[frame_index - model.number_of_links()]
+    L = ir.links_dict[F.parent.name].index
+
+    # Compute the necessary transforms.
     W_H_L = js.link.transform(model=model, data=data, link_index=L)
     L_H_F = F.pose
 
+    # Combine the transforms computing the frame pose.
     return W_H_L @ L_H_F
 
 
@@ -155,12 +162,14 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # Get the free-floating jacobian of the parent link in body-fixed output representation
-    L = (
-        model.description.get()
-        .frames[frame_index - model.number_of_links()]
-        .parent.index
-    )
+    # Get the intermediate representation parsed from the model description.
+    ir = model.description.get()
+
+    # Extract the indices of the frame and the link it is attached to.
+    F = ir.frames[frame_index - model.number_of_links()]
+    L = ir.links_dict[F.parent.name].index
+
+    # Compute the Jacobian of the parent link using body-fixed output representation.
     L_J_WL = js.link.jacobian(
         model=model, data=data, link_index=L, output_vel_repr=VelRepr.Body
     )

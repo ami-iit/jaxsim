@@ -5,16 +5,19 @@ import numpy as np
 import numpy.typing as npt
 import rod
 import trimesh
+from rod.utils.resolve_uris import resolve_local_uri
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia
+from jaxsim import logging
 from jaxsim.parsers import descriptions
 
 
+@enum.unique
 class MeshMappingMethods(enum.Enum):
-    VertexExtraction = (0,)
-    RandomSurfaceSampling = (1,)
-    UniformSurfaceSampling = 2
+    VertexExtraction = enum.auto()
+    RandomSurfaceSampling = enum.auto()
+    UniformSurfaceSampling = enum.auto()
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
@@ -215,10 +218,29 @@ def create_sphere_collision(
 def create_mesh_collision(
     collision: rod.Collision,
     link_description: descriptions.LinkDescription,
-    mesh: trimesh.base.Trimesh,
+    mesh_uri: str,
     method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
     nsamples: int = 1000,
 ) -> descriptions.MeshCollision:
+    file_obj = resolve_local_uri(uri=collision.geometry.mesh.uri)
+    try:
+        _file_type = str(file_obj).split(".")[-1]
+    except ValueError as e:
+        raise e(f"Failed to get file type from {file_obj}")
+    logging.debug(
+        f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+    )
+    mesh = trimesh.load(
+        file_obj=open(file_obj, "rb"),
+        file_type=_file_type,
+    )
+    # Checking if mesh is empty
+    if isinstance(mesh, trimesh.Trimesh):
+        mesh.apply_scale(collision.geometry.mesh.scale)
+    else:
+        logging.info(f"Mesh '{collision.geometry.mesh.uri}' is empty/.")
+        return
+
     match method:
         case MeshMappingMethods.VertexExtraction:
             points = mesh.vertices

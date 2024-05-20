@@ -5,8 +5,6 @@ from typing import NamedTuple
 import jax.numpy as jnp
 import numpy as np
 import rod
-import trimesh
-from rod.utils.resolve_uris import resolve_local_uri
 
 from jaxsim import logging
 from jaxsim.math import Quaternion
@@ -342,34 +340,13 @@ def extract_model_data(
                 collision.geometry.mesh is not None
                 and collision.geometry.mesh.uri is not None
             ):
-                file_obj = resolve_local_uri(uri=collision.geometry.mesh.uri)
-                _file_type = None
-                try:
-                    _file_type = str(file_obj).split(".")[-1]
-                except ValueError as e:
-                    raise e(f"Failed to get file type from {file_obj}")
-                logging.debug(
-                    f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+                mesh_collision = utils.create_mesh_collision(
+                    collision=collision,
+                    link_description=links_dict[link.name],
+                    mesh_uri=collision.geometry.mesh.uri,
+                    method=utils.MeshMappingMethods.VertexExtraction,
                 )
-                mesh = trimesh.load(
-                    file_obj=open(file_obj, "rb"),
-                    file_type=_file_type,
-                )
-
-                if isinstance(mesh, trimesh.Trimesh):
-                    mesh.apply_scale(collision.geometry.mesh.scale)
-
-                    mesh_collision = utils.create_mesh_collision(
-                        collision=collision,
-                        link_description=links_dict[link.name],
-                        mesh=mesh,
-                        method=utils.MeshMappingMethods.RandomSurfaceSampling,
-                        nsamples=5,
-                    )
-
-                    collisions.append(mesh_collision)
-                else:
-                    logging.info(f"Mesh '{collision.geometry.mesh.uri}' is empty/.")
+                collisions.append(mesh_collision)
 
     return SDFData(
         model_name=sdf_model.name,

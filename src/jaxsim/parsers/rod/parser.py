@@ -1,6 +1,4 @@
 import dataclasses
-import json
-import os
 import pathlib
 from typing import NamedTuple
 
@@ -354,19 +352,24 @@ def extract_model_data(
                     f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
                 )
                 mesh = trimesh.load(
-                    file_obj=open(file_obj, "w", encoding="utf-8"),
+                    file_obj=open(file_obj, "rb"),
                     file_type=_file_type,
-                ).apply_scale(collision.geometry.mesh.scale)
-
-                mesh_collision = utils.create_mesh_collision(
-                    collision=collision,
-                    link_description=links_dict[link.name],
-                    mesh=mesh,
-                    method=utils.MeshMappingMethods.RandomSurfaceSampling,
-                    nsamples=5,
                 )
 
-                collisions.append(mesh_collision)
+                if isinstance(mesh, trimesh.Trimesh):
+                    mesh.apply_scale(collision.geometry.mesh.scale)
+
+                    mesh_collision = utils.create_mesh_collision(
+                        collision=collision,
+                        link_description=links_dict[link.name],
+                        mesh=mesh,
+                        method=utils.MeshMappingMethods.RandomSurfaceSampling,
+                        nsamples=5,
+                    )
+
+                    collisions.append(mesh_collision)
+                else:
+                    logging.info(f"Mesh '{collision.geometry.mesh.uri}' is empty/.")
 
     return SDFData(
         model_name=sdf_model.name,

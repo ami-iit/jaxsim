@@ -203,10 +203,8 @@ class RodModelToMjcf:
             joints_dict[joint_name].type = "fixed"
 
         # Convert the ROD model to URDF.
-        urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
+        urdf_string = rod.urdf.exporter.UrdfExporter.to_urdf_string(
             sdf=rod.Sdf(model=rod_model, version="1.7"),
-            gazebo_preserve_fixed_joints=False,
-            pretty=True,
         )
 
         # -------------------------------------

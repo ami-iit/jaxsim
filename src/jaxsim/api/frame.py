@@ -17,7 +17,32 @@ from .common import VelRepr
 # =======================
 
 
-@functools.partial(jax.jit, static_argnames="frame_name")
+@functools.partial(jax.jit, static_argnames=["frame_idx"])
+def idx_of_parent_link(
+    model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike
+) -> jtp.Int:
+    """
+    Get the index of the link to which the frame is rigidly attached.
+
+    Args:
+        model: The model to consider.
+        frame_idx: The index of the frame.
+
+    Returns:
+        The index of the frame's parent link.
+    """
+
+    # Get the intermediate representation parsed from the model description.
+    ir = model.description.get()
+
+    # Extract the indices of the frame and the link it is attached to.
+    F = ir.frames[frame_idx - model.number_of_links()]
+    L = ir.links_dict[F.parent.name].index
+
+    return jnp.array(L).astype(int)
+
+
+@functools.partial(jax.jit, static_argnames=["frame_name"])
 def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
     """
     Convert the name of a frame to its index.
@@ -53,7 +78,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str
     return model.description.get().frames[frame_index - model.number_of_links()].name
 
 
-@functools.partial(jax.jit, static_argnames="frame_names")
+@functools.partial(jax.jit, static_argnames=["frame_names"])
 def names_to_idxs(
     model: js.model.JaxSimModel, *, frame_names: Sequence[str]
 ) -> jax.Array:
@@ -98,7 +123,7 @@ def idxs_to_names(
 # ==========
 
 
-@functools.partial(jax.jit, static_argnames=("frame_index",))
+@functools.partial(jax.jit, static_argnames=["frame_index"])
 def transform(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -117,16 +142,13 @@ def transform(
         The 4x4 matrix representing the transform.
     """
 
-    # Get the intermediate representation parsed from the model description.
-    ir = model.description.get()
-
-    # Extract the indices of the frame and the link it is attached to.
-    F = ir.frames[frame_index - model.number_of_links()]
-    L = ir.links_dict[F.parent.name].index
-
     # Compute the necessary transforms.
+    L = idx_of_parent_link(model=model, frame_idx=frame_index)
     W_H_L = js.link.transform(model=model, data=data, link_index=L)
-    L_H_F = F.pose
+
+    # Get the static frame pose wrt the parent link.
+    frame = model.description.get().frames[frame_index - model.number_of_links()]
+    L_H_F = frame.pose
 
     # Combine the transforms computing the frame pose.
     return W_H_L @ L_H_F
@@ -162,12 +184,8 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # Get the intermediate representation parsed from the model description.
-    ir = model.description.get()
-
-    # Extract the indices of the frame and the link it is attached to.
-    F = ir.frames[frame_index - model.number_of_links()]
-    L = ir.links_dict[F.parent.name].index
+    # Get the index of the parent link.
+    L = idx_of_parent_link(model=model, frame_idx=frame_index)
 
     # Compute the Jacobian of the parent link using body-fixed output representation.
     L_J_WL = js.link.jacobian(

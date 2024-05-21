@@ -19,6 +19,8 @@ from typing import (
 import numpy as np
 import numpy.typing as npt
 
+import jaxsim.utils
+
 from jaxsim import logging
 from jaxsim.utils import Mutability
 
@@ -433,8 +435,8 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             )
 
             # Pop the original two links from the dictionary...
-            links_dict.pop(link_to_remove.name)
-            links_dict.pop(parent_of_link_to_remove.name)
+            _ = links_dict.pop(link_to_remove.name)
+            _ = links_dict.pop(parent_of_link_to_remove.name)
 
             # ... and insert the lumped link (having the same name of the parent)
             links_dict[lumped_link.name] = lumped_link
@@ -444,11 +446,13 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             links_dict[link_to_remove.name] = lumped_link
 
             # As a consequence of the back-insertion, we need to adjust the resulting
-            # lumped link of links that have been removed previously
+            # lumped link of links that have been removed previously.
+            # Note: in the dictionary, only items whose key is not matching value.name
+            #       are links that have been removed.
             for previously_removed_link_name in {
-                k
-                for k, v in links_dict.items()
-                if k != v.name and v.name == link_to_remove.name
+                link_name
+                for link_name, link in links_dict.items()
+                if link_name != link.name and link.name == link_to_remove.name
             }:
                 links_dict[previously_removed_link_name] = lumped_link
 
@@ -531,25 +535,42 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         # 4. Resolve the pose of the frames wrt their reduced graph parent
         # ================================================================
 
-        # Update frames properties using the transforms from the full graph
+        # Build a new object to compute FK on the reduced graph.
+        fk_reduced = KinematicGraphTransforms(graph=reduced_graph)
+
+        # We need to adjust the pose of the frames since their parent link
+        # could have been removed by the reduction process.
         for frame in reduced_graph.frames:
-            # Get the link in which the removed link was lumped into
-            new_parent_link = links_dict[frame.name]
 
-            msg = f"New parent of frame '{frame.name}' is '{new_parent_link.name}'"
-            logging.info(msg)
-
-            # Update the connection of the frame
-            frame.parent = new_parent_link
-            frame.pose = fk.relative_transform(
-                relative_to=new_parent_link.name, name=frame.name
+            # Always find the real parent link of the frame
+            name_of_new_parent_link = fk_reduced.find_parent_link_of_frame(
+                name=frame.name
             )
+            assert name_of_new_parent_link in reduced_graph, name_of_new_parent_link
 
-            # Update frame data
-            frame.mass = 0.0
-            frame.inertia = np.zeros_like(frame.inertia)
+            # Notify the user if the parent link has changed.
+            if name_of_new_parent_link != frame.parent.name:
+                msg = "New parent of frame '{}' is '{}'"
+                logging.debug(msg.format(frame.name, name_of_new_parent_link))
 
-        # Return the reduced graph
+            # Always recompute the pose of the frame, and set zero inertial params.
+            with frame.mutable_context(jaxsim.utils.Mutability.MUTABLE_NO_VALIDATION):
+
+                # Update kinematic parameters of the frame.
+                # Note that here we compute the transform using the FK object of the
+                # full model, so that we are sure that the kinematic is not altered.
+                frame.pose = fk.relative_transform(
+                    relative_to=name_of_new_parent_link, name=frame.name
+                )
+
+                # Update the parent link such that the pose is expressed in its frame.
+                frame.parent = reduced_graph.links_dict[name_of_new_parent_link]
+
+                # Update dynamic parameters of the frame.
+                frame.mass = 0.0
+                frame.inertia = np.zeros_like(frame.inertia)
+
+        # Return the reduced graph.
         return reduced_graph
 
     def link_names(self) -> List[str]:
@@ -855,3 +876,30 @@ class KinematicGraphTransforms:
                 0
             ]
         )
+
+    def find_parent_link_of_frame(self, name: str) -> str:
+        """
+        Find the parent link of a frame.
+
+        Args:
+            name: The name of the frame.
+
+        Returns:
+            The name of the parent link of the frame.
+        """
+
+        try:
+            frame = self.graph.frames_dict[name]
+        except KeyError as e:
+            raise ValueError(f"Frame '{name}' not found in the kinematic graph") from e
+
+        match frame.parent.name:
+            case parent_name if parent_name in self.graph.links_dict:
+                return parent_name
+
+            case parent_name if parent_name in self.graph.frames_dict:
+                return self.find_parent_link_of_frame(name=parent_name)
+
+            case _:
+                msg = f"Failed to find element with name '{frame.parent.name}'"
+                raise RuntimeError(msg)

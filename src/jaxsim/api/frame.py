@@ -17,10 +17,7 @@ from .common import VelRepr
 # =======================
 
 
-@functools.partial(jax.jit, static_argnames=["frame_idx"])
-def idx_of_parent_link(
-    model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike
-) -> jtp.Int:
+def idx_of_parent_link(model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike) -> int:
     """
     Get the index of the link to which the frame is rigidly attached.
 
@@ -39,11 +36,10 @@ def idx_of_parent_link(
     F = ir.frames[frame_idx - model.number_of_links()]
     L = ir.links_dict[F.parent.name].index
 
-    return jnp.array(L).astype(int)
+    return int(L)
 
 
-@functools.partial(jax.jit, static_argnames=["frame_name"])
-def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
+def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> int:
     """
     Convert the name of a frame to its index.
 
@@ -59,8 +55,9 @@ def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
 
     if frame_name in frame_names:
         idx_in_list = np.argwhere(frame_names == frame_name)
-        return jnp.array(idx_in_list + model.number_of_links()).squeeze().astype(int)
-    return jnp.array(-1).astype(int)
+        return int(idx_in_list.squeeze().tolist()) + model.number_of_links()
+
+    return -1
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str:

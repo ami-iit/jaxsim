@@ -35,6 +35,7 @@ class ModelDescription(KinematicGraph):
         name: str,
         links: List[LinkDescription],
         joints: List[JointDescription],
+        frames: List[LinkDescription] | None = None,
         collisions: List[CollisionShape] = (),
         fixed_base: bool = False,
         base_link_name: str | None = None,
@@ -65,6 +66,7 @@ class ModelDescription(KinematicGraph):
         kinematic_graph = KinematicGraph.build_from(
             links=links,
             joints=joints,
+            frames=frames,
             root_link_name=base_link_name,
             root_pose=model_pose,
         )
@@ -172,6 +174,7 @@ class ModelDescription(KinematicGraph):
             name=self.name,
             links=list(self.links_dict.values()),
             joints=self.joints,
+            frames=self.frames,
             collisions=self.collision_shapes,
             fixed_base=self.fixed_base,
             base_link_name=list(iter(self))[0].name,

@@ -142,9 +142,10 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
     def build_from(
         links: List[descriptions.LinkDescription],
         joints: List[descriptions.JointDescription],
+        frames: List[descriptions.LinkDescription] | None = None,
         root_link_name: str | None = None,
         root_pose: RootPose = RootPose(),
-    ) -> "KinematicGraph":
+    ) -> KinematicGraph:
         """
         Build a KinematicGraph from a list of links and joints.
 
@@ -157,16 +158,24 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         Returns:
             KinematicGraph: The constructed kinematic graph.
         """
+
+        # Consider the first link as the root link if not provided.
         if root_link_name is None:
             root_link_name = links[0].name
+            logging.debug(msg=f"Assuming '{root_link_name}' as the root link")
 
         # Couple links and joints and create the graph of links.
         # Note that the pose of the frames is not updated; it's the caller's
         # responsibility to update their pose if they want to use them.
-        graph_root_node, graph_joints, unconnected_links, unconnected_joints = (
-            KinematicGraph.create_graph(
-                links=links, joints=joints, root_link_name=root_link_name
-            )
+        (
+            graph_root_node,
+            graph_joints,
+            graph_frames,
+            unconnected_links,
+            unconnected_joints,
+            unconnected_frames,
+        ) = KinematicGraph.create_graph(
+            links=links, joints=joints, root_link_name=root_link_name, frames=frames
         )
 
         for link in unconnected_links:
@@ -175,10 +184,13 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         for joint in unconnected_joints:
             logging.warning(msg=f"Ignoring unconnected joint: '{joint.name}'")
 
+        for frame in unconnected_frames:
+            logging.warning(msg=f"Ignoring unconnected frame: '{frame.name}'")
+
         return KinematicGraph(
             root=graph_root_node,
             joints=graph_joints,
-            frames=[],
+            frames=graph_frames,
             root_pose=root_pose,
             _joints_removed=unconnected_joints,
         )
@@ -188,11 +200,14 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         links: List[descriptions.LinkDescription],
         joints: List[descriptions.JointDescription],
         root_link_name: str,
+        frames: List[descriptions.LinkDescription] | None = None,
     ) -> Tuple[
         descriptions.LinkDescription,
         List[descriptions.JointDescription],
         List[descriptions.LinkDescription],
+        list[descriptions.LinkDescription],
         list[descriptions.JointDescription],
+        list[descriptions.LinkDescription],
     ]:
         """
         Create a kinematic graph from the lists of parsed links and joints.
@@ -208,20 +223,39 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             attached to graph nodes, and the list of joints not part of the graph.
         """
 
-        # Create a dict that maps link name to the link, for easy retrieval
+        # Create a dictionary that maps the link name to the link, for easy retrieval.
         links_dict: Dict[str, descriptions.LinkDescription] = {
             l.name: l.mutable(validate=False) for l in links
         }
 
+        # Create an empty list of frames if not provided.
+        frames = frames if frames is not None else []
+
+        # Create a dictionary that maps the frame name to the frame, for easy retrieval.
+        frames_dict = {frame.name: frame for frame in frames}
+
+        # Check that our parser correctly resolved the frame's parent to be a link.
+        for frame in frames:
+            assert frame.parent.name != "", frame
+            assert frame.parent.name != None, frame
+            assert frame.parent.name != "__model__", frame
+            assert frame.parent.name not in frames_dict, frame
+
+        # ===========================================================
+        # Populate the kinematic graph with links, joints, and frames
+        # ===========================================================
+
+        # Check the existence of the root link.
         if root_link_name not in links_dict:
             raise ValueError(root_link_name)
 
-        # Reset the connections of the root link
+        # Reset the connections of the root link.
         for link in links_dict.values():
             link.children = []
 
-        # Couple links and joints creating the final kinematic graph
+        # Couple links and joints creating the kinematic graph.
         for joint in joints:
+
             # Get the parent and child links of the joint
             parent_link = links_dict[joint.parent.name]
             child_link = links_dict[joint.child.name]
@@ -229,44 +263,78 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             assert child_link.name == joint.child.name
             assert parent_link.name == joint.parent.name
 
-            # Assign link parent
+            # Assign link's parent.
             child_link.parent = parent_link
 
-            # Assign link children and make sure they are unique
+            # Assign link's children and make sure they are unique.
             if child_link.name not in {l.name for l in parent_link.children}:
                 parent_link.children.append(child_link)
 
-        # Collect all the links of the kinematic graph
+        # Collect all the links of the kinematic graph.
         all_links_in_graph = list(
             KinematicGraph.breadth_first_search(root=links_dict[root_link_name])
         )
+
+        # Get the names of all links in the kinematic graph.
         all_link_names_in_graph = [l.name for l in all_links_in_graph]
 
-        # Collect all the joints not part of the kinematic graph
-        removed_joints = [
-            j
-            for j in joints
-            if not {j.parent.name, j.child.name}.issubset(all_link_names_in_graph)
+        # Collect all the joints of the kinematic graph.
+        all_joints_in_graph = [
+            joint
+            for joint in joints
+            if joint.parent.name in all_link_names_in_graph
+            and joint.child.name in all_link_names_in_graph
         ]
 
-        for removed_joint in removed_joints:
-            msg = "Joint '{}' has been removed for the graph because unconnected"
-            logging.info(msg=msg.format(removed_joint.name))
+        # Get the names of all joints in the kinematic graph.
+        all_joint_names_in_graph = [j.name for j in all_joints_in_graph]
 
-        # Store as frames all the links that are not part of the kinematic graph
-        unconnected_links = list(set(links) - set(all_links_in_graph))
+        # Collect all the frames of the kinematic graph.
+        # Note: our parser ensures that the parent of a frame is not another frame.
+        all_frames_in_graph = [
+            frame for frame in frames if frame.parent.name in all_link_names_in_graph
+        ]
 
-        # Update the frames. In particular, reset their children. The other properties
-        # are kept as they are, and it's caller responsibility to update them if needed.
+        # Get the names of all frames in the kinematic graph.
+        all_frames_names_in_graph = [f.name for f in all_frames_in_graph]
+
+        # ============================
+        # Collect unconnected elements
+        # ============================
+
+        # Collect all the joints that are not part of the kinematic graph.
+        removed_joints = [j for j in joints if j.name not in all_joint_names_in_graph]
+
+        for joint in removed_joints:
+            msg = "Joint '{}' is unconnected and it will be removed"
+            logging.debug(msg=msg.format(joint.name))
+
+        # Collect all the links that are not part of the kinematic graph.
+        unconnected_links = [l for l in links if l.name not in all_link_names_in_graph]
+
+        # Update the unconnected links by removing their children. The other properties
+        # are left untouched, it's caller responsibility to post-process them if needed.
         for link in unconnected_links:
             link.children = []
-            logging.info(msg=f"Link '{link.name}' is unconnected")
+            msg = "Link '{}' won't be part of the kinematic graph because unconnected"
+            logging.debug(msg=msg.format(link.name))
+
+        # Collect all the frames that are not part of the kinematic graph.
+        unconnected_frames = [
+            f for f in frames if f.name not in all_frames_names_in_graph
+        ]
+
+        for frame in unconnected_frames:
+            msg = "Frame '{}' won't be part of the kinematic graph because unconnected"
+            logging.debug(msg=msg.format(frame.name))
 
         return (
             links_dict[root_link_name].mutable(mutable=False),
             list(set(joints) - set(removed_joints)),
+            all_frames_in_graph,
             unconnected_links,
             list(set(removed_joints)),
+            unconnected_frames,
         )
 
     def reduce(self, considered_joints: List[str]) -> KinematicGraph:
@@ -426,19 +494,31 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
         # Create the reduced graph data. We pass the full list of links so that those
         # that are not part of the graph will be returned as frames.
-        reduced_root_node, reduced_joints, reduced_frames, unconnected_joints = (
-            KinematicGraph.create_graph(
-                links=list(full_graph_links_dict.values()),
-                joints=[joints_dict[joint_name] for joint_name in considered_joints],
-                root_link_name=full_graph.root.name,
-            )
+        (
+            reduced_root_node,
+            reduced_joints,
+            reduced_frames,
+            unconnected_links,
+            unconnected_joints,
+            unconnected_frames,
+        ) = KinematicGraph.create_graph(
+            links=list(full_graph_links_dict.values()),
+            joints=[joints_dict[joint_name] for joint_name in considered_joints],
+            root_link_name=full_graph.root.name,
         )
 
-        # Create the reduced graph
+        assert set(f.name for f in self.frames).isdisjoint(
+            set(f.name for f in unconnected_frames + reduced_frames)
+        )
+
+        for link in unconnected_links:
+            logging.debug(msg=f"Link '{link.name}' is unconnected and became a frame")
+
+        # Create the reduced graph.
         reduced_graph = KinematicGraph(
             root=reduced_root_node,
             joints=reduced_joints,
-            frames=self.frames + reduced_frames,
+            frames=self.frames + unconnected_links + reduced_frames,
             root_pose=full_graph.root_pose,
             _joints_removed=(
                 self._joints_removed

@@ -250,10 +250,10 @@ def create_mesh_collision(
     points = mesh.vertices
     H = (
         collision.pose.transform() if collision.pose is not None else np.eye(4)
-    )  # pose of the collision object
+    )
     center_of_collision_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[
         0:-1
-    ]  # @ = matrix multiplication, hstack = stack arrays in sequence horizontally => center of the collision object
+    ]
     mesh_points_wrt_link = (
         H @ np.hstack([points, np.vstack([1.0] * points.shape[0])]).T
     )[0:3, :]

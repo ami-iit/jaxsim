@@ -15,7 +15,7 @@ from jaxsim.parsers import descriptions
 
 
 @enum.unique
-class MeshMappingMethods(enum.Enum):
+class MeshMappingMethods(enum.IntEnum):
     VertexExtraction = enum.auto()
     RandomSurfaceSampling = enum.auto()
     UniformSurfaceSampling = enum.auto()
@@ -240,7 +240,10 @@ def create_mesh_collision(
         case MeshMappingMethods.RandomSurfaceSampling:
             points = mesh.sample(nsamples)
         case MeshMappingMethods.UniformSurfaceSampling:
-            raise NotImplementedError("Uniform surface sampling not implemented")
+            points = trimesh.sample.sample_surface_even(
+                mesh=mesh,
+                count=nsamples
+            )
         case _:
             raise ValueError("Invalid mesh mapping method")
 

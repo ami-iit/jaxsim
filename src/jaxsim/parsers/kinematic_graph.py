@@ -163,14 +163,14 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         # Couple links and joints and create the graph of links.
         # Note that the pose of the frames is not updated; it's the caller's
         # responsibility to update their pose if they want to use them.
-        graph_root_node, graph_joints, graph_frames, unconnected_joints = (
+        graph_root_node, graph_joints, unconnected_links, unconnected_joints = (
             KinematicGraph.create_graph(
                 links=links, joints=joints, root_link_name=root_link_name
             )
         )
 
-        for frame in graph_frames:
-            logging.warning(msg=f"Ignoring unconnected link / frame: '{frame.name}'")
+        for link in unconnected_links:
+            logging.warning(msg=f"Ignoring unconnected link: '{link.name}'")
 
         for joint in unconnected_joints:
             logging.warning(msg=f"Ignoring unconnected joint: '{joint.name}'")
@@ -254,19 +254,18 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             logging.info(msg=msg.format(removed_joint.name))
 
         # Store as frames all the links that are not part of the kinematic graph
-        frames = list(set(links) - set(all_links_in_graph))
+        unconnected_links = list(set(links) - set(all_links_in_graph))
 
         # Update the frames. In particular, reset their children. The other properties
         # are kept as they are, and it's caller responsibility to update them if needed.
-        for frame in frames:
-            frame.children = []
-            msg = f"Link '{frame.name}' became a frame"
-            logging.info(msg=msg)
+        for link in unconnected_links:
+            link.children = []
+            logging.info(msg=f"Link '{link.name}' is unconnected")
 
         return (
             links_dict[root_link_name].mutable(mutable=False),
             list(set(joints) - set(removed_joints)),
-            frames,
+            unconnected_links,
             list(set(removed_joints)),
         )
 

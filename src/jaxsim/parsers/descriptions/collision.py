@@ -163,6 +163,8 @@ class MeshCollision(CollisionShape):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, MeshCollision):
             return False
-        return len(self.collidable_points) == len(
-            other.collidable_points
-        ) and super().__eq__(other) and (self.center == other.center).all()
+        return (
+            len(self.collidable_points) == len(other.collidable_points)
+            and super().__eq__(other)
+            and (self.center == other.center).all()
+        )

@@ -69,7 +69,7 @@ class Transform:
         assert A_R_B.shape == (3, 3)
 
         A_H_B = jaxlie.SE3.from_rotation_and_translation(
-            rotation=A_R_B, translation=W_p_B
+            rotation=jaxlie.SO3.from_matrix(A_R_B), translation=W_p_B
         )
 
         return A_H_B.as_matrix() if not inverse else A_H_B.inverse().as_matrix()

@@ -98,6 +98,15 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         for index, link in enumerate(self):
             link.mutable(validate=False).index = index
 
+        # Get the names of the links and frames.
+        link_names = [l.name for l in self]
+        frame_names = [f.name for f in self.frames]
+
+        # Make sure that they are unique.
+        assert len(link_names) == len(set(link_names))
+        assert len(frame_names) == len(set(frame_names))
+        assert set(link_names).isdisjoint(set(frame_names))
+
         # Order frames with their name.
         super().__setattr__("frames", sorted(self.frames, key=lambda f: f.name))
 
@@ -228,7 +237,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         # Check that our parser correctly resolved the frame's parent to be a link.
         for frame in frames:
             assert frame.parent.name != "", frame
-            assert frame.parent.name != None, frame
+            assert frame.parent.name is not None, frame
             assert frame.parent.name != "__model__", frame
             assert frame.parent.name not in frames_dict, frame
 

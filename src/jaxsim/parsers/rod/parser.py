@@ -383,6 +383,6 @@ def build_model_description(
     )
 
     # Store the parsed SDF tree as extra info
-    graph = dataclasses.replace(graph, extra_info={"sdf_model": sdf_data.sdf_model})
+    graph = dataclasses.replace(graph, _extra_info={"sdf_model": sdf_data.sdf_model})
 
     return graph

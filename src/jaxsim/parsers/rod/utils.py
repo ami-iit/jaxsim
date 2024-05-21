@@ -240,20 +240,13 @@ def create_mesh_collision(
         case MeshMappingMethods.RandomSurfaceSampling:
             points = mesh.sample(nsamples)
         case MeshMappingMethods.UniformSurfaceSampling:
-            points = trimesh.sample.sample_surface_even(
-                mesh=mesh,
-                count=nsamples
-            )
+            points = trimesh.sample.sample_surface_even(mesh=mesh, count=nsamples)
         case _:
             raise ValueError("Invalid mesh mapping method")
 
     points = mesh.vertices
-    H = (
-        collision.pose.transform() if collision.pose is not None else np.eye(4)
-    )
-    center_of_collision_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[
-        0:-1
-    ]
+    H = collision.pose.transform() if collision.pose is not None else np.eye(4)
+    center_of_collision_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
     mesh_points_wrt_link = (
         H @ np.hstack([points, np.vstack([1.0] * points.shape[0])]).T
     )[0:3, :]

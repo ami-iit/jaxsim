@@ -252,6 +252,16 @@ class JaxSimModel(JaxsimDataclass):
 
         return self.kin_dyn_parameters.link_names
 
+    def frame_names(self) -> tuple[str, ...]:
+        """
+        Return the names of the links in the model.
+
+        Returns:
+            The names of the links in the model.
+        """
+
+        return tuple([frame.name for frame in self.description.get().frames])
+
 
 # =====================
 # Model post-processing

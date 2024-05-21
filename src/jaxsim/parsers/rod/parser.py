@@ -333,17 +333,14 @@ def extract_model_data(
 
                 collisions.append(sphere_collision)
 
-            if (
-                collision.geometry.mesh is not None
-                and collision.geometry.mesh.uri is not None
-            ):
+            if collision.geometry.mesh is not None:
                 mesh_collision = utils.create_mesh_collision(
                     collision=collision,
                     link_description=links_dict[link.name],
-                    mesh_uri=collision.geometry.mesh.uri,
                     method=utils.MeshMappingMethods.VertexExtraction,
                 )
-                collisions.append(mesh_collision)
+                if mesh_collision is not None:
+                    collisions.append(mesh_collision)
 
     return SDFData(
         model_name=sdf_model.name,

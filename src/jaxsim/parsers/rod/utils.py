@@ -1,5 +1,6 @@
 import enum
 import os
+import pathlib
 
 import numpy as np
 import numpy.typing as npt
@@ -218,29 +219,21 @@ def create_sphere_collision(
 def create_mesh_collision(
     collision: rod.Collision,
     link_description: descriptions.LinkDescription,
-    mesh_uri: str,
     method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
     nsamples: int = 1000,
 ) -> descriptions.MeshCollision:
-    file_obj = resolve_local_uri(uri=collision.geometry.mesh.uri)
-    try:
-        _file_type = str(file_obj).split(".")[-1]
-    except ValueError as e:
-        raise e(f"Failed to get file type from {file_obj}")
-    logging.debug(
-        f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
-    )
-    mesh = trimesh.load(
-        file_obj=open(file_obj, "rb"),
-        file_type=_file_type,
-    )
-    # Checking if mesh is empty
-    if isinstance(mesh, trimesh.Trimesh):
-        mesh.apply_scale(collision.geometry.mesh.scale)
-    else:
-        logging.info(f"Mesh '{collision.geometry.mesh.uri}' is empty/.")
+    file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
+    _file_type = file.suffix.replace(".", "")
+    mesh = trimesh.load_mesh(file, file_type=_file_type)
+
+    if mesh.is_empty:
+        logging.warning(f"Mesh {collision.geometry.mesh.uri} is empty, ignoring it")
         return
 
+    mesh.apply_scale(collision.geometry.mesh.scale)
+    f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+
+    # Extract the points from the mesh to use as colliders according to the provided method
     match method:
         case MeshMappingMethods.VertexExtraction:
             points = mesh.vertices

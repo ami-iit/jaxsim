@@ -340,7 +340,7 @@ def extract_model_data(
                 mesh_collision = utils.create_mesh_collision(
                     collision=collision,
                     link_description=links_dict[link.name],
-                    method=utils.MeshMappingMethods.VertexExtraction,
+                    method=utils.MeshMappingMethods.UniformSurfaceSampling
                 )
                 if mesh_collision is not None:
                     collisions.append(mesh_collision)

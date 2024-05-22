@@ -23,8 +23,8 @@ def test_call_jit_compiled_function_passing_different_objects():
     )
 
     # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
     )
 
     model1 = js.model.JaxSimModel.build_from_model_description(

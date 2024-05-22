@@ -138,9 +138,9 @@ def jaxsim_model_box() -> js.model.JaxSimModel:
     )
 
     # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True, gazebo_preserve_fixed_joints=True
-    )
+    urdf_string = rod.urdf.exporter.UrdfExporter(
+        pretty=True, gazebo_preserve_fixed_joints=True
+    ).to_urdf_string(sdf=rod_model)
 
     return build_jaxsim_model(model_description=urdf_string)
 
@@ -169,8 +169,8 @@ def jaxsim_model_sphere() -> js.model.JaxSimModel:
     )
 
     # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
     )
 
     return build_jaxsim_model(model_description=urdf_string)

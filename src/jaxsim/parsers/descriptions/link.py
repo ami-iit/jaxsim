@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import dataclasses
-from typing import List
 
 import jax.numpy as jnp
 import jax_dataclasses
@@ -16,38 +17,45 @@ class LinkDescription(JaxsimDataclass):
     In-memory description of a robot link.
 
     Attributes:
-        name (str): The name of the link.
-        mass (float): The mass of the link.
-        inertia (jtp.Matrix): The inertia matrix of the link.
-        index (Optional[int]): An optional index for the link.
-        parent (Optional[LinkDescription]): The parent link of this link.
-        pose (jtp.Matrix): The pose transformation matrix of the link.
-        children (List[LinkDescription]): List of child links.
+        name: The name of the link.
+        mass: The mass of the link.
+        inertia: The inertia tensor of the link.
+        index: An optional index for the link (it gets automatically assigned).
+        parent: The parent link of this link.
+        pose: The pose transformation matrix of the link.
+        children: List of child links.
     """
 
     name: Static[str]
-    mass: float
-    inertia: jtp.Matrix
+    mass: float = dataclasses.field(repr=False)
+    inertia: jtp.Matrix = dataclasses.field(repr=False)
     index: int | None = None
-    parent: Static["LinkDescription"] = dataclasses.field(default=None, repr=False)
+    parent: LinkDescription = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
-    children: Static[List["LinkDescription"]] = dataclasses.field(
+
+    children: Static[list[LinkDescription]] = dataclasses.field(
         default_factory=list, repr=False
     )
 
     def __hash__(self) -> int:
-        return hash(self.__repr__())
 
-    def __eq__(self, other) -> bool:
-        return (
-            self.name == other.name
-            and self.mass == other.mass
-            and (self.inertia == other.inertia).all()
-            and self.index == other.index
-            and self.parent == other.parent
-            and (self.pose == other.pose).all()
-            and self.children == other.children
+        return hash(
+            (
+                hash(self.name),
+                hash(float(self.mass)),
+                hash(tuple(self.inertia.flatten().tolist())),
+                hash(int(self.index)),
+                hash(self.parent),
+                hash(tuple(hash(c) for c in self.children)),
+            )
         )
+
+    def __eq__(self, other: LinkDescription) -> bool:
+
+        if not isinstance(other, LinkDescription):
+            return False
+
+        return hash(self) == hash(other)
 
     @property
     def name_and_index(self) -> str:
@@ -61,19 +69,19 @@ class LinkDescription(JaxsimDataclass):
         return f"#{self.index}_<{self.name}>"
 
     def lump_with(
-        self, link: "LinkDescription", lumped_H_removed: jtp.Matrix
-    ) -> "LinkDescription":
+        self, link: LinkDescription, lumped_H_removed: jtp.Matrix
+    ) -> LinkDescription:
         """
         Combine the current link with another link, preserving mass and inertia.
 
         Args:
-            link (LinkDescription): The link to combine with.
-            lumped_H_removed (jtp.Matrix): The transformation matrix between the two links.
+            link: The link to combine with.
+            lumped_H_removed: The transformation matrix between the two links.
 
         Returns:
-            LinkDescription: The combined link.
-
+            The combined link.
         """
+
         # Get the 6D inertia of the link to remove
         I_removed = link.inertia
 

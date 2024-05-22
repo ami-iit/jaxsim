@@ -549,7 +549,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             # Notify the user if the parent link has changed.
             if name_of_new_parent_link != frame.parent.name:
                 msg = "New parent of frame '{}' is '{}'"
-                logging.debug(msg.format(frame.name, name_of_new_parent_link))
+                logging.debug(msg=msg.format(frame.name, name_of_new_parent_link))
 
             # Always recompute the pose of the frame, and set zero inertial params.
             with frame.mutable_context(jaxsim.utils.Mutability.MUTABLE_NO_VALIDATION):
@@ -906,5 +906,5 @@ class KinematicGraphTransforms:
                 return self.find_parent_link_of_frame(name=parent_name)
 
             case _:
-                msg = f"Failed to find element with name '{frame.parent.name}'"
+                msg = f"Failed to find parent element of frame '{name}' with name '{frame.parent.name}'"
                 raise RuntimeError(msg)

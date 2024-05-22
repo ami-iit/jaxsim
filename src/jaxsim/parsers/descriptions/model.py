@@ -115,7 +115,7 @@ class ModelDescription(KinematicGraph):
             final_collisions.append(new_collision_shape)
 
             # If the frame was found, update the collidable points' pose and add them
-            # to the new collision shape
+            # to the new collision shape.
             for cp in collision_shape.collidable_points:
                 # Find the link that is part of the (reduced) model in which the
                 # collision shape's parent was lumped into

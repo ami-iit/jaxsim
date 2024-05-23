@@ -629,7 +629,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=W_Q_B
         )
 
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    @jax.jit
     def reset_base_linear_velocity(
         self,
         linear_velocity: jtp.VectorLike,
@@ -657,7 +657,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             velocity_representation=velocity_representation,
         )
 
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    @jax.jit
     def reset_base_angular_velocity(
         self,
         angular_velocity: jtp.VectorLike,
@@ -685,7 +685,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             velocity_representation=velocity_representation,
         )
 
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    @jax.jit
     def reset_base_velocity(
         self,
         base_velocity: jtp.VectorLike,

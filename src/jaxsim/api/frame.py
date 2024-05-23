@@ -180,7 +180,7 @@ def transform(
     return W_H_L @ L_H_F
 
 
-@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@jax.jit
 def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

@@ -1,9 +1,8 @@
 import abc
 import contextlib
 import dataclasses
-import enum
 import functools
-from typing import ContextManager
+from typing import ClassVar, ContextManager
 
 import jax
 import jax.numpy as jnp
@@ -20,15 +19,15 @@ except ImportError:
     from typing_extensions import Self
 
 
-@enum.unique
-class VelRepr(enum.IntEnum):
+@dataclasses.dataclass(frozen=True)
+class VelRepr:
     """
     Enumeration of all supported 6D velocity representations.
     """
 
-    Body = enum.auto()
-    Mixed = enum.auto()
-    Inertial = enum.auto()
+    Body: ClassVar[int] = 0
+    Mixed: ClassVar[int] = 1
+    Inertial: ClassVar[int] = 2
 
 
 @jax_dataclasses.pytree_dataclass

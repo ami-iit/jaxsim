@@ -38,6 +38,11 @@ Link
 .. automodule:: jaxsim.api.link
     :members:
 
+Frame
+~~~~~
+.. automodule:: jaxsim.api.frame
+    :members:
+
 CoM
 ~~~
 .. automodule:: jaxsim.api.com

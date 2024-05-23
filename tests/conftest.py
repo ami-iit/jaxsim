@@ -4,6 +4,8 @@ import pathlib
 import jax
 import pytest
 import rod
+import rod.urdf
+import rod.urdf.exporter
 
 import jaxsim
 import jaxsim.api as js
@@ -120,17 +122,25 @@ def jaxsim_model_box() -> js.model.JaxSimModel:
     rod_model = (
         rod.builder.primitives.BoxBuilder(x=0.3, y=0.2, z=0.1, mass=1.0, name="box")
         .build_model()
-        .add_link()
+        .add_link(name="box_link")
         .add_inertial()
         .add_visual()
         .add_collision()
         .build()
     )
 
-    # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True
+    rod_model.add_frame(
+        rod.Frame(
+            name="box_frame",
+            attached_to="box_link",
+            pose=rod.Pose(relative_to="box_link", pose=[1, 1, 1, 0.5, 0.4, 0.3]),
+        )
     )
+
+    # Export the URDF string.
+    urdf_string = rod.urdf.exporter.UrdfExporter(
+        pretty=True, gazebo_preserve_fixed_joints=True
+    ).to_urdf_string(sdf=rod_model)
 
     return build_jaxsim_model(model_description=urdf_string)
 
@@ -159,8 +169,8 @@ def jaxsim_model_sphere() -> js.model.JaxSimModel:
     )
 
     # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
     )
 
     return build_jaxsim_model(model_description=urdf_string)
@@ -219,7 +229,9 @@ def jaxsim_model_ergocub_reduced(jaxsim_model_ergocub) -> js.model.JaxSimModel:
         and "torso" not in j and "elbow" not in j and "shoulder" not in j
     )
 
-    return js.model.reduce(model=model_full, considered_joints=reduced_joints)
+    model = js.model.reduce(model=model_full, considered_joints=reduced_joints)
+
+    return model
 
 
 @pytest.fixture(scope="session")

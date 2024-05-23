@@ -16,6 +16,7 @@ def test_joint_index(
 
     for idx, joint_name in enumerate(model.joint_names()):
         assert js.joint.name_to_idx(model=model, joint_name=joint_name) == idx
+        assert js.joint.idx_to_name(model=model, joint_index=idx) == joint_name
 
     assert js.joint.names_to_idxs(
         model=model, joint_names=model.joint_names()

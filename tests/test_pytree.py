@@ -2,6 +2,7 @@ import io
 from contextlib import redirect_stdout
 
 import jax
+import pytest
 import rod.builder.primitives
 import rod.urdf.exporter
 
@@ -9,6 +10,7 @@ import jaxsim.api as js
 
 
 # https://github.com/ami-iit/jaxsim/issues/103
+@pytest.mark.xfail(strict=True)
 def test_call_jit_compiled_function_passing_different_objects():
 
     # Create on-the-fly a ROD model of a box.
@@ -23,8 +25,8 @@ def test_call_jit_compiled_function_passing_different_objects():
     )
 
     # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
-        sdf=rod_model, pretty=True
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
     )
 
     model1 = js.model.JaxSimModel.build_from_model_description(

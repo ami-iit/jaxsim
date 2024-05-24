@@ -183,7 +183,7 @@ def system_velocity_dynamics(
 
         # Compute the joint friction torque
         τ_friction = -(
-            jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_positions)
+            jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_velocities)
             + jnp.diag(kv) @ data.state.physics_model.joint_velocities
         )
 

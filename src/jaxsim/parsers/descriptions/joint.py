@@ -95,7 +95,9 @@ class JointDescription(JaxsimDataclass):
                 mutability=Mutability.MUTABLE, restore_after_exception=False
             ):
                 norm_of_axis = np.linalg.norm(self.axis)
-                self.axis = self.axis / norm_of_axis
+                self.axis = (
+                    self.axis / norm_of_axis if norm_of_axis != 0.0 else self.axis
+                )
 
     def __eq__(self, other: JointDescription) -> bool:
 

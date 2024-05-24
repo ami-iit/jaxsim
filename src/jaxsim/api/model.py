@@ -730,7 +730,7 @@ def forward_dynamics_aba(
         # In Mixed representation, we need to include a cross product in ℝ⁶.
         # In Inertial and Body representations, the cross product is always zero.
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
-        return C_X_W @ (W_v̇_WB - Cross.vx(W_v_WC) @ W_v_WB)
+        return C_X_W @ W_v̇_WB - Cross.vx(W_v_WC) @ W_v_WB
 
     def to_inertial():
         # In this case C=W

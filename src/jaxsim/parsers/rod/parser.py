@@ -165,7 +165,7 @@ def extract_model_data(
                     if j.axis is not None
                     and j.axis.xyz is not None
                     and j.axis.xyz.xyz is not None
-                    else None
+                    else np.zeros(3)
                 ),
                 pose=j.pose.transform() if j.pose is not None else np.eye(4),
             )
@@ -227,7 +227,7 @@ def extract_model_data(
                 if j.axis is not None
                 and j.axis.xyz is not None
                 and j.axis.xyz.xyz is not None
-                else None
+                else np.zeros(3)
             ),
             pose=j.pose.transform() if j.pose is not None else np.eye(4),
             initial_position=0.0,

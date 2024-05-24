@@ -568,9 +568,9 @@ def generalized_free_floating_jacobian(
         W_H_B = data.base_transform()
         W_X_B = jaxsim.math.Adjoint.from_transform(W_H_B)
 
-        O_J_WL_I = W_J_WL_I = jax.vmap(  # noqa: F841
-            lambda B_J_WL_I: W_X_B @ B_J_WL_I
-        )(B_J_WL_I)
+        O_J_WL_I = W_J_WL_I = jax.vmap(lambda B_J_WL_I: W_X_B @ B_J_WL_I)(  # noqa: F841
+            B_J_WL_I
+        )
         return O_J_WL_I
 
     def to_body() -> jtp.Matrix:
@@ -784,7 +784,7 @@ def forward_dynamics_aba(
         # In Mixed representation, we need to include a cross product in ℝ⁶.
         # In Inertial and Body representations, the cross product is always zero.
         C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
-        return C_X_W @ (W_v̇_WB - Cross.vx(W_v_WC) @ W_v_WB)
+        return C_X_W @ W_v̇_WB - Cross.vx(W_v_WC) @ W_v_WB
 
     def to_inertial():
         # In this case C=W
@@ -1778,7 +1778,9 @@ def link_bias_accelerations(
         return C_H_L, L_v_CL
 
     def to_inertial() -> jtp.Matrix:
-        C_H_L = W_H_L = js.model.forward_kinematics(model=model, data=data)  # noqa: F841
+        C_H_L = W_H_L = js.model.forward_kinematics(
+            model=model, data=data
+        )  # noqa: F841
         L_v_CL = L_v_WL
         return C_H_L, L_v_CL
 
@@ -1786,7 +1788,9 @@ def link_bias_accelerations(
         W_H_L = js.model.forward_kinematics(model=model, data=data)
         LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
         C_H_L = LW_H_L
-        L_v_CL = L_v_LW_L = jax.vmap(lambda v: v.at[0:3].set(jnp.zeros(3)))(L_v_WL)  # noqa: F841
+        L_v_CL = L_v_LW_L = jax.vmap(lambda v: v.at[0:3].set(jnp.zeros(3)))(
+            L_v_WL
+        )  # noqa: F841
         return C_H_L, L_v_CL
 
     C_H_L, L_v_CL = jax.lax.switch(

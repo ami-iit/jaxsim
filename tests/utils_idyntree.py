@@ -392,6 +392,10 @@ class KinDynComputations:
         W_ṗ_G = self.kin_dyn.getCenterOfMassVelocity()
         return W_ṗ_G.toNumPy()
 
+    def com_bias_acceleration(self) -> npt.NDArray:
+
+        return self.kin_dyn.getCenterOfMassBiasAcc().toNumPy()
+
     def mass_matrix(self) -> npt.NDArray:
 
         M = idt.MatrixDynSize()

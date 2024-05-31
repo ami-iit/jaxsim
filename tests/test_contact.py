@@ -29,9 +29,9 @@ def test_collidable_point_jacobians(
 
     # Compute the generalized velocity and the free-floating Jacobian of the frame C.
     ν = data.generalized_velocity()
-    CL_J_WC = js.contact.jacobian(model=model, data=data, output_vel_repr=VelRepr.Mixed)
+    CW_J_WC = js.contact.jacobian(model=model, data=data, output_vel_repr=VelRepr.Mixed)
 
     # Compute the velocity of the collidable points using the Jacobians.
-    v_WC_from_jax = jax.vmap(lambda J, ν: J @ ν, in_axes=(0, None))(CL_J_WC, ν)
+    v_WC_from_jax = jax.vmap(lambda J, ν: J @ ν, in_axes=(0, None))(CW_J_WC, ν)
 
     assert W_ṗ_C == pytest.approx(v_WC_from_jax[:, 0:3])

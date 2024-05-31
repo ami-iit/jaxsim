@@ -369,8 +369,8 @@ def jacobian(
                 C_X_W = jaxsim.math.Adjoint.from_transform(
                     transform=W_H_C, inverse=True
                 )
-                C_J_WCi = C_X_W @ W_J_WC
-                return C_J_WCi
+                C_J_WC = C_X_W @ W_J_WC
+                return C_J_WC
 
             O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
 

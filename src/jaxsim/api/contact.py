@@ -306,3 +306,87 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     # Compose the work-to-link and link-to-point transforms.
     return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
 
+
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def jacobian(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Array:
+    r"""
+    Return the free-floating Jacobian of the collidable points.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        output_vel_repr:
+            The output velocity representation of the free-floating jacobian.
+
+    Returns:
+        The stacked 6×(6+n) free-floating jacobians of the frames associated to the
+        collidable points.
+
+    Note:
+        Each collidable point is implicitly associated with a frame
+        :math:`C = ({}^W p_C, [L])`, where :math:`{}^W p_C` is the position of the
+        collidable point and :math:`[L]` is the orientation frame of the link it is
+        rigidly attached to.
+    """
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    # For each collidable point, get the Jacobians of their parent link.
+    # In inertial-fixed output representation, the Jacobian of the parent link is also
+    # the Jacobian of the frame C implicitly associated with the collidable point.
+    W_J_WC = W_J_WL = jax.vmap(
+        lambda parent_link_idx: js.link.jacobian(
+            model=model,
+            data=data,
+            link_index=parent_link_idx,
+            output_vel_repr=VelRepr.Inertial,
+        )
+    )(jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int))
+
+    # Adjust the output representation.
+    match output_vel_repr:
+
+        case VelRepr.Inertial:
+            O_J_WC = W_J_WC
+
+        case VelRepr.Body:
+
+            W_H_C = transforms(model=model, data=data)
+
+            def jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
+                C_X_W = jaxsim.math.Adjoint.from_transform(
+                    transform=W_H_C, inverse=True
+                )
+                C_J_WCi = C_X_W @ W_J_WC
+                return C_J_WCi
+
+            O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
+
+        case VelRepr.Mixed:
+
+            W_H_C = transforms(model=model, data=data)
+
+            def jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
+
+                W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
+
+                CW_X_W = jaxsim.math.Adjoint.from_transform(
+                    transform=W_H_CW, inverse=True
+                )
+
+                CW_J_WC = CW_X_W @ W_J_WC
+                return CW_J_WC
+
+            O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
+
+        case _:
+            raise ValueError(output_vel_repr)
+
+    return O_J_WC

@@ -32,6 +32,7 @@ def collidable_point_kinematics(
 
     from jaxsim.rbda import collidable_points
 
+    # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
         W_p_Ci, W_ṗ_Ci = collidable_points.collidable_points_pos_vel(
             model=model,
@@ -61,7 +62,9 @@ def collidable_point_positions(
         The position of the collidable points in the world frame.
     """
 
-    return collidable_point_kinematics(model=model, data=data)[0]
+    W_p_Ci, _ = collidable_point_kinematics(model=model, data=data)
+
+    return W_p_Ci
 
 
 @jax.jit
@@ -79,7 +82,9 @@ def collidable_point_velocities(
         The 3D velocity of the collidable points.
     """
 
-    return collidable_point_kinematics(model=model, data=data)[1]
+    _, W_ṗ_Ci = collidable_point_kinematics(model=model, data=data)
+
+    return W_ṗ_Ci
 
 
 @jax.jit

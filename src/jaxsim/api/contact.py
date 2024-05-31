@@ -269,3 +269,40 @@ def estimate_good_soft_contacts_parameters(
     )
 
     return sc_parameters
+
+
+@jax.jit
+def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
+    r"""
+    Return the pose of the collidable points.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The stacked SE(3) matrices of all collidable points.
+
+    Note:
+        Each collidable point is implicitly associated with a frame
+        :math:`C = ({}^W p_C, [L])`, where :math:`{}^W p_C` is the position of the
+        collidable point and :math:`[L]` is the orientation frame of the link it is
+        rigidly attached to.
+    """
+
+    # Get the transforms of the parent link of all collidable points.
+    W_H_L = jax.vmap(
+        lambda parent_link_idx: js.link.transform(
+            model=model, data=data, link_index=parent_link_idx
+        )
+    )(jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int))
+
+    # Build the link-to-point transform from the displacement between the link frame L
+    # and the implicit contact frame C.
+    L_H_C = jax.vmap(lambda L_p_C: jnp.eye(4).at[0:3, 3].set(L_p_C))(
+        model.kin_dyn_parameters.contact_parameters.point
+    )
+
+    # Compose the work-to-link and link-to-point transforms.
+    return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
+

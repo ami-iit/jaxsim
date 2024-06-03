@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import jaxopt
@@ -7,11 +8,7 @@ import jaxopt
 import jaxsim.typing as jtp
 from jaxsim.terrain import FlatTerrain, Terrain
 
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
-
+from . import link
 from .contact import ContactModel, ContactParams, ContactsState
 from .data import JaxSimModelData
 from .model import (
@@ -110,6 +107,7 @@ class ConstrainedContactsParams(ContactParams):
                 self.width,
                 self.mid,
                 self.power,
+                self.friction,
             ]
         )
 
@@ -147,12 +145,11 @@ class ConstrainedContacts(ContactModel):
         """
 
         def _imp_aref(
-            self: Self, position: jtp.Array, velocity: jtp.Array
+            position: jtp.Array, velocity: jtp.Array
         ) -> tuple[jtp.Array, jtp.Array]:
             """Calculates impedance and offset acceleration in constraint frame.
 
             Args:
-                params: solver params
                 position: position in constraint frame
                 velocity: velocity in constraint frame
 
@@ -161,7 +158,7 @@ class ConstrainedContacts(ContactModel):
                 a_ref: offset acceleration in constraint frame
             """
             # Check https://mujoco.readthedocs.io/en/latest/modeling.html#solver-parameters
-            timeconst, ζ, dmin, dmax, width, mid, p = self.parameters
+            timeconst, ζ, dmin, dmax, width, mid, p, _ = self.parameters
 
             imp_x = jnp.abs(position) / width
             imp_a = (1.0 / jnp.power(mid, p - 1)) * jnp.power(imp_x, p)
@@ -180,6 +177,48 @@ class ConstrainedContacts(ContactModel):
 
             return imp, a_ref
 
+        def _contact_jacobian(model: JaxSimModel, data: JaxSimModelData) -> tuple:
+            """Compute the contact jacobian and the reference acceleration.
+
+            Args:
+                model (JaxSimModel): The jaxsim model.
+                position (jtp.Vector): The position of the collidable point.
+
+            Returns:
+                tuple: A tuple containing the contact jacobian, the reference acceleration, and the contact radius.
+            """
+
+            def _compute_row(link_idx: jtp.Float):
+                # Compute the contact jacobian.
+                J = generalized_free_floating_jacobian(model=model, data=data)
+
+                # Compute the reference acceleration.
+                imp, a_ref = _imp_aref(position=position, velocity=velocity)
+
+                # Compute the regularization terms.
+                r = (
+                    2 * self.parameters.friction**2 * (1 - imp) / (imp + 1e-8)
+                ) * jnp.tile(
+                    (1 + self.parameters.friction**2)
+                    / link.mass(model=model, link_index=link_idx),
+                    4,
+                )
+
+                # TODO: Compute the smooth contact force
+                qf_smooth = jnp.zeros(model.dofs)
+
+                return jax.tree.map(
+                    lambda x: x * (position[link_idx, 2] < 0), (J, a_ref, R)
+                )
+
+            J, a_ref, r, qf_smooth = jax.tree.map(
+                jnp.concatenate,
+                jax.vmap(_compute_row)(
+                    model.kin_dyn_parameters.contact_parameters.body
+                ),
+            )
+            return
+
         # Unpack the position of the collidable point
         px, py, pz = W_p_C = position.squeeze()
         vx, vy, vz = W_ṗ_C = velocity.squeeze()
@@ -194,31 +233,7 @@ class ConstrainedContacts(ContactModel):
         # Compute the penetration normal velocity
         δ̇ = -jnp.dot(W_ṗ_C, n̂)
 
-        def contact_jacobian(model: JaxSimModel, data: JaxSimModelData) -> tuple:
-            """Compute the contact jacobian and the reference acceleration.
-
-            Args:
-                model (JaxSimModel): The jaxsim model.
-                position (jtp.Vector): The position of the collidable point.
-
-            Returns:
-                tuple: A tuple containing the contact jacobian, the reference acceleration, and the contact radius.
-            """
-            # Compute the contact jacobian
-            J = generalized_free_floating_jacobian(model=model, data=data)
-
-            # Compute the reference acceleration
-            a_ref = _imp_aref(position, velocity)
-
-            # Compute the contact radius
-            r = jnp.linalg.norm(J @ n̂)
-
-            # TODO: Compute the smooth contact force
-            qf_smooth = None
-
-            return J, a_ref, r, qf_smooth
-
-        J, a_ref, r, qf_smooth = contact_jacobian(model=model, data=data)
+        J, a_ref, r, qf_smooth = _contact_jacobian(model=model, data=data)
 
         M_inv = jnp.linalg.inv(free_floating_mass_matrix(model=model, data=data))
 

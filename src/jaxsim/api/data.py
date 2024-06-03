@@ -30,7 +30,7 @@ except ImportError:
 @jax_dataclasses.pytree_dataclass
 class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     """
-    Class containing the state of a `JaxSimModel` object.
+    Class containing the data of a `JaxSimModel` object.
     """
 
     state: ODEState
@@ -42,6 +42,24 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
     )
+
+    def __hash__(self) -> int:
+
+        return hash(
+            (
+                hash(self.state),
+                hash(tuple(self.gravity.flatten().tolist())),
+                hash(self.soft_contacts_params),
+                hash(jnp.atleast_1d(self.time_ns).flatten().tolist()),
+            )
+        )
+
+    def __eq__(self, other: JaxSimModelData) -> bool:
+
+        if not isinstance(other, JaxSimModelData):
+            return False
+
+        return hash(self) == hash(other)
 
     def valid(self, model: js.model.JaxSimModel | None = None) -> bool:
         """

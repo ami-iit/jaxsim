@@ -29,6 +29,23 @@ class SoftContactsParams(JaxsimDataclass):
         default_factory=lambda: jnp.array(0.5, dtype=float)
     )
 
+    def __hash__(self) -> int:
+
+        return hash(
+            (
+                hash(tuple(jnp.atleast_1d(self.K).flatten().tolist())),
+                hash(tuple(jnp.atleast_1d(self.D).flatten().tolist())),
+                hash(tuple(jnp.atleast_1d(self.mu).flatten().tolist())),
+            )
+        )
+
+    def __eq__(self, other: SoftContactsParams) -> bool:
+
+        if not isinstance(other, SoftContactsParams):
+            return NotImplemented
+
+        return hash(self) == hash(other)
+
     @staticmethod
     def build(
         K: jtp.FloatLike = 1e6, D: jtp.FloatLike = 2_000, mu: jtp.FloatLike = 0.5

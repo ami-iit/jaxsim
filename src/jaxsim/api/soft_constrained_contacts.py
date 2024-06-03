@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 import jax_dataclasses
+import jaxopt
 
 import jaxsim.typing as jtp
 from jaxsim.terrain import FlatTerrain, Terrain
 
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
 from .contact import ContactModel, ContactParams, ContactsState
-from .model import JaxSimModel
+from .data import JaxSimModelData
+from .model import (
+    JaxSimModel,
+    free_floating_mass_matrix,
+    generalized_free_floating_jacobian,
+)
 
 
 @jax_dataclasses.pytree_dataclass
@@ -72,6 +83,23 @@ class ConstrainedContactsParams(ContactParams):
             power=jnp.array(power, dtype=float),
         )
 
+    @staticmethod
+    def build_default_from_jaxsim_model(
+        model: JaxSimModel,
+        *args,
+        **kwargs,
+    ) -> ConstrainedContactsParams:
+        """
+        Create a ConstrainedContactsParams instance.
+
+        Args:
+            model: The target model.
+
+        Returns:
+            A `ConstrainedContactsParams` instance with the specified parameters.
+        """
+        return ConstrainedContactsParams.build()
+
     def __iter__(self):
         return iter(
             [
@@ -105,8 +133,114 @@ class ConstrainedContacts(ContactModel):
         tau: jtp.Vector | None = None,
         tangential_deformation: jtp.Vector | None = None,
     ) -> tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact forces.
 
-        return jnp.zeros_like(tangential_deformation), None
+        Args:
+            model (JaxSimModel): The jaxsim model.
+            position (jtp.Vector): The position of the collidable point.
+            velocity (jtp.Vector): The linear velocity of the collidable point.
+            tangential_deformation (jtp.Vector, optional): The tangential deformation. Defaults to None.
+
+        Returns:
+            tuple[jtp.Vector, jtp.Vector]: A tuple containing the contact force and material deformation rate.
+        """
+
+        def _imp_aref(
+            self: Self, position: jtp.Array, velocity: jtp.Array
+        ) -> tuple[jtp.Array, jtp.Array]:
+            """Calculates impedance and offset acceleration in constraint frame.
+
+            Args:
+                params: solver params
+                position: position in constraint frame
+                velocity: velocity in constraint frame
+
+            Returns:
+                impedance: constraint impedance
+                a_ref: offset acceleration in constraint frame
+            """
+            # Check https://mujoco.readthedocs.io/en/latest/modeling.html#solver-parameters
+            timeconst, ζ, dmin, dmax, width, mid, p = self.parameters
+
+            imp_x = jnp.abs(position) / width
+            imp_a = (1.0 / jnp.power(mid, p - 1)) * jnp.power(imp_x, p)
+
+            imp_b = 1 - (1.0 / jnp.power(1 - mid, p - 1)) * jnp.power(1 - imp_x, p)
+
+            imp_y = jnp.where(imp_x < mid, imp_a, imp_b)
+
+            imp = jnp.clip(dmin + imp_y * (dmax - dmin), dmin, dmax)
+            imp = jnp.where(imp_x > 1.0, dmax, imp)
+
+            D = 2 / (dmax * timeconst)
+            K = 1 / (dmax * timeconst * ζ) ** 2
+
+            a_ref = -D * velocity - K * imp * position
+
+            return imp, a_ref
+
+        # Unpack the position of the collidable point
+        px, py, pz = W_p_C = position.squeeze()
+        vx, vy, vz = W_ṗ_C = velocity.squeeze()
+
+        # Compute the terrain normal and the contact depth
+        n̂ = self.terrain.normal(x=px, y=py).squeeze()
+        h = jnp.array([0, 0, self.terrain.height(x=px, y=py) - pz])
+
+        # Compute the penetration depth normal to the terrain
+        δ = jnp.maximum(1e-4, jnp.dot(h, n̂))
+
+        # Compute the penetration normal velocity
+        δ̇ = -jnp.dot(W_ṗ_C, n̂)
+
+        def contact_jacobian(model: JaxSimModel, data: JaxSimModelData) -> tuple:
+            """Compute the contact jacobian and the reference acceleration.
+
+            Args:
+                model (JaxSimModel): The jaxsim model.
+                position (jtp.Vector): The position of the collidable point.
+
+            Returns:
+                tuple: A tuple containing the contact jacobian, the reference acceleration, and the contact radius.
+            """
+            # Compute the contact jacobian
+            J = generalized_free_floating_jacobian(model=model, data=data)
+
+            # Compute the reference acceleration
+            a_ref = _imp_aref(position, velocity)
+
+            # Compute the contact radius
+            r = jnp.linalg.norm(J @ n̂)
+
+            # TODO: Compute the smooth contact force
+            qf_smooth = None
+
+            return J, a_ref, r, qf_smooth
+
+        J, a_ref, r, qf_smooth = contact_jacobian(model=model, data=data)
+
+        M_inv = jnp.linalg.inv(free_floating_mass_matrix(model=model, data=data))
+
+        # Calculate quantities for the linear optimization problem
+        A = J @ M_inv @ J.T
+        R = jnp.eye(A.shape[0]) * r
+        b = J @ M_inv @ qf_smooth - a_ref
+
+        objective = lambda x: 0.5 * x.T @ A @ x + b @ x
+
+        # Compute the 3D linear force in C[W] frame
+        opt = jaxopt.ProjectedGradient(
+            fun=objective,
+            projection=jaxopt.projection.projection_non_negative,
+            maxiter=self.parameters.solver_iterations,
+            implicit_diff=False,
+            maxls=self.parameters.maxls,
+        )
+
+        f = J.T @ opt.run(jnp.zeros_like(b)).params
+
+        return f, None
 
 
 @jax_dataclasses.pytree_dataclass

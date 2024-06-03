@@ -11,5 +11,6 @@ from . import (
     ode_data,
     references,
     rigid_contacts,
+    soft_constrained_contacts,
     soft_contacts,
 )

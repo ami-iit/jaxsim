@@ -204,22 +204,17 @@ class KynDynParameters(JaxsimDataclass):
         if not isinstance(other, KynDynParameters):
             return False
 
-        equal = True
-        equal = equal and self.number_of_links() == other.number_of_links()
-        equal = equal and self.number_of_joints() == other.number_of_joints()
-        equal = equal and jnp.allclose(self.parent_array, other.parent_array)
-
-        return equal
+        return hash(self) == hash(other)
 
     def __hash__(self) -> int:
 
-        h = (
-            hash(self.number_of_links()),
-            hash(self.number_of_joints()),
-            hash(tuple(self.parent_array.tolist())),
+        return hash(
+            (
+                hash(self.number_of_links()),
+                hash(self.number_of_joints()),
+                hash(tuple(jnp.atleast_1d(self.parent_array).flatten().tolist())),
+            )
         )
-
-        return hash(h)
 
     # =============================
     # Helpers to extract parameters

@@ -45,6 +45,22 @@ class JaxSimModel(JaxsimDataclass):
         dataclasses.field(default=None, repr=False, compare=False, hash=False)
     )
 
+    def __eq__(self, other: JaxSimModel) -> bool:
+
+        if not isinstance(other, JaxSimModel):
+            return False
+
+        return hash(self) == hash(other)
+
+    def __hash__(self) -> int:
+
+        return hash(
+            (
+                hash(self.model_name),
+                hash(self.kin_dyn_parameters),
+            )
+        )
+
     # ========================
     # Initialization and state
     # ========================

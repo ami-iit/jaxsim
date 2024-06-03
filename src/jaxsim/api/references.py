@@ -141,12 +141,13 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     # Extract quantities
     # ==================
 
-    @functools.partial(jax.jit, static_argnames=["link_names"])
+    @functools.partial(jax.jit, static_argnames=["link_names", "use_link_frame"])
     def link_forces(
         self,
         model: js.model.JaxSimModel | None = None,
         data: js.data.JaxSimModelData | None = None,
         link_names: tuple[str, ...] | None = None,
+        use_link_frame: bool = False,
     ) -> jtp.Matrix:
         """
         Return the link forces expressed in the frame of the active representation.
@@ -155,6 +156,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             model: The model to consider.
             data: The data of the considered model.
             link_names: The names of the links corresponding to the forces.
+            use_link_frame:
+                Whether to consider the frame of the link instead of the frame of the
+                base in body-fixed and mixed representations.
 
         Returns:
             If no model and no link names are provided, the link forces as a
@@ -202,8 +206,10 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         if not_tracing(self.input.physics_model.f_ext) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
 
-        # Helper function to convert a single 6D force to the active representation.
-        def convert(f_L: jtp.Vector) -> jtp.Vector:
+        # Helper function to convert a single 6D force to the active representation
+        # considering as body the base link (i.e. B_f_L and BW_f_L).
+        def convert_using_base_frame(f_L: jtp.Vector) -> jtp.Vector:
+
             return JaxSimModelReferences.inertial_to_other_representation(
                 array=f_L,
                 other_representation=self.velocity_representation,
@@ -211,9 +217,33 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 is_force=True,
             )
 
-        # Convert to the desired representation.
-        f_L = jax.vmap(convert)(W_f_L[link_idxs, :])
+        # Helper function to convert a single 6D force to the active representation
+        # considering as body the link (i.e. L_f_L and LW_f_L).
+        # Contrarily to convert_using_base_frame, this is already vectorized.
+        def convert_using_link_frame(
+            W_f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike
+        ) -> jtp.Matrix:
 
+            return jax.vmap(
+                lambda W_f_L, W_H_L: JaxSimModelReferences.inertial_to_other_representation(
+                    array=W_f_L,
+                    other_representation=self.velocity_representation,
+                    transform=W_H_L,
+                    is_force=True,
+                )
+            )(W_f_L, W_H_L)
+
+        # Convert to the desired representation.
+        if use_link_frame:
+            # The f_L output is either L_f_L or LW_f_L, depending on the representation.
+            W_H_L = js.model.forward_kinematics(model=model, data=data)
+            f_L = convert_using_link_frame(
+                W_f_L=W_f_L[link_idxs, :], W_H_L=W_H_L[link_idxs, :, :]
+            )
+            return f_L
+
+        # The f_L output is either B_f_L or BW_f_L, depending on the representation.
+        f_L = jax.vmap(convert_using_base_frame)(W_f_L[link_idxs, :])
         return f_L
 
     def joint_force_references(

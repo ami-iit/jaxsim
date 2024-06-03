@@ -221,9 +221,13 @@ class KynDynParameters(JaxsimDataclass):
             (
                 hash(self.number_of_links()),
                 hash(self.number_of_joints()),
+<<<<<<< HEAD
                 hash(tuple(np.atleast_1d(self.parent_array).flatten().tolist())),
                 hash(self._parent_array),
                 hash(self._support_body_array_bool),
+=======
+                hash(tuple(jnp.atleast_1d(self.parent_array).flatten().tolist())),
+>>>>>>> fc2ec98 (Implement __hash__ and __eq__ methods of JaxSimModel)
             )
         )
 

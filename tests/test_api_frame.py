@@ -17,12 +17,10 @@ def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
     # =====
 
     frame_indices = tuple(
-        frame.index
-        for frame in model.description.get().frames
-        if frame.index is not None
+        frame.index for frame in model.description.frames if frame.index is not None
     )
 
-    frame_names = np.array([frame.name for frame in model.description.get().frames])
+    frame_names = np.array([frame.name for frame in model.description.frames])
 
     for frame_idx, frame_name in zip(frame_indices, frame_names):
         assert js.frame.name_to_idx(model=model, frame_name=frame_name) == frame_idx
@@ -60,7 +58,7 @@ def test_frame_transforms(
     # Get all names of frames in the iDynTree model.
     frame_names = [
         frame.name
-        for frame in model.description.get().frames
+        for frame in model.description.frames
         if frame.name in kin_dyn.frame_names()
     ]
 
@@ -74,7 +72,7 @@ def test_frame_transforms(
     # Get indices of frames.
     frame_indices = tuple(
         frame.index
-        for frame in model.description.get().frames
+        for frame in model.description.frames
         if frame.index is not None and frame.name in frame_names
     )
 
@@ -115,7 +113,7 @@ def test_frame_jacobians(
     # Get all names of frames in the iDynTree model.
     frame_names = [
         frame.name
-        for frame in model.description.get().frames
+        for frame in model.description.frames
         if frame.name in kin_dyn.frame_names()
     ]
 
@@ -127,7 +125,7 @@ def test_frame_jacobians(
     # Get indices of frames.
     frame_indices = tuple(
         frame.index
-        for frame in model.description.get().frames
+        for frame in model.description.frames
         if frame.index is not None and frame.name in frame_names
     )
 

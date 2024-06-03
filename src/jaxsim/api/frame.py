@@ -30,7 +30,7 @@ def idx_of_parent_link(model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike) -
     """
 
     # Get the intermediate representation parsed from the model description.
-    ir = model.description.get()
+    ir = model.description
 
     # Extract the indices of the frame and the link it is attached to.
     F = ir.frames[frame_idx - model.number_of_links()]
@@ -51,7 +51,7 @@ def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> int:
         The index of the frame.
     """
 
-    frame_names = np.array([frame.name for frame in model.description.get().frames])
+    frame_names = np.array([frame.name for frame in model.description.frames])
 
     if frame_name in frame_names:
         idx_in_list = np.argwhere(frame_names == frame_name)
@@ -72,7 +72,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str
         The name of the frame.
     """
 
-    return model.description.get().frames[frame_index - model.number_of_links()].name
+    return model.description.frames[frame_index - model.number_of_links()].name
 
 
 @functools.partial(jax.jit, static_argnames=["frame_names"])
@@ -144,7 +144,7 @@ def transform(
     W_H_L = js.link.transform(model=model, data=data, link_index=L)
 
     # Get the static frame pose wrt the parent link.
-    frame = model.description.get().frames[frame_index - model.number_of_links()]
+    frame = model.description.frames[frame_index - model.number_of_links()]
     L_H_F = frame.pose
 
     # Combine the transforms computing the frame pose.

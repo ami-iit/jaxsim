@@ -32,18 +32,21 @@ class JaxSimModel(JaxsimDataclass):
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
     )
+    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
+        dataclasses.field(default=None, repr=False, compare=False, hash=False)
+    )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
         default=None, repr=False, compare=False, hash=False
     )
 
-    description: Static[
+    _description: Static[
         HashlessObject[jaxsim.parsers.descriptions.ModelDescription | None]
     ] = dataclasses.field(default=None, repr=False, compare=False, hash=False)
 
-    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
-        dataclasses.field(default=None, repr=False, compare=False, hash=False)
-    )
+    @property
+    def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
+        return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:
 
@@ -153,7 +156,7 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model
         model = JaxSimModel(
             model_name=model_name,
-            description=HashlessObject(obj=model_description),
+            _description=HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
@@ -276,7 +279,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the links in the model.
         """
 
-        return tuple([frame.name for frame in self.description.get().frames])
+        return tuple([frame.name for frame in self.description.frames])
 
 
 # =====================
@@ -313,7 +316,7 @@ def reduce(
 
     # Copy the model description with a deep copy of the joints.
     intermediate_description = dataclasses.replace(
-        model.description.get(), joints=copy.deepcopy(model.description.get().joints)
+        model.description, joints=copy.deepcopy(model.description.joints)
     )
 
     # Update the initial position of the joints.

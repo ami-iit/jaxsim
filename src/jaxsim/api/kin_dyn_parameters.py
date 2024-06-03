@@ -391,7 +391,7 @@ class KynDynParameters(JaxsimDataclass):
             pre_H_suc_J, S_J = jax.vmap(supported_joint_motion)(
                 jnp.array(self.joint_model.joint_types[1:]).astype(int),
                 jnp.array(joint_positions),
-                jnp.array(self.joint_model.joint_axis),
+                jnp.array([j.axis for j in self.joint_model.joint_axis]),
             )
 
         # Extract the transforms and motion subspaces of the joints.

@@ -11,7 +11,7 @@ from jax_dataclasses import Static
 import jaxsim.typing as jtp
 from jaxsim.math import Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, ModelDescription
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
@@ -32,8 +32,8 @@ class KynDynParameters(JaxsimDataclass):
 
     # Static
     link_names: Static[tuple[str]]
-    parent_array: Static[jtp.Vector]
-    support_body_array_bool: Static[jtp.Matrix]
+    _parent_array: Static[HashedNumpyArray]
+    _support_body_array_bool: Static[HashedNumpyArray]
 
     # Links
     link_parameters: LinkParameters
@@ -44,6 +44,14 @@ class KynDynParameters(JaxsimDataclass):
     # Joints
     joint_model: JointModel
     joint_parameters: JointParameters | None
+
+    @property
+    def parent_array(self) -> jtp.Vector:
+        return self._parent_array.get()
+
+    @property
+    def support_body_array_bool(self) -> jtp.Matrix:
+        return self._support_body_array_bool.get()
 
     @staticmethod
     def build(model_description: ModelDescription) -> KynDynParameters:
@@ -191,8 +199,8 @@ class KynDynParameters(JaxsimDataclass):
 
         return KynDynParameters(
             link_names=tuple(l.name for l in ordered_links),
-            parent_array=parent_array,
-            support_body_array_bool=support_body_array_bool,
+            _parent_array=HashedNumpyArray(array=parent_array),
+            _support_body_array_bool=HashedNumpyArray(array=support_body_array_bool),
             link_parameters=link_parameters,
             joint_model=joint_model,
             joint_parameters=joint_parameters,

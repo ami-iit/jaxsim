@@ -34,6 +34,9 @@ class JaxSimModel(JaxsimDataclass):
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
     )
+    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
+        dataclasses.field(default=None, repr=False, compare=False, hash=False)
+    )
 
     kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
         dataclasses.field(default=None, repr=False, compare=False, hash=False)

@@ -177,18 +177,19 @@ def jaxsim_model_sphere() -> js.model.JaxSimModel:
 
 
 @pytest.fixture(scope="session")
-def jaxsim_model_ergocub() -> js.model.JaxSimModel:
+def ergocub_model_description_path() -> pathlib.Path:
     """
-    Fixture providing the JaxSim model of the ErgoCub robot.
+    Fixture providing the path to the URDF model description of the ErgoCub robot.
 
     Returns:
-        The JaxSim model of the ErgoCub robot.
+        The path to the URDF model description of the ErgoCub robot.
     """
 
     try:
         os.environ["ROBOT_DESCRIPTION_COMMIT"] = "v0.7.1"
 
         import robot_descriptions.ergocub_description
+
     finally:
         _ = os.environ.pop("ROBOT_DESCRIPTION_COMMIT", None)
 
@@ -198,7 +199,21 @@ def jaxsim_model_ergocub() -> js.model.JaxSimModel:
         )
     )
 
-    return build_jaxsim_model(model_description=model_urdf_path)
+    return model_urdf_path
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_ergocub(
+    ergocub_model_description_path: pathlib.Path,
+) -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of the ErgoCub robot.
+
+    Returns:
+        The JaxSim model of the ErgoCub robot.
+    """
+
+    return build_jaxsim_model(model_description=ergocub_model_description_path)
 
 
 @pytest.fixture(scope="session")

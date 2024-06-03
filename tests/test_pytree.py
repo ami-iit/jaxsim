@@ -1,44 +1,30 @@
 import io
+import pathlib
 from contextlib import redirect_stdout
 
 import jax
-import pytest
-import rod.builder.primitives
-import rod.urdf.exporter
 
 import jaxsim.api as js
 
 
-# https://github.com/ami-iit/jaxsim/issues/103
-@pytest.mark.xfail(strict=True)
-def test_call_jit_compiled_function_passing_different_objects():
+def test_call_jit_compiled_function_passing_different_objects(
+    ergocub_model_description_path: pathlib.Path,
+):
 
-    # Create on-the-fly a ROD model of a box.
-    rod_model = (
-        rod.builder.primitives.BoxBuilder(x=0.3, y=0.2, z=0.1, mass=1.0, name="box")
-        .build_model()
-        .add_link()
-        .add_inertial()
-        .add_visual()
-        .add_collision()
-        .build()
-    )
-
-    # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
-        sdf=rod_model
-    )
-
+    # Create a first model from the URDF.
     model1 = js.model.JaxSimModel.build_from_model_description(
-        model_description=urdf_string,
+        model_description=ergocub_model_description_path,
         is_urdf=True,
     )
 
+    # Create a second model from the URDF.
     model2 = js.model.JaxSimModel.build_from_model_description(
-        model_description=urdf_string,
+        model_description=ergocub_model_description_path,
         is_urdf=True,
     )
 
+    # The objects should be different, but the comparison should return True.
+    assert id(model1) != id(model2)
     assert model1 == model2
     assert hash(model1) == hash(model2)
 

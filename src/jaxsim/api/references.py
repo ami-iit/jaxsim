@@ -319,7 +319,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         forces: jtp.MatrixLike,
         model: js.model.JaxSimModel | None = None,
         data: js.data.JaxSimModelData | None = None,
-        link_names: tuple[str, ...] | None = None,
+        link_names: tuple[str, ...] | str | None = None,
         additive: bool = False,
     ) -> Self:
         """
@@ -345,7 +345,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             Then, we always convert and store forces in inertial-fixed representation.
         """
 
-        f_L = jnp.array(forces)
+        f_L = jnp.atleast_2d(forces).astype(float)
 
         # Helper function to replace the link forces.
         def replace(forces: jtp.MatrixLike) -> JaxSimModelReferences:
@@ -380,6 +380,15 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # If we have the model, we can extract the link names if not provided.
         link_names = link_names if link_names is not None else model.link_names()
+
+        # Make sure that the link names are a tuple if they are provided by the user.
+        link_names = (link_names,) if isinstance(link_names, str) else link_names
+
+        if len(link_names) != f_L.shape[0]:
+            msg = "The number of link names ({}) must match the number of forces ({})"
+            raise ValueError(msg.format(len(link_names), f_L.shape[0]))
+
+        # Extract the link indices.
         link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
 
         # Compute the bias depending on whether we either set or add the link forces.

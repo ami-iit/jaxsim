@@ -43,45 +43,93 @@ class ConstrainedContactsParams(ContactParams):
     power: float = jax_dataclasses.field(
         default_factory=lambda: jnp.array(1.0, dtype=float)
     )
+    friction: float = jax_dataclasses.field(
+        default_factory=lambda: jnp.array(0.5, dtype=float)
+    )
 
-    @staticmethod
+    @classmethod
     def build(
-        timeconst: float = 0.1,
-        dampratio: float = 0.5,
-        dmin: float = 0.0,
-        dmax: float = 1.0,
-        width: float = 0.1,
-        mid: float = 0.5,
-        power: float = 2.0,
+        cls,
+        timeconst: float,
+        dampratio: float,
+        dmin: float,
+        dmax: float,
+        width: float,
+        mid: float,
+        power: float,
+        friction: float,
     ) -> ConstrainedContactsParams:
         """
         Create a ConstrainedContactsParams instance with specified parameters.
 
         Args:
-            timeconst (float, optional): The time constant. Defaults to 0.1.
-            dampratio (float, optional): The damping ratio. Defaults to 0.5.
-            dmin (float, optional): The minimum damping. Defaults to 0.0.
-            dmax (float, optional): The maximum damping. Defaults to 1.0.
-            width (float, optional): The width of the damping function. Defaults to 0.1.
-            mid (float, optional): The mid value of the damping function. Defaults to 0.5.
-            power (float, optional): The power of the damping function. Defaults to 2.0.
-
+            timeconst: The time constant.
+            dampratio: The damping ratio.
+            dmin: The minimum damping.
+            dmax: The maximum damping.
+            width: The width of the damping function.
+            mid: The mid value of the damping function.
+            power: The power of the damping function.
+            friction: The dynamic friction coefficient.
         Returns:
             ConstrainedContactsParams: A ConstrainedContactsParams instance with the specified parameters.
         """
-
-        return ConstrainedContactsParams(
-            timeconst=jnp.array(timeconst, dtype=float),
-            dampratio=jnp.array(dampratio, dtype=float),
-            dmin=jnp.array(dmin, dtype=float),
-            dmax=jnp.array(dmax, dtype=float),
-            width=jnp.array(width, dtype=float),
-            mid=jnp.array(mid, dtype=float),
-            power=jnp.array(power, dtype=float),
+        # Fallback to default dataclasses values
+        timeconst = (
+            jnp.array(timeconst, dtype=float)
+            if timeconst is not None
+            else cls.__dataclass_fields__["timeconst"].default
+        )
+        dampratio = (
+            jnp.array(dampratio, dtype=float)
+            if dampratio is not None
+            else cls.__dataclass_fields__["dampratio"].default
+        )
+        dmin = (
+            jnp.array(dmin, dtype=float)
+            if dmin is not None
+            else cls.__dataclass_fields__["dmin"].default
+        )
+        dmax = (
+            jnp.array(dmax, dtype=float)
+            if dmax is not None
+            else cls.__dataclass_fields__["dmax"].default
+        )
+        width = (
+            jnp.array(width, dtype=float)
+            if width is not None
+            else cls.__dataclass_fields__["width"].default
+        )
+        mid = (
+            jnp.array(mid, dtype=float)
+            if mid is not None
+            else cls.__dataclass_fields__["mid"].default
+        )
+        power = (
+            jnp.array(power, dtype=float)
+            if power is not None
+            else cls.__dataclass_fields__["power"].default
+        )
+        friction = (
+            jnp.array(friction, dtype=float)
+            if friction is not None
+            else cls.__dataclass_fileds["friction"].default
         )
 
-    @staticmethod
+        return cls(
+            timeconst=timeconst,
+            dampratio=dampratio,
+            dmin=dmin,
+            dmax=dmax,
+            width=width,
+            mid=mid,
+            power=power,
+            friction=friction,
+        )
+
+    @classmethod
     def build_default_from_jaxsim_model(
+        cls,
         model: JaxSimModel,
         *args,
         **kwargs,
@@ -95,7 +143,7 @@ class ConstrainedContactsParams(ContactParams):
         Returns:
             A `ConstrainedContactsParams` instance with the specified parameters.
         """
-        return ConstrainedContactsParams.build()
+        return cls.build()
 
     def __iter__(self):
         return iter(

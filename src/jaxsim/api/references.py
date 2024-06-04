@@ -179,8 +179,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # serialization.
         if model is None:
             if self.velocity_representation is not VelRepr.Inertial:
-                msg = "Missing model to use a representation different from {}"
-                raise ValueError(msg.format(VelRepr.Inertial.name))
+                raise ValueError(
+                    "Missing model to use a representation different from `VelRepr.Inertial`"
+                )
 
             if link_names is not None:
                 raise ValueError("Link names cannot be provided without a model")
@@ -196,8 +197,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             return W_f_L[link_idxs, :]
 
         if data is None:
-            msg = "Missing model data to use a representation different from {}"
-            raise ValueError(msg.format(VelRepr.Inertial.name))
+            raise ValueError(
+                "Missing model data to use a representation different from `VelRepr.Inertial`"
+            )
 
         if not_tracing(self.input.physics_model.f_ext) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
@@ -367,8 +369,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # using the implicit link serialization.
         if model is None:
             if self.velocity_representation is not VelRepr.Inertial:
-                msg = "Missing model to use a representation different from {}"
-                raise ValueError(msg.format(VelRepr.Inertial.name))
+                raise ValueError(
+                    "Missing model to use a representation different from `VelRepr.Inertial`"
+                )
 
             if link_names is not None:
                 raise ValueError("Link names cannot be provided without a model")
@@ -413,8 +416,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             )
 
         if data is None:
-            msg = "Missing model data to use a representation different from {}"
-            raise ValueError(msg.format(VelRepr.Inertial.name))
+            raise ValueError(
+                "Missing model data to use a representation different from `VelRepr.Inertial`"
+            )
 
         if not_tracing(forces) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")

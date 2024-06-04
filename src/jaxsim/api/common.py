@@ -7,7 +7,6 @@ from typing import ClassVar, ContextManager
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
-from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint
@@ -36,7 +35,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
     Base class for model data structures with velocity representation.
     """
 
-    velocity_representation: Static[VelRepr] = dataclasses.field(
+    velocity_representation: VelRepr = dataclasses.field(
         default=VelRepr.Inertial, kw_only=True
     )
 

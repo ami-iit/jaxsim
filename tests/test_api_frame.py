@@ -82,7 +82,7 @@ def test_frame_transforms(
 
     assert len(frame_indices) == len(frame_names)
 
-    for frame_name, frame_idx in zip(frame_names, frame_indices):
+    for frame_name in frame_names:
 
         W_H_F_js = js.frame.transform(
             model=model,

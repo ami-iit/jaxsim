@@ -53,7 +53,11 @@ def test_com_properties(
     assert pytest.approx(v_avg_com_idt) == v_avg_com_js
 
     # https://github.com/ami-iit/jaxsim/pull/117#discussion_r1535486123
-    if data.velocity_representation is not VelRepr.Body:
+    with data.switch_velocity_representation(
+        data.velocity_representation
+        if data.velocity_representation != VelRepr.Body
+        else VelRepr.Mixed
+    ):
         vl_com_idt = kin_dyn.com_velocity()
         vl_com_js = js.com.com_linear_velocity(model=model, data=data)
         assert pytest.approx(vl_com_idt) == vl_com_js
@@ -61,7 +65,7 @@ def test_com_properties(
     # iDynTree provides the bias acceleration in G[W] frame regardless of the velocity
     # representation. JaxSim, instead, returns the bias acceleration in G[B] when the
     # active representation is VelRepr.Body.
-    if data.velocity_representation is not VelRepr.Body:
+    if data.velocity_representation != VelRepr.Body:
         G_v̇_bias_WG_idt = kin_dyn.com_bias_acceleration()
         G_v̇_bias_WG_js = js.com.bias_acceleration(model=model, data=data)
         assert pytest.approx(G_v̇_bias_WG_idt) == G_v̇_bias_WG_js

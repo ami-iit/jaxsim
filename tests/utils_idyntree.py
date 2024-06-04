@@ -118,7 +118,7 @@ def store_jaxsim_data_in_kindyncomputations(
 class KinDynComputations:
     """High-level wrapper of the iDynTree KinDynComputations class."""
 
-    vel_repr: VelRepr
+    vel_repr: int
     gravity: npt.NDArray
     kin_dyn: idt.KinDynComputations
 
@@ -126,7 +126,7 @@ class KinDynComputations:
     def build(
         urdf: pathlib.Path | str,
         considered_joints: list[str] | None = None,
-        vel_repr: VelRepr = VelRepr.Inertial,
+        vel_repr: int = VelRepr.Inertial,
         gravity: npt.NDArray = np.array([0, 0, -10.0]),
         removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
     ) -> KinDynComputations:

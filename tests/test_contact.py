@@ -7,7 +7,7 @@ from jaxsim import VelRepr
 
 def test_collidable_point_jacobians(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 

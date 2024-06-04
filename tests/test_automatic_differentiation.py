@@ -26,7 +26,7 @@ AD_ORDER = os.environ.get("JAXSIM_TEST_AD_ORDER", 1)
 
 def get_random_data_and_references(
     model: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     key: jax.Array,
 ) -> tuple[js.data.JaxSimModelData, js.references.JaxSimModelReferences]:
 

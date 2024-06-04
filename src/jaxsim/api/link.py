@@ -11,8 +11,6 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 
-from .common import VelRepr
-
 # =======================
 # Index-related functions
 # =======================
@@ -210,7 +208,7 @@ def jacobian(
     data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Matrix:
     """
     Compute the free-floating jacobian of the link.
@@ -313,7 +311,7 @@ def velocity(
     data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Vector:
     """
     Compute the 6D velocity of the link.

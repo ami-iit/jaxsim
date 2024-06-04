@@ -221,7 +221,7 @@ def test_model_creation_and_reduction(
 
 def test_model_properties(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 
@@ -268,7 +268,7 @@ def test_model_properties(
 def test_model_rbda(
     jaxsim_models_types: js.model.JaxSimModel,
     prng_key: jax.Array,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
 ):
 
     model = jaxsim_models_types
@@ -479,7 +479,7 @@ def test_coriolis_matrix(
 
 def test_model_fd_id_consistency(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 

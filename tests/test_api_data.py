@@ -21,7 +21,7 @@ def test_data_valid(
 
 def test_data_joint_indexing(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 

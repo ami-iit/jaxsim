@@ -10,7 +10,7 @@ from jaxsim import VelRepr
 
 def test_box_with_external_forces(
     jaxsim_model_box: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
 ):
     """
     This test simulates a box falling due to gravity.

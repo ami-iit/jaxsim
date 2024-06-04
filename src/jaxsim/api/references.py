@@ -202,17 +202,22 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         if not_tracing(self.input.physics_model.f_ext) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
 
-        # Helper function to convert a single 6D force to the active representation.
-        def convert(f_L: jtp.Vector) -> jtp.Vector:
-            return JaxSimModelReferences.inertial_to_other_representation(
-                array=f_L,
-                other_representation=self.velocity_representation,
-                transform=data.base_transform(),
-                is_force=True,
-            )
+        # Helper function to convert a single 6D force to the active representation
+        # considering as body the link (i.e. L_f_L and LW_f_L).
+        def convert(W_f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike) -> jtp.Matrix:
 
-        # Convert to the desired representation.
-        f_L = jax.vmap(convert)(W_f_L[link_idxs, :])
+            return jax.vmap(
+                lambda W_f_L, W_H_L: JaxSimModelReferences.inertial_to_other_representation(
+                    array=W_f_L,
+                    other_representation=self.velocity_representation,
+                    transform=W_H_L,
+                    is_force=True,
+                )
+            )(W_f_L, W_H_L)
+
+        # The f_L output is either L_f_L or LW_f_L, depending on the representation.
+        W_H_L = js.model.forward_kinematics(model=model, data=data)
+        f_L = convert(W_f_L=W_f_L[link_idxs, :], W_H_L=W_H_L[link_idxs, :, :])
 
         return f_L
 

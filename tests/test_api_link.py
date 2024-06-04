@@ -147,9 +147,8 @@ def test_link_jacobians(
         ), link_name
 
     # The following is true only in inertial-fixed representation.
-    if data.velocity_representation is VelRepr.Inertial:
-        J_WL_model = js.model.generalized_free_floating_jacobian(model=model, data=data)
-        assert J_WL_model == pytest.approx(J_WL_links)
+    J_WL_model = js.model.generalized_free_floating_jacobian(model=model, data=data)
+    assert J_WL_model == pytest.approx(J_WL_links)
 
     for link_name, link_idx in zip(
         model.link_names(),

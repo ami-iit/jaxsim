@@ -80,7 +80,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                 self.velocity_representation = original_representation
 
     @staticmethod
-    @functools.partial(jax.jit, static_argnames=["other_representation", "is_force"])
+    @functools.partial(jax.jit, static_argnames=["is_force"])
     def inertial_to_other_representation(
         array: jtp.Array,
         other_representation: VelRepr,
@@ -112,42 +112,40 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         if W_H_O.shape != (4, 4):
             raise ValueError(W_H_O.shape, (4, 4))
 
-        match other_representation:
+        def to_inertial():
+            return W_array
 
-            case VelRepr.Inertial:
-                return W_array
+        def to_body():
+            if not is_force:
+                O_Xv_W = Adjoint.from_transform(transform=W_H_O, inverse=True)
+                O_array = O_Xv_W @ W_array
+            else:
+                O_Xf_W = Adjoint.from_transform(transform=W_H_O).T
+                O_array = O_Xf_W @ W_array
+            return O_array
 
-            case VelRepr.Body:
+        def to_mixed():
+            W_p_O = W_H_O[0:3, 3]
+            W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
+            if not is_force:
+                OW_Xv_W = Adjoint.from_transform(transform=W_H_OW, inverse=True)
+                OW_array = OW_Xv_W @ W_array
+            else:
+                OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).T
+                OW_array = OW_Xf_W @ W_array
+            return OW_array
 
-                if not is_force:
-                    O_Xv_W = Adjoint.from_transform(transform=W_H_O, inverse=True)
-                    O_array = O_Xv_W @ W_array
-
-                else:
-                    O_Xf_W = Adjoint.from_transform(transform=W_H_O).T
-                    O_array = O_Xf_W @ W_array
-
-                return O_array
-
-            case VelRepr.Mixed:
-                W_p_O = W_H_O[0:3, 3]
-                W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
-
-                if not is_force:
-                    OW_Xv_W = Adjoint.from_transform(transform=W_H_OW, inverse=True)
-                    OW_array = OW_Xv_W @ W_array
-
-                else:
-                    OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).T
-                    OW_array = OW_Xf_W @ W_array
-
-                return OW_array
-
-            case _:
-                raise ValueError(other_representation)
+        return jax.lax.switch(
+            index=other_representation,
+            branches=(
+                to_body,  # VelRepr.Body
+                to_mixed,  # VelRepr.Mixed
+                to_inertial,  # VelRepr.Inertial
+            ),
+        )
 
     @staticmethod
-    @functools.partial(jax.jit, static_argnames=["other_representation", "is_force"])
+    @functools.partial(jax.jit, static_argnames=["is_force"])
     def other_representation_to_inertial(
         array: jtp.Array,
         other_representation: VelRepr,
@@ -179,38 +177,43 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         if W_H_O.shape != (4, 4):
             raise ValueError(W_H_O.shape, (4, 4))
 
-        match other_representation:
-            case VelRepr.Inertial:
-                W_array = array
-                return W_array
+        def from_inertial():
+            W_array = array
+            return W_array
 
-            case VelRepr.Body:
-                O_array = array
+        def from_body():
+            O_array = array
 
-                if not is_force:
-                    W_Xv_O: jtp.Array = Adjoint.from_transform(W_H_O)
-                    W_array = W_Xv_O @ O_array
+            if not is_force:
+                W_Xv_O = Adjoint.from_transform(W_H_O)
+                W_array = W_Xv_O @ O_array
 
-                else:
-                    W_Xf_O = Adjoint.from_transform(transform=W_H_O, inverse=True).T
-                    W_array = W_Xf_O @ O_array
+            else:
+                W_Xf_O = Adjoint.from_transform(transform=W_H_O, inverse=True).T
+                W_array = W_Xf_O @ O_array
 
-                return W_array
+            return W_array
 
-            case VelRepr.Mixed:
-                BW_array = array
-                W_p_O = W_H_O[0:3, 3]
-                W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
+        def from_mixed():
+            BW_array = array
+            W_p_O = W_H_O[0:3, 3]
+            W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
-                if not is_force:
-                    W_Xv_BW: jtp.Array = Adjoint.from_transform(W_H_OW)
-                    W_array = W_Xv_BW @ BW_array
+            if not is_force:
+                W_Xv_BW = Adjoint.from_transform(W_H_OW)
+                W_array = W_Xv_BW @ BW_array
 
-                else:
-                    W_Xf_BW = Adjoint.from_transform(transform=W_H_OW, inverse=True).T
-                    W_array = W_Xf_BW @ BW_array
+            else:
+                W_Xf_BW = Adjoint.from_transform(transform=W_H_OW, inverse=True).T
+                W_array = W_Xf_BW @ BW_array
 
-                return W_array
+            return W_array
 
-            case _:
-                raise ValueError(other_representation)
+        return jax.lax.switch(
+            index=other_representation,
+            branches=(
+                from_body,  # VelRepr.Body
+                from_mixed,  # VelRepr.Mixed
+                from_inertial,  # VelRepr.Inertial
+            ),
+        )

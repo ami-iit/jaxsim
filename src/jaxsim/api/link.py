@@ -9,7 +9,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import exceptions
-from jaxsim.math import Adjoint
+from jaxsim.math import Adjoint, Transform
 
 from .common import VelRepr
 
@@ -284,53 +284,66 @@ def jacobian(
     B_J_WL_B = jnp.hstack([jnp.ones(5), κb]) * B_J_full_WX_B
 
     # Adjust the input representation such that `J_WL_I @ I_ν`.
-    match data.velocity_representation:
-        case VelRepr.Inertial:
-            W_H_B = data.base_transform()
-            B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
-            B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
-                B_X_W, jnp.eye(model.dofs())
-            )
+    def to_inertial() -> jtp.Matrix:
+        W_H_B = data.base_transform()
+        B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
+        B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
+            B_X_W, jnp.eye(model.dofs())
+        )
+        return B_J_WL_W
 
-        case VelRepr.Body:
-            B_J_WL_I = B_J_WL_B
+    def to_body() -> jtp.Matrix:
+        return B_J_WL_B
 
-        case VelRepr.Mixed:
-            W_R_B = data.base_orientation(dcm=True)
-            BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
-            B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
-            B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
-                B_X_BW, jnp.eye(model.dofs())
-            )
+    def to_mixed() -> jtp.Matrix:
+        W_R_B = data.base_orientation(dcm=True)
+        BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
+        B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
+        B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
+            B_X_BW, jnp.eye(model.dofs())
+        )
+        return B_J_WL_BW
 
-        case _:
-            raise ValueError(data.velocity_representation)
+    B_J_WL_I = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_mixed,  # VelRepr.Mixed
+            to_inertial,  # VelRepr.Inertial
+        ),
+    )
 
     B_H_L = B_H_Li[link_index]
 
+    def to_inertial() -> jtp.Matrix:
+        W_H_B = data.base_transform()
+        W_X_B = Adjoint.from_transform(transform=W_H_B)
+        W_J_WL_I = W_X_B @ B_J_WL_I
+        return W_J_WL_I
+
+    def to_body() -> jtp.Matrix:
+        L_X_B = Adjoint.from_transform(transform=B_H_L, inverse=True)
+        L_J_WL_I = L_X_B @ B_J_WL_I
+        return L_J_WL_I
+
+    def to_mixed() -> jtp.Matrix:
+        W_H_B = data.base_transform()
+        W_H_L = W_H_B @ B_H_L
+        LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
+        LW_H_B = LW_H_L @ Transform.inverse(B_H_L)
+        LW_X_B = Adjoint.from_transform(transform=LW_H_B)
+        LW_J_WL_I = LW_X_B @ B_J_WL_I
+        return LW_J_WL_I
+
     # Adjust the output representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
-    match output_vel_repr:
-        case VelRepr.Inertial:
-            W_H_B = data.base_transform()
-            W_X_B = Adjoint.from_transform(transform=W_H_B)
-            O_J_WL_I = W_J_WL_I = W_X_B @ B_J_WL_I  # noqa: F841
-
-        case VelRepr.Body:
-            L_X_B = Adjoint.from_transform(transform=B_H_L, inverse=True)
-            L_J_WL_I = L_X_B @ B_J_WL_I
-            O_J_WL_I = L_J_WL_I
-
-        case VelRepr.Mixed:
-            W_H_B = data.base_transform()
-            W_H_L = W_H_B @ B_H_L
-            LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
-            LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
-            LW_X_B = Adjoint.from_transform(transform=LW_H_B)
-            LW_J_WL_I = LW_X_B @ B_J_WL_I
-            O_J_WL_I = LW_J_WL_I
-
-        case _:
-            raise ValueError(output_vel_repr)
+    O_J_WL_I = jax.lax.switch(
+        index=output_vel_repr,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_mixed,  # VelRepr.Mixed
+            to_inertial,  # VelRepr.Inertial
+        ),
+    )
 
     return O_J_WL_I
 
@@ -445,7 +458,7 @@ def jacobian_derivative(
     def from_inertial() -> jtp.Matrix:
 
         W_H_B = data.base_transform()
-        B_X_W = jaxsim.math.Adjoint.from_transform(transform=W_H_B, inverse=True)
+        B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
 
         with data.switch_velocity_representation(VelRepr.Inertial):
             W_v_WB = data.base_velocity()
@@ -459,7 +472,7 @@ def jacobian_derivative(
 
     def from_body() -> jtp.Matrix:
 
-        B_X_B = jaxsim.math.Adjoint.from_rotation_and_translation(
+        B_X_B = Adjoint.from_rotation_and_translation(
             translation=jnp.zeros(3), rotation=jnp.eye(3)
         )
 
@@ -474,7 +487,7 @@ def jacobian_derivative(
     def from_mixed() -> jtp.Matrix:
 
         BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
-        B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
+        B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
         with data.switch_velocity_representation(VelRepr.Mixed):
             BW_v_WB = data.base_velocity()
@@ -505,7 +518,7 @@ def jacobian_derivative(
     def to_inertial() -> jtp.Matrix:
 
         W_H_B = data.base_transform()
-        O_X_B = W_X_B = jaxsim.math.Adjoint.from_transform(transform=W_H_B)
+        O_X_B = W_X_B = Adjoint.from_transform(transform=W_H_B)
 
         with data.switch_velocity_representation(VelRepr.Body):
             B_v_WB = data.base_velocity()
@@ -515,11 +528,11 @@ def jacobian_derivative(
 
     def to_body() -> jtp.Matrix:
 
-        O_X_B = L_X_B = jaxsim.math.Adjoint.from_transform(
+        O_X_B = L_X_B = Adjoint.from_transform(
             transform=B_H_L[link_index, :, :], inverse=True
         )
 
-        B_X_L = jaxsim.math.Adjoint.inverse(adjoint=L_X_B)
+        B_X_L = Adjoint.inverse(adjoint=L_X_B)
 
         with data.switch_velocity_representation(VelRepr.Body):
             B_v_WB = data.base_velocity()
@@ -535,11 +548,11 @@ def jacobian_derivative(
         W_H_B = data.base_transform()
         W_H_L = W_H_B @ B_H_L[link_index, :, :]
         LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
-        LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L[link_index, :, :])
+        LW_H_B = LW_H_L @ Transform.inverse(B_H_L[link_index, :, :])
 
-        O_X_B = LW_X_B = jaxsim.math.Adjoint.from_transform(transform=LW_H_B)
+        O_X_B = LW_X_B = Adjoint.from_transform(transform=LW_H_B)
 
-        B_X_LW = jaxsim.math.Adjoint.inverse(adjoint=LW_X_B)
+        B_X_LW = Adjoint.inverse(adjoint=LW_X_B)
 
         with data.switch_velocity_representation(VelRepr.Body):
             B_v_WB = data.base_velocity()

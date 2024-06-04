@@ -8,7 +8,6 @@ import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import jaxlie
-from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass, Mutability
@@ -36,7 +35,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
     Base class for model data structures with velocity representation.
     """
 
-    velocity_representation: Static[VelRepr] = dataclasses.field(
+    velocity_representation: VelRepr = dataclasses.field(
         default=VelRepr.Inertial, kw_only=True
     )
 

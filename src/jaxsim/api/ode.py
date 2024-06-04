@@ -113,7 +113,7 @@ def system_velocity_dynamics(
     ).astype(float)
 
     # Build link forces if not provided
-    W_f_L = (
+    O_f_L = (
         jnp.atleast_2d(link_forces.squeeze())
         if link_forces is not None
         else jnp.zeros((model.number_of_links(), 6))
@@ -125,7 +125,7 @@ def system_velocity_dynamics(
 
     # Initialize the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
     # with the terrain.
-    W_f_Li_terrain = jnp.zeros_like(W_f_L).astype(float)
+    W_f_Li_terrain = jnp.zeros_like(O_f_L).astype(float)
 
     # Initialize the 6D contact forces W_f ∈ ℝ^{n_c × 6} applied to collidable points,
     # expressed in the world frame.
@@ -183,7 +183,7 @@ def system_velocity_dynamics(
 
         # Compute the joint friction torque
         τ_friction = -(
-            jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_positions)
+            jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_velocities)
             + jnp.diag(kv) @ data.state.physics_model.joint_velocities
         )
 
@@ -193,6 +193,17 @@ def system_velocity_dynamics(
 
     # Compute the total joint forces
     τ_total = τ + τ_friction + τ_position_limit
+
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        joint_force_references=τ_total,
+        link_forces=O_f_L,
+        data=data,
+        velocity_representation=data.velocity_representation,
+    )
+
+    with references.switch_velocity_representation(VelRepr.Inertial):
+        W_f_L = references.link_forces(model=model, data=data)
 
     # Compute the total external 6D forces applied to the links
     W_f_L_total = W_f_L + W_f_Li_terrain

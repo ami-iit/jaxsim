@@ -87,7 +87,8 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         array: jtp.Array,
         other_representation: VelRepr,
         transform: jtp.Matrix,
-        is_force: bool = False,
+        *,
+        is_force: bool,
     ) -> jtp.Array:
         r"""
         Convert a 6D quantity from inertial-fixed to another representation.
@@ -153,7 +154,8 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         array: jtp.Array,
         other_representation: VelRepr,
         transform: jtp.Matrix,
-        is_force: bool = False,
+        *,
+        is_force: bool,
     ) -> jtp.Array:
         r"""
         Convert a 6D quantity from another representation to inertial-fixed.

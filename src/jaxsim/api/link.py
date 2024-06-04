@@ -245,53 +245,64 @@ def jacobian(
     B_J_WL_B = jnp.hstack([jnp.ones(5), κb]) * B_J_full_WX_B
 
     # Adjust the input representation such that `J_WL_I @ I_ν`.
-    match data.velocity_representation:
-        case VelRepr.Inertial:
-            W_H_B = data.base_transform()
-            B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
-            B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(
-                B_X_W, jnp.eye(model.dofs())
-            )
+    def to_inertial() -> jtp.Matrix:
+        W_H_B = data.base_transform()
+        B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+        B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+        return B_J_WL_W
 
-        case VelRepr.Body:
-            B_J_WL_I = B_J_WL_B
+    def to_body() -> jtp.Matrix:
+        return B_J_WL_B
 
-        case VelRepr.Mixed:
-            W_R_B = data.base_orientation(dcm=True)
-            BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
-            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
-            B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(
-                B_X_BW, jnp.eye(model.dofs())
-            )
+    def to_mixed() -> jtp.Matrix:
+        W_R_B = data.base_orientation(dcm=True)
+        BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
+        B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+        B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(
+            B_X_BW, jnp.eye(model.dofs())
+        )
+        return B_J_WL_BW
 
-        case _:
-            raise ValueError(data.velocity_representation)
+    B_J_WL_I = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_mixed,  # VelRepr.Mixed
+            to_inertial,  # VelRepr.Inertial
+        ),
+    )
 
     B_H_L = B_H_Li[link_index]
 
+    def to_inertial() -> jtp.Matrix:
+        W_H_B = data.base_transform()
+        W_X_B = jaxlie.SE3.from_matrix(W_H_B).adjoint()
+        W_J_WL_I = W_X_B @ B_J_WL_I
+        return W_J_WL_I
+
+    def to_body() -> jtp.Matrix:
+        L_X_B = jaxlie.SE3.from_matrix(B_H_L).inverse().adjoint()
+        L_J_WL_I = L_X_B @ B_J_WL_I
+        return L_J_WL_I
+
+    def to_mixed() -> jtp.Matrix:
+        W_H_B = data.base_transform()
+        W_H_L = W_H_B @ B_H_L
+        LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
+        LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
+        LW_X_B = jaxlie.SE3.from_matrix(LW_H_B).adjoint()
+        LW_J_WL_I = LW_X_B @ B_J_WL_I
+        return LW_J_WL_I
+
     # Adjust the output representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
-    match output_vel_repr:
-        case VelRepr.Inertial:
-            W_H_B = data.base_transform()
-            W_X_B = jaxlie.SE3.from_matrix(W_H_B).adjoint()
-            O_J_WL_I = W_J_WL_I = W_X_B @ B_J_WL_I
-
-        case VelRepr.Body:
-            L_X_B = jaxlie.SE3.from_matrix(B_H_L).inverse().adjoint()
-            L_J_WL_I = L_X_B @ B_J_WL_I
-            O_J_WL_I = L_J_WL_I
-
-        case VelRepr.Mixed:
-            W_H_B = data.base_transform()
-            W_H_L = W_H_B @ B_H_L
-            LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
-            LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
-            LW_X_B = jaxlie.SE3.from_matrix(LW_H_B).adjoint()
-            LW_J_WL_I = LW_X_B @ B_J_WL_I
-            O_J_WL_I = LW_J_WL_I
-
-        case _:
-            raise ValueError(output_vel_repr)
+    O_J_WL_I = jax.lax.switch(
+        index=output_vel_repr,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_mixed,  # VelRepr.Mixed
+            to_inertial,  # VelRepr.Inertial
+        ),
+    )
 
     return O_J_WL_I
 

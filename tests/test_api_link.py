@@ -147,9 +147,8 @@ def test_link_jacobians(
         ), link_name
 
     # The following is true only in inertial-fixed representation.
-    if data.velocity_representation is VelRepr.Inertial:
-        J_WL_model = js.model.generalized_free_floating_jacobian(model=model, data=data)
-        assert J_WL_model == pytest.approx(J_WL_links)
+    J_WL_model = js.model.generalized_free_floating_jacobian(model=model, data=data)
+    assert J_WL_model == pytest.approx(J_WL_links)
 
     for link_name, link_idx in zip(
         model.link_names(),
@@ -158,6 +157,28 @@ def test_link_jacobians(
         v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
         v_WL_js = js.link.velocity(model=model, data=data, link_index=link_idx)
         assert v_WL_js == pytest.approx(v_WL_idt), link_name
+
+    # Test conversion to a different output velocity representation.
+    for other_repr in {VelRepr.Inertial, VelRepr.Body, VelRepr.Mixed}.difference(
+        {data.velocity_representation}
+    ):
+
+        with data.switch_velocity_representation(other_repr):
+            kin_dyn_other_repr = (
+                utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+                    model=model, data=data
+                )
+            )
+
+        for link_name, link_idx in zip(
+            model.link_names(),
+            js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        ):
+            v_WL_idt = kin_dyn_other_repr.frame_velocity(frame_name=link_name)
+            v_WL_js = js.link.velocity(
+                model=model, data=data, link_index=link_idx, output_vel_repr=other_repr
+            )
+            assert v_WL_js == pytest.approx(v_WL_idt), link_name
 
 
 def test_link_bias_acceleration(

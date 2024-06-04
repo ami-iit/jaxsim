@@ -281,6 +281,24 @@ class PhysicsModelState(JaxsimDataclass):
         default_factory=lambda: jnp.zeros(3)
     )
 
+    def __hash__(self) -> int:
+
+        return hash(
+            (
+                hash(tuple(jnp.atleast_1d(self.joint_positions.flatten().tolist()))),
+                hash(tuple(jnp.atleast_1d(self.joint_velocities.flatten().tolist()))),
+                hash(tuple(self.base_position.flatten().tolist())),
+                hash(tuple(self.base_quaternion.flatten().tolist())),
+            )
+        )
+
+    def __eq__(self, other: PhysicsModelState) -> bool:
+
+        if not isinstance(other, PhysicsModelState):
+            return False
+
+        return hash(self) == hash(other)
+
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
@@ -592,6 +610,19 @@ class SoftContactsState(JaxsimDataclass):
     """
 
     tangential_deformation: jtp.Matrix
+
+    def __hash__(self) -> int:
+
+        return hash(
+            tuple(jnp.atleast_1d(self.tangential_deformation.flatten()).tolist())
+        )
+
+    def __eq__(self, other: SoftContactsState) -> bool:
+
+        if not isinstance(other, SoftContactsState):
+            return False
+
+        return hash(self) == hash(other)
 
     @staticmethod
     def build_from_jaxsim_model(

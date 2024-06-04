@@ -11,7 +11,7 @@ from jax_dataclasses import Static
 import jaxsim.typing as jtp
 from jaxsim.math import Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, ModelDescription
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
@@ -32,8 +32,8 @@ class KynDynParameters(JaxsimDataclass):
 
     # Static
     link_names: Static[tuple[str]]
-    parent_array: Static[jtp.Vector]
-    support_body_array_bool: Static[jtp.Matrix]
+    _parent_array: Static[HashedNumpyArray]
+    _support_body_array_bool: Static[HashedNumpyArray]
 
     # Links
     link_parameters: LinkParameters
@@ -44,6 +44,14 @@ class KynDynParameters(JaxsimDataclass):
     # Joints
     joint_model: JointModel
     joint_parameters: JointParameters | None
+
+    @property
+    def parent_array(self) -> jtp.Vector:
+        return self._parent_array.get()
+
+    @property
+    def support_body_array_bool(self) -> jtp.Matrix:
+        return self._support_body_array_bool.get()
 
     @staticmethod
     def build(model_description: ModelDescription) -> KynDynParameters:
@@ -191,8 +199,8 @@ class KynDynParameters(JaxsimDataclass):
 
         return KynDynParameters(
             link_names=tuple(l.name for l in ordered_links),
-            parent_array=parent_array,
-            support_body_array_bool=support_body_array_bool,
+            _parent_array=HashedNumpyArray(array=parent_array),
+            _support_body_array_bool=HashedNumpyArray(array=support_body_array_bool),
             link_parameters=link_parameters,
             joint_model=joint_model,
             joint_parameters=joint_parameters,
@@ -204,22 +212,17 @@ class KynDynParameters(JaxsimDataclass):
         if not isinstance(other, KynDynParameters):
             return False
 
-        equal = True
-        equal = equal and self.number_of_links() == other.number_of_links()
-        equal = equal and self.number_of_joints() == other.number_of_joints()
-        equal = equal and jnp.allclose(self.parent_array, other.parent_array)
-
-        return equal
+        return hash(self) == hash(other)
 
     def __hash__(self) -> int:
 
-        h = (
-            hash(self.number_of_links()),
-            hash(self.number_of_joints()),
-            hash(tuple(self.parent_array.tolist())),
+        return hash(
+            (
+                hash(self.number_of_links()),
+                hash(self.number_of_joints()),
+                hash(tuple(jnp.atleast_1d(self.parent_array).flatten().tolist())),
+            )
         )
-
-        return hash(h)
 
     # =============================
     # Helpers to extract parameters
@@ -388,7 +391,7 @@ class KynDynParameters(JaxsimDataclass):
             pre_H_suc_J, S_J = jax.vmap(supported_joint_motion)(
                 jnp.array(self.joint_model.joint_types[1:]).astype(int),
                 jnp.array(joint_positions),
-                jnp.array(self.joint_model.joint_axis),
+                jnp.array([j.axis for j in self.joint_model.joint_axis]),
             )
 
         # Extract the transforms and motion subspaces of the joints.

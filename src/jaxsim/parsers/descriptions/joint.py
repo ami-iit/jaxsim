@@ -30,9 +30,11 @@ class JointGenericAxis:
     axis: jtp.Vector
 
     def __hash__(self) -> int:
-        return hash((tuple(np.array(self.axis).tolist())))
+
+        return hash(tuple(self.axis.tolist()))
 
     def __eq__(self, other: JointGenericAxis) -> bool:
+
         if not isinstance(other, JointGenericAxis):
             return False
 

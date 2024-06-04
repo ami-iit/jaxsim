@@ -126,9 +126,7 @@ class KinDynComputations:
         urdf: pathlib.Path | str,
         considered_joints: list[str] = None,
         vel_repr: VelRepr = VelRepr.Inertial,
-        gravity: npt.NDArray = dataclasses.field(
-            default_factory=lambda: np.array([0, 0, -10.0])
-        ),
+        gravity: npt.NDArray = np.array([0, 0, -10.0]),
         removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
     ) -> KinDynComputations:
 

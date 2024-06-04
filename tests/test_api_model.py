@@ -77,15 +77,14 @@ def test_model_creation_and_reduction(
     model_reduced = js.model.reduce(
         model=model_full,
         considered_joints=reduced_joints,
-        locked_joint_positions={
-            name: pos
-            for name, pos in zip(
+        locked_joint_positions=dict(
+            zip(
                 model_full.joint_names(),
                 data_full.joint_positions(
                     model=model_full, joint_names=model_full.joint_names()
                 ).tolist(),
             )
-        },
+        ),
     )
 
     # Check DoFs.

@@ -60,13 +60,12 @@ def build_kindyncomputations_from_jaxsim_model(
     removed_joint_positions = removed_joint_positions_default | (
         removed_joint_positions
         if removed_joint_positions is not None
-        else {
-            name: pos
-            for name, pos in zip(
+        else dict(
+            zip(
                 model.joint_names(),
                 data.joint_positions(model=model, joint_names=model.joint_names()),
             )
-        }
+        )
     )
 
     # Create the KinDynComputations from the same URDF model.

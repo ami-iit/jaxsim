@@ -93,6 +93,9 @@ def test_model_creation_and_reduction(
     # Check that all non-fixed joints are in the reduced model.
     assert set(reduced_joints) == set(model_reduced.joint_names())
 
+    # Check that the reduce model maintain the same terrain of the full model.
+    assert model_full.terrain == model_reduced.terrain
+
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,

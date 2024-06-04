@@ -338,6 +338,7 @@ def reduce(
     reduced_model = JaxSimModel.build(
         model_description=reduced_intermediate_description,
         model_name=model.name(),
+        terrain=model.terrain,
     )
 
     # Store the origin of the model, in case downstream logic needs it

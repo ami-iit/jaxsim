@@ -422,7 +422,7 @@ def bias_acceleration(
         # G := G[B] = (W_p_CoM, [B])
 
         GB_Xf_W = Adjoint.from_transform(
-            transform=data.base_transform().at[0:3].set(W_p_CoM)
+            transform=data.base_transform().at[0:3, 3].set(W_p_CoM)
         ).T
 
         GB_ḣ_bias = GB_Xf_W @ W_ḣ_bias

@@ -136,13 +136,22 @@ def centroidal_momentum_jacobian(
 
     W_p_CoM = com_position(model=model, data=data)
 
-    match data.velocity_representation:
-        case VelRepr.Inertial | VelRepr.Mixed:
-            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
-        case VelRepr.Body:
-            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
-        case _:
-            raise ValueError(data.velocity_representation)
+    def to_inertial_and_mixed():
+        W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+        return W_H_GW
+
+    def to_body():
+        W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
+        return W_H_GB
+
+    W_H_G = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_inertial_and_mixed,  # VelRepr.Mixed
+            to_inertial_and_mixed,  # VelRepr.Inertial
+        ),
+    )
 
     # Compute the transform for 6D forces.
     G_Xf_B = jaxsim.math.Adjoint.from_transform(transform=B_H_W @ W_H_G).T
@@ -171,13 +180,22 @@ def locked_centroidal_spatial_inertia(
     W_H_B = data.base_transform()
     W_p_CoM = com_position(model=model, data=data)
 
-    match data.velocity_representation:
-        case VelRepr.Inertial | VelRepr.Mixed:
-            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
-        case VelRepr.Body:
-            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
-        case _:
-            raise ValueError(data.velocity_representation)
+    def to_inertial_or_mixed() -> jtp.Matrix:
+        W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+        return W_H_GW
+
+    def to_body() -> jtp.Matrix:
+        W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
+        return W_H_GB
+
+    W_H_G = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_inertial_or_mixed,  # VelRepr.Mixed
+            to_inertial_or_mixed,  # VelRepr.Inertial
+        ),
+    )
 
     B_H_G = jaxlie.SE3.from_matrix(jaxsim.math.Transform.inverse(W_H_B) @ W_H_G)
 
@@ -282,74 +300,81 @@ def bias_acceleration(
         L_v̇_WL = L_X_C @ (C_v̇_WL + jaxsim.math.Cross.vx(C_X_L @ L_v_LC) @ C_v_WC)
         return L_v̇_WL
 
+    def to_body() -> jtp.Vector:
+        L_a_bias_WL = v̇_bias_WL
+        return L_a_bias_WL
+
+    def to_inertial() -> jtp.Vector:
+
+        C_v̇_WL = W_v̇_bias_WL = v̇_bias_WL
+        C_v_WC = W_v_WW = jnp.zeros(6)
+
+        L_H_C = L_H_W = jax.vmap(lambda W_H_L: jaxsim.math.Transform.inverse(W_H_L))(
+            W_H_L
+        )
+
+        L_v_LC = L_v_LW = jax.vmap(
+            lambda i: -js.link.velocity(
+                model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
+            )
+        )(jnp.arange(model.number_of_links()))
+
+        L_a_bias_WL = jax.vmap(
+            lambda i: other_representation_to_body(
+                C_v̇_WL=C_v̇_WL[i],
+                C_v_WC=C_v_WC,
+                L_H_C=L_H_C[i],
+                L_v_LC=L_v_LC[i],
+            )
+        )(jnp.arange(model.number_of_links()))
+        return L_a_bias_WL
+
+    def to_mixed() -> jtp.Vector:
+
+        C_v̇_WL = LW_v̇_bias_WL = v̇_bias_WL
+
+        C_v_WC = LW_v_W_LW = jax.vmap(
+            lambda i: js.link.velocity(
+                model=model, data=data, link_index=i, output_vel_repr=VelRepr.Mixed
+            )
+            .at[3:6]
+            .set(jnp.zeros(3))
+        )(jnp.arange(model.number_of_links()))
+
+        L_H_C = L_H_LW = jax.vmap(
+            lambda W_H_L: jaxsim.math.Transform.inverse(
+                W_H_L.at[0:3, 3].set(jnp.zeros(3))
+            )
+        )(W_H_L)
+
+        L_v_LC = L_v_L_LW = jax.vmap(
+            lambda i: -js.link.velocity(
+                model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
+            )
+            .at[0:3]
+            .set(jnp.zeros(3))
+        )(jnp.arange(model.number_of_links()))
+
+        L_a_bias_WL = jax.vmap(
+            lambda i: other_representation_to_body(
+                C_v̇_WL=C_v̇_WL[i],
+                C_v_WC=C_v_WC[i],
+                L_H_C=L_H_C[i],
+                L_v_LC=L_v_LC[i],
+            )
+        )(jnp.arange(model.number_of_links()))
+        return L_a_bias_WL
+
     # We need here to get the body-fixed bias acceleration of the links.
     # Since it's computed in the active representation, we need to convert it to body.
-    match data.velocity_representation:
-
-        case VelRepr.Body:
-            L_a_bias_WL = v̇_bias_WL
-
-        case VelRepr.Inertial:
-
-            C_v̇_WL = W_v̇_bias_WL = v̇_bias_WL
-            C_v_WC = W_v_WW = jnp.zeros(6)
-
-            L_H_C = L_H_W = jax.vmap(
-                lambda W_H_L: jaxsim.math.Transform.inverse(W_H_L)
-            )(W_H_L)
-
-            L_v_LC = L_v_LW = jax.vmap(
-                lambda i: -js.link.velocity(
-                    model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
-                )
-            )(jnp.arange(model.number_of_links()))
-
-            L_a_bias_WL = jax.vmap(
-                lambda i: other_representation_to_body(
-                    C_v̇_WL=C_v̇_WL[i],
-                    C_v_WC=C_v_WC,
-                    L_H_C=L_H_C[i],
-                    L_v_LC=L_v_LC[i],
-                )
-            )(jnp.arange(model.number_of_links()))
-
-        case VelRepr.Mixed:
-
-            C_v̇_WL = LW_v̇_bias_WL = v̇_bias_WL
-
-            C_v_WC = LW_v_W_LW = jax.vmap(
-                lambda i: js.link.velocity(
-                    model=model, data=data, link_index=i, output_vel_repr=VelRepr.Mixed
-                )
-                .at[3:6]
-                .set(jnp.zeros(3))
-            )(jnp.arange(model.number_of_links()))
-
-            L_H_C = L_H_LW = jax.vmap(
-                lambda W_H_L: jaxsim.math.Transform.inverse(
-                    W_H_L.at[0:3, 3].set(jnp.zeros(3))
-                )
-            )(W_H_L)
-
-            L_v_LC = L_v_L_LW = jax.vmap(
-                lambda i: -js.link.velocity(
-                    model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
-                )
-                .at[0:3]
-                .set(jnp.zeros(3))
-            )(jnp.arange(model.number_of_links()))
-
-            L_a_bias_WL = jax.vmap(
-                lambda i: other_representation_to_body(
-                    C_v̇_WL=C_v̇_WL[i],
-                    C_v_WC=C_v_WC[i],
-                    L_H_C=L_H_C[i],
-                    L_v_LC=L_v_LC[i],
-                )
-            )(jnp.arange(model.number_of_links()))
-
-        case _:
-            raise ValueError(data.velocity_representation)
+    L_a_bias_WL = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_mixed,  # VelRepr.Mixed
+            to_inertial,  # VelRepr.Inertial
+        ),
+    )
 
     # Compute the bias of the 6D momentum derivative.
     def bias_momentum_derivative_term(
@@ -387,30 +412,36 @@ def bias_acceleration(
     # Compute the position of the CoM.
     W_p_CoM = com_position(model=model, data=data)
 
-    match data.velocity_representation:
-
+    def to_inertial_or_mixed() -> jtp.Vector:
         # G := G[W] = (W_p_CoM, [W])
-        case VelRepr.Inertial | VelRepr.Mixed:
 
-            W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
-            GW_Xf_W = jaxsim.math.Adjoint.from_transform(W_H_GW).T
+        W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+        GW_Xf_W = jaxsim.math.Adjoint.from_transform(W_H_GW).T
 
-            GW_ḣ_bias = GW_Xf_W @ W_ḣ_bias
-            GW_v̇l_com_bias = GW_ḣ_bias[0:3] / m
+        GW_ḣ_bias = GW_Xf_W @ W_ḣ_bias
+        GW_v̇l_com_bias = GW_ḣ_bias[0:3] / m
 
-            return GW_v̇l_com_bias
+        return GW_v̇l_com_bias
 
+    def to_body() -> jtp.Vector:
         # G := G[B] = (W_p_CoM, [B])
-        case VelRepr.Body:
 
-            GB_Xf_W = jaxsim.math.Adjoint.from_transform(
-                transform=data.base_transform().at[0:3].set(W_p_CoM)
-            ).T
+        GB_Xf_W = jaxsim.math.Adjoint.from_transform(
+            transform=data.base_transform().at[0:3].set(W_p_CoM)
+        ).T
 
-            GB_ḣ_bias = GB_Xf_W @ W_ḣ_bias
-            GB_v̇l_com_bias = GB_ḣ_bias[0:3] / m
+        GB_ḣ_bias = GB_Xf_W @ W_ḣ_bias
+        GB_v̇l_com_bias = GB_ḣ_bias[0:3] / m
 
-            return GB_v̇l_com_bias
+        return GB_v̇l_com_bias
 
-        case _:
-            raise ValueError(data.velocity_representation)
+    GB_v̇l_com_bias = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_inertial_or_mixed,  # VelRepr.Mixed
+            to_inertial_or_mixed,  # VelRepr.Inertial
+        ),
+    )
+
+    return GB_v̇l_com_bias

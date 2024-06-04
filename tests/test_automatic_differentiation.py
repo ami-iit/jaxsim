@@ -35,7 +35,7 @@ def get_random_data_and_references(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
 
-    key, subkey1, subkey2 = jax.random.split(key, num=3)
+    _, subkey1, subkey2 = jax.random.split(key, num=3)
 
     references = js.references.JaxSimModelReferences.build(
         model=model,
@@ -65,7 +65,7 @@ def test_ad_aba(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
@@ -141,7 +141,7 @@ def test_ad_rnea(
     # Test
     # ====
 
-    key, subkey1, subkey2 = jax.random.split(key, num=3)
+    _, subkey1, subkey2 = jax.random.split(key, num=3)
     W_v̇_WB = jax.random.uniform(subkey1, shape=(6,), minval=-1)
     s̈ = jax.random.uniform(subkey2, shape=(model.dofs(),), minval=-1)
 
@@ -178,7 +178,7 @@ def test_ad_crba(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
@@ -210,7 +210,7 @@ def test_ad_fk(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
@@ -249,7 +249,7 @@ def test_ad_jacobian(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
@@ -288,7 +288,7 @@ def test_ad_soft_contacts(
 
     model = jaxsim_models_types
 
-    key, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
+    _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
     p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
     v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
     m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
@@ -330,7 +330,7 @@ def test_ad_integration(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )

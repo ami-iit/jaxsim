@@ -13,7 +13,7 @@ def test_collidable_point_jacobians(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=velocity_representation
     )

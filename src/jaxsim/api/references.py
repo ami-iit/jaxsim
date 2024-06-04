@@ -183,7 +183,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # Return all link forces in inertial-fixed representation using the implicit
         # serialization.
         if model is None:
-            if self.velocity_representation is not VelRepr.Inertial:
+            if (self.velocity_representation != VelRepr.Inertial) is True:
                 raise ValueError(
                     "Missing model to use a representation different from `VelRepr.Inertial`"
                 )
@@ -198,7 +198,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
 
         # In inertial-fixed representation, we already have the link forces.
-        if self.velocity_representation is VelRepr.Inertial:
+        if (self.velocity_representation == VelRepr.Inertial) is True:
             return W_f_L[link_idxs, :]
 
         if data is None:
@@ -373,7 +373,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # In this case, we allow only to set the inertial 6D forces to all links
         # using the implicit link serialization.
         if model is None:
-            if self.velocity_representation is not VelRepr.Inertial:
+            if (self.velocity_representation != VelRepr.Inertial) is True:
                 raise ValueError(
                     "Missing model to use a representation different from `VelRepr.Inertial`"
                 )
@@ -412,7 +412,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         )
 
         # If inertial-fixed representation, we can directly store the link forces.
-        if self.velocity_representation is VelRepr.Inertial:
+        if (self.velocity_representation == VelRepr.Inertial) is True:
             W_f_L = f_L
             return replace(
                 forces=self.input.physics_model.f_ext.at[link_idxs, :].set(

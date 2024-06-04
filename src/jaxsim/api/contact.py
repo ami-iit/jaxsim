@@ -334,7 +334,7 @@ def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Array:
     r"""
     Return the free-floating Jacobian of the collidable points.

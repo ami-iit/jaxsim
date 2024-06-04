@@ -35,13 +35,13 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
     Base class for model data structures with velocity representation.
     """
 
-    velocity_representation: VelRepr = dataclasses.field(
+    velocity_representation: int = dataclasses.field(
         default=VelRepr.Inertial, kw_only=True
     )
 
     @contextlib.contextmanager
     def switch_velocity_representation(
-        self, velocity_representation: VelRepr
+        self, velocity_representation: int
     ) -> ContextManager[Self]:
         """
         Context manager to temporarily switch the velocity representation.
@@ -83,7 +83,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
     @functools.partial(jax.jit, static_argnames=["is_force"])
     def inertial_to_other_representation(
         array: jtp.Array,
-        other_representation: VelRepr,
+        other_representation: int,
         transform: jtp.Matrix,
         *,
         is_force: bool,
@@ -148,7 +148,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
     @functools.partial(jax.jit, static_argnames=["is_force"])
     def other_representation_to_inertial(
         array: jtp.Array,
-        other_representation: VelRepr,
+        other_representation: int,
         transform: jtp.Matrix,
         *,
         is_force: bool,

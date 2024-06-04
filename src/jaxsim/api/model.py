@@ -453,7 +453,7 @@ def generalized_free_floating_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Matrix:
     """
     Compute the free-floating jacobians of all links.
@@ -1422,7 +1422,7 @@ def total_momentum_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Matrix:
     """
     Compute the jacobian of the total momentum.
@@ -1519,7 +1519,7 @@ def average_velocity_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Matrix:
     """
     Compute the Jacobian of the average velocity of the model.

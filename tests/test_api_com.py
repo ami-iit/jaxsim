@@ -9,7 +9,7 @@ from . import utils_idyntree
 
 def test_com_properties(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 

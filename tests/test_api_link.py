@@ -128,7 +128,7 @@ def test_link_transforms(
 
 def test_link_jacobians(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 
@@ -197,7 +197,7 @@ def test_link_jacobians(
 
 def test_link_bias_acceleration(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: int,
     prng_key: jax.Array,
 ):
 

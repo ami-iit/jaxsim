@@ -279,7 +279,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the links in the model.
         """
 
-        return tuple([frame.name for frame in self.description.frames])
+        return tuple(frame.name for frame in self.description.frames)
 
 
 # =====================

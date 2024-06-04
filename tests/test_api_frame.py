@@ -119,7 +119,7 @@ def test_frame_jacobians(
 
     # Lower the number of frames for models with many frames.
     if model.name().lower() == "ergocub":
-        assert any(["sole" in name for name in frame_names])
+        assert any("sole" in name for name in frame_names)
         frame_names = [name for name in frame_names if "sole" in name]
 
     # Get indices of frames.

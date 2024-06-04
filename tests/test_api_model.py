@@ -19,7 +19,7 @@ def test_model_creation_and_reduction(
 
     model_full = jaxsim_model_ergocub
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data_full = js.data.random_model_data(
         model=model_full,
         key=subkey,
@@ -77,15 +77,14 @@ def test_model_creation_and_reduction(
     model_reduced = js.model.reduce(
         model=model_full,
         considered_joints=reduced_joints,
-        locked_joint_positions={
-            name: pos
-            for name, pos in zip(
+        locked_joint_positions=dict(
+            zip(
                 model_full.joint_names(),
                 data_full.joint_positions(
                     model=model_full, joint_names=model_full.joint_names()
                 ).tolist(),
             )
-        },
+        ),
     )
 
     # Check DoFs.
@@ -156,7 +155,7 @@ def test_model_properties(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
@@ -202,7 +201,7 @@ def test_model_rbda(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
@@ -265,7 +264,7 @@ def test_model_jacobian(
     # =====
 
     # Create random references (joint torques and link forces)
-    key, subkey1, subkey2 = jax.random.split(key, num=3)
+    _, subkey1, subkey2 = jax.random.split(key, num=3)
     references = js.references.JaxSimModelReferences.build(
         model=model,
         joint_force_references=10 * jax.random.uniform(subkey1, shape=(model.dofs(),)),
@@ -335,7 +334,7 @@ def test_model_fd_id_consistency(
     # =====
 
     # Create random references (joint torques and link forces)
-    key, subkey1, subkey2 = jax.random.split(key, num=3)
+    _, subkey1, subkey2 = jax.random.split(key, num=3)
     references = js.references.JaxSimModelReferences.build(
         model=model,
         joint_force_references=10 * jax.random.uniform(subkey1, shape=(model.dofs(),)),

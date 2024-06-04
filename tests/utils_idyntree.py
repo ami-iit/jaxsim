@@ -60,13 +60,12 @@ def build_kindyncomputations_from_jaxsim_model(
     removed_joint_positions = removed_joint_positions_default | (
         removed_joint_positions
         if removed_joint_positions is not None
-        else {
-            name: pos
-            for name, pos in zip(
+        else dict(
+            zip(
                 model.joint_names(),
                 data.joint_positions(model=model, joint_names=model.joint_names()),
             )
-        }
+        )
     )
 
     # Create the KinDynComputations from the same URDF model.
@@ -127,9 +126,7 @@ class KinDynComputations:
         urdf: pathlib.Path | str,
         considered_joints: list[str] = None,
         vel_repr: VelRepr = VelRepr.Inertial,
-        gravity: npt.NDArray = dataclasses.field(
-            default_factory=lambda: np.array([0, 0, -10.0])
-        ),
+        gravity: npt.NDArray = np.array([0, 0, -10.0]),
         removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
     ) -> KinDynComputations:
 

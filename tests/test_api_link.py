@@ -46,7 +46,7 @@ def test_link_inertial_properties(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model,
         key=subkey,
@@ -84,7 +84,7 @@ def test_link_transforms(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model,
         key=subkey,
@@ -122,7 +122,7 @@ def test_link_jacobians(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model,
         key=subkey,
@@ -168,7 +168,7 @@ def test_link_bias_acceleration(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model,
         key=subkey,

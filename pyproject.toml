@@ -24,12 +24,9 @@ profile = "black"
 [tool.pytest.ini_options]
 addopts = "-rsxX -v --strict-markers"
 minversion = "6.0"
-preview = true
 testpaths = [
   "tests",
 ]
-
-target-version = "py311"
 
 [tool.ruff]
 exclude = [

@@ -46,7 +46,7 @@ def test_frame_transforms(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=VelRepr.Inertial
     )
@@ -82,7 +82,7 @@ def test_frame_transforms(
 
     assert len(frame_indices) == len(frame_names)
 
-    for frame_name, frame_idx in zip(frame_names, frame_indices):
+    for frame_name in frame_names:
 
         W_H_F_js = js.frame.transform(
             model=model,
@@ -101,7 +101,7 @@ def test_frame_jacobians(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
@@ -119,7 +119,7 @@ def test_frame_jacobians(
 
     # Lower the number of frames for models with many frames.
     if model.name().lower() == "ergocub":
-        assert any(["sole" in name for name in frame_names])
+        assert any("sole" in name for name in frame_names)
         frame_names = [name for name in frame_names if "sole" in name]
 
     # Get indices of frames.

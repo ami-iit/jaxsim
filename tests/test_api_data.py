@@ -27,7 +27,7 @@ def test_data_joint_indexing(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
@@ -56,7 +56,7 @@ def test_data_switch_velocity_representation(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=VelRepr.Inertial
     )
@@ -98,7 +98,7 @@ def test_data_change_velocity_representation(
 
     model = jaxsim_models_types
 
-    key, subkey = jax.random.split(prng_key, num=2)
+    _, subkey = jax.random.split(prng_key, num=2)
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=VelRepr.Inertial
     )

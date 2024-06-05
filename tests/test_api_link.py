@@ -211,3 +211,43 @@ def test_link_bias_acceleration(
         Jν_idt = kin_dyn.frame_bias_acc(frame_name=name)
         Jν_js = js.link.bias_acceleration(model=model, data=data, link_index=index)
         assert pytest.approx(Jν_idt) == Jν_js
+
+
+def test_link_jacobian_derivative(
+    jaxsim_models_types: js.model.JaxSimModel,
+    velocity_representation: VelRepr,
+    prng_key: jax.Array,
+):
+
+    model = jaxsim_models_types
+
+    _, subkey = jax.random.split(prng_key, num=2)
+    data = js.data.random_model_data(
+        model=model,
+        key=subkey,
+        velocity_representation=velocity_representation,
+    )
+
+    # =====
+    # Tests
+    # =====
+
+    # Get the generalized velocity.
+    I_ν = data.generalized_velocity()
+
+    # Compute J̇.
+    O_J̇_WL_I = jax.vmap(
+        lambda link_index: js.link.jacobian_derivative(
+            model=model, data=data, link_index=link_index
+        )
+    )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+
+    # Compute the product J̇ν.
+    O_a_bias_WL = jax.vmap(
+        lambda link_index: js.link.bias_acceleration(
+            model=model, data=data, link_index=link_index
+        )
+    )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+
+    # Compare the two computations.
+    assert jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν) == pytest.approx(O_a_bias_WL)

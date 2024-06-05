@@ -179,19 +179,22 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # serialization.
         if model is None:
 
-            def not_inertial():
+            def inertial():
                 if link_names is not None:
                     raise ValueError("Link names cannot be provided without a model")
 
                 return self.input.physics_model.f_ext
 
-            jax.lax.cond(
+            return jax.lax.cond(
                 pred=(self.velocity_representation == VelRepr.Inertial),
-                true_fun=not_inertial,
-                false_fun=lambda: (_ for _ in (None,)).throw(
-                    ValueError(
-                        "Missing model to use a representation different from `VelRepr.Inertial`"
-                    )
+                true_fun=inertial,
+                false_fun=lambda: jax.pure_callback(
+                    callback=lambda: (_ for _ in ()).throw(
+                        ValueError(
+                            "Missing model to use a representation different from `VelRepr.Inertial`"
+                        )
+                    ),
+                    result_shape_dtypes=self.input.physics_model.f_ext,
                 ),
             )
 
@@ -233,7 +236,10 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         return jax.lax.cond(
             pred=(self.velocity_representation == VelRepr.Inertial),
             true_fun=lambda: W_f_L[link_idxs, :],
-            false_fun=not_inertial,
+            false_fun=lambda: jax.pure_callback(
+                callback=not_inertial,
+                result_shape_dtypes=W_f_L[link_idxs, :],
+            ),
         )
 
     def joint_force_references(
@@ -382,7 +388,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # using the implicit link serialization.
         if model is None:
 
-            def not_inertial():
+            def inertial():
                 if link_names is not None:
                     raise ValueError("Link names cannot be provided without a model")
 
@@ -398,11 +404,14 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
             jax.lax.cond(
                 pred=(self.velocity_representation == VelRepr.Inertial),
-                true_fun=not_inertial,
-                false_fun=lambda: (_ for _ in (None,)).throw(
-                    ValueError(
-                        "Missing model to use a representation different from `VelRepr.Inertial`"
-                    )
+                true_fun=inertial,
+                false_fun=lambda: jax.pure_callback(
+                    callback=lambda: (_ for _ in ()).throw(
+                        ValueError(
+                            "Missing model to use a representation different from `VelRepr.Inertial`"
+                        )
+                    ),
+                    result_shape_dtypes=self,
                 ),
             )
 
@@ -435,8 +444,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 )
             )
 
-        def not_inertial():
-
+        def not_inertial(data):
             if data is None:
                 raise ValueError(
                     "Missing model data to use a representation different from `VelRepr.Inertial`"
@@ -473,5 +481,8 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         return jax.lax.cond(
             pred=(self.velocity_representation == VelRepr.Inertial),
             true_fun=inertial,
-            false_fun=not_inertial,
+            false_fun=lambda: jax.experimental.io_callback(
+                callback=not_inertial,
+                result_shape_dtypes=self,
+            ),
         )

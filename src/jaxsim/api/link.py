@@ -511,7 +511,7 @@ def jacobian_derivative(
 
     # Sum all the components that form the Jacobian derivative in the target
     # input/output velocity representations.
-    O_J̇_WL_I = 0.0
+    O_J̇_WL_I = jnp.zeros(shape=(6, 6 + model.dofs()))
     O_J̇_WL_I += O_Ẋ_B @ B_J_WL_B @ T
     O_J̇_WL_I += O_X_B @ B_J̇_WL_B @ T
     O_J̇_WL_I += O_X_B @ B_J_WL_B @ Ṫ

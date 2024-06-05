@@ -232,22 +232,22 @@ def test_link_jacobian_derivative(
     # Tests
     # =====
 
-    # Test only the last link of the model.
-    link_name = model.link_names()[-1]
-    link_index = js.link.name_to_idx(model=model, link_name=link_name)
-
     # Get the generalized velocity.
     I_ν = data.generalized_velocity()
 
     # Compute J̇.
-    O_J̇_WL_I = js.link.jacobian_derivative(
-        model=model, data=data, link_index=link_index
-    )
+    O_J̇_WL_I = jax.vmap(
+        lambda link_index: js.link.jacobian_derivative(
+            model=model, data=data, link_index=link_index
+        )
+    )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
 
     # Compute the product J̇ν.
-    O_a_bias_WL = js.link.bias_acceleration(
-        model=model, data=data, link_index=link_index
-    )
+    O_a_bias_WL = jax.vmap(
+        lambda link_index: js.link.bias_acceleration(
+            model=model, data=data, link_index=link_index
+        )
+    )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
 
     # Compare the two computations.
-    assert O_J̇_WL_I @ I_ν == pytest.approx(O_a_bias_WL)
+    assert jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν) == pytest.approx(O_a_bias_WL)

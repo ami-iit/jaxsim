@@ -267,7 +267,10 @@ def supported_joint_motion(
         # This is a metadata required by only some joint types.
         axis = jnp.array(joint_axis).astype(float).squeeze()
 
-        pre_H_suc = jaxlie.SE3.from_translation(translation=jnp.array(s * axis))
+        pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
+            rotation=jaxlie.SO3.identity(),
+            translation=jnp.array(s * axis),
+        )
 
         S = jnp.vstack(jnp.hstack([axis, jnp.zeros(3)]))
 

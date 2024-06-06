@@ -11,6 +11,8 @@ import jaxsim.typing as jtp
 from jaxsim import exceptions
 from jaxsim.math import Adjoint, Transform
 
+from .common import VelRepr
+
 # =======================
 # Index-related functions
 # =======================

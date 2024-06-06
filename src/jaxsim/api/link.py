@@ -11,6 +11,8 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 
+from .common import VelRepr
+
 # =======================
 # Index-related functions
 # =======================

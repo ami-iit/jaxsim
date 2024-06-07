@@ -15,6 +15,7 @@ from .model import (
     JaxSimModel,
     free_floating_mass_matrix,
     generalized_free_floating_jacobian,
+    link_bias_accelerations,
 )
 
 
@@ -192,6 +193,8 @@ class ConstrainedContacts(ContactModel):
             tuple[jtp.Vector, jtp.Vector]: A tuple containing the contact force and material deformation rate.
         """
 
+        τ_constraints = jnp.zeros(shape=(model.dofs(),))
+
         def _imp_aref(
             position: jtp.Array, velocity: jtp.Array
         ) -> tuple[jtp.Array, jtp.Array]:
@@ -244,66 +247,65 @@ class ConstrainedContacts(ContactModel):
                 imp, a_ref = _imp_aref(position=position, velocity=velocity)
 
                 # Compute the regularization terms.
-                r = (
-                    2 * self.parameters.friction**2 * (1 - imp) / (imp + 1e-8)
-                ) * jnp.tile(
-                    (1 + self.parameters.friction**2)
-                    / link.mass(model=model, link_index=link_idx),
-                    4,
+                R = (
+                    (2 * self.parameters.friction**2 * (1 - imp) / (imp + 1e-8))
+                    * (1 + self.parameters.friction**2)
+                    / link.mass(model=model, link_index=link_idx)
                 )
 
                 # TODO: Compute the smooth contact force
-                qf_smooth = jnp.zeros(model.dofs)
+                qf_smooth = jnp.atleast_1d(tau - τ_constraints)
 
                 return jax.tree.map(
-                    lambda x: x * (position[link_idx, 2] < 0), (J, a_ref, R)
+                    lambda x: x * (position < 0), (J, a_ref, R, qf_smooth)
                 )
 
-            J, a_ref, r, qf_smooth = jax.tree.map(
+            J, a_ref, R, qf_smooth = jax.tree.map(
                 jnp.concatenate,
                 jax.vmap(_compute_row)(
-                    model.kin_dyn_parameters.contact_parameters.body
+                    jnp.array(model.kin_dyn_parameters.contact_parameters.body),
+                    δ,
+                    δ̇,
                 ),
             )
-            return
+            return J, a_ref, R, qf_smooth
 
-        # Unpack the position of the collidable point
-        px, py, pz = W_p_C = position.squeeze()
-        vx, vy, vz = W_ṗ_C = velocity.squeeze()
-
-        # Compute the terrain normal and the contact depth
-        n̂ = self.terrain.normal(x=px, y=py).squeeze()
-        h = jnp.array([0, 0, self.terrain.height(x=px, y=py) - pz])
-
-        # Compute the penetration depth normal to the terrain
-        δ = jnp.maximum(1e-4, jnp.dot(h, n̂))
-
-        # Compute the penetration normal velocity
-        δ̇ = -jnp.dot(W_ṗ_C, n̂)
+        δ, δ̇ = position[:, 2], velocity[:, 2]
 
         J, a_ref, r, qf_smooth = _contact_jacobian(model=model, data=data)
 
+        R = jnp.diag(r)
+
         M_inv = jnp.linalg.inv(free_floating_mass_matrix(model=model, data=data))
 
-        # Calculate quantities for the linear optimization problem
-        A = J @ M_inv @ J.T
-        R = jnp.eye(A.shape[0]) * r
-        b = J @ M_inv @ qf_smooth - a_ref
+        reference_acc = jnp.concatenate(
+            jax.vmap(lambda ref: (jnp.zeros(shape=(6,)).at[2].set(ref)))(a_ref)
+        )
 
-        objective = lambda x: 0.5 * x.T @ A @ x + b @ x
+        # Calculate quantities for the linear optimization problem.
+        A = J @ M_inv @ J.T
+        b = (
+            J @ M_inv @ qf_smooth
+            + link_bias_accelerations(model=model, data=data)[
+                jnp.array(list(set(model.kin_dyn_parameters.contact_parameters.body)))
+            ]
+            - reference_acc
+        )  # ? - qf_smooth
+
+        objective = lambda x: jnp.sum(0.5 * (A @ x + b) ** 2)
 
         # Compute the 3D linear force in C[W] frame
         opt = jaxopt.ProjectedGradient(
             fun=objective,
             projection=jaxopt.projection.projection_non_negative,
-            maxiter=self.parameters.solver_iterations,
+            maxiter=8,
             implicit_diff=False,
-            maxls=self.parameters.maxls,
+            maxls=5,
         )
 
-        f = J.T @ opt.run(jnp.zeros_like(b)).params
+        F = J.T @ opt.run(jnp.zeros_like(b)).params
 
-        return f, None
+        return F, None
 
 
 @jax_dataclasses.pytree_dataclass

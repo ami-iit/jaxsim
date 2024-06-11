@@ -139,7 +139,7 @@ def test_model_creation_and_reduction(
 
         assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
             kin_dyn_full.frame_transform(frame_name=link_name)
-        )
+        ), link_name
 
         assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
             js.link.transform(
@@ -149,7 +149,31 @@ def test_model_creation_and_reduction(
                     model=model_reduced, link_name=link_name
                 ),
             )
-        )
+        ), link_name
+
+    # Check that frame transforms match.
+    for frame_name in model_reduced.frame_names():
+
+        if frame_name not in kin_dyn_reduced.frame_names():
+            continue
+
+        # Skip some entry of models with many frames.
+        if "skin" in frame_name or "laser" in frame_name or "depth" in frame_name:
+            continue
+
+        assert kin_dyn_reduced.frame_transform(frame_name=frame_name) == pytest.approx(
+            kin_dyn_full.frame_transform(frame_name=frame_name)
+        ), frame_name
+
+        assert kin_dyn_reduced.frame_transform(frame_name=frame_name) == pytest.approx(
+            js.frame.transform(
+                model=model_reduced,
+                data=data_reduced,
+                frame_index=js.frame.name_to_idx(
+                    model=model_reduced, frame_name=frame_name
+                ),
+            )
+        ), frame_name
 
 
 def test_model_properties(

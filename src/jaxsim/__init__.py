@@ -28,6 +28,7 @@ def _np_options() -> None:
 
 
 def _is_editable() -> bool:
+
     import importlib.util
     import pathlib
     import site
@@ -46,11 +47,40 @@ def _is_editable() -> bool:
     return jaxsim_package_dir not in site.getsitepackages()
 
 
-# Initialize the logging verbosity
-if _is_editable():
-    logging.configure(level=logging.LoggingLevel.DEBUG)
-else:
-    logging.configure(level=logging.LoggingLevel.WARNING)
+def _get_default_logging_level(env_var: str) -> logging.LoggingLevel:
+    """
+    Get the default logging level.
+
+    Args:
+        env_var: The environment variable to check.
+
+    Returns:
+        The logging level to set.
+    """
+
+    import os
+
+    # Define the default logging level depending on the installation mode.
+    default_logging_level = (
+        logging.LoggingLevel.DEBUG
+        if _is_editable()  # noqa: F821
+        else logging.LoggingLevel.WARNING
+    )
+
+    # Allow to override the default logging level with an environment variable.
+    try:
+        return logging.LoggingLevel[
+            os.environ.get(env_var, default_logging_level.name).upper()
+        ]
+
+    except KeyError as exc:
+        msg = f"Invalid logging level defined in {env_var}='{os.environ[env_var]}'"
+        raise RuntimeError(msg) from exc
+
+
+# Configure the logger with the default logging level.
+logging.configure(level=_get_default_logging_level(env_var="JAXSIM_LOGGING_LEVEL"))
+
 
 # Configure JAX
 _jnp_options()
@@ -60,6 +90,7 @@ _np_options()
 
 del _jnp_options
 del _np_options
+del _get_default_logging_level
 del _is_editable
 
 from . import terrain  # isort:skip

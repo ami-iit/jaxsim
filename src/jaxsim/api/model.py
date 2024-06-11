@@ -687,8 +687,6 @@ def forward_dynamics_aba(
         another representation C_v̇_WB expressed in a generic frame C.
         """
 
-        from jaxsim.math import Cross
-
         # In Mixed representation, we need to include a cross product in ℝ⁶.
         # In Inertial and Body representations, the cross product is always zero.
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()

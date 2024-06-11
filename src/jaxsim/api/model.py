@@ -16,6 +16,7 @@ from jax_dataclasses import Static
 import jaxsim.api as js
 import jaxsim.parsers.descriptions
 import jaxsim.typing as jtp
+from jaxsim.math import Cross
 from jaxsim.utils import HashlessObject, JaxsimDataclass, Mutability
 
 from .common import VelRepr
@@ -918,8 +919,6 @@ def free_floating_coriolis_matrix(
     # Compute the contribution of each link to the Coriolis matrix.
     def compute_link_contribution(M, v, J, J̇) -> jtp.Array:
 
-        from jaxsim.math import Cross
-
         return J.T @ ((Cross.vx_star(v) @ M + M @ Cross.vx(v)) @ J + M @ J̇)
 
     C_B_links = jax.vmap(compute_link_contribution)(
@@ -940,7 +939,7 @@ def free_floating_coriolis_matrix(
         C_B = C_B.at[6:, 0:6].set(0.0)
 
     # Adjust the representation of the Coriolis matrix.
-    # Refer to the Ph.D. thesis of Traversaro, Section 3.6.
+    # Refer to https://github.com/traversaro/traversaro-phd-thesis, Section 3.6.
     match data.velocity_representation:
 
         case VelRepr.Body:
@@ -1052,8 +1051,6 @@ def inverse_dynamics(
         Helper to convert the active representation of the base acceleration C_v̇_WB
         expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
         """
-
-        from jaxsim.math import Cross
 
         W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
         C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()

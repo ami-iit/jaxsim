@@ -135,18 +135,19 @@ def test_model_creation_and_reduction(
     )
 
     # Check that link transforms match.
-    for link_name, link_idx in zip(
-        model_reduced.link_names(),
-        js.link.names_to_idxs(
-            model=model_reduced, link_names=model_reduced.link_names()
-        ),
-    ):
+    for link_name in model_reduced.link_names():
+
         assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
             kin_dyn_full.frame_transform(frame_name=link_name)
         )
+
         assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
             js.link.transform(
-                model=model_reduced, data=data_reduced, link_index=link_idx
+                model=model_reduced,
+                data=data_reduced,
+                link_index=js.link.name_to_idx(
+                    model=model_reduced, link_name=link_name
+                ),
             )
         )
 

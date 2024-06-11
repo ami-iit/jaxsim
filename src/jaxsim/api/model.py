@@ -33,6 +33,7 @@ class JaxSimModel(JaxsimDataclass):
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
     )
+
     kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
         dataclasses.field(default=None, repr=False, compare=False, hash=False)
     )
@@ -302,7 +303,7 @@ def reduce(
         locked_joint_positions:
             A dictionary containing the positions of the joints to be considered
             in the reduction process. The removed joints in the reduced model
-            will have their position locked to their value in this dictionary.
+            will have their position locked to their value of this dictionary.
             If a joint is not part of the dictionary, its position is set to zero.
     """
 
@@ -1483,12 +1484,7 @@ def link_bias_accelerations(
     # ================================================
 
     # Compute the base transform.
-    W_H_B = jaxlie.SE3.from_rotation_and_translation(
-        rotation=jaxlie.SO3.from_quaternion_xyzw(
-            xyzw=jaxsim.math.Quaternion.to_xyzw(wxyz=data.base_orientation())
-        ),
-        translation=data.base_position(),
-    ).as_matrix()
+    W_H_B = data.base_transform()
 
     def other_representation_to_inertial(
         C_v̇_WB: jtp.Vector, C_v_WB: jtp.Vector, W_H_C: jtp.Matrix, W_v_WC: jtp.Vector
@@ -1529,9 +1525,12 @@ def link_bias_accelerations(
             W_H_C = W_H_BW
             with data.switch_velocity_representation(VelRepr.Mixed):
                 W_ṗ_B = data.base_velocity()[0:3]
-                W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+                BW_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+                W_X_BW = jaxsim.math.Adjoint.from_transform(transform=W_H_BW)
+                W_v_WC = W_v_W_BW = W_X_BW @ BW_v_W_BW
             with data.switch_velocity_representation(VelRepr.Mixed):
                 C_v_WB = BW_v_WB = data.base_velocity()
+
         case _:
             raise ValueError(data.velocity_representation)
 

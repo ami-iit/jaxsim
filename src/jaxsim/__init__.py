@@ -8,8 +8,9 @@ def _jnp_options() -> None:
 
     import jax
 
-    # Enable by default
-    if not ("JAX_ENABLE_X64" in os.environ and os.environ["JAX_ENABLE_X64"] == "0"):
+    # Enable by default 64bit precision in JAX.
+    if os.environ.get("JAX_ENABLE_X64", "1") != "0":
+
         logging.info("Enabling JAX to use 64bit precision")
         jax.config.update("jax_enable_x64", True)
 

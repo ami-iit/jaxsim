@@ -2,7 +2,7 @@
 
 JaxSim is a **differentiable physics engine** and **multibody dynamics library** designed for applications in control and robot learning, implemented with JAX.
 
-Its design facilitates research and accelerates prototyping in the intersection of robotics and artificial intelligence. 
+Its design facilitates research and accelerates prototyping in the intersection of robotics and artificial intelligence.
 
 ## Features
 
@@ -25,7 +25,7 @@ Its design facilitates research and accelerates prototyping in the intersection 
 
 ### JaxSim as a multibody dynamics library
 
-- Provides rigid body dynamics algorithms (RBDAs) like RNEA, ABA, CRBA, and Jacobians. 
+- Provides rigid body dynamics algorithms (RBDAs) like RNEA, ABA, CRBA, and Jacobians.
 - Provides all the quantities included in the Euler-Poincarè formulation of the equations of motion.
 - Supports body-fixed, inertial-fixed, and mixed [velocity representations][notation].
 - Exposes all the necessary quantities to develop controllers in centroidal coordinates.
@@ -132,10 +132,10 @@ The main differences between MJX/Brax and JaxSim are as follows:
 
 - JaxSim supports out-of-the-box all SDF models with [Pose Frame Semantics][PFS].
 - JaxSim only supports collisions between points rigidly attached to bodies and a compliant ground surface.
-  Our contact model requires careful tuning of its spring-damper parameters, but being an instantaneous  
+  Our contact model requires careful tuning of its spring-damper parameters, but being an instantaneous
   function of the state $(\mathbf{q}, \boldsymbol{\nu})$, it doesn't require running any optimization algorithm
   when stepping the simulation forward.
-- JaxSim mitigates the stiffness of the contact-aware system dynamics by providing variable-step integrators. 
+- JaxSim mitigates the stiffness of the contact-aware system dynamics by providing variable-step integrators.
 
 [brax]: https://github.com/google/brax
 [mjx]: https://mujoco.readthedocs.io/en/3.0.0/mjx.html

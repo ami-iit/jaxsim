@@ -6,6 +6,7 @@ import jax_dataclasses
 import jaxopt
 
 import jaxsim.typing as jtp
+from jaxsim.math import Adjoint
 from jaxsim.terrain import FlatTerrain, Terrain
 
 from . import link
@@ -13,9 +14,9 @@ from .contact import ContactModel, ContactParams, ContactsState
 from .data import JaxSimModelData
 from .model import (
     JaxSimModel,
+    free_floating_bias_forces,
     free_floating_mass_matrix,
     generalized_free_floating_jacobian,
-    link_bias_accelerations,
 )
 
 
@@ -193,8 +194,6 @@ class ConstrainedContacts(ContactModel):
             tuple[jtp.Vector, jtp.Vector]: A tuple containing the contact force and material deformation rate.
         """
 
-        τ_constraints = jnp.zeros(shape=(model.dofs(),))
-
         def _imp_aref(
             position: jtp.Array, velocity: jtp.Array
         ) -> tuple[jtp.Array, jtp.Array]:
@@ -241,7 +240,19 @@ class ConstrainedContacts(ContactModel):
 
             def _compute_row(link_idx: jtp.Float):
                 # Compute the contact jacobian.
-                J = generalized_free_floating_jacobian(model=model, data=data)
+                L_Xv_C = Adjoint.from_rotation_and_translation(
+                    rotation=jnp.eye(3),
+                    translation=model.kin_dyn_parameters.contact_parameters.point[
+                        link_idx
+                    ],
+                ).T
+
+                J = (
+                    L_Xv_C
+                    @ generalized_free_floating_jacobian(model=model, data=data)[
+                        link_idx
+                    ]
+                )[:3]
 
                 # Compute the reference acceleration.
                 imp, a_ref = _imp_aref(position=position, velocity=velocity)
@@ -253,14 +264,9 @@ class ConstrainedContacts(ContactModel):
                     / link.mass(model=model, link_index=link_idx)
                 )
 
-                # TODO: Compute the smooth contact force
-                qf_smooth = jnp.atleast_1d(tau - τ_constraints)
+                return jax.tree.map(lambda x: x * (position < 0), (J, a_ref, R))
 
-                return jax.tree.map(
-                    lambda x: x * (position < 0), (J, a_ref, R, qf_smooth)
-                )
-
-            J, a_ref, R, qf_smooth = jax.tree.map(
+            J, a_ref, R = jax.tree.map(
                 jnp.concatenate,
                 jax.vmap(_compute_row)(
                     jnp.array(model.kin_dyn_parameters.contact_parameters.body),
@@ -268,29 +274,30 @@ class ConstrainedContacts(ContactModel):
                     δ̇,
                 ),
             )
-            return J, a_ref, R, qf_smooth
+            return J, a_ref, R
+
+        τ_constraints = jnp.zeros_like(data.joint_positions())
+        S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
+        h = free_floating_bias_forces(model=model, data=data)
 
         δ, δ̇ = position[:, 2], velocity[:, 2]
 
-        J, a_ref, r, qf_smooth = _contact_jacobian(model=model, data=data)
+        J, a_ref, r = _contact_jacobian(model=model, data=data)
 
         R = jnp.diag(r)
+
+        # Compute the smooth contact force.
+        qf_smooth = S @ (jnp.atleast_1d(tau - τ_constraints)) - h
 
         M_inv = jnp.linalg.inv(free_floating_mass_matrix(model=model, data=data))
 
         reference_acc = jnp.concatenate(
-            jax.vmap(lambda ref: (jnp.zeros(shape=(6,)).at[2].set(ref)))(a_ref)
+            jax.vmap(lambda ref: (jnp.zeros(shape=(3,)).at[2].set(ref)))(a_ref)
         )
 
         # Calculate quantities for the linear optimization problem.
         A = J @ M_inv @ J.T
-        b = (
-            J @ M_inv @ qf_smooth
-            + link_bias_accelerations(model=model, data=data)[
-                jnp.array(list(set(model.kin_dyn_parameters.contact_parameters.body)))
-            ]
-            - reference_acc
-        )  # ? - qf_smooth
+        b = J @ M_inv @ qf_smooth + jnp.hstack(velocity) - reference_acc
 
         objective = lambda x: jnp.sum(0.5 * (A @ x + b) ** 2)
 
@@ -298,9 +305,9 @@ class ConstrainedContacts(ContactModel):
         opt = jaxopt.ProjectedGradient(
             fun=objective,
             projection=jaxopt.projection.projection_non_negative,
-            maxiter=8,
+            maxiter=100,
             implicit_diff=False,
-            maxls=5,
+            maxls=20,
         )
 
         F = J.T @ opt.run(jnp.zeros_like(b)).params

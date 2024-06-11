@@ -872,6 +872,128 @@ def free_floating_mass_matrix(
 
 
 @jax.jit
+def free_floating_coriolis_matrix(
+    model: JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    """
+    Compute the free-floating Coriolis matrix of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The free-floating Coriolis matrix of the model.
+
+    Note:
+        This function, contrarily to other quantities of the equations of motion,
+        does not exploit any iterative algorithm. Therefore, the computation of
+        the Coriolis matrix may be much slower than other quantities.
+    """
+
+    # We perform all the calculation in body-fixed.
+    # The Coriolis matrix computed in this representation is converted later
+    # to the active representation stored in data.
+    with data.switch_velocity_representation(VelRepr.Body):
+
+        B_ν = data.generalized_velocity()
+
+        # Doubly-left free-floating Jacobian.
+        L_J_WL_B = generalized_free_floating_jacobian(model=model, data=data)
+
+        # Doubly-left free-floating Jacobian derivative.
+        L_J̇_WL_B = jax.vmap(
+            lambda link_index: js.link.jacobian_derivative(
+                model=model, data=data, link_index=link_index
+            )
+        )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+
+    L_M_L = link_spatial_inertia_matrices(model=model)
+
+    # Body-fixed link velocities.
+    # Note: we could have called link.velocity() instead of computing it ourselves,
+    # but since we need the link Jacobians later, we can save a double calculation.
+    L_v_WL = jax.vmap(lambda J: J @ B_ν)(L_J_WL_B)
+
+    # Compute the contribution of each link to the Coriolis matrix.
+    def compute_link_contribution(M, v, J, J̇) -> jtp.Array:
+
+        from jaxsim.math import Cross
+
+        return J.T @ ((Cross.vx_star(v) @ M + M @ Cross.vx(v)) @ J + M @ J̇)
+
+    C_B_links = jax.vmap(compute_link_contribution)(
+        L_M_L,
+        L_v_WL,
+        L_J_WL_B,
+        L_J̇_WL_B,
+    )
+
+    # We need to adjust the Coriolis matrix for fixed-base models.
+    # In this case, the base link does not contribute to the matrix, and we need to zero
+    # the off-diagonal terms mapping joint quantities onto the base configuration.
+    if model.floating_base():
+        C_B = C_B_links.sum(axis=0)
+    else:
+        C_B = C_B_links[1:].sum(axis=0)
+        C_B = C_B.at[0:6, 6:].set(0.0)
+        C_B = C_B.at[6:, 0:6].set(0.0)
+
+    # Adjust the representation of the Coriolis matrix.
+    # Refer to the Ph.D. thesis of Traversaro, Section 3.6.
+    match data.velocity_representation:
+
+        case VelRepr.Body:
+            return C_B
+
+        case VelRepr.Inertial:
+
+            n = model.dofs()
+            W_H_B = data.base_transform()
+            B_X_W = jaxsim.math.Adjoint.from_transform(W_H_B, inverse=True)
+            B_T_W = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(n))
+
+            with data.switch_velocity_representation(VelRepr.Inertial):
+                W_v_WB = data.base_velocity()
+                B_Ẋ_W = -B_X_W @ jaxsim.math.Cross.vx(W_v_WB)
+
+            B_Ṫ_W = jax.scipy.linalg.block_diag(B_Ẋ_W, jnp.zeros(shape=(n, n)))
+
+            with data.switch_velocity_representation(VelRepr.Body):
+                M = free_floating_mass_matrix(model=model, data=data)
+
+            C = B_T_W.T @ (M @ B_Ṫ_W + C_B @ B_T_W)
+
+            return C
+
+        case VelRepr.Mixed:
+
+            n = model.dofs()
+            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
+            B_T_BW = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(n))
+
+            with data.switch_velocity_representation(VelRepr.Mixed):
+                BW_v_WB = data.base_velocity()
+                BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
+
+            BW_v_BW_B = BW_v_WB - BW_v_W_BW
+            B_Ẋ_BW = -B_X_BW @ jaxsim.math.Cross.vx(BW_v_BW_B)
+
+            B_Ṫ_BW = jax.scipy.linalg.block_diag(B_Ẋ_BW, jnp.zeros(shape=(n, n)))
+
+            with data.switch_velocity_representation(VelRepr.Body):
+                M = free_floating_mass_matrix(model=model, data=data)
+
+            C = B_T_BW.T @ (M @ B_Ṫ_BW + C_B @ B_T_BW)
+
+            return C
+
+        case _:
+            raise ValueError(data.velocity_representation)
+
+
+@jax.jit
 def inverse_dynamics(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,

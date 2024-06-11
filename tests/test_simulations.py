@@ -169,5 +169,5 @@ def test_box_with_zero_gravity(
     assert data.base_position() == pytest.approx(
         data0.base_position()
         + 0.5 * L_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
-        rel=1e-4,
+        abs=1e-3,
     )

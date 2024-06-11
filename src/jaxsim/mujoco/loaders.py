@@ -352,7 +352,7 @@ class RodModelToMjcf:
         # Set alpha=0 to the color of all collision elements
         for geometry_element in mujoco_element.findall(".//geom[@rgba]"):
             if geometry_element.attrib.get("name") in collision_names:
-                r, g, b, a = geometry_element.attrib["rgba"].split(" ")
+                r, g, b, _ = geometry_element.attrib["rgba"].split(" ")
                 geometry_element.set("rgba", f"{r} {g} {b} 0")
 
         # -----------------------

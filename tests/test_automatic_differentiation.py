@@ -179,7 +179,7 @@ def test_ad_crba(
     model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
-    data, references = get_random_data_and_references(
+    data, _ = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
@@ -211,7 +211,7 @@ def test_ad_fk(
     model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
-    data, references = get_random_data_and_references(
+    data, _ = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
@@ -250,7 +250,7 @@ def test_ad_jacobian(
     model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
-    data, references = get_random_data_and_references(
+    data, _ = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 

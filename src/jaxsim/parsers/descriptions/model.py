@@ -145,7 +145,7 @@ class ModelDescription(KinematicGraph):
             root=kinematic_graph.root,
             joints=kinematic_graph.joints,
             frames=kinematic_graph.frames,
-            _joints_removed=kinematic_graph._joints_removed,
+            _joints_removed=kinematic_graph.joints_removed,
         )
 
         # Check that the root link of kinematic graph is the desired base link.
@@ -182,8 +182,8 @@ class ModelDescription(KinematicGraph):
         )
 
         # Include the unconnected/removed joints from the original model.
-        for joint in self._joints_removed:
-            reduced_model_description._joints_removed.append(joint)
+        for joint in self.joints_removed:
+            reduced_model_description.joints_removed.append(joint)
 
         return reduced_model_description
 

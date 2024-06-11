@@ -615,6 +615,17 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             horizontal=True,
         )
 
+    @property
+    def joints_removed(self) -> list[descriptions.JointDescription]:
+        """
+        Get the list of joints removed during the graph reduction.
+
+        Returns:
+            The list of removed joints.
+        """
+
+        return self._joints_removed
+
     @staticmethod
     def breadth_first_search(
         root: descriptions.LinkDescription,

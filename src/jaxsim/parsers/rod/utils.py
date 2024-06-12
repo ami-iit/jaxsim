@@ -59,9 +59,7 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
     return M_L.astype(dtype=float)
 
 
-def joint_to_joint_type(
-    joint: rod.Joint,
-) -> descriptions.JointType:
+def joint_to_joint_type(joint: rod.Joint) -> int:
     """
     Extract the joint type from an SDF joint.
 
@@ -69,7 +67,7 @@ def joint_to_joint_type(
         joint: The parsed SDF joint.
 
     Returns:
-        The corresponding joint type description.
+        The integer corresponding to the joint type.
     """
 
     axis = joint.axis
@@ -138,7 +136,7 @@ def create_box_collision(
     collidable_points = [
         descriptions.CollidablePoint(
             parent_link=link_description,
-            position=corner,
+            position=np.array(corner),
             enabled=True,
         )
         for corner in box_corners_wrt_link.T
@@ -197,7 +195,7 @@ def create_sphere_collision(
     collidable_points = [
         descriptions.CollidablePoint(
             parent_link=link_description,
-            position=point,
+            position=np.array(point),
             enabled=True,
         )
         for point in sphere_points_wrt_link.T

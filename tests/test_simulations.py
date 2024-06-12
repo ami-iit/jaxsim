@@ -102,7 +102,7 @@ def test_box_with_zero_gravity(
     model = jaxsim_model_box
 
     # Split the PRNG key.
-    key, subkey, subkey2 = jax.random.split(prng_key, num=3)
+    _, subkey, subkey2 = jax.random.split(prng_key, num=3)
 
     # Build the data of the model.
     data0 = js.data.JaxSimModelData.build(

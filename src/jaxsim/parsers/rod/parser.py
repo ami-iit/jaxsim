@@ -7,7 +7,7 @@ import numpy as np
 import rod
 
 from jaxsim import logging
-from jaxsim.math.quaternion import Quaternion
+from jaxsim.math import Quaternion
 from jaxsim.parsers import descriptions, kinematic_graph
 
 from . import utils

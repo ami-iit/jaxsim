@@ -188,10 +188,9 @@ class RodModelToMjcf:
         )
 
         # If considered joints are passed, make sure that they are all part of the model.
-        if considered_joints - set([j.name for j in rod_model.joints()]):
-            extra_joints = set(considered_joints) - set(
-                [j.name for j in rod_model.joints()]
-            )
+        if considered_joints - {j.name for j in rod_model.joints()}:
+            extra_joints = set(considered_joints) - {j.name for j in rod_model.joints()}
+
             msg = f"Couldn't find the following joints in the model: '{extra_joints}'"
             raise ValueError(msg)
 
@@ -352,7 +351,7 @@ class RodModelToMjcf:
         # Set alpha=0 to the color of all collision elements
         for geometry_element in mujoco_element.findall(".//geom[@rgba]"):
             if geometry_element.attrib.get("name") in collision_names:
-                r, g, b, a = geometry_element.attrib["rgba"].split(" ")
+                r, g, b, _ = geometry_element.attrib["rgba"].split(" ")
                 geometry_element.set("rgba", f"{r} {g} {b} 0")
 
         # -----------------------

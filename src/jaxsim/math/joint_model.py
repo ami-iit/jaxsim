@@ -34,8 +34,8 @@ class JointModel:
         already in a vectorized form. In other words, it cannot be created using vmap.
     """
 
-    λ_H_pre: jax.Array
-    suc_H_i: jax.Array
+    λ_H_pre: jtp.Array
+    suc_H_i: jtp.Array
 
     joint_dofs: Static[tuple[int, ...]]
     joint_names: Static[tuple[str, ...]]

@@ -27,7 +27,7 @@ class ModelDescription(KinematicGraph):
 
     fixed_base: bool = True
 
-    collision_shapes: list[CollisionShape] = dataclasses.field(
+    collision_shapes: tuple[CollisionShape, ...] = dataclasses.field(
         default_factory=list, repr=False, hash=False
     )
 
@@ -37,7 +37,7 @@ class ModelDescription(KinematicGraph):
         links: list[LinkDescription],
         joints: list[JointDescription],
         frames: list[LinkDescription] | None = None,
-        collisions: list[CollisionShape] = (),
+        collisions: tuple[CollisionShape, ...] = (),
         fixed_base: bool = False,
         base_link_name: str | None = None,
         considered_joints: Sequence[str] | None = None,
@@ -87,7 +87,7 @@ class ModelDescription(KinematicGraph):
         for collision_shape in collisions:
 
             # Get all the collidable points of the shape
-            coll_points = list(collision_shape.collidable_points)
+            coll_points = tuple(collision_shape.collidable_points)
 
             # Assume they have an unique parent link
             if not len(set({cp.parent_link.name for cp in coll_points})) == 1:
@@ -111,7 +111,7 @@ class ModelDescription(KinematicGraph):
                 continue
 
             # Create a new collision shape
-            new_collision_shape = CollisionShape(collidable_points=[])
+            new_collision_shape = CollisionShape(collidable_points=())
             final_collisions.append(new_collision_shape)
 
             # If the frame was found, update the collidable points' pose and add them
@@ -133,19 +133,19 @@ class ModelDescription(KinematicGraph):
                     ),
                 )
 
-                # Store the updated collision
-                new_collision_shape.collidable_points.append(moved_cp)
+                # Store the updated collision.
+                new_collision_shape.collidable_points += (moved_cp,)
 
         # Build the model
         model = ModelDescription(
             name=name,
             root_pose=kinematic_graph.root_pose,
             fixed_base=fixed_base,
-            collision_shapes=final_collisions,
+            collision_shapes=tuple(final_collisions),
             root=kinematic_graph.root,
             joints=kinematic_graph.joints,
             frames=kinematic_graph.frames,
-            _joints_removed=kinematic_graph._joints_removed,
+            _joints_removed=kinematic_graph.joints_removed,
         )
 
         # Check that the root link of kinematic graph is the desired base link.
@@ -174,7 +174,7 @@ class ModelDescription(KinematicGraph):
             links=list(self.links_dict.values()),
             joints=self.joints,
             frames=self.frames,
-            collisions=self.collision_shapes,
+            collisions=tuple(self.collision_shapes),
             fixed_base=self.fixed_base,
             base_link_name=list(iter(self))[0].name,
             model_pose=self.root_pose,
@@ -182,8 +182,8 @@ class ModelDescription(KinematicGraph):
         )
 
         # Include the unconnected/removed joints from the original model.
-        for joint in self._joints_removed:
-            reduced_model_description._joints_removed.append(joint)
+        for joint in self.joints_removed:
+            reduced_model_description.joints_removed.append(joint)
 
         return reduced_model_description
 
@@ -243,3 +243,23 @@ class ModelDescription(KinematicGraph):
 
         # Return enabled collidable points
         return [cp for cp in all_collidable_points if cp.enabled]
+
+    def __eq__(self, other: ModelDescription) -> bool:
+
+        if not isinstance(other, ModelDescription):
+            return False
+
+        return hash(self) == hash(other)
+
+    def __hash__(self) -> int:
+
+        return hash(
+            (
+                hash(self.name),
+                hash(self.fixed_base),
+                hash(self.root),
+                hash(tuple(self.joints)),
+                hash(tuple(self.frames)),
+                hash(self.root_pose),
+            )
+        )

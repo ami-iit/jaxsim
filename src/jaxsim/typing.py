@@ -1,4 +1,5 @@
-from typing import Any, Hashable
+from collections.abc import Hashable
+from typing import Any
 
 import jax
 
@@ -24,6 +25,7 @@ PyTree = (
 # =======================
 
 Array = jax.typing.ArrayLike
+Scalar = Array
 Vector = Array
 Matrix = Array
 
@@ -31,6 +33,7 @@ Int = int | IntJax
 Bool = bool | ArrayJax
 Float = float | FloatJax
 
+ScalarLike = Scalar | int | float
 ArrayLike = Array
 VectorLike = Vector
 MatrixLike = Matrix

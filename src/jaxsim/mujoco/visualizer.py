@@ -173,4 +173,4 @@ class MujocoVisualizer:
         try:
             yield handle
         finally:
-            handle.close() if close_on_exit else None
+            _ = handle.close() if close_on_exit else None

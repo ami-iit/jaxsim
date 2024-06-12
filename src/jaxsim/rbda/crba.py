@@ -111,7 +111,7 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
         # a while loop using a for loop with fixed number of iterations.
         def inner_fn(carry: CarryInnerFn, k: jtp.Int) -> tuple[CarryInnerFn, None]:
             def compute_inner(carry: CarryInnerFn) -> tuple[CarryInnerFn, None]:
-                j, Fi, M = carry
+                j, _, _ = carry
                 out = jax.lax.cond(
                     pred=(λ[j] > 0),
                     true_fun=while_loop_body,
@@ -120,7 +120,7 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
                 )
                 return out, None
 
-            j, Fi, M = carry
+            j, _, _ = carry
             return jax.lax.cond(
                 pred=(k == j),
                 true_fun=compute_inner,

@@ -365,20 +365,20 @@ def jacobian(
 
             W_H_C = transforms(model=model, data=data)
 
-            def jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
+            def body_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
                 C_X_W = jaxsim.math.Adjoint.from_transform(
                     transform=W_H_C, inverse=True
                 )
                 C_J_WC = C_X_W @ W_J_WC
                 return C_J_WC
 
-            O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
+            O_J_WC = jax.vmap(body_jacobian)(W_H_C, W_J_WC)
 
         case VelRepr.Mixed:
 
             W_H_C = transforms(model=model, data=data)
 
-            def jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
+            def mixed_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
 
                 W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
 
@@ -389,7 +389,7 @@ def jacobian(
                 CW_J_WC = CW_X_W @ W_J_WC
                 return CW_J_WC
 
-            O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
+            O_J_WC = jax.vmap(mixed_jacobian)(W_H_C, W_J_WC)
 
         case _:
             raise ValueError(output_vel_repr)

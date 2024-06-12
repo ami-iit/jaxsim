@@ -6,6 +6,7 @@ import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
 import jaxlie
+import numpy as np
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
@@ -220,7 +221,9 @@ class KynDynParameters(JaxsimDataclass):
             (
                 hash(self.number_of_links()),
                 hash(self.number_of_joints()),
-                hash(tuple(jnp.atleast_1d(self.parent_array).flatten().tolist())),
+                hash(tuple(np.atleast_1d(self.parent_array).flatten().tolist())),
+                hash(self._parent_array),
+                hash(self._support_body_array_bool),
             )
         )
 

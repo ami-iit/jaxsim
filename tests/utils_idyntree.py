@@ -52,7 +52,7 @@ def build_kindyncomputations_from_jaxsim_model(
     # Get the default positions already stored in the model description.
     removed_joint_positions_default = {
         str(j.name): float(j.initial_position)
-        for j in model.description._joints_removed
+        for j in model.description.joints_removed
         if j.name not in considered_joints
     }
 

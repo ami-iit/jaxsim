@@ -31,14 +31,21 @@ class RootPose(NamedTuple):
     root_position: npt.NDArray = np.zeros(3)
     root_quaternion: npt.NDArray = np.array([1.0, 0, 0, 0])
 
+    def __hash__(self) -> int:
+
+        return hash(
+            (
+                hash(tuple(self.root_position.tolist())),
+                hash(tuple(self.root_quaternion.tolist())),
+            )
+        )
+
     def __eq__(self, other: RootPose) -> bool:
 
         if not isinstance(other, RootPose):
             return False
 
-        return np.allclose(self.root_position, other.root_position) and np.allclose(
-            self.root_quaternion, other.root_quaternion
-        )
+        return hash(self) == hash(other)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -54,22 +61,24 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
     """
 
     root: descriptions.LinkDescription
-    frames: list[descriptions.LinkDescription] = dataclasses.field(default_factory=list)
+    frames: list[descriptions.LinkDescription] = dataclasses.field(
+        default_factory=list, hash=False, compare=False
+    )
     joints: list[descriptions.JointDescription] = dataclasses.field(
-        default_factory=list
+        default_factory=list, hash=False, compare=False
     )
 
     root_pose: RootPose = dataclasses.field(default_factory=lambda: RootPose())
 
     # Private attribute storing optional additional info.
     _extra_info: dict[str, Any] = dataclasses.field(
-        repr=False, compare=False, default_factory=dict
+        default_factory=dict, repr=False, hash=False, compare=False
     )
 
     # Private attribute storing the unconnected joints from the parsed model and
     # the joints removed after model reduction.
     _joints_removed: list[descriptions.JointDescription] = dataclasses.field(
-        default_factory=list, repr=False, compare=False
+        default_factory=list, repr=False, hash=False, compare=False
     )
 
     @functools.cached_property
@@ -98,14 +107,17 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         for index, link in enumerate(self):
             link.mutable(validate=False).index = index
 
-        # Get the names of the links and frames.
+        # Get the names of the links, frames, and joints.
         link_names = [l.name for l in self]
         frame_names = [f.name for f in self.frames]
+        joint_names = [j.name for j in self.joints]
 
         # Make sure that they are unique.
         assert len(link_names) == len(set(link_names))
         assert len(frame_names) == len(set(frame_names))
+        assert len(joint_names) == len(set(joint_names))
         assert set(link_names).isdisjoint(set(frame_names))
+        assert set(link_names).isdisjoint(set(joint_names))
 
         # Order frames with their name.
         super().__setattr__("frames", sorted(self.frames, key=lambda f: f.name))
@@ -251,7 +263,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
         # Reset the connections of the root link.
         for link in links_dict.values():
-            link.children = []
+            link.children = tuple()
 
         # Couple links and joints creating the kinematic graph.
         for joint in joints:
@@ -268,7 +280,8 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
             # Assign link's children and make sure they are unique.
             if child_link.name not in {l.name for l in parent_link.children}:
-                parent_link.children.append(child_link)
+                with parent_link.mutable_context(Mutability.MUTABLE_NO_VALIDATION):
+                    parent_link.children = parent_link.children + (child_link,)
 
         # Collect all the links of the kinematic graph.
         all_links_in_graph = list(
@@ -315,7 +328,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         # Update the unconnected links by removing their children. The other properties
         # are left untouched, it's caller responsibility to post-process them if needed.
         for link in unconnected_links:
-            link.children = []
+            link.children = tuple()
             msg = "Link '{}' won't be part of the kinematic graph because unconnected"
             logging.debug(msg=msg.format(link.name))
 
@@ -615,6 +628,17 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             horizontal=True,
         )
 
+    @property
+    def joints_removed(self) -> list[descriptions.JointDescription]:
+        """
+        Get the list of joints removed during the graph reduction.
+
+        Returns:
+            The list of removed joints.
+        """
+
+        return self._joints_removed
+
     @staticmethod
     def breadth_first_search(
         root: descriptions.LinkDescription,
@@ -785,6 +809,7 @@ class KinematicGraphTransforms:
 
             # Get the joint.
             joint = self.graph.joints_dict[name]
+            assert joint.name == name
 
             # Get the transform of the parent link.
             M_H_L = self.transform(name=joint.parent.name)

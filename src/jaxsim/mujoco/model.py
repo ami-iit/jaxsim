@@ -73,7 +73,7 @@ class MujocoModelHelper:
             new_hfield = generate_hfield(heightmap, (nrow, ncol))
             model.hfield_data = new_hfield
 
-        return MujocoModelHelper(model=model, data=mj.MjData(model))
+        return MujocoModelHelper(model=model, data=data)
 
     def time(self) -> float:
         """Return the simulation time."""

@@ -118,8 +118,7 @@ jobs:
               - *src
               - *tests
 
-      # https://gazebosim.org/docs/harmonic/install_ubuntu
-      - name: Install Gazebo Sim
+      - name: Install 'gz sdf' system command
         if: |
           contains(matrix.os, 'ubuntu') &&
           (github.event_name != 'pull_request' ||
@@ -130,7 +129,7 @@ jobs:
           sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
           sudo apt-get update
-          sudo apt-get install gz-harmonic
+          sudo apt-get install --no-install-recommends libsdformat13 gz-tools2
 
       - name: Run the Python tests
         if: |

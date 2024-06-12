@@ -17,7 +17,7 @@ import jaxsim.api as js
 import jaxsim.parsers.descriptions
 import jaxsim.typing as jtp
 from jaxsim.math import Cross
-from jaxsim.utils import HashlessObject, JaxsimDataclass, Mutability
+from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .common import VelRepr
 
@@ -33,6 +33,7 @@ class JaxSimModel(JaxsimDataclass):
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
     )
+
     kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
         dataclasses.field(default=None, repr=False, compare=False, hash=False)
     )
@@ -41,13 +42,9 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False, compare=False, hash=False
     )
 
-    _description: Static[
-        HashlessObject[jaxsim.parsers.descriptions.ModelDescription | None]
-    ] = dataclasses.field(default=None, repr=False, compare=False, hash=False)
-
-    @property
-    def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
-        return self._description.get()
+    description: Static[jaxsim.parsers.descriptions.ModelDescription | None] = (
+        dataclasses.field(default=None, repr=False, compare=False, hash=False)
+    )
 
     def __eq__(self, other: JaxSimModel) -> bool:
 
@@ -61,6 +58,7 @@ class JaxSimModel(JaxsimDataclass):
         return hash(
             (
                 hash(self.model_name),
+                hash(self.description),
                 hash(self.kin_dyn_parameters),
             )
         )
@@ -157,7 +155,7 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model
         model = JaxSimModel(
             model_name=model_name,
-            _description=HashlessObject(obj=model_description),
+            description=model_description,
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
@@ -302,7 +300,7 @@ def reduce(
         locked_joint_positions:
             A dictionary containing the positions of the joints to be considered
             in the reduction process. The removed joints in the reduced model
-            will have their position locked to their value in this dictionary.
+            will have their position locked to their value of this dictionary.
             If a joint is not part of the dictionary, its position is set to zero.
     """
 
@@ -315,10 +313,9 @@ def reduce(
         new_joints = set(model.joint_names()) - set(locked_joint_positions)
         raise ValueError(f"Passed joints not existing in the model: {new_joints}")
 
-    # Copy the model description with a deep copy of the joints.
-    intermediate_description = dataclasses.replace(
-        model.description, joints=copy.deepcopy(model.description.joints)
-    )
+    # Operate on a deep copy of the model description in order to prevent problems
+    # when mutable attributes are updated.
+    intermediate_description = copy.deepcopy(model.description)
 
     # Update the initial position of the joints.
     # This is necessary to compute the correct pose of the link pairs connected
@@ -685,8 +682,6 @@ def forward_dynamics_aba(
         Helper to convert the inertial-fixed apparent base acceleration W_v̇_WB to
         another representation C_v̇_WB expressed in a generic frame C.
         """
-
-        from jaxsim.math import Cross
 
         # In Mixed representation, we need to include a cross product in ℝ⁶.
         # In Inertial and Body representations, the cross product is always zero.
@@ -1483,12 +1478,7 @@ def link_bias_accelerations(
     # ================================================
 
     # Compute the base transform.
-    W_H_B = jaxlie.SE3.from_rotation_and_translation(
-        rotation=jaxlie.SO3.from_quaternion_xyzw(
-            xyzw=jaxsim.math.Quaternion.to_xyzw(wxyz=data.base_orientation())
-        ),
-        translation=data.base_position(),
-    ).as_matrix()
+    W_H_B = data.base_transform()
 
     def other_representation_to_inertial(
         C_v̇_WB: jtp.Vector, C_v_WB: jtp.Vector, W_H_C: jtp.Matrix, W_v_WC: jtp.Vector
@@ -1529,9 +1519,12 @@ def link_bias_accelerations(
             W_H_C = W_H_BW
             with data.switch_velocity_representation(VelRepr.Mixed):
                 W_ṗ_B = data.base_velocity()[0:3]
-                W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+                BW_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+                W_X_BW = jaxsim.math.Adjoint.from_transform(transform=W_H_BW)
+                W_v_WC = W_v_W_BW = W_X_BW @ BW_v_W_BW
             with data.switch_velocity_representation(VelRepr.Mixed):
                 C_v_WB = BW_v_WB = data.base_velocity()
+
         case _:
             raise ValueError(data.velocity_representation)
 

@@ -241,8 +241,8 @@ def jacobian(
     )
 
     # Compute the actual doubly-left free-floating jacobian of the link.
-    κ = model.kin_dyn_parameters.support_body_array_bool[link_index]
-    B_J_WL_B = jnp.hstack([jnp.ones(5), κ]) * B_J_full_WX_B
+    κb = model.kin_dyn_parameters.support_body_array_bool[link_index]
+    B_J_WL_B = jnp.hstack([jnp.ones(5), κb]) * B_J_full_WX_B
 
     # Adjust the input representation such that `J_WL_I @ I_ν`.
     match data.velocity_representation:

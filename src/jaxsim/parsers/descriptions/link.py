@@ -5,6 +5,7 @@ import dataclasses
 import jax.numpy as jnp
 import jax_dataclasses
 import jaxlie
+import numpy as np
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
@@ -23,7 +24,7 @@ class LinkDescription(JaxsimDataclass):
         index: An optional index for the link (it gets automatically assigned).
         parent: The parent link of this link.
         pose: The pose transformation matrix of the link.
-        children: List of child links.
+        children: The children links.
     """
 
     name: Static[str]
@@ -33,7 +34,7 @@ class LinkDescription(JaxsimDataclass):
     parent: LinkDescription = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
 
-    children: Static[list[LinkDescription]] = dataclasses.field(
+    children: Static[tuple[LinkDescription]] = dataclasses.field(
         default_factory=list, repr=False
     )
 
@@ -43,10 +44,12 @@ class LinkDescription(JaxsimDataclass):
             (
                 hash(self.name),
                 hash(float(self.mass)),
-                hash(tuple(self.inertia.flatten().tolist())),
-                hash(int(self.index)),
-                hash(self.parent),
-                hash(tuple(hash(c) for c in self.children)),
+                hash(tuple(np.atleast_1d(self.inertia).flatten().tolist())),
+                hash(int(self.index)) if self.index is not None else 0,
+                hash(tuple(np.atleast_1d(self.pose).flatten().tolist())),
+                hash(tuple(self.children)),
+                # Here only using the name to prevent circular recursion:
+                hash(self.parent.name) if self.parent is not None else 0,
             )
         )
 

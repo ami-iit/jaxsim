@@ -223,7 +223,9 @@ def system_velocity_dynamics(
 
 @jax.jit
 def system_position_dynamics(
-    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
 ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector]:
     """
     Compute the dynamics of the system position.
@@ -231,6 +233,8 @@ def system_position_dynamics(
     Args:
         model: The model to consider.
         data: The data of the considered model.
+        baumgarte_quaternion_regularization:
+            The Baumgarte regularization coefficient for adjusting the quaternion norm.
 
     Returns:
         A tuple containing the derivative of the base position, the derivative of the
@@ -250,6 +254,7 @@ def system_position_dynamics(
         quaternion=W_Q_B,
         omega=W_ω_WB,
         omega_in_body_fixed=False,
+        K=baumgarte_quaternion_regularization,
     ).squeeze()
 
     return W_ṗ_B, W_Q̇_B, ṡ
@@ -262,6 +267,7 @@ def system_dynamics(
     *,
     joint_forces: jtp.Vector | None = None,
     link_forces: jtp.Vector | None = None,
+    baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
 ) -> tuple[ODEState, dict[str, Any]]:
     """
     Compute the dynamics of the system.
@@ -271,6 +277,9 @@ def system_dynamics(
         data: The data of the considered model.
         joint_forces: The joint forces to apply.
         link_forces: The 6D forces to apply to the links.
+        baumgarte_quaternion_regularization:
+            The Baumgarte regularization coefficient used to adjust the norm of the
+            quaternion (only used in integrators not operating on the SO(3) manifold).
 
     Returns:
         A tuple with an `ODEState` object storing in each of its attributes the
@@ -287,7 +296,11 @@ def system_dynamics(
     )
 
     # Extract the velocities.
-    W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(model=model, data=data)
+    W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
+        model=model,
+        data=data,
+        baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
+    )
 
     # Create an ODEState object populated with the derivative of each leaf.
     # Our integrators, operating on generic pytrees, will be able to handle it

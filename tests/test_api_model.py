@@ -94,7 +94,7 @@ def test_model_creation_and_reduction(
     # Check that all non-fixed joints are in the reduced model.
     assert set(reduced_joints) == set(model_reduced.joint_names())
 
-    # Check that the reduce model maintain the same terrain of the full model.
+    # Check that the reduced model maintains the same terrain of the full model.
     assert model_full.terrain == model_reduced.terrain
 
     # Build the data of the reduced model.
@@ -111,6 +111,49 @@ def test_model_creation_and_reduction(
             model=model_full, joint_names=model_reduced.joint_names()
         ),
         velocity_representation=data_full.velocity_representation,
+    )
+
+    # Check that the reduced model data is valid.
+    assert not data_reduced.valid(model=model_full)
+    assert data_reduced.valid(model=model_reduced)
+
+    # Check that the total mass is preserved.
+    assert js.model.total_mass(model=model_full) == pytest.approx(
+        js.model.total_mass(model=model_reduced)
+    )
+
+    # Check that the CoM position is preserved.
+    assert js.com.com_position(model=model_full, data=data_full) == pytest.approx(
+        js.com.com_position(model=model_reduced, data=data_reduced), abs=1e-6
+    )
+
+    # Check that joint serialization works.
+    assert data_full.joint_positions(
+        model=model_full, joint_names=model_reduced.joint_names()
+    ) == pytest.approx(data_reduced.joint_positions())
+    assert data_full.joint_velocities(
+        model=model_full, joint_names=model_reduced.joint_names()
+    ) == pytest.approx(data_reduced.joint_velocities())
+
+    # Check that link transforms are preserved.
+    for link_name in model_reduced.link_names():
+        W_H_L_full = js.link.transform(
+            model=model_full,
+            data=data_full,
+            link_index=js.link.name_to_idx(model=model_full, link_name=link_name),
+        )
+        W_H_L_reduced = js.link.transform(
+            model=model_reduced,
+            data=data_reduced,
+            link_index=js.link.name_to_idx(model=model_reduced, link_name=link_name),
+        )
+        assert W_H_L_full == pytest.approx(W_H_L_reduced)
+
+    # Check that collidable point positions are preserved.
+    assert js.contact.collidable_point_positions(
+        model=model_full, data=data_full
+    ) == pytest.approx(
+        js.contact.collidable_point_positions(model=model_reduced, data=data_reduced)
     )
 
     # =====================
@@ -135,20 +178,45 @@ def test_model_creation_and_reduction(
     )
 
     # Check that link transforms match.
-    for link_name, link_idx in zip(
-        model_reduced.link_names(),
-        js.link.names_to_idxs(
-            model=model_reduced, link_names=model_reduced.link_names()
-        ),
-    ):
+    for link_name in model_reduced.link_names():
+
         assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
             kin_dyn_full.frame_transform(frame_name=link_name)
-        )
+        ), link_name
+
         assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
             js.link.transform(
-                model=model_reduced, data=data_reduced, link_index=link_idx
+                model=model_reduced,
+                data=data_reduced,
+                link_index=js.link.name_to_idx(
+                    model=model_reduced, link_name=link_name
+                ),
             )
-        )
+        ), link_name
+
+    # Check that frame transforms match.
+    for frame_name in model_reduced.frame_names():
+
+        if frame_name not in kin_dyn_reduced.frame_names():
+            continue
+
+        # Skip some entry of models with many frames.
+        if "skin" in frame_name or "laser" in frame_name or "depth" in frame_name:
+            continue
+
+        assert kin_dyn_reduced.frame_transform(frame_name=frame_name) == pytest.approx(
+            kin_dyn_full.frame_transform(frame_name=frame_name)
+        ), frame_name
+
+        assert kin_dyn_reduced.frame_transform(frame_name=frame_name) == pytest.approx(
+            js.frame.transform(
+                model=model_reduced,
+                data=data_reduced,
+                frame_index=js.frame.name_to_idx(
+                    model=model_reduced, frame_name=frame_name
+                ),
+            )
+        ), frame_name
 
 
 def test_model_properties(

@@ -313,10 +313,9 @@ def reduce(
         new_joints = set(model.joint_names()) - set(locked_joint_positions)
         raise ValueError(f"Passed joints not existing in the model: {new_joints}")
 
-    # Copy the model description with a deep copy of the joints.
-    intermediate_description = dataclasses.replace(
-        model.description, joints=copy.deepcopy(model.description.joints)
-    )
+    # Operate on a deep copy of the model description in order to prevent problems
+    # when mutable attributes are updated.
+    intermediate_description = copy.deepcopy(model.description)
 
     # Update the initial position of the joints.
     # This is necessary to compute the correct pose of the link pairs connected

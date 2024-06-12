@@ -30,10 +30,10 @@ class ConstrainedContactsParams(ContactParams):
     dampratio: float = jax_dataclasses.field(
         default_factory=lambda: jnp.array(0.5, dtype=float)
     )
-    dmin: float = jax_dataclasses.field(
+    d_min: float = jax_dataclasses.field(
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
-    dmax: float = jax_dataclasses.field(
+    d_max: float = jax_dataclasses.field(
         default_factory=lambda: jnp.array(1.0, dtype=float)
     )
     width: float = jax_dataclasses.field(
@@ -48,18 +48,26 @@ class ConstrainedContactsParams(ContactParams):
     friction: float = jax_dataclasses.field(
         default_factory=lambda: jnp.array(0.5, dtype=float)
     )
+    stiffness: float = jax_dataclasses.field(
+        default_factory=lambda: jnp.array(0.0, dtype=float)
+    )
+    damping: float = jax_dataclasses.field(
+        default_factory=lambda: jnp.array(0.0, dtype=float)
+    )
 
     @classmethod
     def build(
         cls,
         timeconst: float,
         dampratio: float,
-        dmin: float,
-        dmax: float,
+        d_min: float,
+        d_max: float,
         width: float,
         mid: float,
         power: float,
         friction: float,
+        stiffness: float,
+        damping: float,
     ) -> ConstrainedContactsParams:
         """
         Create a ConstrainedContactsParams instance with specified parameters.
@@ -67,8 +75,8 @@ class ConstrainedContactsParams(ContactParams):
         Args:
             timeconst: The time constant.
             dampratio: The damping ratio.
-            dmin: The minimum damping.
-            dmax: The maximum damping.
+            d_min: The minimum damping.
+            d_max: The maximum damping.
             width: The width of the damping function.
             mid: The mid value of the damping function.
             power: The power of the damping function.
@@ -87,15 +95,15 @@ class ConstrainedContactsParams(ContactParams):
             if dampratio is not None
             else cls.__dataclass_fields__["dampratio"].default
         )
-        dmin = (
-            jnp.array(dmin, dtype=float)
-            if dmin is not None
-            else cls.__dataclass_fields__["dmin"].default
+        d_min = (
+            jnp.array(d_min, dtype=float)
+            if d_min is not None
+            else cls.__dataclass_fields__["d_min"].default
         )
-        dmax = (
-            jnp.array(dmax, dtype=float)
-            if dmax is not None
-            else cls.__dataclass_fields__["dmax"].default
+        d_max = (
+            jnp.array(d_max, dtype=float)
+            if d_max is not None
+            else cls.__dataclass_fields__["d_max"].default
         )
         width = (
             jnp.array(width, dtype=float)
@@ -117,16 +125,28 @@ class ConstrainedContactsParams(ContactParams):
             if friction is not None
             else cls.__dataclass_fileds["friction"].default
         )
+        stiffness = (
+            jnp.array(stiffness, dtype=float)
+            if stiffness is not None
+            else cls.__dataclass_fields__["stiffness"].default
+        )
+        damping = (
+            jnp.array(damping, dtype=float)
+            if damping is not None
+            else cls.__dataclass_fields__["damping"].default
+        )
 
         return cls(
             timeconst=timeconst,
             dampratio=dampratio,
-            dmin=dmin,
-            dmax=dmax,
+            d_min=d_min,
+            d_max=d_max,
             width=width,
             mid=mid,
             power=power,
             friction=friction,
+            stiffness=stiffness,
+            damping=damping,
         )
 
     @classmethod
@@ -152,12 +172,14 @@ class ConstrainedContactsParams(ContactParams):
             [
                 self.timeconst,
                 self.dampratio,
-                self.dmin,
-                self.dmax,
+                self.d_min,
+                self.d_max,
                 self.width,
                 self.mid,
                 self.power,
                 self.friction,
+                self.stiffness,
+                self.damping,
             ]
         )
 
@@ -296,8 +318,8 @@ class ConstrainedContacts(ContactModel):
         )
 
         # Calculate quantities for the linear optimization problem.
-        A = J @ M_inv @ J.T
-        b = J @ M_inv @ qf_smooth + jnp.hstack(velocity) - reference_acc
+        A = J @ M_inv @ J.T + R
+        b = J @ M_inv @ qf_smooth + jnp.hstack(velocity) - a_ref
 
         objective = lambda x: jnp.sum(0.5 * (A @ x + b) ** 2)
 

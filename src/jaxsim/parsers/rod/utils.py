@@ -6,7 +6,7 @@ import numpy.typing as npt
 import rod
 
 import jaxsim.typing as jtp
-from jaxsim.math.inertia import Inertia
+from jaxsim.math import Inertia
 from jaxsim.parsers import descriptions
 
 

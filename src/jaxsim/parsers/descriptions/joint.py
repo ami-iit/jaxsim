@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import ClassVar, Tuple, Union
+from typing import ClassVar
 
 import jax_dataclasses
 import numpy as np
-import numpy.typing as npt
 
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass, Mutability
@@ -15,6 +14,7 @@ from .link import LinkDescription
 
 @dataclasses.dataclass(frozen=True)
 class JointType:
+
     Fixed: ClassVar[int] = 0
     Revolute: ClassVar[int] = 1
     Prismatic: ClassVar[int] = 2
@@ -64,29 +64,31 @@ class JointDescription(JaxsimDataclass):
     """
 
     name: jax_dataclasses.Static[str]
-    axis: npt.NDArray
-    pose: npt.NDArray
-    jtype: jax_dataclasses.Static[JointType]
+    axis: jtp.Vector
+    pose: jtp.Matrix
+    jtype: jax_dataclasses.Static[jtp.IntLike]
     child: LinkDescription = dataclasses.dataclass(repr=False)
     parent: LinkDescription = dataclasses.dataclass(repr=False)
 
-    index: int | None = None
+    index: jtp.IntLike | None = None
 
-    friction_static: float = 0.0
-    friction_viscous: float = 0.0
+    friction_static: jtp.FloatLike = 0.0
+    friction_viscous: jtp.FloatLike = 0.0
 
-    position_limit_damper: float = 0.0
-    position_limit_spring: float = 0.0
+    position_limit_damper: jtp.FloatLike = 0.0
+    position_limit_spring: jtp.FloatLike = 0.0
 
-    position_limit: Tuple[float, float] = (0.0, 0.0)
-    initial_position: Union[float, npt.NDArray] = 0.0
+    position_limit: tuple[jtp.FloatLike, jtp.FloatLike] = (0.0, 0.0)
+    initial_position: jtp.FloatLike | jtp.VectorLike = 0.0
 
-    motor_inertia: float = 0.0
-    motor_viscous_friction: float = 0.0
-    motor_gear_ratio: float = 1.0
+    motor_inertia: jtp.FloatLike = 0.0
+    motor_viscous_friction: jtp.FloatLike = 0.0
+    motor_gear_ratio: jtp.FloatLike = 1.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+
         if self.axis is not None:
+
             with self.mutable_context(
                 mutability=Mutability.MUTABLE, restore_after_exception=False
             ):
@@ -94,4 +96,24 @@ class JointDescription(JaxsimDataclass):
                 self.axis = self.axis / norm_of_axis
 
     def __hash__(self) -> int:
-        return hash(self.__repr__())
+
+        return hash(
+            (
+                hash(self.name),
+                hash(tuple(self.axis.tolist())),
+                hash(tuple(self.pose.flatten().tolist())),
+                hash(int(self.jtype)),
+                hash(self.child),
+                hash(self.parent),
+                hash(int(self.index)) if self.index is not None else 0,
+                hash(float(self.friction_static)),
+                hash(float(self.friction_viscous)),
+                hash(float(self.position_limit_damper)),
+                hash(float(self.position_limit_spring)),
+                hash((float(el) for el in self.position_limit)),
+                hash(tuple(np.atleast_1d(self.initial_position).tolist())),
+                hash(float(self.motor_inertia)),
+                hash(float(self.motor_viscous_friction)),
+                hash(float(self.motor_gear_ratio)),
+            ),
+        )

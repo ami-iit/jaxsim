@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import abc
 import dataclasses
-from typing import List
 
 import jax.numpy as jnp
 import numpy as np
 import numpy.typing as npt
 
+import jaxsim.typing as jtp
 from jaxsim import logging
 
 from .link import LinkDescription
@@ -17,9 +19,9 @@ class CollidablePoint:
     Represents a collidable point associated with a parent link.
 
     Attributes:
-        parent_link (LinkDescription): The parent link to which the collidable point is attached.
-        position (npt.NDArray): The position of the collidable point relative to the parent link.
-        enabled (bool): A flag indicating whether the collidable point is enabled for collision detection.
+        parent_link: The parent link to which the collidable point is attached.
+        position: The position of the collidable point relative to the parent link.
+        enabled: A flag indicating whether the collidable point is enabled for collision detection.
 
     """
 
@@ -29,7 +31,7 @@ class CollidablePoint:
 
     def change_link(
         self, new_link: LinkDescription, new_H_old: npt.NDArray
-    ) -> "CollidablePoint":
+    ) -> CollidablePoint:
         """
         Move the collidable point to a new parent link.
 
@@ -39,8 +41,8 @@ class CollidablePoint:
 
         Returns:
             CollidablePoint: A new collidable point associated with the new parent link.
-
         """
+
         msg = f"Moving collidable point: {self.parent_link.name} -> {new_link.name}"
         logging.debug(msg=msg)
 
@@ -50,15 +52,24 @@ class CollidablePoint:
             enabled=self.enabled,
         )
 
-    def __eq__(self, other):
-        retval = (
-            self.parent_link == other.parent_link
-            and (self.position == other.position).all()
-            and self.enabled == other.enabled
-        )
-        return retval
+    def __hash__(self) -> int:
 
-    def __str__(self):
+        return hash(
+            (
+                hash(self.parent_link),
+                hash(tuple(self.position.tolist())),
+                hash(self.enabled),
+            )
+        )
+
+    def __eq__(self, other: CollidablePoint) -> bool:
+
+        if not isinstance(other, CollidablePoint):
+            return False
+
+        return hash(self) == hash(other)
+
+    def __str__(self) -> str:
         return (
             f"{self.__class__.__name__}("
             + f"parent_link={self.parent_link.name}"
@@ -74,11 +85,11 @@ class CollisionShape(abc.ABC):
     Abstract base class for representing collision shapes.
 
     Attributes:
-        collidable_points (List[CollidablePoint]): A list of collidable points associated with the collision shape.
+        collidable_points: A list of collidable points associated with the collision shape.
 
     """
 
-    collidable_points: List[CollidablePoint]
+    collidable_points: tuple[CollidablePoint]
 
     def __str__(self):
         return (
@@ -95,14 +106,26 @@ class BoxCollision(CollisionShape):
     Represents a box-shaped collision shape.
 
     Attributes:
-        center (npt.NDArray): The center of the box in the local frame of the collision shape.
+        center: The center of the box in the local frame of the collision shape.
 
     """
 
-    center: npt.NDArray
+    center: jtp.VectorLike
 
-    def __eq__(self, other):
-        return (self.center == other.center).all() and super().__eq__(other)
+    def __hash__(self) -> int:
+        return hash(
+            (
+                hash(super()),
+                hash(tuple(self.center.tolist())),
+            )
+        )
+
+    def __eq__(self, other: BoxCollision) -> bool:
+
+        if not isinstance(other, BoxCollision):
+            return False
+
+        return hash(self) == hash(other)
 
 
 @dataclasses.dataclass
@@ -111,11 +134,23 @@ class SphereCollision(CollisionShape):
     Represents a spherical collision shape.
 
     Attributes:
-        center (npt.NDArray): The center of the sphere in the local frame of the collision shape.
+        center: The center of the sphere in the local frame of the collision shape.
 
     """
 
-    center: npt.NDArray
+    center: jtp.VectorLike
 
-    def __eq__(self, other):
-        return (self.center == other.center).all() and super().__eq__(other)
+    def __hash__(self) -> int:
+        return hash(
+            (
+                hash(super()),
+                hash(tuple(self.center.tolist())),
+            )
+        )
+
+    def __eq__(self, other: BoxCollision) -> bool:
+
+        if not isinstance(other, BoxCollision):
+            return False
+
+        return hash(self) == hash(other)

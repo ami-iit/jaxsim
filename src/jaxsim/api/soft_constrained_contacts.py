@@ -10,6 +10,7 @@ from jaxsim.math import Adjoint
 from jaxsim.terrain import FlatTerrain, Terrain
 
 from . import link
+from .common import VelRepr
 from .contact import ContactModel, ContactParams, ContactsState
 from .data import JaxSimModelData
 from .model import (
@@ -275,8 +276,11 @@ class ConstrainedContacts(ContactModel):
                 tuple: A tuple containing the contact jacobian, the reference acceleration, and the contact radius.
             """
 
-            def _compute_row(link_idx: jtp.Float):
-                # Compute the contact jacobian.
+            def _compute_row(
+                link_idx: jtp.Float, position: jtp.Array, velocity: jtp.Array
+            ) -> tuple[jtp.Array, jtp.Array, jtp.Array, jtp.Array]:
+
+                # Compute the velocity transform from the link frame to the contact frame.
                 L_Xv_C = Adjoint.from_rotation_and_translation(
                     rotation=jnp.eye(3),
                     translation=model.kin_dyn_parameters.contact_parameters.point[
@@ -284,36 +288,40 @@ class ConstrainedContacts(ContactModel):
                     ],
                 ).T
 
-                J = (
+                # Compute the contact jacobian in the inertial frame.
+                W_J_C = (
                     L_Xv_C
-                    @ generalized_free_floating_jacobian(model=model, data=data)[
-                        link_idx
-                    ]
+                    @ generalized_free_floating_jacobian(
+                        model=model, data=data, output_vel_repr=VelRepr.Inertial
+                    )[link_idx]
                 )[:3]
 
                 # Compute the reference acceleration.
-                imp, a_ref = _imp_aref(position=position, velocity=velocity)
+                ξ, a_ref = _imp_aref(position=position, velocity=velocity)
 
                 # Compute the regularization terms.
                 R = (
-                    (2 * self.parameters.friction**2 * (1 - imp) / (imp + 1e-8))
-                    * (1 + self.parameters.friction**2)
-                    / link.mass(model=model, link_index=link_idx)
+                    (2 * μ**2 * (1 - ξ) / (ξ + 1e-8))
+                    * (1 + μ**2)
+                    @ jnp.linalg.inv(
+                        link.spatial_inertia(model=model, link_index=link_idx)[:3, :3]
+                    )
                 )
 
-                return jax.tree.map(lambda x: x * (position < 0), (J, a_ref, R))
+                return jax.tree.map(lambda x: x * (position[2] < 0), (W_J_C, a_ref, R))
 
-            J, a_ref, R = jax.tree.map(
+            W_J_C, a_ref, R = jax.tree.map(
                 jnp.concatenate,
                 jax.vmap(_compute_row)(
                     jnp.array(model.kin_dyn_parameters.contact_parameters.body),
-                    δ,
-                    δ̇,
+                    position,
+                    velocity,
                 ),
             )
-            return J, a_ref, R
+            return W_J_C, a_ref, R
 
         τ_constraints = jnp.zeros_like(data.joint_positions())
+
         S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
         h = free_floating_bias_forces(model=model, data=data)
 
@@ -347,9 +355,9 @@ class ConstrainedContacts(ContactModel):
             maxls=20,
         )
 
-        F = J.T @ opt.run(jnp.zeros_like(b)).params
+        W_f = opt.run(jnp.zeros_like(b)).params.reshape(-1, 3)
 
-        return F, None
+        return jnp.hstack([W_f, jnp.zeros_like(W_f)]), None
 
 
 @jax_dataclasses.pytree_dataclass

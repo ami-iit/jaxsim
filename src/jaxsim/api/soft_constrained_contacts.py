@@ -215,39 +215,54 @@ class ConstrainedContacts(ContactModel):
         Returns:
             tuple[jtp.Vector, jtp.Vector]: A tuple containing the contact force and material deformation rate.
         """
+        # Extract the parameters.
+        (
+            timeconst,
+            ζ,
+            ξ_min,
+            ξ_max,
+            width,
+            m,
+            p,
+            μ,
+            stiffness,
+            damping,
+        ) = self.parameters
 
         def _imp_aref(
             position: jtp.Array, velocity: jtp.Array
         ) -> tuple[jtp.Array, jtp.Array]:
-            """Calculates impedance and offset acceleration in constraint frame.
+            """
+            Calculates impedance and offset acceleration in constraint frame.
 
             Args:
                 position: position in constraint frame
                 velocity: velocity in constraint frame
 
             Returns:
-                impedance: constraint impedance
+                ξ: constraint impedance
                 a_ref: offset acceleration in constraint frame
             """
-            # Check https://mujoco.readthedocs.io/en/latest/modeling.html#solver-parameters
-            timeconst, ζ, dmin, dmax, width, mid, p, _ = self.parameters
 
-            imp_x = jnp.abs(position) / width
-            imp_a = (1.0 / jnp.power(mid, p - 1)) * jnp.power(imp_x, p)
+            ξ_x = jnp.abs(position) / width
+            ξ_a = (1.0 / jnp.power(m, p - 1)) * jnp.power(ξ_x, p)
 
-            imp_b = 1 - (1.0 / jnp.power(1 - mid, p - 1)) * jnp.power(1 - imp_x, p)
+            ξ_b = 1 - (1.0 / jnp.power(1 - m, p - 1)) * jnp.power(1 - ξ_x, p)
 
-            imp_y = jnp.where(imp_x < mid, imp_a, imp_b)
+            ξ_y = jnp.where(ξ_x < m, ξ_a, ξ_b)
 
-            imp = jnp.clip(dmin + imp_y * (dmax - dmin), dmin, dmax)
-            imp = jnp.where(imp_x > 1.0, dmax, imp)
+            ξ = jnp.clip(ξ_min + ξ_y * (ξ_max - ξ_min), ξ_min, ξ_max)
+            ξ = jnp.atleast_1d(jnp.where(ξ_x > 1.0, ξ_max, ξ))
 
-            D = 2 / (dmax * timeconst)
-            K = 1 / (dmax * timeconst * ζ) ** 2
+            # When passing negative values, K and D represent spring and damper constants, respectively.
+            K = jnp.where(
+                stiffness < 0, -stiffness / ξ_max**2, 1 / (ξ_max * timeconst * ζ) ** 2
+            )
+            D = jnp.where(damping < 0, -damping / ξ_max, 2 / (ξ_max * timeconst))
 
-            a_ref = -D * velocity - K * imp * position
+            a_ref = jnp.atleast_1d(D * velocity + K * ξ * position)
 
-            return imp, a_ref
+            return ξ, a_ref
 
         def _contact_jacobian(model: JaxSimModel, data: JaxSimModelData) -> tuple:
             """Compute the contact jacobian and the reference acceleration.

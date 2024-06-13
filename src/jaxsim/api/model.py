@@ -51,15 +51,26 @@ class JaxSimModel(JaxsimDataclass):
         if not isinstance(other, JaxSimModel):
             return False
 
-        return hash(self) == hash(other)
+        if self.model_name != other.model_name:
+            return False
+
+        if self.kin_dyn_parameters != other.kin_dyn_parameters:
+            return False
+
+        # Here we compare only the static quantities of ModelDescription
+        # that are actually used by our APIs.
+        if self.description.frames != other.description.frames:
+            return False
+
+        return True
 
     def __hash__(self) -> int:
 
         return hash(
             (
                 hash(self.model_name),
-                hash(self.description),
                 hash(self.kin_dyn_parameters),
+                hash(self.description),
             )
         )
 

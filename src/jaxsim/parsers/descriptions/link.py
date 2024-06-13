@@ -31,7 +31,7 @@ class LinkDescription(JaxsimDataclass):
     mass: float = dataclasses.field(repr=False)
     inertia: jtp.Matrix = dataclasses.field(repr=False)
     index: int | None = None
-    parent: LinkDescription = dataclasses.field(default=None, repr=False)
+    parent: LinkDescription | None = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
 
     children: Static[tuple[LinkDescription]] = dataclasses.field(
@@ -60,7 +60,32 @@ class LinkDescription(JaxsimDataclass):
         if not isinstance(other, LinkDescription):
             return False
 
-        return hash(self) == hash(other)
+        if self.name != other.name:
+            return False
+
+        if not np.allclose(self.mass, other.mass):
+            return False
+
+        if not np.allclose(self.inertia, other.inertia):
+            return False
+
+        if self.index != other.index:
+            return False
+
+        if not np.allclose(self.pose, other.pose):
+            return False
+
+        if self.children != other.children:
+            return False
+
+        # Here only using the name to prevent circular recursion
+        if self.parent is not None and self.parent.name != other.parent.name:
+            return False
+
+        if self.parent is None and other.parent is not None:
+            return False
+
+        return True
 
     @property
     def name_and_index(self) -> str:

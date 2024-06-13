@@ -95,6 +95,61 @@ class JointDescription(JaxsimDataclass):
                 norm_of_axis = np.linalg.norm(self.axis)
                 self.axis = self.axis / norm_of_axis
 
+    def __eq__(self, other: JointDescription) -> bool:
+
+        if not isinstance(other, JointDescription):
+            return False
+
+        if self.name != other.name:
+            return False
+
+        if not np.allclose(self.axis, other.axis):
+            return False
+
+        if not np.allclose(self.pose, other.pose):
+            return False
+
+        if self.jtype != other.jtype:
+            return False
+
+        if self.child != other.child:
+            return False
+
+        if self.parent != other.parent:
+            return False
+
+        if self.index != other.index:
+            return False
+
+        if not np.allclose(self.friction_static, other.friction_static):
+            return False
+
+        if not np.allclose(self.friction_viscous, other.friction_viscous):
+            return False
+
+        if not np.allclose(self.position_limit_damper, other.position_limit_damper):
+            return False
+
+        if not np.allclose(self.position_limit_spring, other.position_limit_spring):
+            return False
+
+        if not np.allclose(self.position_limit, other.position_limit):
+            return False
+
+        if not np.allclose(self.initial_position, other.initial_position):
+            return False
+
+        if not np.allclose(self.motor_inertia, other.motor_inertia):
+            return False
+
+        if not np.allclose(self.motor_viscous_friction, other.motor_viscous_friction):
+            return False
+
+        if not np.allclose(self.motor_gear_ratio, other.motor_gear_ratio):
+            return False
+
+        return True
+
     def __hash__(self) -> int:
 
         from jaxsim.utils.wrappers import HashedNumpyArray

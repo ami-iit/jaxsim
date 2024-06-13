@@ -249,7 +249,25 @@ class ModelDescription(KinematicGraph):
         if not isinstance(other, ModelDescription):
             return False
 
-        return hash(self) == hash(other)
+        if self.name != other.name:
+            return False
+
+        if self.fixed_base != other.fixed_base:
+            return False
+
+        if self.root != other.root:
+            return False
+
+        if self.joints != other.joints:
+            return False
+
+        if self.frames != other.frames:
+            return False
+
+        if self.root_pose != other.root_pose:
+            return False
+
+        return True
 
     def __hash__(self) -> int:
 

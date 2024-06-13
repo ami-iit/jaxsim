@@ -59,6 +59,10 @@ class PlaneTerrain(Terrain):
         Returns:
             PlaneTerrain: A PlaneTerrain instance.
         """
+        if not isinstance(plane_normal, list):
+            raise TypeError(
+                f"Expected a list for the plane normal vector, got: {type(plane_normal)}."
+            )
 
         return PlaneTerrain(plane_normal=plane_normal)
 

@@ -17,7 +17,7 @@ import jaxsim.api as js
 import jaxsim.parsers.descriptions
 import jaxsim.typing as jtp
 from jaxsim.math import Cross
-from jaxsim.utils import JaxsimDataclass, Mutability
+from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
 
@@ -42,9 +42,13 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    description: Static[jaxsim.parsers.descriptions.ModelDescription | None] = (
-        dataclasses.field(default=None, repr=False)
-    )
+    _description: Static[
+        wrappers.CustomHashedObject[jaxsim.parsers.descriptions.ModelDescription] | None
+    ] = dataclasses.field(default=None, repr=False)
+
+    @property
+    def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
+        return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:
 
@@ -163,10 +167,13 @@ class JaxSimModel(JaxsimDataclass):
         # Set the model name (if not provided, use the one from the model description)
         model_name = model_name if model_name is not None else model_description.name
 
-        # Build the model
+        # Build the model.
         model = JaxSimModel(
             model_name=model_name,
-            description=model_description,
+            _description=wrappers.CustomHashedObject(
+                obj=model_description,
+                hash_function=lambda desc: hash(tuple(desc.frames)),
+            ),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),

@@ -22,7 +22,7 @@ from jaxsim.utils import JaxsimDataclass, Mutability
 from .common import VelRepr
 
 
-@jax_dataclasses.pytree_dataclass
+@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class JaxSimModel(JaxsimDataclass):
     """
     The JaxSim model defining the kinematics and dynamics of a robot.
@@ -31,19 +31,19 @@ class JaxSimModel(JaxsimDataclass):
     model_name: Static[str]
 
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
-        default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
+        default=jaxsim.terrain.FlatTerrain(), repr=False
     )
 
     kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
-        dataclasses.field(default=None, repr=False, compare=False, hash=False)
+        dataclasses.field(default=None, repr=False)
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
-        default=None, repr=False, compare=False, hash=False
+        default=None, repr=False
     )
 
     description: Static[jaxsim.parsers.descriptions.ModelDescription | None] = (
-        dataclasses.field(default=None, repr=False, compare=False, hash=False)
+        dataclasses.field(default=None, repr=False)
     )
 
     def __eq__(self, other: JaxSimModel) -> bool:

@@ -6,7 +6,6 @@ import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
 import jaxlie
-import numpy as np
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
@@ -15,7 +14,7 @@ from jaxsim.parsers.descriptions import JointDescription, ModelDescription
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
-@jax_dataclasses.pytree_dataclass
+@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class KynDynParameters(JaxsimDataclass):
     r"""
     Class storing the kinematic and dynamic parameters of a model.
@@ -221,7 +220,6 @@ class KynDynParameters(JaxsimDataclass):
             (
                 hash(self.number_of_links()),
                 hash(self.number_of_joints()),
-                hash(tuple(np.atleast_1d(self.parent_array).flatten().tolist())),
                 hash(self._parent_array),
                 hash(self._support_body_array_bool),
             )

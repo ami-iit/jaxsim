@@ -12,7 +12,7 @@ import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
 
 
-@jax_dataclasses.pytree_dataclass
+@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class LinkDescription(JaxsimDataclass):
     """
     In-memory description of a robot link.
@@ -40,13 +40,15 @@ class LinkDescription(JaxsimDataclass):
 
     def __hash__(self) -> int:
 
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
         return hash(
             (
                 hash(self.name),
                 hash(float(self.mass)),
-                hash(tuple(np.atleast_1d(self.inertia).flatten().tolist())),
-                hash(int(self.index)) if self.index is not None else 0,
-                hash(tuple(np.atleast_1d(self.pose).flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.inertia),
+                hash(int(self.index)) if self.index is not None else self.index,
+                HashedNumpyArray.hash_of_array(self.pose),
                 hash(tuple(self.children)),
                 # Here only using the name to prevent circular recursion:
                 hash(self.parent.name) if self.parent is not None else 0,

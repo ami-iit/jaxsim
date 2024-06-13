@@ -8,4 +8,3 @@ from .jacobian import (
     jacobian_full_doubly_left,
 )
 from .rnea import rnea
-from .soft_contacts import SoftContacts, SoftContactsParams

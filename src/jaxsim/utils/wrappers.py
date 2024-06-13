@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Generic, TypeVar
+from typing import Callable, Generic, TypeVar
 
 import jax
 import jax_dataclasses
@@ -33,6 +33,33 @@ class HashlessObject(Generic[T]):
     def __eq__(self, other: HashlessObject[T]) -> bool:
 
         if not isinstance(other, HashlessObject) and isinstance(
+            other.get(), type(self.get())
+        ):
+            return False
+
+        return hash(self) == hash(other)
+
+
+@dataclasses.dataclass
+class CustomHashedObject(Generic[T]):
+    """
+    A class that wraps an object and computes its hash with a custom hash function.
+    """
+
+    obj: T
+
+    hash_function: Callable[[T], int] = dataclasses.field(default=lambda obj: hash(obj))
+
+    def get(self: CustomHashedObject[T]) -> T:
+        return self.obj
+
+    def __hash__(self) -> int:
+
+        return self.hash_function(self.obj)
+
+    def __eq__(self, other: CustomHashedObject[T]) -> bool:
+
+        if not isinstance(other, CustomHashedObject) and isinstance(
             other.get(), type(self.get())
         ):
             return False

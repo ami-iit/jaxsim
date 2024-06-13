@@ -1,11 +1,17 @@
+from __future__ import annotations
+
+import abc
+import dataclasses
 import functools
 
 import jax
 import jax.numpy as jnp
+import jax_dataclasses
 
 import jaxsim.api as js
-import jaxsim.rbda
+import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim.utils import JaxsimDataclass
 
 from .common import VelRepr
 
@@ -129,23 +135,30 @@ def collidable_point_dynamics(
         `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
         Instead, the 6D forces are returned in the active representation.
     """
+    from .soft_contacts import SoftContacts
 
     # Compute the position and linear velocities (mixed representation) of
     # all collidable points belonging to the robot.
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
     # Build the soft contact model.
-    soft_contacts = jaxsim.rbda.SoftContacts(
-        parameters=data.soft_contacts_params, terrain=model.terrain
-    )
+    match model.contact_model:
+        case s if isinstance(s, SoftContacts):
+            # Build the contact model.
+            soft_contacts = SoftContacts(
+                parameters=data.contacts_params, terrain=model.terrain
+            )
 
-    # Compute the 6D force expressed in the inertial frame and applied to each
-    # collidable point, and the corresponding material deformation rate.
-    # Note that the material deformation rate is always returned in the mixed frame
-    # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
-    W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.contact_model)(
-        W_p_Ci, W_ṗ_Ci, data.state.soft_contacts.tangential_deformation
-    )
+            # Compute the 6D force expressed in the inertial frame and applied to each
+            # collidable point, and the corresponding material deformation rate.
+            # Note that the material deformation rate is always returned in the mixed frame
+            # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
+            W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.contact_model)(
+                W_p_Ci, W_ṗ_Ci, data.state.contact_state.tangential_deformation
+            )
+
+        case _:
+            raise ValueError("Invalid contact model {}".format(model.contact_model))
 
     # Convert the 6D forces to the active representation.
     f_Ci = jax.vmap(
@@ -213,7 +226,7 @@ def estimate_good_soft_contacts_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> jaxsim.rbda.soft_contacts.SoftContactsParams:
+) -> js.soft_contacts.SoftContactsParams:
     """
     Estimate good soft contacts parameters for the given model.
 
@@ -243,7 +256,7 @@ def estimate_good_soft_contacts_parameters(
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
-            soft_contacts_params=jaxsim.rbda.soft_contacts.SoftContactsParams(),
+            contacts_params=js.soft_contacts.SoftContactsParams(),
         )
 
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
@@ -262,15 +275,13 @@ def estimate_good_soft_contacts_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    sc_parameters = (
-        jaxsim.rbda.soft_contacts.SoftContactsParams.build_default_from_jaxsim_model(
-            model=model,
-            standard_gravity=standard_gravity,
-            static_friction_coefficient=static_friction_coefficient,
-            max_penetration=max_δ,
-            number_of_active_collidable_points_steady_state=nc,
-            damping_ratio=damping_ratio,
-        )
+    sc_parameters = js.soft_contacts.SoftContactsParams.build_default_from_jaxsim_model(
+        model=model,
+        standard_gravity=standard_gravity,
+        static_friction_coefficient=static_friction_coefficient,
+        max_penetration=max_δ,
+        number_of_active_collidable_points_steady_state=nc,
+        damping_ratio=damping_ratio,
     )
 
     return sc_parameters
@@ -395,3 +406,96 @@ def jacobian(
             raise ValueError(output_vel_repr)
 
     return O_J_WC
+
+
+@jax_dataclasses.pytree_dataclass
+class ContactsState(JaxsimDataclass, abc.ABC):
+    """
+    Abstract class storing the state of the contacts model.
+    """
+
+    @classmethod
+    def build(cls, **kwargs) -> ContactsState:
+        """
+        Build the contact state object.
+        Returns:
+            The contact state object.
+        """
+
+        return cls(**kwargs)
+
+    @classmethod
+    def zero(cls, **kwargs) -> ContactsState:
+        """
+        Build a zero contact state.
+        Returns:
+            The zero contact state.
+        """
+
+        return cls.build(**kwargs)
+
+    def valid(self, **kwargs) -> bool:
+        """
+        Check if the contacts state is valid.
+        """
+
+        return True
+
+
+@jax_dataclasses.pytree_dataclass
+class ContactsParams(JaxsimDataclass, abc.ABC):
+    """
+    Abstract class representing the parameters of a contact model.
+    """
+
+    @abc.abstractmethod
+    def build(self) -> ContactsParams:
+        """
+        Create a `ContactsParams` instance with specified parameters.
+        Returns:
+            The `ContactsParams` instance.
+        """
+
+        raise NotImplementedError
+
+    def valid(self, *args, **kwargs) -> bool:
+        """
+        Check if the parameters are valid.
+        Returns:
+            True if the parameters are valid, False otherwise.
+        """
+
+        return True
+
+
+@jax_dataclasses.pytree_dataclass
+class ContactModel(abc.ABC):
+    """
+    Abstract class representing a contact model.
+    Attributes:
+        parameters: The parameters of the contact model.
+        terrain: The terrain model.
+    """
+
+    parameters: ContactsParams = dataclasses.field(default_factory=ContactsParams)
+    terrain: jaxsim.terrain.Terrain = dataclasses.field(
+        default_factory=jaxsim.terrain.FlatTerrain
+    )
+
+    @abc.abstractmethod
+    def contact_model(
+        self,
+        position: jtp.Vector,
+        velocity: jtp.Vector,
+        **kwargs,
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact forces.
+        Args:
+            position: The position of the collidable point.
+            velocity: The velocity of the collidable point.
+        Returns:
+            A tuple containing the contact force and additional information.
+        """
+
+        raise NotImplementedError

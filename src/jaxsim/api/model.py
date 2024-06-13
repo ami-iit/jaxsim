@@ -20,6 +20,8 @@ from jaxsim.math import Cross
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
+from .contact import ContactModel
+from .soft_contacts import SoftContacts
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -50,6 +52,10 @@ class JaxSimModel(JaxsimDataclass):
     def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
         return self._description.get()
 
+    contact_model: ContactModel | None = dataclasses.field(
+        default=None, repr=False, compare=False, hash=False
+    )
+
     def __eq__(self, other: JaxSimModel) -> bool:
 
         if not isinstance(other, JaxSimModel):
@@ -69,6 +75,7 @@ class JaxSimModel(JaxsimDataclass):
             (
                 hash(self.model_name),
                 hash(self.kin_dyn_parameters),
+                hash(self.contact_model),
             )
         )
 
@@ -82,6 +89,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
+        contact_model: ContactModel | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -122,11 +130,15 @@ class JaxSimModel(JaxsimDataclass):
                 considered_joints=considered_joints
             )
 
+        terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
+        contact_model = contact_model or SoftContacts(terrain=terrain)
+
         # Build the model
         model = JaxSimModel.build(
             model_description=intermediate_description,
             model_name=model_name,
             terrain=terrain,
+            contact_model=contact_model,
         )
 
         # Store the origin of the model, in case downstream logic needs it
@@ -141,6 +153,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
+        contact_model: ContactModel | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -153,6 +166,8 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model overriding the physics model name.
             terrain:
                 The optional terrain to consider.
+            contact_model:
+                The optional contact model to consider. If None, the soft contact model is used.
 
         Returns:
             The built Model object.
@@ -161,14 +176,19 @@ class JaxSimModel(JaxsimDataclass):
         # Set the model name (if not provided, use the one from the model description)
         model_name = model_name if model_name is not None else model_description.name
 
-        # Build the model.
+        # Set the terrain (if not provided, use the default flat terrain)
+        terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
+        contact_model = contact_model or SoftContacts(terrain=terrain)
+
+        # Build the model
         model = JaxSimModel(
             model_name=model_name,
             _description=wrappers.HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
-            terrain=terrain or JaxSimModel.__dataclass_fields__["terrain"].default,
+            terrain=terrain,
+            contact_model=contact_model,
         )
 
         return model
@@ -350,6 +370,7 @@ def reduce(
         model_description=reduced_intermediate_description,
         model_name=model.name(),
         terrain=model.terrain,
+        contact_model=model.contact_model,
     )
 
     # Store the origin of the model, in case downstream logic needs it

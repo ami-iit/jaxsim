@@ -8,6 +8,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
+from jaxsim.api.soft_contacts import SoftContacts, SoftContactsParams
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
@@ -305,9 +306,9 @@ def test_ad_soft_contacts(
         p: jtp.VectorLike,
         v: jtp.VectorLike,
         m: jtp.VectorLike,
-        params: jaxsim.rbda.SoftContactsParams,
+        params: SoftContactsParams,
     ) -> tuple[jtp.Vector, jtp.Vector]:
-        return jaxsim.rbda.SoftContacts(parameters=params).contact_model(
+        return SoftContacts(parameters=params).contact_model(
             position=p, velocity=v, tangential_deformation=m
         )
 

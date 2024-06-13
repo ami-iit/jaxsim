@@ -56,6 +56,10 @@ class HashedNumpyArray:
 
     array: jax.Array | npt.NDArray
 
+    precision: float | None = dataclasses.field(
+        default=1e-9, repr=False, compare=False, hash=False
+    )
+
     large_array: jax_dataclasses.Static[bool] = dataclasses.field(
         default=False, repr=False, compare=False, hash=False
     )
@@ -65,7 +69,9 @@ class HashedNumpyArray:
 
     def __hash__(self) -> int:
 
-        return hash(tuple(np.atleast_1d(self.array).flatten().tolist()))
+        return HashedNumpyArray.hash_of_array(
+            array=self.array, precision=self.precision
+        )
 
     def __eq__(self, other: HashedNumpyArray) -> bool:
 
@@ -76,3 +82,37 @@ class HashedNumpyArray:
             return np.array_equal(self.array, other.array)
 
         return hash(self) == hash(other)
+
+    @staticmethod
+    def hash_of_array(
+        array: jax.Array | npt.NDArray, precision: float | None = 1e-9
+    ) -> int:
+        """
+        Calculate the hash of a NumPy array.
+
+        Args:
+            array: The array to hash.
+            precision: Optionally limit the precision over which the hash is computed.
+
+        Returns:
+            The hash of the array.
+        """
+
+        array = np.array(array).flatten()
+
+        array = np.where(array == np.nan, hash(np.nan), array)
+        array = np.where(array == np.inf, hash(np.inf), array)
+        array = np.where(array == -np.inf, hash(-np.inf), array)
+
+        if precision is not None:
+
+            integer1 = (array * precision).astype(int)
+            integer2 = (array - integer1 / precision).astype(int)
+
+            decimal_array = ((array - integer1 * 1e9 - integer2) / precision).astype(
+                int
+            )
+
+            array = np.hstack([integer1, integer2, decimal_array]).astype(int)
+
+        return hash(tuple(array.tolist()))

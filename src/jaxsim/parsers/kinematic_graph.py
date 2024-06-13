@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
-from typing import Any, Callable, Iterable, NamedTuple, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -15,7 +15,8 @@ from jaxsim.utils import Mutability
 from . import descriptions
 
 
-class RootPose(NamedTuple):
+@dataclasses.dataclass
+class RootPose:
     """
     Represents the root pose in a kinematic graph.
 
@@ -28,15 +29,20 @@ class RootPose(NamedTuple):
         The root link of the kinematic graph is the base link.
     """
 
-    root_position: npt.NDArray = np.zeros(3)
-    root_quaternion: npt.NDArray = np.array([1.0, 0, 0, 0])
+    root_position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
+
+    root_quaternion: npt.NDArray = dataclasses.field(
+        default_factory=lambda: np.array([1.0, 0, 0, 0])
+    )
 
     def __hash__(self) -> int:
 
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
         return hash(
             (
-                hash(tuple(self.root_position.tolist())),
-                hash(tuple(self.root_quaternion.tolist())),
+                HashedNumpyArray.hash_of_array(self.root_position),
+                HashedNumpyArray.hash_of_array(self.root_quaternion),
             )
         )
 
@@ -45,7 +51,13 @@ class RootPose(NamedTuple):
         if not isinstance(other, RootPose):
             return False
 
-        return hash(self) == hash(other)
+        if not np.allclose(self.root_position, other.root_position):
+            return False
+
+        if not np.allclose(self.root_quaternion, other.root_quaternion):
+            return False
+
+        return True
 
 
 @dataclasses.dataclass(frozen=True)

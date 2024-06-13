@@ -441,3 +441,59 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         return replace(
             forces=self.input.physics_model.f_ext.at[link_idxs, :].set(W_f0_L + W_f_L)
         )
+
+    def apply_frame_forces(
+        self,
+        forces: jtp.MatrixLike,
+        model: js.model.JaxSimModel | None = None,
+        data: js.data.JaxSimModelData | None = None,
+        frame_names: tuple[str, ...] | str | None = None,
+        additive: bool = False,
+    ) -> Self:
+        """
+        Apply the frame forces.
+
+        Args:
+            forces: The frame forces in the active representation.
+            model:
+                The model to consider, only needed if a frame serialization different
+                from the implicit one is used.
+            data:
+                The data of the considered model, only needed if the velocity
+                representation is not inertial-fixed.
+            frame_names: The names of the frames corresponding to the forces.
+            additive:
+                Whether to add the forces to the existing ones instead of replacing them.
+
+        Returns:
+            A new `JaxSimModelReferences` object with the given frame forces.
+
+        Note:
+            The frame forces must be expressed in the active representation.
+            Then, we always convert and store forces in inertial-fixed representation.
+        """
+
+        f_F = jnp.atleast_2d(forces).astype(float)
+
+        # If we have the model, we can extract the frame names if not provided.
+        frame_names = frame_names if frame_names is not None else model.frame_names()
+
+        # Make sure that the frame names are a tuple if they are provided by the user.
+        frame_names = (frame_names,) if isinstance(frame_names, str) else frame_names
+
+        if len(frame_names) != f_F.shape[0]:
+            msg = "The number of frame names ({}) must match the number of forces ({})"
+            raise ValueError(msg.format(len(frame_names), f_F.shape[0]))
+
+        # Extract the frame indices.
+        frame_idxs = js.frame.names_to_idxs(frame_names=frame_names, model=model)
+
+        # Compute the bias depending on whether we either set or add the frame forces.
+        W_f0_F = (
+            jnp.zeros_like(f_F)
+            if not additive
+            else self.input.physics_model.f_ext[frame_idxs, :]
+        )
+
+        # The f_F input is either F_f_F or FW_f_F, depending on the representation.
+        W_H_F = js.frame.transform(model=model, data=data)

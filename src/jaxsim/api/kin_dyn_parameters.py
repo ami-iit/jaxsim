@@ -25,6 +25,7 @@ class KynDynParameters(JaxsimDataclass):
         support_body_array_bool:
             The boolean support parent array :math:`\kappa_{b}(i)` of the model.
         link_parameters: The parameters of the links.
+        frame_parameters: The parameters of the frames.
         contact_parameters: The parameters of the collidable points.
         joint_model: The joint model of the model.
         joint_parameters: The parameters of the joints.
@@ -40,6 +41,9 @@ class KynDynParameters(JaxsimDataclass):
 
     # Contacts
     contact_parameters: ContactParameters
+
+    # Frames
+    frame_parameters: FrameParameters
 
     # Joints
     joint_model: JointModel
@@ -140,6 +144,19 @@ class KynDynParameters(JaxsimDataclass):
             model_description=model_description
         )
 
+        # =================
+        # Frames properties
+        # =================
+
+        # Create the object storing the parameters of frames.
+        # Note that, contrarily to LinkParameters and JointsParameters, this object
+        # is not created with vmap. This is because the "name" attribute of the object
+        # must be Static for JIT-related reasons, and tree_map would not consider it
+        # as a leaf.
+        frame_parameters = FrameParameters.build_from(
+            model_description=model_description
+        )
+
         # ===============
         # Tree properties
         # ===============
@@ -205,6 +222,7 @@ class KynDynParameters(JaxsimDataclass):
             joint_model=joint_model,
             joint_parameters=joint_parameters,
             contact_parameters=contact_parameters,
+            frame_parameters=frame_parameters,
         )
 
     def __eq__(self, other: KynDynParameters) -> bool:
@@ -220,6 +238,8 @@ class KynDynParameters(JaxsimDataclass):
             (
                 hash(self.number_of_links()),
                 hash(self.number_of_joints()),
+                hash(self.frame_parameters.name),
+                hash(tuple(self.frame_parameters.body.tolist())),
                 hash(self._parent_array),
                 hash(self._support_body_array_bool),
             )
@@ -778,3 +798,68 @@ class ContactParameters(JaxsimDataclass):
         assert cp.point.shape[0] == len(cp.body)
 
         return cp
+
+
+@jax_dataclasses.pytree_dataclass
+class FrameParameters(JaxsimDataclass):
+    """
+    Class storing the frame parameters of a model.
+
+    Attributes:
+        name: A tuple of strings defining the frame names.
+        body:
+            A vector of integers representing, for each frame, the index of
+            the body (link) to which it is rigidly attached to.
+        transform: The transforms of the frames w.r.t. their parent link.
+
+    Note:
+        Contrarily to LinkParameters and JointParameters, this class is not meant
+        to be created with vmap. This is because the `name` attribute must be `Static`.
+    """
+
+    name: Static[tuple[str, ...]] = dataclasses.field(default_factory=tuple)
+
+    body: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
+
+    transform: jtp.Array = dataclasses.field(default_factory=lambda: jnp.array([]))
+
+    @staticmethod
+    def build_from(model_description: ModelDescription) -> FrameParameters:
+        """
+        Build a FrameParameters object from a model description.
+
+        Args:
+            model_description: The model description to consider.
+
+        Returns:
+            The FrameParameters object.
+        """
+
+        if len(model_description.frames) == 0:
+            return FrameParameters()
+
+        # Extract the frame names.
+        names = tuple(frame.name for frame in model_description.frames)
+
+        # For each frame, extract the index of the link to which it is attached to.
+        parent_link_index_of_frames = tuple(
+            model_description.links_dict[frame.parent.name].index
+            for frame in model_description.frames
+        )
+
+        # For each frame, extract the transform w.r.t. its parent link.
+        transforms = jnp.atleast_3d(
+            jnp.stack([frame.pose for frame in model_description.frames])
+        )
+
+        # Build the FrameParameters object.
+        fp = FrameParameters(
+            name=names,
+            transform=transforms.astype(float),
+            body=jnp.array(parent_link_index_of_frames).astype(int),
+        )
+
+        assert fp.transform.shape[1:] == (4, 4), fp.transform.shape[1:]
+        assert fp.transform.shape[0] == len(fp.body), fp.transform.shape[0]
+
+        return fp

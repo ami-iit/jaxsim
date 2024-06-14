@@ -43,7 +43,7 @@ class JaxSimModel(JaxsimDataclass):
     )
 
     _description: Static[
-        wrappers.CustomHashedObject[jaxsim.parsers.descriptions.ModelDescription] | None
+        wrappers.HashlessObject[jaxsim.parsers.descriptions.ModelDescription | None]
     ] = dataclasses.field(default=None, repr=False)
 
     @property
@@ -61,11 +61,6 @@ class JaxSimModel(JaxsimDataclass):
         if self.kin_dyn_parameters != other.kin_dyn_parameters:
             return False
 
-        # Here we compare only the static quantities of ModelDescription
-        # that are actually used by our APIs.
-        if self.description.frames != other.description.frames:
-            return False
-
         return True
 
     def __hash__(self) -> int:
@@ -74,7 +69,6 @@ class JaxSimModel(JaxsimDataclass):
             (
                 hash(self.model_name),
                 hash(self.kin_dyn_parameters),
-                hash(self.description),
             )
         )
 
@@ -170,10 +164,7 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model.
         model = JaxSimModel(
             model_name=model_name,
-            _description=wrappers.CustomHashedObject(
-                obj=model_description,
-                hash_function=lambda desc: hash(tuple(desc.frames)),
-            ),
+            _description=wrappers.HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
@@ -288,6 +279,10 @@ class JaxSimModel(JaxsimDataclass):
 
         return self.kin_dyn_parameters.link_names
 
+    # =====================
+    # Frame-related methods
+    # =====================
+
     def frame_names(self) -> tuple[str, ...]:
         """
         Return the names of the links in the model.
@@ -296,7 +291,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the links in the model.
         """
 
-        return tuple(frame.name for frame in self.description.frames)
+        return self.kin_dyn_parameters.frame_parameters.name
 
 
 # =====================

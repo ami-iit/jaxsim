@@ -52,7 +52,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 hash(self.state),
                 HashedNumpyArray.hash_of_array(self.gravity),
                 hash(self.soft_contacts_params),
-                hash(tuple(self.time_ns.flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.time_ns),
             )
         )
 

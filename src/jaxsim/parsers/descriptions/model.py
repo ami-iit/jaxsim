@@ -249,22 +249,14 @@ class ModelDescription(KinematicGraph):
         if not isinstance(other, ModelDescription):
             return False
 
-        if self.name != other.name:
-            return False
-
-        if self.fixed_base != other.fixed_base:
-            return False
-
-        if self.root != other.root:
-            return False
-
-        if self.joints != other.joints:
-            return False
-
-        if self.frames != other.frames:
-            return False
-
-        if self.root_pose != other.root_pose:
+        if not (
+            self.name == other.name
+            and self.fixed_base == other.fixed_base
+            and self.root == other.root
+            and self.joints == other.joints
+            and self.frames == other.frames
+            and self.root_pose == other.root_pose
+        ):
             return False
 
         return True

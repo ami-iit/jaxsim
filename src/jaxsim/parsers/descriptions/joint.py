@@ -100,52 +100,29 @@ class JointDescription(JaxsimDataclass):
         if not isinstance(other, JointDescription):
             return False
 
-        if self.name != other.name:
-            return False
-
-        if not np.allclose(self.axis, other.axis):
-            return False
-
-        if not np.allclose(self.pose, other.pose):
-            return False
-
-        if self.jtype != other.jtype:
-            return False
-
-        if self.child != other.child:
-            return False
-
-        if self.parent != other.parent:
-            return False
-
-        if self.index != other.index:
-            return False
-
-        if not np.allclose(self.friction_static, other.friction_static):
-            return False
-
-        if not np.allclose(self.friction_viscous, other.friction_viscous):
-            return False
-
-        if not np.allclose(self.position_limit_damper, other.position_limit_damper):
-            return False
-
-        if not np.allclose(self.position_limit_spring, other.position_limit_spring):
-            return False
-
-        if not np.allclose(self.position_limit, other.position_limit):
-            return False
-
-        if not np.allclose(self.initial_position, other.initial_position):
-            return False
-
-        if not np.allclose(self.motor_inertia, other.motor_inertia):
-            return False
-
-        if not np.allclose(self.motor_viscous_friction, other.motor_viscous_friction):
-            return False
-
-        if not np.allclose(self.motor_gear_ratio, other.motor_gear_ratio):
+        if not (
+            self.name == other.name
+            and self.jtype == other.jtype
+            and self.child == other.child
+            and self.parent == other.parent
+            and self.index == other.index
+            and all(
+                np.allclose(getattr(self, attr), getattr(other, attr))
+                for attr in [
+                    "axis",
+                    "pose",
+                    "friction_static",
+                    "friction_viscous",
+                    "position_limit_damper",
+                    "position_limit_spring",
+                    "position_limit",
+                    "initial_position",
+                    "motor_inertia",
+                    "motor_viscous_friction",
+                    "motor_gear_ratio",
+                ]
+            ),
+        ):
             return False
 
         return True
@@ -163,14 +140,14 @@ class JointDescription(JaxsimDataclass):
                 hash(self.child),
                 hash(self.parent),
                 hash(int(self.index)) if self.index is not None else 0,
-                HashedNumpyArray.hash_of_array(np.array(self.friction_static)),
-                HashedNumpyArray.hash_of_array(np.array(self.friction_viscous)),
-                HashedNumpyArray.hash_of_array(np.array(self.position_limit_damper)),
-                HashedNumpyArray.hash_of_array(np.array(self.position_limit_spring)),
-                HashedNumpyArray.hash_of_array(np.array(self.position_limit)),
+                HashedNumpyArray.hash_of_array(self.friction_static),
+                HashedNumpyArray.hash_of_array(self.friction_viscous),
+                HashedNumpyArray.hash_of_array(self.position_limit_damper),
+                HashedNumpyArray.hash_of_array(self.position_limit_spring),
+                HashedNumpyArray.hash_of_array(self.position_limit),
                 HashedNumpyArray.hash_of_array(self.initial_position),
-                HashedNumpyArray.hash_of_array(np.array(self.motor_inertia)),
-                HashedNumpyArray.hash_of_array(np.array(self.motor_viscous_friction)),
-                HashedNumpyArray.hash_of_array(np.array(self.motor_gear_ratio)),
+                HashedNumpyArray.hash_of_array(self.motor_inertia),
+                HashedNumpyArray.hash_of_array(self.motor_viscous_friction),
+                HashedNumpyArray.hash_of_array(self.motor_gear_ratio),
             ),
         )

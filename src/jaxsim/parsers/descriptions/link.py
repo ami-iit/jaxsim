@@ -47,7 +47,7 @@ class LinkDescription(JaxsimDataclass):
                 hash(self.name),
                 hash(float(self.mass)),
                 HashedNumpyArray.hash_of_array(self.inertia),
-                hash(int(self.index)) if self.index is not None else self.index,
+                hash(int(self.index)) if self.index is not None else 0,
                 HashedNumpyArray.hash_of_array(self.pose),
                 hash(tuple(self.children)),
                 # Here only using the name to prevent circular recursion:
@@ -60,29 +60,19 @@ class LinkDescription(JaxsimDataclass):
         if not isinstance(other, LinkDescription):
             return False
 
-        if self.name != other.name:
-            return False
-
-        if not np.allclose(self.mass, other.mass):
-            return False
-
-        if not np.allclose(self.inertia, other.inertia):
-            return False
-
-        if self.index != other.index:
-            return False
-
-        if not np.allclose(self.pose, other.pose):
-            return False
-
-        if self.children != other.children:
-            return False
-
-        # Here only using the name to prevent circular recursion
-        if self.parent is not None and self.parent.name != other.parent.name:
-            return False
-
-        if self.parent is None and other.parent is not None:
+        if not (
+            self.name == other.name
+            and np.allclose(self.mass, other.mass)
+            and np.allclose(self.inertia, other.inertia)
+            and self.index == other.index
+            and np.allclose(self.pose, other.pose)
+            and self.children == other.children
+            and (
+                (self.parent is not None and self.parent.name == other.parent.name)
+                if self.parent is not None
+                else other.parent is None
+            ),
+        ):
             return False
 
         return True

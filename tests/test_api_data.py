@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import pytest
 
 import jaxsim.api as js
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 from jaxsim.utils import Mutability
 
@@ -21,7 +22,7 @@ def test_data_valid(
 
 def test_data_joint_indexing(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 

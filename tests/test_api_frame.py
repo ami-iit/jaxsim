@@ -4,6 +4,7 @@ import jaxlib.xla_extension
 import pytest
 
 import jaxsim.api as js
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 from jaxsim.math.quaternion import Quaternion
 
@@ -124,7 +125,7 @@ def test_frame_transforms(
 
 def test_frame_jacobians(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 

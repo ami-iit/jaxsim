@@ -241,7 +241,7 @@ def jacobian(
     data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Matrix:
     r"""
     Compute the free-floating jacobian of the link.
@@ -354,7 +354,7 @@ def velocity(
     data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Vector:
     """
     Compute the 6D velocity of the link.
@@ -404,7 +404,7 @@ def jacobian_derivative(
     data: js.data.JaxSimModelData,
     *,
     link_index: jtp.IntLike,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Matrix:
     r"""
     Compute the derivative of the free-floating jacobian of the link.

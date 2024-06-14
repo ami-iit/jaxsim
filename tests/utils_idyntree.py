@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 
 import jaxsim.api as js
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 
@@ -118,7 +119,7 @@ def store_jaxsim_data_in_kindyncomputations(
 class KinDynComputations:
     """High-level wrapper of the iDynTree KinDynComputations class."""
 
-    vel_repr: int
+    vel_repr: jtp.VelRepr
     gravity: npt.NDArray
     kin_dyn: idt.KinDynComputations
 
@@ -126,7 +127,7 @@ class KinDynComputations:
     def build(
         urdf: pathlib.Path | str,
         considered_joints: list[str] | None = None,
-        vel_repr: int = VelRepr.Inertial,
+        vel_repr: jtp.VelRepr = VelRepr.Inertial,
         gravity: npt.NDArray = np.array([0, 0, -10.0]),
         removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
     ) -> KinDynComputations:

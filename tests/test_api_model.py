@@ -8,6 +8,7 @@ import rod
 
 import jaxsim.api as js
 import jaxsim.math
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 from . import utils_idyntree
@@ -222,7 +223,7 @@ def test_model_creation_and_reduction(
 
 def test_model_properties(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 
@@ -269,7 +270,7 @@ def test_model_properties(
 def test_model_rbda(
     jaxsim_models_types: js.model.JaxSimModel,
     prng_key: jax.Array,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
 ):
 
     model = jaxsim_models_types
@@ -480,7 +481,7 @@ def test_coriolis_matrix(
 
 def test_model_fd_id_consistency(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 

@@ -186,7 +186,7 @@ def jacobian(
     data: js.data.JaxSimModelData,
     *,
     frame_index: jtp.IntLike,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Matrix:
     r"""
     Compute the free-floating jacobian of the frame.

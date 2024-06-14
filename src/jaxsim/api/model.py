@@ -453,7 +453,7 @@ def generalized_free_floating_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Matrix:
     """
     Compute the free-floating jacobians of all links.
@@ -1422,7 +1422,7 @@ def total_momentum_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Matrix:
     """
     Compute the jacobian of the total momentum.
@@ -1519,7 +1519,7 @@ def average_velocity_jacobian(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    output_vel_repr: int | None = None,
+    output_vel_repr: jtp.VelRepr | None = None,
 ) -> jtp.Matrix:
     """
     Compute the Jacobian of the average velocity of the model.
@@ -1778,9 +1778,9 @@ def link_bias_accelerations(
         return C_H_L, L_v_CL
 
     def to_inertial() -> jtp.Matrix:
-        C_H_L = W_H_L = js.model.forward_kinematics(
+        C_H_L = W_H_L = js.model.forward_kinematics(  # noqa: F841
             model=model, data=data
-        )  # noqa: F841
+        )
         L_v_CL = L_v_WL
         return C_H_L, L_v_CL
 
@@ -1788,9 +1788,9 @@ def link_bias_accelerations(
         W_H_L = js.model.forward_kinematics(model=model, data=data)
         LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
         C_H_L = LW_H_L
-        L_v_CL = L_v_LW_L = jax.vmap(lambda v: v.at[0:3].set(jnp.zeros(3)))(
-            L_v_WL
-        )  # noqa: F841
+        L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
+            lambda v: v.at[0:3].set(jnp.zeros(3))
+        )(L_v_WL)
         return C_H_L, L_v_CL
 
     C_H_L, L_v_CL = jax.lax.switch(

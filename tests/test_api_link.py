@@ -5,6 +5,7 @@ import pytest
 
 import jaxsim.api as js
 import jaxsim.math
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 from . import utils_idyntree
@@ -128,7 +129,7 @@ def test_link_transforms(
 
 def test_link_jacobians(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 
@@ -197,7 +198,7 @@ def test_link_jacobians(
 
 def test_link_bias_acceleration(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 
@@ -298,7 +299,7 @@ def test_link_bias_acceleration(
 
 def test_link_jacobian_derivative(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 

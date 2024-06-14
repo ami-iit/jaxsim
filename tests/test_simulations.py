@@ -5,13 +5,14 @@ import pytest
 import jaxsim.api as js
 import jaxsim.integrators
 import jaxsim.rbda
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 from jaxsim.utils import Mutability
 
 
 def test_box_with_external_forces(
     jaxsim_model_box: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
 ):
     """
     This test simulates a box falling due to gravity.
@@ -96,7 +97,7 @@ def test_box_with_external_forces(
 
 def test_box_with_zero_gravity(
     jaxsim_model_box: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
+    velocity_representation: jtp.VelRepr,
     prng_key: jnp.ndarray,
 ):
 

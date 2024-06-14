@@ -45,12 +45,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     def __hash__(self) -> int:
 
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
         return hash(
             (
                 hash(self.state),
-                hash(tuple(self.gravity.flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.gravity),
                 hash(self.soft_contacts_params),
-                hash(jnp.atleast_1d(self.time_ns).flatten().tolist()),
+                hash(tuple(self.time_ns.flatten().tolist())),
             )
         )
 

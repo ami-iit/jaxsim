@@ -283,12 +283,16 @@ class PhysicsModelState(JaxsimDataclass):
 
     def __hash__(self) -> int:
 
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
         return hash(
             (
-                hash(tuple(jnp.atleast_1d(self.joint_positions.flatten().tolist()))),
-                hash(tuple(jnp.atleast_1d(self.joint_velocities.flatten().tolist()))),
-                hash(tuple(self.base_position.flatten().tolist())),
-                hash(tuple(self.base_quaternion.flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.joint_positions),
+                HashedNumpyArray.hash_of_array(self.joint_velocities),
+                HashedNumpyArray.hash_of_array(self.base_position),
+                HashedNumpyArray.hash_of_array(self.base_quaternion),
+                HashedNumpyArray.hash_of_array(self.base_linear_velocity),
+                HashedNumpyArray.hash_of_array(self.base_angular_velocity),
             )
         )
 
@@ -613,9 +617,9 @@ class SoftContactsState(JaxsimDataclass):
 
     def __hash__(self) -> int:
 
-        return hash(
-            tuple(jnp.atleast_1d(self.tangential_deformation.flatten()).tolist())
-        )
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
+        return HashedNumpyArray.hash_of_array(self.tangential_deformation)
 
     def __eq__(self, other: SoftContactsState) -> bool:
 

@@ -17,7 +17,9 @@ from .common import VelRepr
 # =======================
 
 
-def idx_of_parent_link(model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike) -> int:
+def idx_of_parent_link(
+    model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike
+) -> jtp.Int:
     """
     Get the index of the link to which the frame is rigidly attached.
 
@@ -29,17 +31,13 @@ def idx_of_parent_link(model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike) -
         The index of the frame's parent link.
     """
 
-    # Get the intermediate representation parsed from the model description.
-    ir = model.description
-
-    # Extract the indices of the frame and the link it is attached to.
-    F = ir.frames[frame_idx - model.number_of_links()]
-    L = ir.links_dict[F.parent.name].index
-
-    return int(L)
+    return model.kin_dyn_parameters.frame_parameters.body[
+        frame_idx - model.number_of_links()
+    ]
 
 
-def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> int:
+@functools.partial(jax.jit, static_argnames="frame_name")
+def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
     """
     Convert the name of a frame to its index.
 
@@ -51,13 +49,19 @@ def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> int:
         The index of the frame.
     """
 
-    frame_names = np.array([frame.name for frame in model.description.frames])
+    if frame_name in model.kin_dyn_parameters.frame_parameters.name:
+        return (
+            jnp.array(
+                np.argwhere(
+                    np.array(model.kin_dyn_parameters.frame_parameters.name)
+                    == frame_name
+                )
+            )
+            .squeeze()
+            .astype(int)
+        ) + model.number_of_links()
 
-    if frame_name in frame_names:
-        idx_in_list = np.argwhere(frame_names == frame_name)
-        return int(idx_in_list.squeeze().tolist()) + model.number_of_links()
-
-    return -1
+    return jnp.array(-1).astype(int)
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str:
@@ -72,7 +76,9 @@ def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str
         The name of the frame.
     """
 
-    return model.description.frames[frame_index - model.number_of_links()].name
+    return model.kin_dyn_parameters.frame_parameters.name[
+        frame_index - model.number_of_links()
+    ]
 
 
 @functools.partial(jax.jit, static_argnames=["frame_names"])
@@ -91,7 +97,7 @@ def names_to_idxs(
     """
 
     return jnp.array(
-        [name_to_idx(model=model, frame_name=frame_name) for frame_name in frame_names]
+        [name_to_idx(model=model, frame_name=name) for name in frame_names]
     ).astype(int)
 
 
@@ -109,10 +115,7 @@ def idxs_to_names(
         The names of the frames.
     """
 
-    return tuple(
-        idx_to_name(model=model, frame_index=frame_index)
-        for frame_index in frame_indices
-    )
+    return tuple(idx_to_name(model=model, frame_index=idx) for idx in frame_indices)
 
 
 # ==========
@@ -120,7 +123,7 @@ def idxs_to_names(
 # ==========
 
 
-@functools.partial(jax.jit, static_argnames=["frame_index"])
+@jax.jit
 def transform(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -144,14 +147,15 @@ def transform(
     W_H_L = js.link.transform(model=model, data=data, link_index=L)
 
     # Get the static frame pose wrt the parent link.
-    frame = model.description.frames[frame_index - model.number_of_links()]
-    L_H_F = frame.pose
+    L_H_F = model.kin_dyn_parameters.frame_parameters.transform[
+        frame_index - model.number_of_links()
+    ]
 
     # Combine the transforms computing the frame pose.
     return W_H_L @ L_H_F
 
 
-@functools.partial(jax.jit, static_argnames=["frame_index", "output_vel_repr"])
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

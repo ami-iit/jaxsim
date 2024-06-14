@@ -41,7 +41,7 @@ class JointGenericAxis:
         return hash(self) == hash(other)
 
 
-@jax_dataclasses.pytree_dataclass
+@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class JointDescription(JaxsimDataclass):
     """
     In-memory description of a robot link.
@@ -95,25 +95,59 @@ class JointDescription(JaxsimDataclass):
                 norm_of_axis = np.linalg.norm(self.axis)
                 self.axis = self.axis / norm_of_axis
 
+    def __eq__(self, other: JointDescription) -> bool:
+
+        if not isinstance(other, JointDescription):
+            return False
+
+        if not (
+            self.name == other.name
+            and self.jtype == other.jtype
+            and self.child == other.child
+            and self.parent == other.parent
+            and self.index == other.index
+            and all(
+                np.allclose(getattr(self, attr), getattr(other, attr))
+                for attr in [
+                    "axis",
+                    "pose",
+                    "friction_static",
+                    "friction_viscous",
+                    "position_limit_damper",
+                    "position_limit_spring",
+                    "position_limit",
+                    "initial_position",
+                    "motor_inertia",
+                    "motor_viscous_friction",
+                    "motor_gear_ratio",
+                ]
+            ),
+        ):
+            return False
+
+        return True
+
     def __hash__(self) -> int:
+
+        from jaxsim.utils.wrappers import HashedNumpyArray
 
         return hash(
             (
                 hash(self.name),
-                hash(tuple(self.axis.tolist())),
-                hash(tuple(self.pose.flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.axis),
+                HashedNumpyArray.hash_of_array(self.pose),
                 hash(int(self.jtype)),
                 hash(self.child),
                 hash(self.parent),
                 hash(int(self.index)) if self.index is not None else 0,
-                hash(float(self.friction_static)),
-                hash(float(self.friction_viscous)),
-                hash(float(self.position_limit_damper)),
-                hash(float(self.position_limit_spring)),
-                hash((float(el) for el in self.position_limit)),
-                hash(tuple(np.atleast_1d(self.initial_position).tolist())),
-                hash(float(self.motor_inertia)),
-                hash(float(self.motor_viscous_friction)),
-                hash(float(self.motor_gear_ratio)),
+                HashedNumpyArray.hash_of_array(self.friction_static),
+                HashedNumpyArray.hash_of_array(self.friction_viscous),
+                HashedNumpyArray.hash_of_array(self.position_limit_damper),
+                HashedNumpyArray.hash_of_array(self.position_limit_spring),
+                HashedNumpyArray.hash_of_array(self.position_limit),
+                HashedNumpyArray.hash_of_array(self.initial_position),
+                HashedNumpyArray.hash_of_array(self.motor_inertia),
+                HashedNumpyArray.hash_of_array(self.motor_viscous_friction),
+                HashedNumpyArray.hash_of_array(self.motor_gear_ratio),
             ),
         )

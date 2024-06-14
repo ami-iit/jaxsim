@@ -12,7 +12,7 @@ import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
 
 
-@jax_dataclasses.pytree_dataclass
+@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class LinkDescription(JaxsimDataclass):
     """
     In-memory description of a robot link.
@@ -31,7 +31,7 @@ class LinkDescription(JaxsimDataclass):
     mass: float = dataclasses.field(repr=False)
     inertia: jtp.Matrix = dataclasses.field(repr=False)
     index: int | None = None
-    parent: LinkDescription = dataclasses.field(default=None, repr=False)
+    parent: LinkDescription | None = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
 
     children: Static[tuple[LinkDescription]] = dataclasses.field(
@@ -40,13 +40,15 @@ class LinkDescription(JaxsimDataclass):
 
     def __hash__(self) -> int:
 
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
         return hash(
             (
                 hash(self.name),
                 hash(float(self.mass)),
-                hash(tuple(np.atleast_1d(self.inertia).flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.inertia),
                 hash(int(self.index)) if self.index is not None else 0,
-                hash(tuple(np.atleast_1d(self.pose).flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.pose),
                 hash(tuple(self.children)),
                 # Here only using the name to prevent circular recursion:
                 hash(self.parent.name) if self.parent is not None else 0,
@@ -58,7 +60,22 @@ class LinkDescription(JaxsimDataclass):
         if not isinstance(other, LinkDescription):
             return False
 
-        return hash(self) == hash(other)
+        if not (
+            self.name == other.name
+            and np.allclose(self.mass, other.mass)
+            and np.allclose(self.inertia, other.inertia)
+            and self.index == other.index
+            and np.allclose(self.pose, other.pose)
+            and self.children == other.children
+            and (
+                (self.parent is not None and self.parent.name == other.parent.name)
+                if self.parent is not None
+                else other.parent is None
+            ),
+        ):
+            return False
+
+        return True
 
     @property
     def name_and_index(self) -> str:

@@ -1,5 +1,5 @@
 import jax
-import numpy as np
+import jax.numpy as jnp
 import pytest
 
 import jaxsim.api as js
@@ -16,27 +16,33 @@ def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
     # Tests
     # =====
 
-    frame_indices = tuple(
-        frame.index for frame in model.description.frames if frame.index is not None
-    )
+    n_l = model.number_of_links()
+    n_f = len(model.frame_names())
 
-    frame_names = np.array([frame.name for frame in model.description.frames])
-
-    for frame_idx, frame_name in zip(frame_indices, frame_names):
-        assert js.frame.name_to_idx(model=model, frame_name=frame_name) == frame_idx
-        assert js.frame.idx_to_name(model=model, frame_index=frame_idx) == frame_name
+    for idx, frame_name in enumerate(model.frame_names()):
+        frame_index = n_l + idx
+        assert js.frame.name_to_idx(model=model, frame_name=frame_name) == frame_index
+        assert js.frame.idx_to_name(model=model, frame_index=frame_index) == frame_name
         assert (
-            js.frame.idx_of_parent_link(model=model, frame_idx=frame_idx)
+            js.frame.idx_of_parent_link(model=model, frame_idx=frame_index)
             < model.number_of_links()
         )
 
     assert js.frame.names_to_idxs(
-        model=model, frame_names=tuple(frame_names)
-    ) == pytest.approx(frame_indices)
+        model=model, frame_names=model.frame_names()
+    ) == pytest.approx(jnp.arange(n_l, n_l + n_f))
 
-    assert js.frame.idxs_to_names(
-        model=model, frame_indices=frame_indices
-    ) == pytest.approx(frame_names)
+    assert (
+        js.frame.idxs_to_names(
+            model=model,
+            frame_indices=tuple(
+                js.frame.names_to_idxs(
+                    model=model, frame_names=model.frame_names()
+                ).tolist()
+            ),
+        )
+        == model.frame_names()
+    )
 
 
 def test_frame_transforms(

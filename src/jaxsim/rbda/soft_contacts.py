@@ -31,11 +31,13 @@ class SoftContactsParams(JaxsimDataclass):
 
     def __hash__(self) -> int:
 
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
         return hash(
             (
-                hash(tuple(jnp.atleast_1d(self.K).flatten().tolist())),
-                hash(tuple(jnp.atleast_1d(self.D).flatten().tolist())),
-                hash(tuple(jnp.atleast_1d(self.mu).flatten().tolist())),
+                HashedNumpyArray.hash_of_array(self.K),
+                HashedNumpyArray.hash_of_array(self.D),
+                HashedNumpyArray.hash_of_array(self.mu),
             )
         )
 

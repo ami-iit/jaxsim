@@ -17,12 +17,12 @@ import jaxsim.api as js
 import jaxsim.parsers.descriptions
 import jaxsim.typing as jtp
 from jaxsim.math import Cross
-from jaxsim.utils import JaxsimDataclass, Mutability
+from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
 
 
-@jax_dataclasses.pytree_dataclass
+@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class JaxSimModel(JaxsimDataclass):
     """
     The JaxSim model defining the kinematics and dynamics of a robot.
@@ -31,34 +31,43 @@ class JaxSimModel(JaxsimDataclass):
     model_name: Static[str]
 
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
-        default=jaxsim.terrain.FlatTerrain(), repr=False, compare=False, hash=False
+        default=jaxsim.terrain.FlatTerrain(), repr=False
     )
 
     kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
-        dataclasses.field(default=None, repr=False, compare=False, hash=False)
+        dataclasses.field(default=None, repr=False)
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
-        default=None, repr=False, compare=False, hash=False
+        default=None, repr=False
     )
 
-    description: Static[jaxsim.parsers.descriptions.ModelDescription | None] = (
-        dataclasses.field(default=None, repr=False, compare=False, hash=False)
-    )
+    _description: Static[
+        wrappers.HashlessObject[jaxsim.parsers.descriptions.ModelDescription | None]
+    ] = dataclasses.field(default=None, repr=False)
+
+    @property
+    def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
+        return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:
 
         if not isinstance(other, JaxSimModel):
             return False
 
-        return hash(self) == hash(other)
+        if self.model_name != other.model_name:
+            return False
+
+        if self.kin_dyn_parameters != other.kin_dyn_parameters:
+            return False
+
+        return True
 
     def __hash__(self) -> int:
 
         return hash(
             (
                 hash(self.model_name),
-                hash(self.description),
                 hash(self.kin_dyn_parameters),
             )
         )
@@ -152,10 +161,10 @@ class JaxSimModel(JaxsimDataclass):
         # Set the model name (if not provided, use the one from the model description)
         model_name = model_name if model_name is not None else model_description.name
 
-        # Build the model
+        # Build the model.
         model = JaxSimModel(
             model_name=model_name,
-            description=model_description,
+            _description=wrappers.HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
@@ -270,6 +279,10 @@ class JaxSimModel(JaxsimDataclass):
 
         return self.kin_dyn_parameters.link_names
 
+    # =====================
+    # Frame-related methods
+    # =====================
+
     def frame_names(self) -> tuple[str, ...]:
         """
         Return the names of the links in the model.
@@ -278,7 +291,7 @@ class JaxSimModel(JaxsimDataclass):
             The names of the links in the model.
         """
 
-        return tuple(frame.name for frame in self.description.frames)
+        return self.kin_dyn_parameters.frame_parameters.name
 
 
 # =====================

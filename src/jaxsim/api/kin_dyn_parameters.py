@@ -748,7 +748,7 @@ class ContactParameters(JaxsimDataclass):
             A tuple of integers representing, for each collidable point, the index of
             the body (link) to which it is rigidly attached to.
         point:
-            The translation between the link frame and the collidable point, expressed
+            The translations between the link frame and the collidable point, expressed
             in the coordinates of the parent link frame.
 
     Note:
@@ -791,11 +791,11 @@ class ContactParameters(JaxsimDataclass):
             links_dict[cp.parent_link.name].index for cp in collidable_points
         )
 
-        # Build the GroundContact object.
+        # Build the ContactParameters object.
         cp = ContactParameters(point=points, body=link_index_of_points)  # noqa
 
-        assert cp.point.shape[1] == 3
-        assert cp.point.shape[0] == len(cp.body)
+        assert cp.point.shape[1] == 3, cp.point.shape[1]
+        assert cp.point.shape[0] == len(cp.body), cp.point.shape[0]
 
         return cp
 

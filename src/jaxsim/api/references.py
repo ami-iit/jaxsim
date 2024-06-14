@@ -32,7 +32,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     @staticmethod
     def zero(
         model: js.model.JaxSimModel,
-        velocity_representation: int = VelRepr.Inertial,
+        velocity_representation: jtp.VelRepr = VelRepr.Inertial,
     ) -> JaxSimModelReferences:
         """
         Create a `JaxSimModelReferences` object with zero references.
@@ -55,7 +55,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         joint_force_references: jtp.Vector | None = None,
         link_forces: jtp.Matrix | None = None,
         data: js.data.JaxSimModelData | None = None,
-        velocity_representation: int | None = None,
+        velocity_representation: jtp.VelRepr | None = None,
     ) -> JaxSimModelReferences:
         """
         Create a `JaxSimModelReferences` object with the given references.
@@ -225,7 +225,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             false_fun=lambda: None,
         )
 
-        def not_inertial(velocity_representation: int) -> jtp.Matrix:
+        def not_inertial(velocity_representation: jtp.VelRepr) -> jtp.Matrix:
             # Helper function to convert a single 6D force to the active representation
             # considering as body the link (i.e. L_f_L and LW_f_L).
             def convert(W_f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike) -> jtp.Matrix:
@@ -468,7 +468,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         )
 
         # If inertial-fixed representation, we can directly store the link forces.
-        def inertial(velocity_representation: int) -> JaxSimModelReferences:
+        def inertial(velocity_representation: jtp.VelRepr) -> JaxSimModelReferences:
             W_f_L = f_L
             return replace(
                 forces=self.input.physics_model.f_ext.at[link_idxs, :].set(
@@ -476,7 +476,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 )
             )
 
-        def not_inertial(velocity_representation: int) -> JaxSimModelReferences:
+        def not_inertial(velocity_representation: jtp.VelRepr) -> JaxSimModelReferences:
             # Helper function to convert a single 6D force to the inertial representation
             # considering as body the link (i.e. L_f_L and LW_f_L).
             def convert_using_link_frame(

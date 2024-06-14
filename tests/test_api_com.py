@@ -2,6 +2,7 @@ import jax
 import pytest
 
 import jaxsim.api as js
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 from . import utils_idyntree
@@ -9,7 +10,7 @@ from . import utils_idyntree
 
 def test_com_properties(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 

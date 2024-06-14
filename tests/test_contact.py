@@ -2,12 +2,13 @@ import jax
 import pytest
 
 import jaxsim.api as js
+import jaxsim.typing as jtp
 from jaxsim import VelRepr
 
 
 def test_collidable_point_jacobians(
     jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: int,
+    velocity_representation: jtp.VelRepr,
     prng_key: jax.Array,
 ):
 

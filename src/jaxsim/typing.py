@@ -40,3 +40,5 @@ MatrixLike = Matrix
 IntLike = Int
 BoolLike = Bool
 FloatLike = Float
+
+VelRepr = Int

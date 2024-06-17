@@ -248,7 +248,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                             "Missing model data to use a representation different from `VelRepr.Inertial`"
                         )
                     ),
-                    result_shape_dtypes=jnp.empty(shape=(1, 4, 4)),
+                    result_shape_dtypes=jnp.empty(
+                        shape=(model.number_of_links(), 4, 4)
+                    ),
                 ),
                 false_fun=lambda: js.model.forward_kinematics(
                     model=model, data=data or JaxSimModelData.zero(model=model)
@@ -493,7 +495,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                             "Missing model data to use a representation different from `VelRepr.Inertial`"
                         )
                     ),
-                    result_shape_dtypes=jnp.empty(shape=(1, 4, 4)),
+                    result_shape_dtypes=jnp.empty(
+                        shape=(model.number_of_links(), 4, 4)
+                    ),
                 ),
                 false_fun=lambda: js.model.forward_kinematics(
                     model=model, data=data or JaxSimModelData.zero(model=model)

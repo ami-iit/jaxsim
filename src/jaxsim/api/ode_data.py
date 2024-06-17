@@ -6,7 +6,7 @@ import jax_dataclasses
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.rbda import ContactsState
-from jaxsim.rbda.contacts.soft_contacts import SoftContacts, SoftContactsState
+from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 from jaxsim.utils import JaxsimDataclass
 
 # =============================================================================

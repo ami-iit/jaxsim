@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.rbda.contacts.soft_contacts import SoftContacts, SoftContactsParams
+from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsParams
 
 from .common import VelRepr
 
@@ -246,7 +246,7 @@ def estimate_good_soft_contacts_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
-    from jaxsim.rbda.contacts.soft_contacts import SoftContactsParams
+    from jaxsim.rbda.contacts.soft import SoftContactsParams
 
     def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
         """"""

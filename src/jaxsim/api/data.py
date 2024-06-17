@@ -14,7 +14,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.math import Quaternion
-from jaxsim.rbda.contacts.soft_contacts import SoftContacts
+from jaxsim.rbda.contacts.soft import SoftContacts
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 

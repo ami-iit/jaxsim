@@ -13,7 +13,6 @@ This module provides a set of algorithms for rigid body dynamics.
     crba
     forward_kinematics
     jacobian
-    soft_contacts
     utils
 
 Articulated Body Algorithm
@@ -31,7 +30,7 @@ Collision Detection
 Contact Models
 ~~~~~~~~~~~~~~
 
-.. automodule:: jaxsim.rbda.soft_contacts
+.. automodule:: jaxsim.rbda.contacts.soft
     :members:
 
 Composite Rigid Body Algorithm

@@ -114,7 +114,7 @@ class JaxSimModel(JaxsimDataclass):
         """
 
         import jaxsim.parsers.rod
-        from jaxsim.rbda.contacts.soft_contacts import SoftContacts
+        from jaxsim.rbda.contacts.soft import SoftContacts
 
         # Parse the input resource (either a path to file or a string with the URDF/SDF)
         # and build the -intermediate- model description
@@ -171,7 +171,7 @@ class JaxSimModel(JaxsimDataclass):
         Returns:
             The built Model object.
         """
-        from jaxsim.rbda.contacts.soft_contacts import SoftContacts
+        from jaxsim.rbda.contacts.soft import SoftContacts
 
         # Set the model name (if not provided, use the one from the model description)
         model_name = model_name if model_name is not None else model_description.name

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from typing import Any
 
 import jaxsim.terrain
 import jaxsim.typing as jtp
@@ -80,12 +81,12 @@ class ContactModel(abc.ABC):
     terrain: jaxsim.terrain.Terrain
 
     @abc.abstractmethod
-    def contact_model(
+    def compute_contact_forces(
         self,
         position: jtp.Vector,
         velocity: jtp.Vector,
         **kwargs,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
+    ) -> tuple[Any, ...]:
         """
         Compute the contact forces.
         Args:

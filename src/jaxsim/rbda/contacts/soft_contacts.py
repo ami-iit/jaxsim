@@ -137,7 +137,7 @@ class SoftContacts(ContactModel):
 
     terrain: Terrain = dataclasses.field(default_factory=FlatTerrain)
 
-    def contact_model(
+    def compute_contact_forces(
         self,
         position: jtp.Vector,
         velocity: jtp.Vector,

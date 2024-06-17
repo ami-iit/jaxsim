@@ -308,7 +308,7 @@ def test_ad_soft_contacts(
         m: jtp.VectorLike,
         params: SoftContactsParams,
     ) -> tuple[jtp.Vector, jtp.Vector]:
-        return SoftContacts(parameters=params).contact_model(
+        return SoftContacts(parameters=params).compute_contact_forces(
             position=p, velocity=v, tangential_deformation=m
         )
 

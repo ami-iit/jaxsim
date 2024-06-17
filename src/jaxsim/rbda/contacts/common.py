@@ -1,22 +1,18 @@
 from __future__ import annotations
 
 import abc
-import dataclasses
-
-import jax_dataclasses
 
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
 
-@jax_dataclasses.pytree_dataclass
-class ContactsState(JaxsimDataclass, abc.ABC):
+class ContactsState(abc.ABC):
     """
     Abstract class storing the state of the contacts model.
     """
 
     @classmethod
+    @abc.abstractmethod
     def build(cls, **kwargs) -> ContactsState:
         """
         Build the contact state object.
@@ -27,6 +23,7 @@ class ContactsState(JaxsimDataclass, abc.ABC):
         return cls(**kwargs)
 
     @classmethod
+    @abc.abstractmethod
     def zero(cls, **kwargs) -> ContactsState:
         """
         Build a zero contact state.
@@ -36,6 +33,7 @@ class ContactsState(JaxsimDataclass, abc.ABC):
 
         return cls.build(**kwargs)
 
+    @abc.abstractmethod
     def valid(self, **kwargs) -> bool:
         """
         Check if the contacts state is valid.
@@ -44,14 +42,14 @@ class ContactsState(JaxsimDataclass, abc.ABC):
         return True
 
 
-@jax_dataclasses.pytree_dataclass
-class ContactsParams(JaxsimDataclass, abc.ABC):
+class ContactsParams(abc.ABC):
     """
     Abstract class representing the parameters of a contact model.
     """
 
+    @classmethod
     @abc.abstractmethod
-    def build(self) -> ContactsParams:
+    def build(cls) -> ContactsParams:
         """
         Create a `ContactsParams` instance with specified parameters.
         Returns:
@@ -70,7 +68,6 @@ class ContactsParams(JaxsimDataclass, abc.ABC):
         return True
 
 
-@jax_dataclasses.pytree_dataclass
 class ContactModel(abc.ABC):
     """
     Abstract class representing a contact model.
@@ -79,10 +76,8 @@ class ContactModel(abc.ABC):
         terrain: The terrain model.
     """
 
-    parameters: ContactsParams = dataclasses.field(default_factory=ContactsParams)
-    terrain: jaxsim.terrain.Terrain = dataclasses.field(
-        default_factory=jaxsim.terrain.FlatTerrain
-    )
+    parameters: ContactsParams
+    terrain: jaxsim.terrain.Terrain
 
     @abc.abstractmethod
     def contact_model(
@@ -99,5 +94,3 @@ class ContactModel(abc.ABC):
         Returns:
             A tuple containing the contact force and additional information.
         """
-
-        raise NotImplementedError

@@ -114,7 +114,6 @@ class JaxSimModel(JaxsimDataclass):
         """
 
         import jaxsim.parsers.rod
-        from jaxsim.rbda.contacts.soft import SoftContacts
 
         # Parse the input resource (either a path to file or a string with the URDF/SDF)
         # and build the -intermediate- model description
@@ -128,9 +127,6 @@ class JaxSimModel(JaxsimDataclass):
             intermediate_description = intermediate_description.reduce(
                 considered_joints=considered_joints
             )
-
-        terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
-        contact_model = contact_model or SoftContacts(terrain=terrain)
 
         # Build the model
         model = JaxSimModel.build(

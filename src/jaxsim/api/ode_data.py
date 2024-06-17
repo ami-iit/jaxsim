@@ -213,15 +213,11 @@ class ODEState(JaxsimDataclass):
         )
 
         # Get the contact model from the `JaxSimModel`
-        match model.contact_model:
-            case SoftContacts():
+        match contact:
+            case SoftContactsState():
                 pass
             case None:
-                contact = (
-                    contact
-                    if contact is not None
-                    else SoftContactsState.zero(model=model)
-                )
+                contact = SoftContactsState.zero(model=model)
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 

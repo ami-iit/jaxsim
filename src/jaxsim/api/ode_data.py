@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import importlib
-
 import jax.numpy as jnp
 import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim import logging
 from jaxsim.rbda import ContactsState
-from jaxsim.rbda.contacts.soft_contacts import SoftContactsState
+from jaxsim.rbda.contacts.soft_contacts import SoftContacts, SoftContactsState
 from jaxsim.utils import JaxsimDataclass
 
 # =============================================================================
@@ -164,13 +161,18 @@ class ODEState(JaxsimDataclass):
         """
 
         # Get the contact model from the `JaxSimModel`
-        prefix = type(model.contact_model).__name__.split("Contact")[0]
-
-        if prefix:
-            module_name = f"{prefix.lower()}_contacts"
-            class_name = f"{prefix.capitalize()}ContactsState"
-        else:
-            raise ValueError("Unable to determine contact state class prefix.")
+        match model.contact_model:
+            case SoftContacts():
+                contact = SoftContactsState.build_from_jaxsim_model(
+                    model=model,
+                    **(
+                        dict(tangential_deformation=tangential_deformation)
+                        if tangential_deformation is not None
+                        else dict()
+                    ),
+                )
+            case _:
+                raise ValueError("Unable to determine contact state class prefix.")
 
         return ODEState.build(
             model=model,
@@ -183,17 +185,7 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
-            contact=getattr(
-                importlib.import_module(f"jaxsim.rbda.contacts.{module_name}"),
-                class_name,
-            ).build_from_jaxsim_model(
-                model=model,
-                **(
-                    dict(tangential_deformation=tangential_deformation)
-                    if tangential_deformation is not None
-                    else dict()
-                ),
-            ),
+            contact=contact,
         )
 
     @staticmethod
@@ -221,28 +213,17 @@ class ODEState(JaxsimDataclass):
         )
 
         # Get the contact model from the `JaxSimModel`
-        try:
-            prefix = type(model.contact_model).__name__.split("Contact")[0]
-        except AttributeError:
-            logging.warning(
-                "Unable to determine contact state class prefix. Using default soft contacts."
-            )
-            prefix = "Soft"
-
-        module_name = f"{prefix.lower()}_contacts"
-        class_name = f"{prefix.capitalize()}ContactsState"
-
-        try:
-            state_cls = getattr(
-                importlib.import_module(f"jaxsim.rbda.contacts.{module_name}"),
-                class_name,
-            )
-        except ImportError as e:
-            raise e
-
-        contact = (
-            contact if contact is not None else SoftContactsState.zero(model=model)
-        )
+        match model.contact_model:
+            case SoftContacts():
+                pass
+            case None:
+                contact = (
+                    contact
+                    if contact is not None
+                    else SoftContactsState.zero(model=model)
+                )
+            case _:
+                raise ValueError("Unable to determine contact state class prefix.")
 
         return ODEState(physics_model=physics_model_state, contact=contact)
 

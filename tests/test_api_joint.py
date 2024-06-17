@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import jaxlib.xla_extension
 import pytest
 
 import jaxsim.api as js
@@ -33,3 +34,12 @@ def test_joint_index(
         )
         == model.joint_names()
     )
+
+    with pytest.raises(ValueError):
+        _ = js.joint.name_to_idx(model=model, joint_name="non_existent_joint")
+
+    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+        _ = js.joint.idx_to_name(model=model, joint_index=-1)
+
+    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+        _ = js.joint.idx_to_name(model=model, joint_index=model.number_of_joints())

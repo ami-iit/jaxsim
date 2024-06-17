@@ -14,14 +14,13 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.math import Quaternion
+from jaxsim.rbda.contacts.soft_contacts import SoftContacts
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
 from . import common
 from .common import VelRepr
-from .contact import ContactsParams, ContactsState
 from .ode_data import ODEState
-from .soft_contacts import SoftContacts
 
 try:
     from typing import Self
@@ -39,7 +38,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    contacts_params: ContactsParams = dataclasses.field(repr=False)
+    contacts_params: jaxsim.rbda.ContactsParams = dataclasses.field(repr=False)
 
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
@@ -114,8 +113,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-        contacts_state: ContactsState | None = None,
-        contacts_params: ContactsParams | None = None,
+        contacts_state: jaxsim.rbda.ContactsState | None = None,
+        contacts_params: jaxsim.rbda.ContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
@@ -658,7 +657,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.reset_base_velocity(
             base_velocity=jnp.hstack(
-                [linear_velocity.squeeze(), self.base_velocity()[3:6]]
+                [
+                    linear_velocity.squeeze(),
+                    self.base_velocity()[3:6],
+                ]
             ),
             velocity_representation=velocity_representation,
         )
@@ -686,7 +688,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.reset_base_velocity(
             base_velocity=jnp.hstack(
-                [self.base_velocity()[0:3], angular_velocity.squeeze()]
+                [
+                    self.base_velocity()[0:3],
+                    angular_velocity.squeeze(),
+                ]
             ),
             velocity_representation=velocity_representation,
         )

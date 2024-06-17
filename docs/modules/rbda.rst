@@ -28,6 +28,12 @@ Collision Detection
 .. automodule:: jaxsim.rbda.collidable_points
     :members:
 
+Contact Models
+~~~~~~~~~~~~~~
+
+.. automodule:: jaxsim.rbda.soft_contacts
+    :members:
+
 Composite Rigid Body Algorithm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

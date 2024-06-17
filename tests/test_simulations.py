@@ -6,7 +6,7 @@ import jaxsim.api as js
 import jaxsim.integrators
 import jaxsim.rbda
 from jaxsim import VelRepr
-from jaxsim.api.soft_contacts import SoftContactsParams
+from jaxsim.rbda.contacts.soft_contacts import SoftContactsParams
 
 
 def test_box_with_external_forces(

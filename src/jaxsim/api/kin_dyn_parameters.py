@@ -184,7 +184,6 @@ class KynDynParameters(JaxsimDataclass):
             carry0 = κb, link_index
 
             def scan_body(carry: tuple, i: jtp.Int) -> tuple[tuple, None]:
-
                 κb, active_link_index = carry
 
                 κb, active_link_index = jax.lax.cond(
@@ -226,14 +225,12 @@ class KynDynParameters(JaxsimDataclass):
         )
 
     def __eq__(self, other: KynDynParameters) -> bool:
-
         if not isinstance(other, KynDynParameters):
             return False
 
         return hash(self) == hash(other)
 
     def __hash__(self) -> int:
-
         return hash(
             (
                 hash(self.number_of_links()),
@@ -643,7 +640,6 @@ class LinkParameters(JaxsimDataclass):
     def build_from_flat_parameters(
         index: jtp.IntLike, parameters: jtp.VectorLike
     ) -> LinkParameters:
-
         index = jnp.array(index).squeeze().astype(int)
 
         m = jnp.array(parameters[0]).squeeze().astype(float)
@@ -668,7 +664,11 @@ class LinkParameters(JaxsimDataclass):
 
         return (
             jnp.hstack(
-                [params.mass, params.center_of_mass.squeeze(), params.inertia_elements]
+                [
+                    params.mass,
+                    params.center_of_mass.squeeze(),
+                    params.inertia_elements,
+                ]
             )
             .squeeze()
             .astype(float)

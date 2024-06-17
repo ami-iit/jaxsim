@@ -20,8 +20,6 @@ from jaxsim.math import Cross
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
-from .contact import ContactModel
-from .soft_contacts import SoftContacts
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -52,7 +50,7 @@ class JaxSimModel(JaxsimDataclass):
     def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
         return self._description.get()
 
-    contact_model: ContactModel | None = dataclasses.field(
+    contact_model: jaxsim.rbda.ContactModel | None = dataclasses.field(
         default=None, repr=False, compare=False, hash=False
     )
 
@@ -89,7 +87,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
-        contact_model: ContactModel | None = None,
+        contact_model: jaxsim.rbda.ContactModel | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -116,6 +114,7 @@ class JaxSimModel(JaxsimDataclass):
         """
 
         import jaxsim.parsers.rod
+        from jaxsim.rbda.contacts.soft_contacts import SoftContacts
 
         # Parse the input resource (either a path to file or a string with the URDF/SDF)
         # and build the -intermediate- model description
@@ -153,7 +152,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
-        contact_model: ContactModel | None = None,
+        contact_model: jaxsim.rbda.ContactModel | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -172,6 +171,7 @@ class JaxSimModel(JaxsimDataclass):
         Returns:
             The built Model object.
         """
+        from jaxsim.rbda.contacts.soft_contacts import SoftContacts
 
         # Set the model name (if not provided, use the one from the model description)
         model_name = model_name if model_name is not None else model_description.name

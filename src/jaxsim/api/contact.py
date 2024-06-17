@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import abc
-import dataclasses
 import functools
 
 import jax
 import jax.numpy as jnp
-import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.rbda.contacts.soft_contacts import SoftContacts, SoftContactsParams
 
 from .common import VelRepr
 
@@ -135,7 +132,6 @@ def collidable_point_dynamics(
         `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
         Instead, the 6D forces are returned in the active representation.
     """
-    from .soft_contacts import SoftContacts
 
     # Compute the position and linear velocities (mixed representation) of
     # all collidable points belonging to the robot.
@@ -154,7 +150,7 @@ def collidable_point_dynamics(
             # Note that the material deformation rate is always returned in the mixed frame
             # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
             W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.contact_model)(
-                W_p_Ci, W_ṗ_Ci, data.state.contact_state.tangential_deformation
+                W_p_Ci, W_ṗ_Ci, data.state.contacts_state.tangential_deformation
             )
 
         case _:
@@ -226,7 +222,7 @@ def estimate_good_soft_contacts_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> js.soft_contacts.SoftContactsParams:
+) -> SoftContactsParams:
     """
     Estimate good soft contacts parameters for the given model.
 
@@ -250,13 +246,14 @@ def estimate_good_soft_contacts_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
+    from jaxsim.rbda.contacts.soft_contacts import SoftContactsParams
 
     def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
         """"""
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
-            contacts_params=js.soft_contacts.SoftContactsParams(),
+            contacts_params=SoftContactsParams(),
         )
 
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
@@ -275,7 +272,7 @@ def estimate_good_soft_contacts_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    sc_parameters = js.soft_contacts.SoftContactsParams.build_default_from_jaxsim_model(
+    sc_parameters = SoftContactsParams.build_default_from_jaxsim_model(
         model=model,
         standard_gravity=standard_gravity,
         static_friction_coefficient=static_friction_coefficient,
@@ -368,12 +365,10 @@ def jacobian(
 
     # Adjust the output representation.
     match output_vel_repr:
-
         case VelRepr.Inertial:
             O_J_WC = W_J_WC
 
         case VelRepr.Body:
-
             W_H_C = transforms(model=model, data=data)
 
             def body_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
@@ -386,11 +381,9 @@ def jacobian(
             O_J_WC = jax.vmap(body_jacobian)(W_H_C, W_J_WC)
 
         case VelRepr.Mixed:
-
             W_H_C = transforms(model=model, data=data)
 
             def mixed_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
-
                 W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
 
                 CW_X_W = jaxsim.math.Adjoint.from_transform(
@@ -406,96 +399,3 @@ def jacobian(
             raise ValueError(output_vel_repr)
 
     return O_J_WC
-
-
-@jax_dataclasses.pytree_dataclass
-class ContactsState(JaxsimDataclass, abc.ABC):
-    """
-    Abstract class storing the state of the contacts model.
-    """
-
-    @classmethod
-    def build(cls, **kwargs) -> ContactsState:
-        """
-        Build the contact state object.
-        Returns:
-            The contact state object.
-        """
-
-        return cls(**kwargs)
-
-    @classmethod
-    def zero(cls, **kwargs) -> ContactsState:
-        """
-        Build a zero contact state.
-        Returns:
-            The zero contact state.
-        """
-
-        return cls.build(**kwargs)
-
-    def valid(self, **kwargs) -> bool:
-        """
-        Check if the contacts state is valid.
-        """
-
-        return True
-
-
-@jax_dataclasses.pytree_dataclass
-class ContactsParams(JaxsimDataclass, abc.ABC):
-    """
-    Abstract class representing the parameters of a contact model.
-    """
-
-    @abc.abstractmethod
-    def build(self) -> ContactsParams:
-        """
-        Create a `ContactsParams` instance with specified parameters.
-        Returns:
-            The `ContactsParams` instance.
-        """
-
-        raise NotImplementedError
-
-    def valid(self, *args, **kwargs) -> bool:
-        """
-        Check if the parameters are valid.
-        Returns:
-            True if the parameters are valid, False otherwise.
-        """
-
-        return True
-
-
-@jax_dataclasses.pytree_dataclass
-class ContactModel(abc.ABC):
-    """
-    Abstract class representing a contact model.
-    Attributes:
-        parameters: The parameters of the contact model.
-        terrain: The terrain model.
-    """
-
-    parameters: ContactsParams = dataclasses.field(default_factory=ContactsParams)
-    terrain: jaxsim.terrain.Terrain = dataclasses.field(
-        default_factory=jaxsim.terrain.FlatTerrain
-    )
-
-    @abc.abstractmethod
-    def contact_model(
-        self,
-        position: jtp.Vector,
-        velocity: jtp.Vector,
-        **kwargs,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
-        """
-        Compute the contact forces.
-        Args:
-            position: The position of the collidable point.
-            velocity: The velocity of the collidable point.
-        Returns:
-            A tuple containing the contact force and additional information.
-        """
-
-        raise NotImplementedError

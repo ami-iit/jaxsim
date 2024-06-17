@@ -11,7 +11,7 @@ import jaxsim.typing as jtp
 from jaxsim.math import Skew, StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
 
-from .contact import ContactModel, ContactsParams, ContactsState
+from .common import ContactModel, ContactsParams, ContactsState
 
 
 @jax_dataclasses.pytree_dataclass
@@ -31,7 +31,6 @@ class SoftContactsParams(ContactsParams):
     )
 
     def __hash__(self) -> int:
-
         from jaxsim.utils.wrappers import HashedNumpyArray
 
         return hash(
@@ -43,7 +42,6 @@ class SoftContactsParams(ContactsParams):
         )
 
     def __eq__(self, other: SoftContactsParams) -> bool:
-
         if not isinstance(other, SoftContactsParams):
             return NotImplemented
 
@@ -330,13 +328,11 @@ class SoftContactsState(ContactsState):
     tangential_deformation: jtp.Matrix
 
     def __hash__(self) -> int:
-
         return hash(
             tuple(jnp.atleast_1d(self.tangential_deformation.flatten()).tolist())
         )
 
     def __eq__(self, other: SoftContactsState) -> bool:
-
         if not isinstance(other, SoftContactsState):
             return False
 

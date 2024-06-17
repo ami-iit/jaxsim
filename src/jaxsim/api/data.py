@@ -113,7 +113,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-        contacts_state: jaxsim.rbda.ContactsState | None = None,
+        contact: jaxsim.rbda.ContactsState | None = None,
         contacts_params: jaxsim.rbda.ContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
@@ -132,7 +132,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
             standard_gravity: The standard gravity constant.
-            contacts_state: The state of the soft contacts.
+            contact: The state of the soft contacts.
             contacts_params: The parameters of the soft contacts.
             velocity_representation: The velocity representation to use.
             time: The time at which the state is created.
@@ -213,9 +213,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity=v_WB[3:6].astype(float),
             joint_velocities=joint_velocities.astype(float),
             tangential_deformation=(
-                contacts_state.tangential_deformation
-                if contacts_state is not None
-                and isinstance(model.contact_model, SoftContacts)
+                contact.tangential_deformation
+                if contact is not None and isinstance(model.contact_model, SoftContacts)
                 else None
             ),
         )

@@ -150,7 +150,7 @@ def collidable_point_dynamics(
             # Note that the material deformation rate is always returned in the mixed frame
             # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
             W_f_Ci, CW_ṁ = jax.vmap(soft_contacts.compute_contact_forces)(
-                W_p_Ci, W_ṗ_Ci, data.state.contacts_state.tangential_deformation
+                W_p_Ci, W_ṗ_Ci, data.state.contact.tangential_deformation
             )
 
         case _:

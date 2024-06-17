@@ -121,11 +121,11 @@ class ODEState(JaxsimDataclass):
 
     Attributes:
         physics_model: The state of the physics model.
-        contacts_state: The state of the contacts model.
+        contact: The state of the contacts model.
     """
 
     physics_model: PhysicsModelState
-    contacts_state: ContactsState
+    contact: ContactsState
 
     @staticmethod
     def build_from_jaxsim_model(
@@ -183,7 +183,7 @@ class ODEState(JaxsimDataclass):
                 base_linear_velocity=base_linear_velocity,
                 base_angular_velocity=base_angular_velocity,
             ),
-            contacts_state=getattr(
+            contact=getattr(
                 importlib.import_module(f"jaxsim.rbda.contacts.{module_name}"),
                 class_name,
             ).build_from_jaxsim_model(
@@ -199,7 +199,7 @@ class ODEState(JaxsimDataclass):
     @staticmethod
     def build(
         physics_model_state: PhysicsModelState | None = None,
-        contacts_state: ContactsState | None = None,
+        contact: ContactsState | None = None,
         model: js.model.JaxSimModel | None = None,
     ) -> ODEState:
         """
@@ -207,7 +207,7 @@ class ODEState(JaxsimDataclass):
 
         Args:
             physics_model_state: The state of the physics model.
-            contacts_state: The state of the contacts model.
+            contact: The state of the contacts model.
             model: The `JaxSimModel` associated with the ODE state.
 
         Returns:
@@ -240,15 +240,11 @@ class ODEState(JaxsimDataclass):
         except ImportError as e:
             raise e
 
-        contacts_state = (
-            contacts_state
-            if contacts_state is not None
-            else SoftContactsState.zero(model=model)
+        contact = (
+            contact if contact is not None else SoftContactsState.zero(model=model)
         )
 
-        return ODEState(
-            physics_model=physics_model_state, contacts_state=contacts_state
-        )
+        return ODEState(physics_model=physics_model_state, contact=contact)
 
     @staticmethod
     def zero(model: js.model.JaxSimModel) -> ODEState:
@@ -277,9 +273,7 @@ class ODEState(JaxsimDataclass):
             `True` if the ODE state is valid for the given model, `False` otherwise.
         """
 
-        return self.physics_model.valid(model=model) and self.contacts_state.valid(
-            model=model
-        )
+        return self.physics_model.valid(model=model) and self.contact.valid(model=model)
 
 
 # ==================================================

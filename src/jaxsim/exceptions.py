@@ -17,36 +17,57 @@ def raise_if(
             format string (fmt), whose fields are filled with the args and kwargs.
     """
 
-    # Check early that the format string is well-formed.
+    # # Check early that the format string is well-formed.
+    # try:
+    #     _ = msg.format(*args, **kwargs)
+    # except Exception as e:
+    #     msg = "Error in formatting exception message with args={} and kwargs={}"
+    #     raise ValueError(msg.format(args, kwargs)) from e
+    #
+    # def _raise_exception(condition: bool, *args, **kwargs) -> None:
+    #     """The function called by the JAX callback."""
+    #
+    #     if condition:
+    #         raise exception(msg.format(*args, **kwargs))
+    #
+    # def _callback(args, kwargs) -> None:
+    #     """The function that calls the JAX callback, executed only when needed."""
+    #
+    #     jax.debug.callback(_raise_exception, condition, *args, **kwargs)
+    #
+    # # Since running a callable on the host is expensive, we prevent its execution
+    # # if the condition is False with a low-level conditional expression.
+    # def _run_callback_only_if_condition_is_true(*args, **kwargs) -> None:
+    #     return jax.lax.cond(
+    #         condition,
+    #         _callback,
+    #         lambda args, kwargs: None,
+    #         args,
+    #         kwargs,
+    #     )
+    #
+    # return _run_callback_only_if_condition_is_true(*args, **kwargs)
+
     try:
-        _ = msg.format(*args, **kwargs)
+        exc_msg = msg.format(*args, **kwargs)
     except Exception as e:
-        msg = "Error in formatting exception message with args={} and kwargs={}"
-        raise ValueError(msg.format(args, kwargs)) from e
+        raise ValueError("Error in formatting exception message: " + str(e))
 
-    def _raise_exception(condition: bool, *args, **kwargs) -> None:
-        """The function called by the JAX callback."""
+    def _raise_exception() -> None:
+        raise exception(exc_msg)
 
-        if condition:
-            raise exception(msg.format(*args, **kwargs))
+    def _callback() -> None:
+        jax.debug.callback(_raise_exception)
 
-    def _callback(args, kwargs) -> None:
-        """The function that calls the JAX callback, executed only when needed."""
-
-        jax.debug.callback(_raise_exception, condition, *args, **kwargs)
-
-    # Since running a callable on the host is expensive, we prevent its execution
-    # if the condition is False with a low-level conditional expression.
-    def _run_callback_only_if_condition_is_true(*args, **kwargs) -> None:
+    def _run_callback_only_if_condition_is_true() -> None:
         return jax.lax.cond(
             condition,
-            _callback,
-            lambda args, kwargs: None,
-            args,
-            kwargs,
+            lambda: _callback(),
+            lambda: None,
         )
 
-    return _run_callback_only_if_condition_is_true(*args, **kwargs)
+    # Return the callback function to be used within a JIT-compiled context.
+    return _run_callback_only_if_condition_is_true()
 
 
 def raise_runtime_error_if(

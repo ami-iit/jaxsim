@@ -13,18 +13,26 @@ def raise_if(
             the exception during runtime.
         exception: The type of exception to raise.
         msg:
-            The message to display when the exception is raised. It can be a fmt string,
-            and users can pass additional arguments to format the string.
+            The message to display when the exception is raised. The message can be a
+            format string (fmt), whose fields are filled with the args and kwargs.
     """
 
-    # Check early that the fmt string is well-formed.
-    _ = msg.format(*args, **kwargs)
+    # Check early that the format string is well-formed.
+    try:
+        _ = msg.format(*args, **kwargs)
+    except Exception as e:
+        msg = "Error in formatting exception message with args={} and kwargs={}"
+        raise ValueError(msg.format(args, kwargs)) from e
 
     def _raise_exception(condition: bool, *args, **kwargs) -> None:
+        """The function called by the JAX callback."""
+
         if condition:
             raise exception(msg.format(*args, **kwargs))
 
     def _callback(args, kwargs) -> None:
+        """The function that calls the JAX callback, executed only when needed."""
+
         jax.debug.callback(_raise_exception, condition, *args, **kwargs)
 
     # Since running a callable on the host is expensive, we prevent its execution

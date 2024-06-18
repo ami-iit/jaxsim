@@ -34,6 +34,10 @@ class JaxSimModel(JaxsimDataclass):
         default=jaxsim.terrain.FlatTerrain(), repr=False
     )
 
+    contact_model: jaxsim.rbda.ContactModel | None = dataclasses.field(
+        default=None, repr=False
+    )
+
     kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
         dataclasses.field(default=None, repr=False)
     )
@@ -49,10 +53,6 @@ class JaxSimModel(JaxsimDataclass):
     @property
     def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
         return self._description.get()
-
-    contact_model: jaxsim.rbda.ContactModel | None = dataclasses.field(
-        default=None, repr=False, compare=False, hash=False
-    )
 
     def __eq__(self, other: JaxSimModel) -> bool:
 

@@ -155,13 +155,13 @@ def transform(
     return W_H_L @ L_H_F
 
 
-@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@jax.jit
 def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
     frame_index: jtp.IntLike,
-    output_vel_repr: VelRepr | None = None,
+    output_vel_repr: int | None = None,
 ) -> jtp.Matrix:
     """
     Compute the free-floating jacobian of the frame.
@@ -193,33 +193,38 @@ def jacobian(
         model=model, data=data, link_index=L, output_vel_repr=VelRepr.Body
     )
 
+    def to_inertial() -> jtp.Matrix:
+        W_H_L = js.link.transform(model=model, data=data, link_index=L)
+        W_X_L = jaxlie.SE3.from_matrix(W_H_L).adjoint()
+        W_J_WL = W_X_L @ L_J_WL
+        return W_J_WL
+
+    def to_body() -> jtp.Matrix:
+        W_H_L = js.link.transform(model=model, data=data, link_index=L)
+        W_H_F = transform(model=model, data=data, frame_index=frame_index)
+        F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
+        F_X_L = jaxlie.SE3.from_matrix(F_H_L).adjoint()
+        F_J_WL = F_X_L @ L_J_WL
+        return F_J_WL
+
+    def to_mixed() -> jtp.Matrix:
+        W_H_L = js.link.transform(model=model, data=data, link_index=L)
+        W_H_F = transform(model=model, data=data, frame_index=frame_index)
+        F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
+        FW_H_F = W_H_F.at[0:3, 3].set(jnp.zeros(3))
+        FW_H_L = FW_H_F @ F_H_L
+        FW_X_L = jaxlie.SE3.from_matrix(FW_H_L).adjoint()
+        FW_J_WL = FW_X_L @ L_J_WL
+        return FW_J_WL
+
     # Adjust the output representation
-    match output_vel_repr:
-        case VelRepr.Inertial:
-            W_H_L = js.link.transform(model=model, data=data, link_index=L)
-            W_X_L = jaxlie.SE3.from_matrix(W_H_L).adjoint()
-            W_J_WL = W_X_L @ L_J_WL
-            O_J_WL_I = W_J_WL
-
-        case VelRepr.Body:
-            W_H_L = js.link.transform(model=model, data=data, link_index=L)
-            W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
-            F_X_L = jaxlie.SE3.from_matrix(F_H_L).adjoint()
-            F_J_WL = F_X_L @ L_J_WL
-            O_J_WL_I = F_J_WL
-
-        case VelRepr.Mixed:
-            W_H_L = js.link.transform(model=model, data=data, link_index=L)
-            W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
-            FW_H_F = W_H_F.at[0:3, 3].set(jnp.zeros(3))
-            FW_H_L = FW_H_F @ F_H_L
-            FW_X_L = jaxlie.SE3.from_matrix(FW_H_L).adjoint()
-            FW_J_WL = FW_X_L @ L_J_WL
-            O_J_WL_I = FW_J_WL
-
-        case _:
-            raise ValueError(output_vel_repr)
+    O_J_WL_I = jax.lax.switch(
+        index=output_vel_repr,
+        branches=(
+            to_body,  # VelRepr.Body
+            to_mixed,  # VelRepr.Mixed
+            to_inertial,  # VelRepr.Inertial
+        ),
+    )
 
     return O_J_WL_I

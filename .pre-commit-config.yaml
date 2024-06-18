@@ -24,3 +24,8 @@ repos:
     rev: v0.3.2
     hooks:
       - id: ruff
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout

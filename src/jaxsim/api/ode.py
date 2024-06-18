@@ -132,7 +132,7 @@ def system_velocity_dynamics(
     W_f_Ci = None
 
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
-    ṁ = jnp.zeros_like(data.state.soft_contacts.tangential_deformation).astype(float)
+    ṁ = jnp.zeros_like(data.state.contact.tangential_deformation).astype(float)
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
         # Compute the 6D forces applied to each collidable point and the

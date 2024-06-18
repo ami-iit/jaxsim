@@ -6,6 +6,7 @@ import jaxsim.api as js
 import jaxsim.integrators
 import jaxsim.rbda
 from jaxsim import VelRepr
+from jaxsim.rbda.contacts.soft import SoftContactsParams
 
 
 def test_box_with_external_forces(
@@ -110,7 +111,7 @@ def test_box_with_zero_gravity(
         base_position=jax.random.uniform(subkey2, shape=(3,)),
         velocity_representation=velocity_representation,
         standard_gravity=0.0,
-        soft_contacts_params=jaxsim.rbda.SoftContactsParams.build(K=0.0, D=0.0, mu=0.0),
+        contacts_params=SoftContactsParams.build(K=0.0, D=0.0, mu=0.0),
     )
 
     # Generate a random linear force.

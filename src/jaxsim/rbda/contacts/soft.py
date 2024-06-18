@@ -10,11 +10,12 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Skew, StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
-from jaxsim.utils import JaxsimDataclass
+
+from .common import ContactModel, ContactsParams, ContactsState
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsParams(JaxsimDataclass):
+class SoftContactsParams(ContactsParams):
     """Parameters of the soft contacts model."""
 
     K: jtp.Float = dataclasses.field(
@@ -127,9 +128,23 @@ class SoftContactsParams(JaxsimDataclass):
 
         return SoftContactsParams.build(K=K, D=D, mu=μc)
 
+    def valid(self) -> bool:
+        """
+        Check if the parameters are valid.
+
+        Returns:
+            `True` if the parameters are valid, `False` otherwise.
+        """
+
+        return (
+            jnp.all(self.K >= 0.0)
+            and jnp.all(self.D >= 0.0)
+            and jnp.all(self.mu >= 0.0)
+        )
+
 
 @jax_dataclasses.pytree_dataclass
-class SoftContacts:
+class SoftContacts(ContactModel):
     """Soft contacts model."""
 
     parameters: SoftContactsParams = dataclasses.field(
@@ -138,12 +153,12 @@ class SoftContacts:
 
     terrain: Terrain = dataclasses.field(default_factory=FlatTerrain)
 
-    def contact_model(
+    def compute_contact_forces(
         self,
         position: jtp.Vector,
         velocity: jtp.Vector,
         tangential_deformation: jtp.Vector,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
+    ) -> tuple[jtp.Vector, tuple[jtp.Vector, None]]:
         """
         Compute the contact forces and material deformation rate.
 
@@ -222,7 +237,7 @@ class SoftContacts:
             # Compute lin-ang 6D forces (inertial representation)
             W_f = W_Xf_CW @ CW_f
 
-            return W_f, ṁ
+            return W_f, (ṁ,)
 
         # =========================
         # Compute tangential forces
@@ -240,7 +255,7 @@ class SoftContacts:
             active_contact = pz < self.terrain.height(x=px, y=py)
 
             def above_terrain():
-                return jnp.zeros(6), ṁ
+                return jnp.zeros(6), (ṁ,)
 
             def below_terrain():
                 # Decompose the velocity in normal and tangential components
@@ -296,9 +311,9 @@ class SoftContacts:
                 W_f = W_Xf_CW @ CW_f
 
                 # Return the 6D force in the world frame and the deformation derivative
-                return W_f, ṁ
+                return W_f, (ṁ,)
 
-            # (W_f, ṁ)
+            # (W_f, (ṁ,))
             return jax.lax.cond(
                 pred=active_contact,
                 true_fun=lambda _: below_terrain(),
@@ -313,3 +328,128 @@ class SoftContacts:
             false_fun=lambda _: with_friction(),
             operand=None,
         )
+
+
+@jax_dataclasses.pytree_dataclass
+class SoftContactsState(ContactsState):
+    """
+    Class storing the state of the soft contacts model.
+
+    Attributes:
+        tangential_deformation:
+            The matrix of 3D tangential material deformations corresponding to
+            each collidable point.
+    """
+
+    tangential_deformation: jtp.Matrix
+
+    def __hash__(self) -> int:
+        return hash(
+            tuple(jnp.atleast_1d(self.tangential_deformation.flatten()).tolist())
+        )
+
+    def __eq__(self, other: SoftContactsState) -> bool:
+        if not isinstance(other, SoftContactsState):
+            return False
+
+        return hash(self) == hash(other)
+
+    @staticmethod
+    def build_from_jaxsim_model(
+        model: js.model.JaxSimModel | None = None,
+        tangential_deformation: jtp.Matrix | None = None,
+    ) -> SoftContactsState:
+        """
+        Build a `SoftContactsState` from a `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` associated with the soft contacts state.
+            tangential_deformation: The matrix of 3D tangential material deformations.
+
+        Returns:
+            The `SoftContactsState` built from the `JaxSimModel`.
+
+        Note:
+            If any of the state components are not provided, they are built from the
+            `JaxSimModel` and initialized to zero.
+        """
+
+        return SoftContactsState.build(
+            tangential_deformation=tangential_deformation,
+            number_of_collidable_points=len(
+                model.kin_dyn_parameters.contact_parameters.body
+            ),
+        )
+
+    @staticmethod
+    def build(
+        tangential_deformation: jtp.Matrix | None = None,
+        number_of_collidable_points: int | None = None,
+    ) -> SoftContactsState:
+        """
+        Create a `SoftContactsState`.
+
+        Args:
+            tangential_deformation:
+                The matrix of 3D tangential material deformations corresponding to
+                each collidable point.
+            number_of_collidable_points: The number of collidable points.
+
+        Returns:
+            A `SoftContactsState` instance.
+        """
+
+        tangential_deformation = (
+            tangential_deformation
+            if tangential_deformation is not None
+            else jnp.zeros(shape=(number_of_collidable_points, 3))
+        )
+
+        if tangential_deformation.shape[1] != 3:
+            raise RuntimeError("The tangential deformation matrix must have 3 columns.")
+
+        if (
+            number_of_collidable_points is not None
+            and tangential_deformation.shape[0] != number_of_collidable_points
+        ):
+            msg = "The number of collidable points must match the number of rows "
+            msg += "in the tangential deformation matrix."
+            raise RuntimeError(msg)
+
+        return SoftContactsState(
+            tangential_deformation=jnp.array(tangential_deformation).astype(float)
+        )
+
+    @staticmethod
+    def zero(model: js.model.JaxSimModel) -> SoftContactsState:
+        """
+        Build a zero `SoftContactsState` from a `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` associated with the soft contacts state.
+
+        Returns:
+            A zero `SoftContactsState` instance.
+        """
+
+        return SoftContactsState.build_from_jaxsim_model(model=model)
+
+    def valid(self, model: js.model.JaxSimModel) -> bool:
+        """
+        Check if the `SoftContactsState` is valid for a given `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` to validate the `SoftContactsState` against.
+
+        Returns:
+            `True` if the soft contacts state is valid for the given `JaxSimModel`,
+            `False` otherwise.
+        """
+
+        shape = self.tangential_deformation.shape
+        expected = (len(model.kin_dyn_parameters.contact_parameters.body), 3)
+
+        if shape != expected:
+            return False
+
+        return True

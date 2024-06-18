@@ -308,9 +308,10 @@ def test_ad_soft_contacts(
         m: jtp.VectorLike,
         params: SoftContactsParams,
     ) -> tuple[jtp.Vector, jtp.Vector]:
-        return SoftContacts(parameters=params).compute_contact_forces(
+        W_f_Ci, (CW_ṁ,) = SoftContacts(parameters=params).compute_contact_forces(
             position=p, velocity=v, tangential_deformation=m
         )
+        return W_f_Ci, CW_ṁ
 
     # Check derivatives against finite differences.
     check_grads(

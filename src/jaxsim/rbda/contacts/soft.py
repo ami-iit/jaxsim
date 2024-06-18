@@ -158,7 +158,7 @@ class SoftContacts(ContactModel):
         position: jtp.Vector,
         velocity: jtp.Vector,
         tangential_deformation: jtp.Vector,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
+    ) -> tuple[jtp.Vector, tuple[jtp.Vector, None]]:
         """
         Compute the contact forces and material deformation rate.
 
@@ -237,7 +237,7 @@ class SoftContacts(ContactModel):
             # Compute lin-ang 6D forces (inertial representation)
             W_f = W_Xf_CW @ CW_f
 
-            return W_f, ṁ
+            return W_f, (ṁ,)
 
         # =========================
         # Compute tangential forces
@@ -255,7 +255,7 @@ class SoftContacts(ContactModel):
             active_contact = pz < self.terrain.height(x=px, y=py)
 
             def above_terrain():
-                return jnp.zeros(6), ṁ
+                return jnp.zeros(6), (ṁ,)
 
             def below_terrain():
                 # Decompose the velocity in normal and tangential components
@@ -311,9 +311,9 @@ class SoftContacts(ContactModel):
                 W_f = W_Xf_CW @ CW_f
 
                 # Return the 6D force in the world frame and the deformation derivative
-                return W_f, ṁ
+                return W_f, (ṁ,)
 
-            # (W_f, ṁ)
+            # (W_f, (ṁ,))
             return jax.lax.cond(
                 pred=active_contact,
                 true_fun=lambda _: below_terrain(),

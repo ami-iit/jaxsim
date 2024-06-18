@@ -17,30 +17,29 @@ class ContactsState(abc.ABC):
     def build(cls, **kwargs) -> ContactsState:
         """
         Build the contact state object.
+
         Returns:
             The contact state object.
         """
-
-        return cls(**kwargs)
+        pass
 
     @classmethod
     @abc.abstractmethod
     def zero(cls, **kwargs) -> ContactsState:
         """
         Build a zero contact state.
+
         Returns:
             The zero contact state.
         """
-
-        return cls.build(**kwargs)
+        pass
 
     @abc.abstractmethod
     def valid(self, **kwargs) -> bool:
         """
         Check if the contacts state is valid.
         """
-
-        return True
+        pass
 
 
 class ContactsParams(abc.ABC):
@@ -56,22 +55,22 @@ class ContactsParams(abc.ABC):
         Returns:
             The `ContactsParams` instance.
         """
+        pass
 
-        raise NotImplementedError
-
+    @abc.abstractmethod
     def valid(self, *args, **kwargs) -> bool:
         """
         Check if the parameters are valid.
         Returns:
             True if the parameters are valid, False otherwise.
         """
-
-        return True
+        pass
 
 
 class ContactModel(abc.ABC):
     """
     Abstract class representing a contact model.
+
     Attributes:
         parameters: The parameters of the contact model.
         terrain: The terrain model.
@@ -86,12 +85,17 @@ class ContactModel(abc.ABC):
         position: jtp.Vector,
         velocity: jtp.Vector,
         **kwargs,
-    ) -> tuple[Any, ...]:
+    ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
         Compute the contact forces.
+
         Args:
-            position: The position of the collidable point.
-            velocity: The velocity of the collidable point.
+            position: The position of the collidable point w.r.t. the world frame.
+            velocity:
+                The linear velocity of the collidable point (linear component of the mixed 6D velocity).
+
         Returns:
-            A tuple containing the contact force and additional information.
+            A tuple containing as first element the computed 6D contact force applied to the contact point and expressed in the world frame,
+            and as second element a tuple of optional additional information.
         """
+        pass

@@ -31,6 +31,7 @@ class SoftContactsParams(ContactsParams):
     )
 
     def __hash__(self) -> int:
+
         from jaxsim.utils.wrappers import HashedNumpyArray
 
         return hash(
@@ -42,6 +43,7 @@ class SoftContactsParams(ContactsParams):
         )
 
     def __eq__(self, other: SoftContactsParams) -> bool:
+
         if not isinstance(other, SoftContactsParams):
             return NotImplemented
 
@@ -125,6 +127,20 @@ class SoftContactsParams(ContactsParams):
         D = ξ * critical_damping
 
         return SoftContactsParams.build(K=K, D=D, mu=μc)
+
+    def valid(self) -> bool:
+        """
+        Check if the parameters are valid.
+
+        Returns:
+            `True` if the parameters are valid, `False` otherwise.
+        """
+
+        return (
+            jnp.all(self.K >= 0.0)
+            and jnp.all(self.D >= 0.0)
+            and jnp.all(self.mu >= 0.0)
+        )
 
 
 @jax_dataclasses.pytree_dataclass

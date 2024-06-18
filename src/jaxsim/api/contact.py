@@ -365,10 +365,12 @@ def jacobian(
 
     # Adjust the output representation.
     match output_vel_repr:
+
         case VelRepr.Inertial:
             O_J_WC = W_J_WC
 
         case VelRepr.Body:
+
             W_H_C = transforms(model=model, data=data)
 
             def body_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
@@ -381,9 +383,11 @@ def jacobian(
             O_J_WC = jax.vmap(body_jacobian)(W_H_C, W_J_WC)
 
         case VelRepr.Mixed:
+
             W_H_C = transforms(model=model, data=data)
 
             def mixed_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
+
                 W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
 
                 CW_X_W = jaxsim.math.Adjoint.from_transform(

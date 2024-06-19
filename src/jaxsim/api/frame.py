@@ -4,7 +4,6 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import jaxlie
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.math
@@ -65,13 +64,12 @@ def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
 
     return (
         jnp.array(
-            np.argwhere(
-                np.array(model.kin_dyn_parameters.frame_parameters.name) == frame_name
-            )
+            model.number_of_links()
+            + model.kin_dyn_parameters.frame_parameters.name.index(frame_name)
         )
         .astype(int)
         .squeeze()
-    ) + model.number_of_links()
+    )
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str:

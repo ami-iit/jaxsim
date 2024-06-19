@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 import jaxlie
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.rbda
@@ -36,9 +35,7 @@ def name_to_idx(model: js.model.JaxSimModel, *, link_name: str) -> jtp.Int:
         raise ValueError(f"Link '{link_name}' not found in the model.")
 
     return (
-        jnp.array(
-            np.argwhere(np.array(model.kin_dyn_parameters.link_names) == link_name)
-        )
+        jnp.array(model.kin_dyn_parameters.link_names.index(link_name))
         .astype(int)
         .squeeze()
     )

@@ -68,21 +68,21 @@ def test_exceptions_in_jit_functions():
     assert jit_compiled_function._cache_size() == 1
 
     # Let's trigger a ValueError exception by passing 42.
-    # Note: the real ValueError is printed in a stream that I couldn't figure out
-    # how to capture in pytest.
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
-
-        data = 42
+    data = 42
+    with pytest.raises(
+        jaxlib.xla_extension.XlaRuntimeError,
+        match=f"ValueError: Raising ValueError since data={data}",
+    ):
         _ = jit_compiled_function(data=data)
 
     assert jit_compiled_function._cache_size() == 1
 
     # Let's trigger a RuntimeError exception by passing -42.
-    # Note: the real RuntimeError is printed in a stream that I couldn't figure out
-    # how to capture in pytest.
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
-
-        data = -42
+    data = -42
+    with pytest.raises(
+        jaxlib.xla_extension.XlaRuntimeError,
+        match=f"RuntimeError: Raising RuntimeError since data={data}",
+    ):
         _ = jit_compiled_function(data=data)
 
     assert jit_compiled_function._cache_size() == 1

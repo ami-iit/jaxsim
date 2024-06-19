@@ -422,7 +422,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Update the FSAL property for the next iteration.
         if self.has_fsal:
-            self.params["dxdt0"] = jax.tree_map(lambda l: l[self.index_of_fsal], K)
+            self.params["dxdt0"] = jax.tree_util.tree_map(
+                lambda l: l[self.index_of_fsal], K
+            )
 
         # Compute the output state.
         # Note that z contains as many new states as the rows of `b.T`.

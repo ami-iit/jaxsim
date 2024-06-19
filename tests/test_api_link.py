@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import jaxlib.xla_extension
 import pytest
 
 import jaxsim.api as js
@@ -38,6 +39,15 @@ def test_link_index(
         )
         == model.link_names()
     )
+
+    with pytest.raises(ValueError):
+        _ = js.link.name_to_idx(model=model, link_name="non_existent_link")
+
+    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+        _ = js.link.idx_to_name(model=model, link_index=-1)
+
+    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+        _ = js.link.idx_to_name(model=model, link_index=model.number_of_links())
 
 
 def test_link_inertial_properties(

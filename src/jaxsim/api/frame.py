@@ -4,11 +4,11 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import jaxlie
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
+from jaxsim import exceptions
 
 from .common import VelRepr
 
@@ -17,22 +17,32 @@ from .common import VelRepr
 # =======================
 
 
+@jax.jit
 def idx_of_parent_link(
-    model: js.model.JaxSimModel, *, frame_idx: jtp.IntLike
+    model: js.model.JaxSimModel, *, frame_index: jtp.IntLike
 ) -> jtp.Int:
     """
     Get the index of the link to which the frame is rigidly attached.
 
     Args:
         model: The model to consider.
-        frame_idx: The index of the frame.
+        frame_index: The index of the frame.
 
     Returns:
         The index of the frame's parent link.
     """
 
+    n_l = model.number_of_links()
+    n_f = len(model.frame_names())
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
+        msg="Invalid frame index '{idx}'",
+        idx=frame_index,
+    )
+
     return model.kin_dyn_parameters.frame_parameters.body[
-        frame_idx - model.number_of_links()
+        frame_index - model.number_of_links()
     ]
 
 
@@ -49,19 +59,17 @@ def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
         The index of the frame.
     """
 
-    if frame_name in model.kin_dyn_parameters.frame_parameters.name:
-        return (
-            jnp.array(
-                np.argwhere(
-                    np.array(model.kin_dyn_parameters.frame_parameters.name)
-                    == frame_name
-                )
-            )
-            .squeeze()
-            .astype(int)
-        ) + model.number_of_links()
+    if frame_name not in model.kin_dyn_parameters.frame_parameters.name:
+        raise ValueError(f"Frame '{frame_name}' not found in the model.")
 
-    return jnp.array(-1).astype(int)
+    return (
+        jnp.array(
+            model.number_of_links()
+            + model.kin_dyn_parameters.frame_parameters.name.index(frame_name)
+        )
+        .astype(int)
+        .squeeze()
+    )
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str:
@@ -75,6 +83,15 @@ def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str
     Returns:
         The name of the frame.
     """
+
+    n_l = model.number_of_links()
+    n_f = len(model.frame_names())
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
+        msg="Invalid frame index '{idx}'",
+        idx=frame_index,
+    )
 
     return model.kin_dyn_parameters.frame_parameters.name[
         frame_index - model.number_of_links()
@@ -142,8 +159,17 @@ def transform(
         The 4x4 matrix representing the transform.
     """
 
+    n_l = model.number_of_links()
+    n_f = len(model.frame_names())
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
+        msg="Invalid frame index '{idx}'",
+        idx=frame_index,
+    )
+
     # Compute the necessary transforms.
-    L = idx_of_parent_link(model=model, frame_idx=frame_index)
+    L = idx_of_parent_link(model=model, frame_index=frame_index)
     W_H_L = js.link.transform(model=model, data=data, link_index=L)
 
     # Get the static frame pose wrt the parent link.
@@ -181,12 +207,21 @@ def jacobian(
         velocity representation.
     """
 
+    n_l = model.number_of_links()
+    n_f = len(model.frame_names())
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
+        msg="Invalid frame index '{idx}'",
+        idx=frame_index,
+    )
+
     output_vel_repr = (
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
     # Get the index of the parent link.
-    L = idx_of_parent_link(model=model, frame_idx=frame_index)
+    L = idx_of_parent_link(model=model, frame_index=frame_index)
 
     # Compute the Jacobian of the parent link using body-fixed output representation.
     L_J_WL = js.link.jacobian(

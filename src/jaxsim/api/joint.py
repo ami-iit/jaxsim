@@ -6,6 +6,7 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import exceptions
 
 # =======================
 # Index-related functions
@@ -25,14 +26,18 @@ def name_to_idx(model: js.model.JaxSimModel, *, joint_name: str) -> jtp.Int:
         The index of the joint.
     """
 
-    if joint_name in model.kin_dyn_parameters.joint_model.joint_names:
-        # Note: the index of the joint for RBDAs starts from 1, but
-        # the index for accessing the right element starts from 0.
-        # Therefore, there is a -1.
-        return jnp.array(
+    if joint_name not in model.joint_names():
+        raise ValueError(f"Joint '{joint_name}' not found in the model.")
+
+    # Note: the index of the joint for RBDAs starts from 1, but the index for
+    # accessing the right element starts from 0. Therefore, there is a -1.
+    return (
+        jnp.array(
             model.kin_dyn_parameters.joint_model.joint_names.index(joint_name) - 1
-        ).squeeze()
-    return jnp.array(-1).astype(int)
+        )
+        .astype(int)
+        .squeeze()
+    )
 
 
 def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str:
@@ -46,6 +51,14 @@ def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str
     Returns:
         The name of the joint.
     """
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array(
+            [joint_index < 0, joint_index >= model.number_of_joints()]
+        ).any(),
+        msg="Invalid joint index '{idx}'",
+        idx=joint_index,
+    )
 
     return model.kin_dyn_parameters.joint_model.joint_names[joint_index + 1]
 
@@ -111,6 +124,14 @@ def position_limit(
 
     if model.number_of_joints() <= 1:
         return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array(
+            [joint_index < 0, joint_index >= model.number_of_joints()]
+        ).any(),
+        msg="Invalid joint index '{idx}'",
+        idx=joint_index,
+    )
 
     s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min[joint_index]
     s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max[joint_index]

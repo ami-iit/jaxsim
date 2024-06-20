@@ -231,7 +231,9 @@ def create_mesh_collision(
         return
 
     mesh.apply_scale(collision.geometry.mesh.scale)
-    f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+    logging.info(
+        f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+    )
 
     # Extract the points from the mesh to use as colliders according to the provided method
     match method:

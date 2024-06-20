@@ -180,10 +180,6 @@ def ergocub_model_description_path() -> pathlib.Path:
 
     from robot_descriptions._package_dirs import get_package_dirs
 
-    os.environ["ROBOT_DESCRIPTION_URI_PATH"] = (
-        robot_descriptions.ergocub_description.PACKAGE_PATH
-    )
-
     model_urdf_path = pathlib.Path(
         robot_descriptions.ergocub_description.URDF_PATH.replace(
             "ergoCubSN000", "ergoCubSN001"

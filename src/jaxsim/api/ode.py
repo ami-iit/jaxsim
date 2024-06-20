@@ -150,7 +150,7 @@ def system_velocity_dynamics(
         # Sum the forces of all collidable points rigidly attached to a body.
         # Since the contact forces W_f_Ci are expressed in the world frame,
         # we don't need any coordinate transformation.
-        mask = parent_link_index_of_collidable_points[:, None] == jnp.arange(
+        mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
             model.number_of_links()
         )
 

@@ -150,14 +150,11 @@ def system_velocity_dynamics(
         # Sum the forces of all collidable points rigidly attached to a body.
         # Since the contact forces W_f_Ci are expressed in the world frame,
         # we don't need any coordinate transformation.
-        W_f_Li_terrain = jax.vmap(
-            lambda nc: (
-                jnp.vstack(
-                    jnp.equal(parent_link_index_of_collidable_points, nc).astype(int)
-                )
-                * W_f_Ci
-            ).sum(axis=0)
-        )(jnp.arange(model.number_of_links()))
+        mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
+            model.number_of_links()
+        )
+
+        W_f_Li_terrain = mask.T @ W_f_Ci
 
     # ====================
     # Enforce joint limits

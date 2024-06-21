@@ -160,7 +160,7 @@ class RodModelToMjcf:
         considered_joints: list[str] | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: list[dict[str, str]] | dict[str, str] = None,
+        cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a ROD model to a Mujoco MJCF string.
@@ -516,7 +516,7 @@ class UrdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: list[dict[str, str]] | dict[str, str] = None,
+        cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a URDF file to a Mujoco MJCF string.
@@ -558,7 +558,7 @@ class SdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: list[dict[str, str]] | dict[str, str] = None,
+        cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a SDF file to a Mujoco MJCF string.

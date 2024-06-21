@@ -41,6 +41,16 @@ preview = true
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
+select = [
+  "B",
+  "E",
+  "F",
+  "I",
+  "W",
+  "RUF",
+  "YTT",
+]
+
 ignore = [
   "B008", # Function call in default argument
   "B024", # Abstract base class without abstract methods
@@ -52,14 +62,8 @@ ignore = [
   "E741", # Ambiguous variable name
   "F841", # Local variable is assigned to but never used
   "I001", # Import block is unsorted or unformatted
-]
-select = [
-  "B",
-  "E",
-  "F",
-  "I",
-  "W",
-  "YTT",
+  "RUF002", # Ambigous unicode character in docstring
+  "RUF003", # Ambigous unicode character in comment
 ]
 
 [tool.ruff.lint.per-file-ignores]

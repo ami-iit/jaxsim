@@ -40,7 +40,7 @@ class MujocoModelHelper:
     @staticmethod
     def build_from_xml(
         mjcf_description: str | pathlib.Path,
-        assets: dict[str, Any] = None,
+        assets: dict[str, Any] | None = None,
         heightmap: HeightmapCallable | None = None,
     ) -> MujocoModelHelper:
         """

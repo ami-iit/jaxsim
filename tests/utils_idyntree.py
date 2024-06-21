@@ -124,7 +124,7 @@ class KinDynComputations:
     @staticmethod
     def build(
         urdf: pathlib.Path | str,
-        considered_joints: list[str] = None,
+        considered_joints: list[str] | None = None,
         vel_repr: VelRepr = VelRepr.Inertial,
         gravity: npt.NDArray = np.array([0, 0, -10.0]),
         removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,

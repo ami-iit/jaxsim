@@ -351,17 +351,17 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # For each collidable point, get the Jacobians of their parent link.
+    # Compute the Jacobians of all links.
+    W_J_WL = js.model.generalized_free_floating_jacobian(
+        model=model, data=data, output_vel_repr=VelRepr.Inertial
+    )
+
+    # Compute the contact Jacobian.
     # In inertial-fixed output representation, the Jacobian of the parent link is also
     # the Jacobian of the frame C implicitly associated with the collidable point.
-    W_J_WC = W_J_WL = jax.vmap(
-        lambda parent_link_idx: js.link.jacobian(
-            model=model,
-            data=data,
-            link_index=parent_link_idx,
-            output_vel_repr=VelRepr.Inertial,
-        )
-    )(jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int))
+    W_J_WC = jax.vmap(lambda parent_link_idx: W_J_WL[parent_link_idx])(
+        jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int)
+    )
 
     # Adjust the output representation.
     match output_vel_repr:

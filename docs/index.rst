@@ -68,10 +68,10 @@ Features
 
 .. toctree::
   :hidden:
-  :maxdepth: 1
-  :caption: User Guide
 
   guide/install
+
+  examples
 
 .. toctree::
   :hidden:

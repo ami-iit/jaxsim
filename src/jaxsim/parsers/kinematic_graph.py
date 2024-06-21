@@ -293,7 +293,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             # Assign link's children and make sure they are unique.
             if child_link.name not in {l.name for l in parent_link.children}:
                 with parent_link.mutable_context(Mutability.MUTABLE_NO_VALIDATION):
-                    parent_link.children = parent_link.children + (child_link,)
+                    parent_link.children = (*parent_link.children, child_link)
 
         # Collect all the links of the kinematic graph.
         all_links_in_graph = list(

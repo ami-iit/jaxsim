@@ -306,7 +306,7 @@ class RodModelToMjcf:
         root: ET._Element = tree.getroot()
 
         # Find the <mujoco> element (might be the root itself).
-        mujoco_element: ET._Element = list(root.iter("mujoco"))[0]
+        mujoco_element: ET._Element = next(iter(root.iter("mujoco")))
 
         # --------------
         # Add the motors

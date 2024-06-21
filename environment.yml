@@ -38,6 +38,7 @@ dependencies:
   - filecache
   - filelock
   - jinja2
+  - myst-nb
   - pip
   - sphinx
   - sphinx-autodoc-typehints
@@ -45,6 +46,7 @@ dependencies:
   - sphinx-copybutton
   - sphinx-design
   - sphinx_fontawesome
+  - sphinx-gallery
   - sphinx-jinja2-compat
   - sphinx-multiversion
   - sphinx_rtd_theme
@@ -53,3 +55,5 @@ dependencies:
   # Other dependencies for GitHub Codespaces
   # ========================================
   - ipython
+  - pip:
+    - sphinx-collections # TODO (flferretti): PR to conda-forge

@@ -48,6 +48,9 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_multiversion",
     "enum_tools.autoenum",
+    "myst_nb",
+    "sphinx_gallery.gen_gallery",
+    "sphinxcontrib.collections",
     "sphinx_design",
 ]
 
@@ -72,3 +75,30 @@ autodoc_typehints = "signature"
 autosummary_generate = False
 
 epub_show_urls = "footnote"
+
+# -- Options for sphinx-collections
+
+collections = {
+    "examples": {"driver": "copy_folder", "source": "../examples/", "ignore": "assets"}
+}
+
+# -- Options for sphinx-gallery ----------------------------------------------
+
+sphinx_gallery_conf = {
+    "examples_dirs": "_collections/examples",
+    "gallery_dirs": ("_collections/generated_examples/"),
+    "ignore_pattern": r"_test\.py",
+    "doc_module": "jaxsim",
+    "backreferences_dir": os.path.join("modules", "generated"),
+}
+
+# -- Options for myst -------------------------------------------------------
+myst_enable_extensions = [
+    "amsmath",
+    "dollarmath",
+]
+nb_execution_mode = "force"
+nb_execution_allow_errors = False
+nb_render_image_options = {}
+
+source_suffix = [".rst", ".md", ".ipynb"]

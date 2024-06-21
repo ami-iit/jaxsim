@@ -274,7 +274,7 @@ class RodModelToMjcf:
 
         # Load the URDF model into Mujoco.
         assets = RodModelToMjcf.assets_from_rod_model(rod_model=rod_model)
-        mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)  # noqa
+        mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)
 
         # Get the joint names.
         mj_joint_names = set(

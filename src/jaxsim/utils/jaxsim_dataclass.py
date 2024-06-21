@@ -134,7 +134,7 @@ class JaxsimDataclass(abc.ABC):
             not a numpy-like array.
         """
 
-        return tuple(  # noqa
+        return tuple(
             leaf.shape if hasattr(leaf, "shape") else None
             for leaf in jax.tree_util.tree_leaves(tree)
             if hasattr(leaf, "shape")

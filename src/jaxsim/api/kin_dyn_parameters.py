@@ -792,7 +792,7 @@ class ContactParameters(JaxsimDataclass):
         )
 
         # Build the ContactParameters object.
-        cp = ContactParameters(point=points, body=link_index_of_points)  # noqa
+        cp = ContactParameters(point=points, body=link_index_of_points)
 
         assert cp.point.shape[1] == 3, cp.point.shape[1]
         assert cp.point.shape[0] == len(cp.body), cp.point.shape[0]

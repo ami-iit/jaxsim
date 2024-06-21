@@ -79,7 +79,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             The integrator object.
         """
 
-        return cls(dynamics=dynamics, **kwargs)  # noqa
+        return cls(dynamics=dynamics, **kwargs)
 
     def step(
         self,

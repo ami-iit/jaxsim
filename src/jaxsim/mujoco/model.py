@@ -64,7 +64,7 @@ class MujocoModelHelper:
         )
 
         # Create the Mujoco model from the XML and, optionally, the assets dictionary
-        model = mj.MjModel.from_xml_string(xml=mjcf_description, assets=assets)  # noqa
+        model = mj.MjModel.from_xml_string(xml=mjcf_description, assets=assets)
         data = mj.MjData(model)
 
         if heightmap:

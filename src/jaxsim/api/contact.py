@@ -139,7 +139,7 @@ def collidable_point_dynamics(
 
     # Build the soft contact model.
     match model.contact_model:
-        case s if isinstance(s, SoftContacts):
+        case SoftContacts():
             # Build the contact model.
             soft_contacts = SoftContacts(
                 parameters=data.contacts_params, terrain=model.terrain

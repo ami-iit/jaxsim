@@ -116,3 +116,6 @@ nb_execution_allow_errors = False
 nb_render_image_options = {}
 
 source_suffix = [".rst", ".md", ".ipynb"]
+
+# Ignore header warnings
+suppress_warnings = ["myst.header"]

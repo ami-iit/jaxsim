@@ -75,10 +75,17 @@ Features
 
 .. toctree::
   :hidden:
-  :maxdepth: 1
+  :maxdepth: 2
   :caption: JAXsim API
 
-  modules/index
+  modules/api
+  modules/integrators
+  modules/math
+  modules/mujoco
+  modules/parsers
+  modules/rbda
+  modules/typing
+  modules/utils
 
 Examples
 --------

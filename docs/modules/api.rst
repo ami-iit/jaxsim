@@ -3,6 +3,23 @@ Functional API
 
 .. currentmodule:: jaxsim.api
 
+.. autosummary::
+   :toctree: _autosummary
+
+    model
+    data
+    contact
+    kin_dyn_parameters
+    joint
+    link
+    frame
+    com
+    ode_data
+    ode
+    references
+    common
+
+
 Model
 ~~~~~
 

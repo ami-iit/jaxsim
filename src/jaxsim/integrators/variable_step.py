@@ -545,14 +545,14 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 @jax_dataclasses.pytree_dataclass
 class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 
-    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    A: ClassVar[jtp.ArrayLike] = jnp.array(
         [
             [0, 0],
             [1, 0],
         ]
     ).astype(float)
 
-    b: ClassVar[jax.typing.ArrayLike] = (
+    b: ClassVar[jtp.ArrayLike] = (
         jnp.atleast_2d(
             jnp.array(
                 [
@@ -565,7 +565,7 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
         .transpose()
     )
 
-    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    c: ClassVar[jtp.ArrayLike] = jnp.array(
         [0, 1],
     ).astype(float)
 
@@ -578,7 +578,7 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 @jax_dataclasses.pytree_dataclass
 class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 
-    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    A: ClassVar[jtp.ArrayLike] = jnp.array(
         [
             [0, 0, 0, 0],
             [1 / 2, 0, 0, 0],
@@ -587,7 +587,7 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
         ]
     ).astype(float)
 
-    b: ClassVar[jax.typing.ArrayLike] = (
+    b: ClassVar[jtp.ArrayLike] = (
         jnp.atleast_2d(
             jnp.array(
                 [
@@ -600,7 +600,7 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
         .transpose()
     )
 
-    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    c: ClassVar[jtp.ArrayLike] = jnp.array(
         [0, 1 / 2, 3 / 4, 1],
     ).astype(float)
 

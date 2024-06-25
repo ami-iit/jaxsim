@@ -68,13 +68,28 @@ master_doc = "index"
 
 autodoc_typehints_format = "short"
 
-exclude_patterns = ["_build"]
+autodoc_typehints = "description"
 
-autodoc_typehints = "signature"
-
-autosummary_generate = False
+autosummary_generate = True
 
 epub_show_urls = "footnote"
+
+autodoc_type_aliases = {
+    "jaxsim.typing.PyTree": "jaxsim.typing.PyTree",
+    "jaxsim.typing.Vector": "jaxsim.typing.Vector",
+    "jaxsim.typing.Matrix": "jaxsim.typing.Matrix",
+    "jaxsim.typing.Array": "jaxsim.typing.Array",
+    "jaxsim.typing.Int": "jaxsim.typing.Int",
+    "jaxsim.typing.Bool": "jaxsim.typing.Bool",
+    "jaxsim.typing.Float": "jaxsim.typing.Float",
+    "jaxsim.typing.ScalarLike": "jaxsim.typing.ScalarLike",
+    "jaxsim.typing.ArrayLike": "jaxsim.typing.ArrayLike",
+    "jaxsim.typing.VectorLike": "jaxsim.typing.VectorLike",
+    "jaxsim.typing.MatrixLike": "jaxsim.typing.MatrixLike",
+    "jaxsim.typing.IntLike": "jaxsim.typing.IntLike",
+    "jaxsim.typing.BoolLike": "jaxsim.typing.BoolLike",
+    "jaxsim.typing.FloatLike": "jaxsim.typing.FloatLike",
+}
 
 # -- Options for sphinx-collections
 
@@ -87,7 +102,6 @@ collections = {
 sphinx_gallery_conf = {
     "examples_dirs": "_collections/examples",
     "gallery_dirs": ("_collections/generated_examples/"),
-    "ignore_pattern": r"_test\.py",
     "doc_module": "jaxsim",
     "backreferences_dir": os.path.join("modules", "generated"),
 }

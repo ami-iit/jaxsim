@@ -14,9 +14,10 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
-import jaxsim.parsers.descriptions
+import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Cross
+from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
@@ -46,12 +47,12 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    _description: Static[
-        wrappers.HashlessObject[jaxsim.parsers.descriptions.ModelDescription | None]
-    ] = dataclasses.field(default=None, repr=False)
+    _description: Static[wrappers.HashlessObject[ModelDescription | None]] = (
+        dataclasses.field(default=None, repr=False)
+    )
 
     @property
-    def description(self) -> jaxsim.parsers.descriptions.ModelDescription:
+    def description(self) -> ModelDescription:
         return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:
@@ -144,7 +145,7 @@ class JaxSimModel(JaxsimDataclass):
 
     @staticmethod
     def build(
-        model_description: jaxsim.parsers.descriptions.ModelDescription,
+        model_description: ModelDescription,
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,

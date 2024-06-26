@@ -337,7 +337,7 @@ def jacobian(
             The output velocity representation of the free-floating jacobian.
 
     Returns:
-        The stacked 6×(6+n) free-floating jacobians of the frames associated to the
+        The stacked :math:`6 \times (6+n)` free-floating jacobians of the frames associated to the
         collidable points.
 
     Note:

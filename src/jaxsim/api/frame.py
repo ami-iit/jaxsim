@@ -189,7 +189,7 @@ def jacobian(
     frame_index: jtp.IntLike,
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the free-floating jacobian of the frame.
 
     Args:
@@ -200,7 +200,7 @@ def jacobian(
             The output velocity representation of the free-floating jacobian.
 
     Returns:
-        The 6×(6+n) free-floating jacobian of the frame.
+        The :math:`6 \times (6+n)` free-floating jacobian of the frame.
 
     Note:
         The input representation of the free-floating jacobian is the active

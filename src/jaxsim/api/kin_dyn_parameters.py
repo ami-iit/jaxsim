@@ -466,12 +466,12 @@ class KynDynParameters(JaxsimDataclass):
     def set_link_inertia(
         self, link_index: int, inertia: jtp.MatrixLike
     ) -> KynDynParameters:
-        """
+        r"""
         Set the inertia tensor of a link.
 
         Args:
             link_index: The index of the link.
-            inertia: The 3×3 inertia tensor of the link.
+            inertia: The :math:`3 \times 3` inertia tensor of the link.
 
         Returns:
             The updated kinematic and dynamic parameters of the model.
@@ -569,7 +569,7 @@ class LinkParameters(JaxsimDataclass):
         index: The index of the link.
         mass: The mass of the link.
         inertia_elements:
-            The unique elements of the 3×3 inertia tensor of the link.
+            The unique elements of the :math:`3 \times 3` inertia tensor of the link.
         center_of_mass:
             The translation :math:`{}^L \mathbf{p}_{\text{CoM}}` between the origin
             of the link frame and the link's center of mass, expressed in the
@@ -588,12 +588,12 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def build_from_spatial_inertia(index: jtp.IntLike, M: jtp.Matrix) -> LinkParameters:
-        """
-        Build a LinkParameters object from a 6×6 spatial inertia matrix.
+        r"""
+        Build a LinkParameters object from a :math:`6 \times 6` spatial inertia matrix.
 
         Args:
             index: The index of the link.
-            M: The 6×6 spatial inertia matrix of the link.
+            M: The :math:`6 \times 6` spatial inertia matrix of the link.
 
         Returns:
             The LinkParameters object.
@@ -616,13 +616,13 @@ class LinkParameters(JaxsimDataclass):
     def build_from_inertial_parameters(
         index: jtp.IntLike, m: jtp.FloatLike, I: jtp.MatrixLike, c: jtp.VectorLike
     ) -> LinkParameters:
-        """
+        r"""
         Build a LinkParameters object from the inertial parameters of a link.
 
         Args:
             index: The index of the link.
             m: The mass of the link.
-            I: The 3×3 inertia tensor of the link.
+            I: The :math:`3 \times 3` inertia tensor of the link.
             c: The translation between the link frame and the link's center of mass.
 
         Returns:
@@ -676,14 +676,14 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def inertia_tensor(params: LinkParameters) -> jtp.Matrix:
-        """
-        Return the 3×3 inertia tensor of a link.
+        r"""
+        Return the :math:`3 \times 3` inertia tensor of a link.
 
         Args:
             params: The link parameters.
 
         Returns:
-            The 3×3 inertia tensor of the link.
+            The :math:`3 \times 3` inertia tensor of the link.
         """
 
         return LinkParameters.unflatten_inertia_tensor(
@@ -692,14 +692,14 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def spatial_inertia(params: LinkParameters) -> jtp.Matrix:
-        """
-        Return the 6×6 spatial inertia matrix of a link.
+        r"""
+        Return the :math:`6 \times 6` spatial inertia matrix of a link.
 
         Args:
             params: The link parameters.
 
         Returns:
-            The 6×6 spatial inertia matrix of the link.
+            The :math:`6 \times 6` spatial inertia matrix of the link.
         """
 
         return Inertia.to_sixd(
@@ -710,11 +710,11 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def flatten_inertia_tensor(I: jtp.Matrix) -> jtp.Vector:
-        """
-        Flatten a 3×3 inertia tensor into a vector of unique elements.
+        r"""
+        Flatten a :math:`3 \times 3` inertia tensor into a vector of unique elements.
 
         Args:
-            I: The 3×3 inertia tensor.
+            I: The :math:`3 \times 3` inertia tensor.
 
         Returns:
             The vector of unique elements of the inertia tensor.
@@ -724,14 +724,14 @@ class LinkParameters(JaxsimDataclass):
 
     @staticmethod
     def unflatten_inertia_tensor(inertia_elements: jtp.Vector) -> jtp.Matrix:
-        """
-        Unflatten a vector of unique elements into a 3×3 inertia tensor.
+        r"""
+        Unflatten a vector of unique elements into a :math:`3 \times 3` inertia tensor.
 
         Args:
             inertia_elements: The vector of unique elements of the inertia tensor.
 
         Returns:
-            The 3×3 inertia tensor.
+            The :math:`3 \times 3` inertia tensor.
         """
 
         I = jnp.zeros([3, 3]).at[jnp.triu_indices(3)].set(inertia_elements.squeeze())

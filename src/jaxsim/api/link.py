@@ -134,7 +134,7 @@ def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
 def spatial_inertia(
     model: js.model.JaxSimModel, *, link_index: jtp.IntLike
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the 6D spatial inertial of the link.
 
     Args:
@@ -142,7 +142,7 @@ def spatial_inertia(
         link_index: The index of the link.
 
     Returns:
-        The 6×6 matrix representing the spatial inertia of the link expressed in
+        The :math:`6 \times 6` matrix representing the spatial inertia of the link expressed in
         the link frame (body-fixed representation).
     """
 
@@ -243,7 +243,7 @@ def jacobian(
     link_index: jtp.IntLike,
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the free-floating jacobian of the link.
 
     Args:
@@ -254,7 +254,7 @@ def jacobian(
             The output velocity representation of the free-floating jacobian.
 
     Returns:
-        The 6×(6+n) free-floating jacobian of the link.
+        The :math:`6 \times (6+n)` free-floating jacobian of the link.
 
     Note:
         The input representation of the free-floating jacobian is the active
@@ -393,7 +393,7 @@ def jacobian_derivative(
     link_index: jtp.IntLike,
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the derivative of the free-floating jacobian of the link.
 
     Args:
@@ -404,7 +404,7 @@ def jacobian_derivative(
             The output velocity representation of the free-floating jacobian derivative.
 
     Returns:
-        The derivative of the 6×(6+n) free-floating jacobian of the link.
+        The derivative of the :math:`6 \times (6+n)` free-floating jacobian of the link.
 
     Note:
         The input representation of the free-floating jacobian derivative is the active

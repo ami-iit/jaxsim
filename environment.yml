@@ -54,6 +54,7 @@ dependencies:
   # ========================================
   # Other dependencies for GitHub Codespaces
   # ========================================
+  - mesalib
   - ipython
   - pip:
     - sphinx-collections # TODO (flferretti): PR to conda-forge

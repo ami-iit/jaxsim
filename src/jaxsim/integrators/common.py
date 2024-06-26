@@ -562,10 +562,9 @@ class ExplicitRungeKuttaSO3Mixin:
 
         # Indices to convert quaternions between serializations.
         to_xyzw = jnp.array([1, 2, 3, 0])
-        to_wxyz = jnp.array([3, 0, 1, 2])
 
-        # Get the initial quaternion.
-        W_Q_B_t0 = jaxlie.SO3.from_quaternion_xyzw(
+        # Get the initial rotation.
+        W_R_B_t0 = jaxlie.SO3.from_quaternion_xyzw(
             xyzw=x0.physics_model.base_quaternion[to_xyzw]
         )
 
@@ -578,12 +577,10 @@ class ExplicitRungeKuttaSO3Mixin:
         # Integrate the quaternion on SO(3).
         # Note that we left-multiply with the exponential map since the angular
         # velocity is expressed in the inertial frame.
-        W_Q_B_tf = jaxlie.SO3.exp(tangent=dt * W_ω_WB_tf) @ W_Q_B_t0
+        W_R_B_tf = jaxlie.SO3.exp(tangent=dt * W_ω_WB_tf) @ W_R_B_t0
 
         # Replace the quaternion in the final state.
         return xf.replace(
-            physics_model=xf.physics_model.replace(
-                base_quaternion=W_Q_B_tf.as_quaternion_xyzw()[to_wxyz]
-            ),
+            physics_model=xf.physics_model.replace(base_quaternion=W_R_B_tf.wxyz),
             validate=True,
         )

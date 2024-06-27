@@ -1,2 +1,2 @@
 # GitHub syntax highlighting
-pixi.lock linguist-language=YAML
+pixi.lock filter=lfs diff=lfs merge=lfs -text

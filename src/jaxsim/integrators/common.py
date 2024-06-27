@@ -574,7 +574,7 @@ class ExplicitRungeKuttaSO3Mixin:
         # on the SO(3) manifold.
         W_ω_WB_tf = xf.physics_model.base_angular_velocity
 
-        # Integrate the quaternion on SO(3).
+        # Integrate the orientation on SO(3).
         # Note that we left-multiply with the exponential map since the angular
         # velocity is expressed in the inertial frame.
         W_R_B_tf = jaxlie.SO3.exp(tangent=dt * W_ω_WB_tf) @ W_R_B_t0

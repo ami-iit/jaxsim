@@ -5,11 +5,10 @@ import dataclasses
 import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
-import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.math import Inertia, JointModel, supported_joint_motion
+from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, ModelDescription
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
@@ -432,11 +431,9 @@ class KynDynParameters(JaxsimDataclass):
         # Compute the overall transforms from the parent to the child of each joint by
         # composing all the components of our joint model.
         i_X_λ = jax.vmap(
-            lambda λ_Hi_pre, pre_Hi_suc, suc_Hi_i: jaxlie.SE3.from_matrix(
-                λ_Hi_pre @ pre_Hi_suc @ suc_Hi_i
+            lambda λ_Hi_pre, pre_Hi_suc, suc_Hi_i: Adjoint.from_transform(
+                transform=λ_Hi_pre @ pre_Hi_suc @ suc_Hi_i, inverse=True
             )
-            .inverse()
-            .adjoint()
         )(λ_H_pre, pre_H_suc, suc_H_i)
 
         return i_X_λ, S

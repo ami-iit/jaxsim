@@ -1,12 +1,11 @@
 import os
 
-import jaxlie
 import numpy as np
 import numpy.typing as npt
 import rod
 
 import jaxsim.typing as jtp
-from jaxsim.math import Inertia
+from jaxsim.math import Adjoint, Inertia, Transform
 from jaxsim.parsers import descriptions
 
 
@@ -50,8 +49,8 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
     L_H_CoM = inertial.pose.transform() if inertial.pose is not None else np.eye(4)
 
     # We need its inverse
-    CoM_H_L = jaxlie.SE3.from_matrix(matrix=L_H_CoM).inverse()
-    CoM_X_L = CoM_H_L.adjoint()
+    CoM_H_L = Transform.inverse(L_H_CoM)
+    CoM_X_L = Adjoint.from_transform(transform=CoM_H_L)
 
     # Express the CoM inertia matrix in the link frame L
     M_L = CoM_X_L.T @ M_CoM @ CoM_X_L

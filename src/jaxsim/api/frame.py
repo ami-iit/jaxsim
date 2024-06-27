@@ -3,12 +3,11 @@ from typing import Sequence
 
 import jax
 import jax.numpy as jnp
-import jaxlie
 
 import jaxsim.api as js
-import jaxsim.math
 import jaxsim.typing as jtp
 from jaxsim import exceptions
+from jaxsim.math import Adjoint, Transform
 
 from .common import VelRepr
 
@@ -232,25 +231,25 @@ def jacobian(
     match output_vel_repr:
         case VelRepr.Inertial:
             W_H_L = js.link.transform(model=model, data=data, link_index=L)
-            W_X_L = jaxlie.SE3.from_matrix(W_H_L).adjoint()
+            W_X_L = Adjoint.from_transform(transform=W_H_L)
             W_J_WL = W_X_L @ L_J_WL
             O_J_WL_I = W_J_WL
 
         case VelRepr.Body:
             W_H_L = js.link.transform(model=model, data=data, link_index=L)
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
-            F_X_L = jaxlie.SE3.from_matrix(F_H_L).adjoint()
+            F_H_L = Transform.inverse(W_H_F) @ W_H_L
+            F_X_L = Adjoint.from_transform(transform=F_H_L)
             F_J_WL = F_X_L @ L_J_WL
             O_J_WL_I = F_J_WL
 
         case VelRepr.Mixed:
             W_H_L = js.link.transform(model=model, data=data, link_index=L)
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_L = jaxsim.math.Transform.inverse(W_H_F) @ W_H_L
+            F_H_L = Transform.inverse(W_H_F) @ W_H_L
             FW_H_F = W_H_F.at[0:3, 3].set(jnp.zeros(3))
             FW_H_L = FW_H_F @ F_H_L
-            FW_X_L = jaxlie.SE3.from_matrix(FW_H_L).adjoint()
+            FW_X_L = Adjoint.from_transform(transform=FW_H_L)
             FW_J_WL = FW_X_L @ L_J_WL
             O_J_WL_I = FW_J_WL
 

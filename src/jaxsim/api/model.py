@@ -9,14 +9,13 @@ from typing import Any, Sequence
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
-import jaxlie
 import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.math import Cross
+from jaxsim.math import Adjoint, Cross, Transform
 from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
@@ -494,7 +493,7 @@ def generalized_free_floating_jacobian(
         case VelRepr.Inertial:
 
             W_H_B = data.base_transform()
-            B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+            B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
 
             B_J_full_WX_I = B_J_full_WX_W = B_J_full_WX_B @ jax.scipy.linalg.block_diag(
                 B_X_W, jnp.eye(model.dofs())
@@ -508,7 +507,7 @@ def generalized_free_floating_jacobian(
 
             W_R_B = data.base_orientation(dcm=True)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
-            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
             B_J_full_WX_I = B_J_full_WX_BW = (
                 B_J_full_WX_B
@@ -716,7 +715,7 @@ def forward_dynamics_aba(
 
         # In Mixed representation, we need to include a cross product in ℝ⁶.
         # In Inertial and Body representations, the cross product is always zero.
-        C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
+        C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
         return C_X_W @ (W_v̇_WB - Cross.vx(W_v_WC) @ W_v_WB)
 
     match data.velocity_representation:
@@ -881,7 +880,9 @@ def free_floating_mass_matrix(
 
         case VelRepr.Inertial:
 
-            B_X_W = jaxlie.SE3.from_matrix(data.base_transform()).inverse().adjoint()
+            B_X_W = Adjoint.from_transform(
+                transform=data.base_transform(), inverse=True
+            )
             invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
@@ -889,7 +890,7 @@ def free_floating_mass_matrix(
         case VelRepr.Mixed:
 
             BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
-            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
@@ -1078,8 +1079,8 @@ def inverse_dynamics(
         expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
         """
 
-        W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
-        C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
+        W_X_C = Adjoint.from_transform(transform=W_H_C)
+        C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
         C_v_WC = C_X_W @ W_v_WC
 
         # In Mixed representation, we need to include a cross product in ℝ⁶.
@@ -1362,12 +1363,14 @@ def total_momentum_jacobian(
             B_Jh = B_Jh_B
 
         case VelRepr.Inertial:
-            B_X_W = jaxlie.SE3.from_matrix(data.base_transform()).inverse().adjoint()
+            B_X_W = Adjoint.from_transform(
+                transform=Transform.inverse(data.base_transform())
+            )
             B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
         case VelRepr.Mixed:
             BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
-            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_X_BW = Adjoint.from_transform(transform=Transform.inverse(BW_H_B))
             B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
         case _:
@@ -1379,14 +1382,14 @@ def total_momentum_jacobian(
 
         case VelRepr.Inertial:
             W_H_B = data.base_transform()
-            B_Xv_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+            B_Xv_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
             W_Xf_B = B_Xv_W.T
             W_Jh = W_Xf_B @ B_Jh
             return W_Jh
 
         case VelRepr.Mixed:
             BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
-            B_Xv_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_Xv_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             BW_Xf_B = B_Xv_BW.T
             BW_Jh = BW_Xf_B @ B_Jh
             return BW_Jh
@@ -1450,7 +1453,7 @@ def average_velocity_jacobian(
             W_p_CoM = js.com.com_position(model=model, data=data)
 
             W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
-            W_X_GW = jaxlie.SE3.from_matrix(W_H_GW).adjoint()
+            W_X_GW = Adjoint.from_transform(transform=W_H_GW)
 
             return W_X_GW @ GW_J
 
@@ -1462,7 +1465,7 @@ def average_velocity_jacobian(
             B_R_W = data.base_orientation(dcm=True).transpose()
 
             B_H_GB = jnp.eye(4).at[0:3, 3].set(B_R_W @ (W_p_CoM - W_p_B))
-            B_X_GB = jaxlie.SE3.from_matrix(B_H_GB).adjoint()
+            B_X_GB = Adjoint.from_transform(transform=B_H_GB)
 
             return B_X_GB @ GB_J
 
@@ -1473,7 +1476,7 @@ def average_velocity_jacobian(
             W_p_CoM = js.com.com_position(model=model, data=data)
 
             BW_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM - W_p_B)
-            BW_X_GW = jaxlie.SE3.from_matrix(BW_H_GW).adjoint()
+            BW_X_GW = Adjoint.from_transform(transform=BW_H_GW)
 
             return BW_X_GW @ GW_J
 
@@ -1519,8 +1522,8 @@ def link_bias_accelerations(
         expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
         """
 
-        W_X_C = jaxlie.SE3.from_matrix(W_H_C).adjoint()
-        C_X_W = jaxlie.SE3.from_matrix(W_H_C).inverse().adjoint()
+        W_X_C = Adjoint.from_transform(transform=W_H_C)
+        C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
 
         # In Mixed representation, we need to include a cross product in ℝ⁶.
         # In Inertial and Body representations, the cross product is always zero.

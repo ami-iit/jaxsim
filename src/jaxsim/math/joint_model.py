@@ -11,6 +11,7 @@ from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescri
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
 
 from .rotation import Rotation
+from .transform import Transform
 
 
 @jax_dataclasses.pytree_dataclass
@@ -162,7 +163,7 @@ class JointModel:
             joint_index=joint_index, joint_position=joint_position
         )
 
-        i_Hi_λ = jaxlie.SE3.from_matrix(λ_Hi_i).inverse().as_matrix()
+        i_Hi_λ = Transform.inverse(λ_Hi_i)
 
         return i_Hi_λ, S
 

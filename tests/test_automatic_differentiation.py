@@ -373,14 +373,14 @@ def test_ad_integration(
 
     # Function exposing only the parameters to be differentiated.
     def step(
-        W_p_B: jtp.ArrayLike,
-        W_Q_B: jtp.ArrayLike,
-        s: jtp.ArrayLike,
-        W_v_WB: jtp.ArrayLike,
-        ṡ: jtp.ArrayLike,
-        m: jtp.ArrayLike,
-        τ: jtp.ArrayLike,
-        W_f_L: jtp.ArrayLike,
+        W_p_B: jtp.Vector,
+        W_Q_B: jtp.Vector,
+        s: jtp.Vector,
+        W_v_WB: jtp.Vector,
+        ṡ: jtp.Vector,
+        m: jtp.Vector,
+        τ: jtp.Vector,
+        W_f_L: jtp.Matrix,
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
 
         # When JAX tests against finite differences, the injected ε will make the

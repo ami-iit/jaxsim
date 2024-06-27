@@ -27,8 +27,8 @@ except ImportError:
 # Generic types
 # =============
 
-Time = jtp.ArrayLike
-TimeStep = jtp.ArrayLike
+Time = jtp.Float
+TimeStep = jtp.Float
 State = NextState = TypeVar("State")
 StateDerivative = TypeVar("StateDerivative")
 PyTreeType = TypeVar("PyTreeType", bound=jtp.PyTree)
@@ -191,14 +191,14 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]):
 
     # The Runge-Kutta matrix.
-    A: ClassVar[jtp.ArrayLike]
+    A: ClassVar[jtp.Matrix]
 
     # The weights coefficients.
     # Note that in practice we typically use its transpose `b.transpose()`.
-    b: ClassVar[jtp.ArrayLike]
+    b: ClassVar[jtp.Matrix]
 
     # The nodes coefficients.
-    c: ClassVar[jtp.ArrayLike]
+    c: ClassVar[jtp.Vector]
 
     # Define the order of the solution.
     # It should have as many elements as the number of rows of `b.transpose()`.
@@ -440,7 +440,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     @staticmethod
     def butcher_tableau_is_valid(
-        A: jtp.ArrayLike, b: jtp.ArrayLike, c: jtp.ArrayLike
+        A: jtp.Matrix, b: jtp.Matrix, c: jtp.Vector
     ) -> jtp.Bool:
         """
         Check if the Butcher tableau is valid.
@@ -466,7 +466,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         return valid
 
     @staticmethod
-    def butcher_tableau_is_explicit(A: jtp.ArrayLike) -> jtp.Bool:
+    def butcher_tableau_is_explicit(A: jtp.Matrix) -> jtp.Bool:
         """
         Check if the Butcher tableau corresponds to an explicit integration scheme.
 
@@ -481,9 +481,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     @staticmethod
     def butcher_tableau_supports_fsal(
-        A: jtp.ArrayLike,
-        b: jtp.ArrayLike,
-        c: jtp.ArrayLike,
+        A: jtp.Matrix,
+        b: jtp.Matrix,
+        c: jtp.Vector,
         index_of_solution: jtp.IntLike = 0,
     ) -> [bool, int | None]:
         """

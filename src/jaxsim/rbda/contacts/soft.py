@@ -158,7 +158,7 @@ class SoftContacts(ContactModel):
         position: jtp.Vector,
         velocity: jtp.Vector,
         tangential_deformation: jtp.Vector,
-    ) -> tuple[jtp.Vector, tuple[jtp.Vector, None]]:
+    ) -> tuple[jtp.Vector, tuple[jtp.Vector]]:
         """
         Compute the contact forces and material deformation rate.
 
@@ -321,7 +321,7 @@ class SoftContacts(ContactModel):
                 operand=None,
             )
 
-        # (W_f, ṁ)
+        # (W_f, (ṁ,))
         return jax.lax.cond(
             pred=(μ == 0.0),
             true_fun=lambda _: with_no_friction(),

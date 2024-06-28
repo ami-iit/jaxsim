@@ -187,7 +187,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             logging.debug(msg=f"Assuming '{root_link_name}' as the root link")
 
         # Couple links and joints and create the graph of links.
-        # Note that the pose of the frames is not updated; it's the caller's
+        # Note that the pose of the frames is not updated; it is the caller's
         # responsibility to update their pose if they want to use them.
         (
             graph_root_node,
@@ -281,7 +281,7 @@ class KinematicGraph(Sequence[LinkDescription]):
         # Couple links and joints creating the kinematic graph.
         for joint in joints:
 
-            # Get the parent and child links of the joint
+            # Get the parent and child links of the joint.
             parent_link = links_dict[joint.parent.name]
             child_link = links_dict[joint.child.name]
 

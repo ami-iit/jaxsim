@@ -160,7 +160,7 @@ class ODEState(JaxsimDataclass):
             `JaxSimModel` and initialized to zero.
         """
 
-        # Get the contact model from the `JaxSimModel`
+        # Get the contact model from the `JaxSimModel`.
         match model.contact_model:
             case SoftContacts():
                 contact = SoftContactsState.build_from_jaxsim_model(
@@ -212,7 +212,7 @@ class ODEState(JaxsimDataclass):
             else PhysicsModelState.zero(model=model)
         )
 
-        # Get the contact model from the `JaxSimModel`
+        # Get the contact model from the `JaxSimModel`.
         match contact:
             case SoftContactsState():
                 pass
@@ -423,7 +423,7 @@ class PhysicsModelState(JaxsimDataclass):
             base_angular_velocity=jnp.array(base_angular_velocity, dtype=float),
         )
 
-        # assert state.valid(physics_model)
+        # TODO (diegoferigo): assert state.valid(physics_model)
         return physics_model_state
 
     @staticmethod

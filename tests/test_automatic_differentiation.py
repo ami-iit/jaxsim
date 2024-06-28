@@ -320,7 +320,7 @@ def test_ad_soft_contacts(
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
-        # On GPU, the tolerance needs to be increased
+        # On GPU, the tolerance needs to be increased.
         rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
     )
 

@@ -384,7 +384,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             # Define the computation of the Runge-Kutta stage.
             def compute_ki() -> jax.Array:
 
-                # Compute ∑ⱼ aᵢⱼ kⱼ
+                # Compute ∑ⱼ aᵢⱼ kⱼ.
                 op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
                 sum_ak = jax.tree_util.tree_map(op_sum_ak, K)
 

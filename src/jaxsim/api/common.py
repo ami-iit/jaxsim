@@ -59,7 +59,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
 
         try:
 
-            # First, we replace the velocity representation
+            # First, we replace the velocity representation.
             with self.mutable_context(
                 mutability=Mutability.MUTABLE_NO_VALIDATION,
                 restore_after_exception=True,

@@ -105,14 +105,14 @@ def system_velocity_dynamics(
         the system dynamics evaluation.
     """
 
-    # Build joint torques if not provided
+    # Build joint torques if not provided.
     τ = (
         jnp.atleast_1d(joint_forces.squeeze())
         if joint_forces is not None
         else jnp.zeros_like(data.joint_positions())
     ).astype(float)
 
-    # Build link forces if not provided
+    # Build link forces if not provided.
     O_f_L = (
         jnp.atleast_2d(link_forces.squeeze())
         if link_forces is not None
@@ -178,7 +178,7 @@ def system_velocity_dynamics(
             model.kin_dyn_parameters.joint_parameters.friction_viscous
         ).astype(float)
 
-        # Compute the joint friction torque
+        # Compute the joint friction torque.
         τ_friction = -(
             jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_velocities)
             + jnp.diag(kv) @ data.state.physics_model.joint_velocities
@@ -188,7 +188,7 @@ def system_velocity_dynamics(
     # Compute forward dynamics
     # ========================
 
-    # Compute the total joint forces
+    # Compute the total joint forces.
     τ_total = τ + τ_friction + τ_position_limit
 
     references = js.references.JaxSimModelReferences.build(
@@ -202,7 +202,7 @@ def system_velocity_dynamics(
     with references.switch_velocity_representation(VelRepr.Inertial):
         W_f_L = references.link_forces(model=model, data=data)
 
-    # Compute the total external 6D forces applied to the links
+    # Compute the total external 6D forces applied to the links.
     W_f_L_total = W_f_L + W_f_Li_terrain
 
     # - Joint accelerations: s̈ ∈ ℝⁿ

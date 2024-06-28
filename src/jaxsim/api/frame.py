@@ -227,7 +227,7 @@ def jacobian(
         model=model, data=data, link_index=L, output_vel_repr=VelRepr.Body
     )
 
-    # Adjust the output representation
+    # Adjust the output representation.
     match output_vel_repr:
         case VelRepr.Inertial:
             W_H_L = js.link.transform(model=model, data=data, link_index=L)

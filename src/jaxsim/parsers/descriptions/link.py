@@ -102,7 +102,7 @@ class LinkDescription(JaxsimDataclass):
             The combined link.
         """
 
-        # Get the 6D inertia of the link to remove
+        # Get the 6D inertia of the link to remove.
         I_removed = link.inertia
 
         # Create the SE3 object. Note the inverse.

@@ -102,7 +102,7 @@ def aba(
     i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
 
-    # Initialize base quantities
+    # Initialize base quantities.
     if model.floating_base():
 
         # Base velocity v₀ in body-fixed representation.

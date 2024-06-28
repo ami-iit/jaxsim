@@ -116,7 +116,7 @@ class JaxSimModel(JaxsimDataclass):
         import jaxsim.parsers.rod
 
         # Parse the input resource (either a path to file or a string with the URDF/SDF)
-        # and build the -intermediate- model description
+        # and build the -intermediate- model description.
         intermediate_description = jaxsim.parsers.rod.build_model_description(
             model_description=model_description, is_urdf=is_urdf
         )
@@ -128,7 +128,7 @@ class JaxSimModel(JaxsimDataclass):
                 considered_joints=considered_joints
             )
 
-        # Build the model
+        # Build the model.
         model = JaxSimModel.build(
             model_description=intermediate_description,
             model_name=model_name,
@@ -136,7 +136,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model=contact_model,
         )
 
-        # Store the origin of the model, in case downstream logic needs it
+        # Store the origin of the model, in case downstream logic needs it.
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
 
@@ -169,14 +169,14 @@ class JaxSimModel(JaxsimDataclass):
         """
         from jaxsim.rbda.contacts.soft import SoftContacts
 
-        # Set the model name (if not provided, use the one from the model description)
+        # Set the model name (if not provided, use the one from the model description).
         model_name = model_name if model_name is not None else model_description.name
 
-        # Set the terrain (if not provided, use the default flat terrain)
+        # Set the terrain (if not provided, use the default flat terrain).
         terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
         contact_model = contact_model or SoftContacts(terrain=terrain)
 
-        # Build the model
+        # Build the model.
         model = JaxSimModel(
             model_name=model_name,
             _description=wrappers.HashlessObject(obj=model_description),
@@ -361,7 +361,7 @@ def reduce(
         considered_joints=list(considered_joints)
     )
 
-    # Build the reduced model
+    # Build the reduced model.
     reduced_model = JaxSimModel.build(
         model_description=reduced_intermediate_description,
         model_name=model.name(),
@@ -369,7 +369,7 @@ def reduce(
         contact_model=model.contact_model,
     )
 
-    # Store the origin of the model, in case downstream logic needs it
+    # Store the origin of the model, in case downstream logic needs it.
     with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
         reduced_model.built_from = model.built_from
 
@@ -797,21 +797,21 @@ def forward_dynamics_crb(
     # Prepare data
     # ============
 
-    # Build joint torques if not provided
+    # Build joint torques if not provided.
     τ = (
         jnp.atleast_1d(joint_forces)
         if joint_forces is not None
         else jnp.zeros_like(data.joint_positions())
     )
 
-    # Build external forces if not provided
+    # Build external forces if not provided.
     f = (
         jnp.atleast_2d(link_forces)
         if link_forces is not None
         else jnp.zeros(shape=(model.number_of_links(), 6))
     )
 
-    # Compute terms of the floating-base EoM
+    # Compute terms of the floating-base EoM.
     M = free_floating_mass_matrix(model=model, data=data)
     h = free_floating_bias_forces(model=model, data=data)
     S = jnp.block([jnp.zeros(shape=(model.dofs(), 6)), jnp.eye(model.dofs())]).T
@@ -848,7 +848,7 @@ def forward_dynamics_crb(
     # 6D transformation X.
     v̇_WB = ν̇[0:6].squeeze().astype(float)
 
-    # Extract the joint accelerations
+    # Extract the joint accelerations.
     s̈ = jnp.atleast_1d(ν̇[6:].squeeze()).astype(float)
 
     return v̇_WB, s̈
@@ -1189,12 +1189,12 @@ def free_floating_gravity_forces(
         The free-floating gravity forces of the model.
     """
 
-    # Build a zeroed state
+    # Build a zeroed state.
     data_rnea = js.data.JaxSimModelData.zero(
         model=model, velocity_representation=data.velocity_representation
     )
 
-    # Set just the generalized position
+    # Set just the generalized position.
     with data_rnea.mutable_context(
         mutability=Mutability.MUTABLE, restore_after_exception=False
     ):
@@ -1239,12 +1239,12 @@ def free_floating_bias_forces(
         The free-floating bias forces of the model.
     """
 
-    # Build a zeroed state
+    # Build a zeroed state.
     data_rnea = js.data.JaxSimModelData.zero(
         model=model, velocity_representation=data.velocity_representation
     )
 
-    # Set the generalized position and generalized velocity
+    # Set the generalized position and generalized velocity.
     with data_rnea.mutable_context(
         mutability=Mutability.MUTABLE, restore_after_exception=False
     ):

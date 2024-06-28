@@ -97,7 +97,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             array: The 6D quantity to convert.
             other_representation: The representation to convert to.
             transform:
-                The `math:W \mathbf{H}_O` transform, where `math:O` is the
+                The :math:`W \mathbf{H}_O` transform, where :math:`O` is the
                 reference frame of the other representation.
             is_force: Whether the quantity is a 6D force or a 6D velocity.
 

@@ -8,7 +8,7 @@ import numpy as np
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Transform
+from jaxsim.math import Adjoint
 from jaxsim.utils import JaxsimDataclass
 
 
@@ -106,8 +106,7 @@ class LinkDescription(JaxsimDataclass):
         I_removed = link.inertia
 
         # Create the SE3 object. Note the inverse.
-        r_H_l = Transform.inverse(lumped_H_removed)
-        r_X_l = Adjoint.from_transform(transform=r_H_l)
+        r_X_l = Adjoint.from_transform(transform=lumped_H_removed, inverse=True)
 
         # Move the inertia
         I_removed_in_lumped_frame = r_X_l.transpose() @ I_removed @ r_X_l

@@ -15,7 +15,7 @@ from jax_dataclasses import Static
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Cross, Transform
+from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
@@ -1364,13 +1364,13 @@ def total_momentum_jacobian(
 
         case VelRepr.Inertial:
             B_X_W = Adjoint.from_transform(
-                transform=Transform.inverse(data.base_transform())
+                transform=data.base_transform(), inverse=True
             )
             B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
         case VelRepr.Mixed:
             BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
-            B_X_BW = Adjoint.from_transform(transform=Transform.inverse(BW_H_B))
+            B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
         case _:

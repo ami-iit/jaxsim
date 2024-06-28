@@ -155,9 +155,9 @@ def jacobian_full_doubly_left(
     B_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     B_X_i = B_X_i.at[0].set(jnp.eye(6))
 
-    # =============================
-    # Compute doubly-left Jacobian
-    # =============================
+    # =================================
+    # Compute doubly-left full Jacobian
+    # =================================
 
     # Allocate the Jacobian matrix.
     # The Jbb section of the doubly-left Jacobian is an identity matrix.

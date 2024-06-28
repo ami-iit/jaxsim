@@ -106,7 +106,11 @@ class HashedNumpyArray:
             return False
 
         if self.large_array:
-            return np.array_equal(self.array, other.array)
+            return np.allclose(
+                self.array,
+                other.array,
+                **({dict(atol=self.precision)} if self.precision is not None else {}),
+            )
 
         return hash(self) == hash(other)
 

@@ -1610,7 +1610,7 @@ def link_bias_accelerations(
     # not remove gravity during the propagation.
 
     # Initialize the loop.
-    Carry = tuple[jtp.MatrixJax, jtp.MatrixJax]
+    Carry = tuple[jtp.Matrix, jtp.Matrix]
     carry0: Carry = (L_v_WL, L_v̇_WL)
 
     def propagate_accelerations(carry: Carry, i: jtp.Int) -> tuple[Carry, None]:

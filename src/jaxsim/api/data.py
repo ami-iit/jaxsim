@@ -389,7 +389,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         ).astype(float)
 
     @jax.jit
-    def base_transform(self) -> jtp.MatrixJax:
+    def base_transform(self) -> jtp.Matrix:
         """
         Get the base transform.
 

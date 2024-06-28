@@ -27,8 +27,8 @@ except ImportError:
 # Generic types
 # =============
 
-Time = jtp.Float
-TimeStep = jtp.Float
+Time = jtp.FloatLike
+TimeStep = jtp.FloatLike
 State = NextState = TypeVar("State")
 StateDerivative = TypeVar("StateDerivative")
 PyTreeType = TypeVar("PyTreeType", bound=jtp.PyTree)

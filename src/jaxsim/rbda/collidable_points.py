@@ -80,7 +80,7 @@ def collidable_points_pos_vel(
     # Propagate kinematics
     # ====================
 
-    PropagateTransformsCarry = tuple[jtp.MatrixJax, jtp.Matrix]
+    PropagateTransformsCarry = tuple[jtp.Matrix, jtp.Matrix]
     propagate_transforms_carry: PropagateTransformsCarry = (W_X_i, W_v_Wi)
 
     def propagate_kinematics(
@@ -118,8 +118,9 @@ def collidable_points_pos_vel(
     # ==================================================
 
     def process_point_kinematics(
-        Li_p_C: jtp.VectorJax, parent_body: jtp.Int
-    ) -> tuple[jtp.VectorJax, jtp.VectorJax]:
+        Li_p_C: jtp.Vector, parent_body: jtp.Int
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+
         # Compute the position of the collidable point.
         W_p_Ci = (
             Adjoint.to_transform(adjoint=W_X_i[parent_body]) @ jnp.hstack([Li_p_C, 1])

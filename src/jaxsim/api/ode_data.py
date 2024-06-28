@@ -31,8 +31,8 @@ class ODEInput(JaxsimDataclass):
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
-        joint_forces: jtp.VectorJax | None = None,
-        link_forces: jtp.MatrixJax | None = None,
+        joint_forces: jtp.VectorLike | None = None,
+        link_forces: jtp.MatrixLike | None = None,
     ) -> ODEInput:
         """
         Build an `ODEInput` from a `JaxSimModel`.
@@ -501,14 +501,14 @@ class PhysicsModelInput(JaxsimDataclass):
         f_ext: The matrix of external forces applied to the links.
     """
 
-    tau: jtp.VectorJax
-    f_ext: jtp.MatrixJax
+    tau: jtp.Vector
+    f_ext: jtp.Matrix
 
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
-        joint_forces: jtp.VectorJax | None = None,
-        link_forces: jtp.MatrixJax | None = None,
+        joint_forces: jtp.VectorLike | None = None,
+        link_forces: jtp.MatrixLike | None = None,
     ) -> PhysicsModelInput:
         """
         Build a `PhysicsModelInput` from a `JaxSimModel`.
@@ -535,8 +535,8 @@ class PhysicsModelInput(JaxsimDataclass):
 
     @staticmethod
     def build(
-        joint_forces: jtp.VectorJax | None = None,
-        link_forces: jtp.MatrixJax | None = None,
+        joint_forces: jtp.VectorLike | None = None,
+        link_forces: jtp.MatrixLike | None = None,
         number_of_dofs: jtp.Int | None = None,
         number_of_links: jtp.Int | None = None,
     ) -> PhysicsModelInput:

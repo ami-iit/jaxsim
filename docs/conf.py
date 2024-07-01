@@ -100,10 +100,10 @@ collections = {
 # -- Options for sphinx-gallery ----------------------------------------------
 
 sphinx_gallery_conf = {
-    "examples_dirs": "_collections/examples",
-    "gallery_dirs": ("_collections/generated_examples/"),
+    "examples_dirs": "../examples",
+    "gallery_dirs": "../generated_examples/",
     "doc_module": "jaxsim",
-    "backreferences_dir": os.path.join("modules", "generated"),
+    "abort_on_example_error": True,
 }
 
 # -- Options for myst -------------------------------------------------------
@@ -113,7 +113,9 @@ myst_enable_extensions = [
 ]
 nb_execution_mode = "force"
 nb_execution_allow_errors = False
-nb_render_image_options = {}
+nb_render_image_options = {
+    "scale": "60",
+}
 
 source_suffix = [".rst", ".md", ".ipynb"]
 

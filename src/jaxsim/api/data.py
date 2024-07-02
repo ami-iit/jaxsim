@@ -626,7 +626,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_p_B = base_pose[0:3, 3]
 
         to_wxyz = np.array([3, 0, 1, 2])
-        W_R_B: jaxlie.SO3 = jaxlie.SO3.from_matrix(base_pose[0:3, 0:3])  # noqa
+        W_R_B: jaxlie.SO3 = jaxlie.SO3.from_matrix(base_pose[0:3, 0:3])
         W_Q_B = W_R_B.as_quaternion_xyzw()[to_wxyz]
 
         return self.reset_base_position(base_position=W_p_B).reset_base_quaternion(

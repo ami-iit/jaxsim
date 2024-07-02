@@ -168,7 +168,7 @@ class KynDynParameters(JaxsimDataclass):
             for link in ordered_links
             if link.parent is not None
         }
-        parent_array = jnp.array([-1] + list(parent_array_dict.values()), dtype=int)
+        parent_array = jnp.array([-1, *list(parent_array_dict.values())], dtype=int)
 
         # Instead of building the support parent array κ(i) for each link of the model,
         # that has a variable length depending on the number of links connecting the
@@ -792,7 +792,7 @@ class ContactParameters(JaxsimDataclass):
         )
 
         # Build the ContactParameters object.
-        cp = ContactParameters(point=points, body=link_index_of_points)  # noqa
+        cp = ContactParameters(point=points, body=link_index_of_points)
 
         assert cp.point.shape[1] == 3, cp.point.shape[1]
         assert cp.point.shape[0] == len(cp.body), cp.point.shape[0]

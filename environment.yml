@@ -13,6 +13,7 @@ dependencies:
   - jax-dataclasses >= 1.4.0
   - pptree
   - rod >= 0.3.0
+  - trimesh
   - typing_extensions # python<3.12
   # ====================================
   # Optional dependencies from setup.cfg

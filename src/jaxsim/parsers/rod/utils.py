@@ -1,13 +1,25 @@
+import enum
 import os
+import pathlib
 
 import jaxlie
 import numpy as np
 import numpy.typing as npt
 import rod
+import trimesh
+from rod.utils.resolve_uris import resolve_local_uri
 
 import jaxsim.typing as jtp
-from jaxsim.math import Inertia
+from jaxsim import logging
+from jaxsim.math.inertia import Inertia
 from jaxsim.parsers import descriptions
+
+
+@enum.unique
+class MeshMappingMethods(enum.IntEnum):
+    VertexExtraction = enum.auto()
+    RandomSurfaceSampling = enum.auto()
+    UniformSurfaceSampling = enum.auto()
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
@@ -203,4 +215,53 @@ def create_sphere_collision(
 
     return descriptions.SphereCollision(
         collidable_points=collidable_points, center=center_wrt_link
+    )
+
+
+def create_mesh_collision(
+    collision: rod.Collision,
+    link_description: descriptions.LinkDescription,
+    method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
+    nsamples: int = 1000,
+) -> descriptions.MeshCollision:
+    file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
+    _file_type = file.suffix.replace(".", "")
+    mesh = trimesh.load_mesh(file, file_type=_file_type)
+
+    if mesh.is_empty:
+        logging.warning(f"Mesh {collision.geometry.mesh.uri} is empty, ignoring it")
+        return
+
+    mesh.apply_scale(collision.geometry.mesh.scale)
+    logging.info(
+        f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+    )
+
+    # Extract the points from the mesh to use as colliders according to the provided method
+    match method:
+        case MeshMappingMethods.VertexExtraction:
+            points = mesh.vertices
+        case MeshMappingMethods.RandomSurfaceSampling:
+            points = mesh.sample(nsamples)
+        case MeshMappingMethods.UniformSurfaceSampling:
+            points = trimesh.sample.sample_surface_even(mesh=mesh, count=nsamples)
+        case _:
+            raise ValueError("Invalid mesh mapping method")
+
+    points = mesh.vertices
+    H = collision.pose.transform() if collision.pose is not None else np.eye(4)
+    center_of_collision_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
+    mesh_points_wrt_link = (
+        H @ np.hstack([points, np.vstack([1.0] * points.shape[0])]).T
+    )[0:3, :]
+    collidable_points = [
+        descriptions.CollidablePoint(
+            parent_link=link_description,
+            position=point,
+            enabled=True,
+        )
+        for point in mesh_points_wrt_link.T
+    ]
+    return descriptions.MeshCollision(
+        collidable_points=collidable_points, center=center_of_collision_wrt_link
     )

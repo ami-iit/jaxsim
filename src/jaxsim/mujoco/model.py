@@ -31,16 +31,16 @@ class MujocoModelHelper:
         self.model = model
         self.data = data if data is not None else mj.MjData(self.model)
 
-        # Populate the data with kinematics
+        # Populate the data with kinematics.
         mj.mj_forward(self.model, self.data)
 
-        # Keep the cache of this method local to improve GC
+        # Keep the cache of this method local to improve GC.
         self.mask_qpos = functools.cache(self._mask_qpos)
 
     @staticmethod
     def build_from_xml(
         mjcf_description: str | pathlib.Path,
-        assets: dict[str, Any] = None,
+        assets: dict[str, Any] | None = None,
         heightmap: HeightmapCallable | None = None,
     ) -> MujocoModelHelper:
         """
@@ -56,15 +56,15 @@ class MujocoModelHelper:
             A MujocoModelHelper object.
         """
 
-        # Read the XML description if it's a path to file
+        # Read the XML description if it is a path to file.
         mjcf_description = (
             mjcf_description.read_text()
             if isinstance(mjcf_description, pathlib.Path)
             else mjcf_description
         )
 
-        # Create the Mujoco model from the XML and, optionally, the assets dictionary
-        model = mj.MjModel.from_xml_string(xml=mjcf_description, assets=assets)  # noqa
+        # Create the Mujoco model from the XML and, optionally, the assets dictionary.
+        model = mj.MjModel.from_xml_string(xml=mjcf_description, assets=assets)
         data = mj.MjData(model)
 
         if heightmap:

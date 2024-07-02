@@ -80,7 +80,7 @@ def collidable_points_pos_vel(
     # Propagate kinematics
     # ====================
 
-    PropagateTransformsCarry = tuple[jtp.MatrixJax, jtp.Matrix]
+    PropagateTransformsCarry = tuple[jtp.Matrix, jtp.Matrix]
     propagate_transforms_carry: PropagateTransformsCarry = (W_X_i, W_v_Wi)
 
     def propagate_kinematics(
@@ -97,7 +97,7 @@ def collidable_points_pos_vel(
         W_Xi_i = W_X_i[λ[i]] @ λi_X_i
         W_X_i = W_X_i.at[i].set(W_Xi_i)
 
-        # Propagate the 6D velocity
+        # Propagate the 6D velocity.
         W_vi_Wi = W_v_Wi[λ[i]] + W_X_i[i] @ (S[i] * ṡ[ii]).squeeze()
         W_v_Wi = W_v_Wi.at[i].set(W_vi_Wi)
 
@@ -118,14 +118,15 @@ def collidable_points_pos_vel(
     # ==================================================
 
     def process_point_kinematics(
-        Li_p_C: jtp.VectorJax, parent_body: jtp.Int
-    ) -> tuple[jtp.VectorJax, jtp.VectorJax]:
-        # Compute the position of the collidable point
+        Li_p_C: jtp.Vector, parent_body: jtp.Int
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+
+        # Compute the position of the collidable point.
         W_p_Ci = (
             Adjoint.to_transform(adjoint=W_X_i[parent_body]) @ jnp.hstack([Li_p_C, 1])
         )[0:3]
 
-        # Compute the linear part of the mixed velocity Ci[W]_v_{W,Ci}
+        # Compute the linear part of the mixed velocity Ci[W]_v_{W,Ci}.
         CW_vl_WCi = (
             jnp.block([jnp.eye(3), -Skew.wedge(vector=W_p_Ci).squeeze()])
             @ W_v_Wi[parent_body].squeeze()
@@ -133,7 +134,7 @@ def collidable_points_pos_vel(
 
         return W_p_Ci, CW_vl_WCi
 
-    # Process all the collidable points in parallel
+    # Process all the collidable points in parallel.
     W_p_Ci, CW_vl_WC = jax.vmap(process_point_kinematics)(
         model.kin_dyn_parameters.contact_parameters.point,
         jnp.array(model.kin_dyn_parameters.contact_parameters.body),

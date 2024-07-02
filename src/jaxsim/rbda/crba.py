@@ -45,7 +45,7 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
     # Propagate kinematics
     # ====================
 
-    ForwardPassCarry = tuple[jtp.MatrixJax]
+    ForwardPassCarry = tuple[jtp.Matrix]
     forward_pass_carry: ForwardPassCarry = (i_X_0,)
 
     def propagate_kinematics(
@@ -71,7 +71,7 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
 
     M = jnp.zeros(shape=(6 + model.dofs(), 6 + model.dofs()))
 
-    BackwardPassCarry = tuple[jtp.MatrixJax, jtp.MatrixJax]
+    BackwardPassCarry = tuple[jtp.Matrix, jtp.Matrix]
     backward_pass_carry: BackwardPassCarry = (Mc, M)
 
     def backward_pass(
@@ -90,7 +90,7 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
 
         j = i
 
-        CarryInnerFn = tuple[jtp.Int, jtp.MatrixJax, jtp.MatrixJax]
+        CarryInnerFn = tuple[jtp.Int, jtp.Matrix, jtp.Matrix]
         carry_inner_fn = (j, Fi, M)
 
         def while_loop_body(carry: CarryInnerFn) -> CarryInnerFn:

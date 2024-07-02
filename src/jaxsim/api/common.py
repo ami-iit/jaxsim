@@ -8,10 +8,10 @@ from typing import ContextManager
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
-import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
+from jaxsim.math import Adjoint
 from jaxsim.utils import JaxsimDataclass, Mutability
 
 try:
@@ -59,7 +59,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
 
         try:
 
-            # First, we replace the velocity representation
+            # First, we replace the velocity representation.
             with self.mutable_context(
                 mutability=Mutability.MUTABLE_NO_VALIDATION,
                 restore_after_exception=True,
@@ -97,7 +97,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             array: The 6D quantity to convert.
             other_representation: The representation to convert to.
             transform:
-                The `math:W \mathbf{H}_O` transform, where `math:O` is the
+                The :math:`W \mathbf{H}_O` transform, where :math:`O` is the
                 reference frame of the other representation.
             is_force: Whether the quantity is a 6D force or a 6D velocity.
 
@@ -122,11 +122,11 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             case VelRepr.Body:
 
                 if not is_force:
-                    O_Xv_W = jaxlie.SE3.from_matrix(W_H_O).inverse().adjoint()
+                    O_Xv_W = Adjoint.from_transform(transform=W_H_O, inverse=True)
                     O_array = O_Xv_W @ W_array
 
                 else:
-                    O_Xf_W = jaxlie.SE3.from_matrix(W_H_O).adjoint().T
+                    O_Xf_W = Adjoint.from_transform(transform=W_H_O).T
                     O_array = O_Xf_W @ W_array
 
                 return O_array
@@ -136,11 +136,11 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                 W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
                 if not is_force:
-                    OW_Xv_W = jaxlie.SE3.from_matrix(W_H_OW).inverse().adjoint()
+                    OW_Xv_W = Adjoint.from_transform(transform=W_H_OW, inverse=True)
                     OW_array = OW_Xv_W @ W_array
 
                 else:
-                    OW_Xf_W = jaxlie.SE3.from_matrix(W_H_OW).adjoint().transpose()
+                    OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).T
                     OW_array = OW_Xf_W @ W_array
 
                 return OW_array
@@ -190,11 +190,11 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                 O_array = array
 
                 if not is_force:
-                    W_Xv_O: jtp.Array = jaxlie.SE3.from_matrix(W_H_O).adjoint()
+                    W_Xv_O: jtp.Array = Adjoint.from_transform(W_H_O)
                     W_array = W_Xv_O @ O_array
 
                 else:
-                    W_Xf_O = jaxlie.SE3.from_matrix(W_H_O).inverse().adjoint().T
+                    W_Xf_O = Adjoint.from_transform(transform=W_H_O, inverse=True).T
                     W_array = W_Xf_O @ O_array
 
                 return W_array
@@ -205,11 +205,11 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                 W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
                 if not is_force:
-                    W_Xv_BW: jtp.Array = jaxlie.SE3.from_matrix(W_H_OW).adjoint()
+                    W_Xv_BW: jtp.Array = Adjoint.from_transform(W_H_OW)
                     W_array = W_Xv_BW @ BW_array
 
                 else:
-                    W_Xf_BW = jaxlie.SE3.from_matrix(W_H_OW).inverse().adjoint().T
+                    W_Xf_BW = Adjoint.from_transform(transform=W_H_OW, inverse=True).T
                     W_array = W_Xf_BW @ BW_array
 
                 return W_array

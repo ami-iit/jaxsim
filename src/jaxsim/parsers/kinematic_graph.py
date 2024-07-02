@@ -12,7 +12,8 @@ import jaxsim.utils
 from jaxsim import logging
 from jaxsim.utils import Mutability
 
-from . import descriptions
+from .descriptions.joint import JointDescription, JointType
+from .descriptions.link import LinkDescription
 
 
 @dataclasses.dataclass
@@ -61,7 +62,7 @@ class RootPose:
 
 
 @dataclasses.dataclass(frozen=True)
-class KinematicGraph(Sequence[descriptions.LinkDescription]):
+class KinematicGraph(Sequence[LinkDescription]):
     """
     Class storing a kinematic graph having links as nodes and joints as edges.
 
@@ -72,11 +73,11 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         root_pose: The pose of the kinematic graph's root.
     """
 
-    root: descriptions.LinkDescription
-    frames: list[descriptions.LinkDescription] = dataclasses.field(
+    root: LinkDescription
+    frames: list[LinkDescription] = dataclasses.field(
         default_factory=list, hash=False, compare=False
     )
-    joints: list[descriptions.JointDescription] = dataclasses.field(
+    joints: list[JointDescription] = dataclasses.field(
         default_factory=list, hash=False, compare=False
     )
 
@@ -89,26 +90,26 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
     # Private attribute storing the unconnected joints from the parsed model and
     # the joints removed after model reduction.
-    _joints_removed: list[descriptions.JointDescription] = dataclasses.field(
+    _joints_removed: list[JointDescription] = dataclasses.field(
         default_factory=list, repr=False, hash=False, compare=False
     )
 
     @functools.cached_property
-    def links_dict(self) -> dict[str, descriptions.LinkDescription]:
+    def links_dict(self) -> dict[str, LinkDescription]:
         return {l.name: l for l in iter(self)}
 
     @functools.cached_property
-    def frames_dict(self) -> dict[str, descriptions.LinkDescription]:
+    def frames_dict(self) -> dict[str, LinkDescription]:
         return {f.name: f for f in self.frames}
 
     @functools.cached_property
-    def joints_dict(self) -> dict[str, descriptions.JointDescription]:
+    def joints_dict(self) -> dict[str, JointDescription]:
         return {j.name: j for j in self.joints}
 
     @functools.cached_property
     def joints_connection_dict(
         self,
-    ) -> dict[tuple[str, str], descriptions.JointDescription]:
+    ) -> dict[tuple[str, str], JointDescription]:
         return {(j.parent.name, j.child.name): j for j in self.joints}
 
     def __post_init__(self) -> None:
@@ -158,9 +159,9 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
     @staticmethod
     def build_from(
-        links: list[descriptions.LinkDescription],
-        joints: list[descriptions.JointDescription],
-        frames: list[descriptions.LinkDescription] | None = None,
+        links: list[LinkDescription],
+        joints: list[JointDescription],
+        frames: list[LinkDescription] | None = None,
         root_link_name: str | None = None,
         root_pose: RootPose = RootPose(),
     ) -> KinematicGraph:
@@ -186,7 +187,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             logging.debug(msg=f"Assuming '{root_link_name}' as the root link")
 
         # Couple links and joints and create the graph of links.
-        # Note that the pose of the frames is not updated; it's the caller's
+        # Note that the pose of the frames is not updated; it is the caller's
         # responsibility to update their pose if they want to use them.
         (
             graph_root_node,
@@ -218,17 +219,17 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
     @staticmethod
     def _create_graph(
-        links: list[descriptions.LinkDescription],
-        joints: list[descriptions.JointDescription],
+        links: list[LinkDescription],
+        joints: list[JointDescription],
         root_link_name: str,
-        frames: list[descriptions.LinkDescription] | None = None,
+        frames: list[LinkDescription] | None = None,
     ) -> tuple[
-        descriptions.LinkDescription,
-        list[descriptions.JointDescription],
-        list[descriptions.LinkDescription],
-        list[descriptions.LinkDescription],
-        list[descriptions.JointDescription],
-        list[descriptions.LinkDescription],
+        LinkDescription,
+        list[JointDescription],
+        list[LinkDescription],
+        list[LinkDescription],
+        list[JointDescription],
+        list[LinkDescription],
     ]:
         """
         Low-level creator of kinematic graph components.
@@ -248,7 +249,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         """
 
         # Create a dictionary that maps the link name to the link, for easy retrieval.
-        links_dict: dict[str, descriptions.LinkDescription] = {
+        links_dict: dict[str, LinkDescription] = {
             l.name: l.mutable(validate=False) for l in links
         }
 
@@ -280,7 +281,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         # Couple links and joints creating the kinematic graph.
         for joint in joints:
 
-            # Get the parent and child links of the joint
+            # Get the parent and child links of the joint.
             parent_link = links_dict[joint.parent.name]
             child_link = links_dict[joint.child.name]
 
@@ -293,7 +294,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
             # Assign link's children and make sure they are unique.
             if child_link.name not in {l.name for l in parent_link.children}:
                 with parent_link.mutable_context(Mutability.MUTABLE_NO_VALIDATION):
-                    parent_link.children = parent_link.children + (child_link,)
+                    parent_link.children = (*parent_link.children, child_link)
 
         # Collect all the links of the kinematic graph.
         all_links_in_graph = list(
@@ -641,7 +642,7 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
         )
 
     @property
-    def joints_removed(self) -> list[descriptions.JointDescription]:
+    def joints_removed(self) -> list[JointDescription]:
         """
         Get the list of joints removed during the graph reduction.
 
@@ -653,9 +654,9 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
     @staticmethod
     def breadth_first_search(
-        root: descriptions.LinkDescription,
+        root: LinkDescription,
         sort_children: Callable[[Any], Any] | None = lambda link: link.name,
-    ) -> Iterable[descriptions.LinkDescription]:
+    ) -> Iterable[LinkDescription]:
         """
         Perform a breadth-first search (BFS) traversal of the kinematic graph.
 
@@ -698,25 +699,25 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
     # Sequence protocol
     # =================
 
-    def __iter__(self) -> Iterable[descriptions.LinkDescription]:
+    def __iter__(self) -> Iterable[LinkDescription]:
         yield from KinematicGraph.breadth_first_search(root=self.root)
 
-    def __reversed__(self) -> Iterable[descriptions.LinkDescription]:
+    def __reversed__(self) -> Iterable[LinkDescription]:
         yield from reversed(list(iter(self)))
 
     def __len__(self) -> int:
         return len(list(iter(self)))
 
-    def __contains__(self, item: str | descriptions.LinkDescription) -> bool:
+    def __contains__(self, item: str | LinkDescription) -> bool:
         if isinstance(item, str):
             return item in self.link_names()
 
-        if isinstance(item, descriptions.LinkDescription):
+        if isinstance(item, LinkDescription):
             return item in set(iter(self))
 
         raise TypeError(type(item).__name__)
 
-    def __getitem__(self, key: int | str) -> descriptions.LinkDescription:
+    def __getitem__(self, key: int | str) -> LinkDescription:
         if isinstance(key, str):
             if key not in self.link_names():
                 raise KeyError(key)
@@ -731,12 +732,10 @@ class KinematicGraph(Sequence[descriptions.LinkDescription]):
 
         raise TypeError(type(key).__name__)
 
-    def count(self, value: descriptions.LinkDescription) -> int:
+    def count(self, value: LinkDescription) -> int:
         return list(iter(self)).count(value)
 
-    def index(
-        self, value: descriptions.LinkDescription, start: int = 0, stop: int = -1
-    ) -> int:
+    def index(self, value: LinkDescription, start: int = 0, stop: int = -1) -> int:
         return list(iter(self)).index(value, start, stop)
 
 
@@ -906,7 +905,7 @@ class KinematicGraphTransforms:
 
     @staticmethod
     def pre_H_suc(
-        joint_type: descriptions.JointType,
+        joint_type: JointType,
         joint_axis: npt.NDArray,
         joint_position: float | None = None,
     ) -> npt.NDArray:

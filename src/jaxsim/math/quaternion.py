@@ -58,9 +58,7 @@ class Quaternion:
         Returns:
             jtp.Vector: Quaternion in XYZW representation.
         """
-        return Quaternion.to_wxyz(
-            xyzw=jaxlie.SO3.from_matrix(matrix=dcm).as_quaternion_xyzw()
-        )
+        return jaxlie.SO3.from_matrix(matrix=dcm).wxyz
 
     @staticmethod
     def derivative(
@@ -165,12 +163,8 @@ class Quaternion:
         # Integrate the quaternion on the manifold.
         W_Q_B_tf = jax.lax.select(
             pred=omega_in_body_fixed,
-            on_true=Quaternion.to_wxyz(
-                xyzw=(W_Q_B_t0 @ jaxlie.SO3.exp(tangent=dt * ω_AB)).as_quaternion_xyzw()
-            ),
-            on_false=Quaternion.to_wxyz(
-                xyzw=(jaxlie.SO3.exp(tangent=dt * ω_AB) @ W_Q_B_t0).as_quaternion_xyzw()
-            ),
+            on_true=(W_Q_B_t0 @ jaxlie.SO3.exp(tangent=dt * ω_AB)).wxyz,
+            on_false=(jaxlie.SO3.exp(tangent=dt * ω_AB) @ W_Q_B_t0).wxyz,
         )
 
         return W_Q_B_tf

@@ -312,9 +312,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
         # Clip the estimated initial step size to the given bounds, if necessary.
         self.params["dt0"] = jnp.clip(
-            a=self.params["dt0"],
-            a_min=jnp.minimum(self.dt_min, self.params["dt0"]),
-            a_max=jnp.minimum(self.dt_max, self.params["dt0"]),
+            self.params["dt0"],
+            jnp.minimum(self.dt_min, self.params["dt0"]),
+            jnp.minimum(self.dt_max, self.params["dt0"]),
         )
 
         # =========================================================
@@ -371,7 +371,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
             # Shrink the Δt every time by the safety factor (even when accepted).
             # The β parameters define the bounds of the timestep update factor.
-            safety = jnp.clip(self.safety, a_min=0.0, a_max=1.0)
+            safety = jnp.clip(self.safety, 0.0, 1.0)
             β_min = jnp.maximum(0.0, self.beta_min)
             β_max = jnp.maximum(β_min, self.beta_max)
 
@@ -383,9 +383,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             # In case of acceptance, Δt_next could either be larger than Δt0,
             # or slightly smaller than Δt0 depending on the safety factor.
             Δt_next = Δt0 * jnp.clip(
-                a=safety * jnp.power(1 / local_error, 1 / (q + 1)),
-                a_min=β_min,
-                a_max=β_max,
+                safety * jnp.power(1 / local_error, 1 / (q + 1)),
+                β_min,
+                β_max,
             )
 
             def accept_step():
@@ -545,14 +545,14 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 @jax_dataclasses.pytree_dataclass
 class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 
-    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    A: ClassVar[jtp.Matrix] = jnp.array(
         [
             [0, 0],
             [1, 0],
         ]
     ).astype(float)
 
-    b: ClassVar[jax.typing.ArrayLike] = (
+    b: ClassVar[jtp.Matrix] = (
         jnp.atleast_2d(
             jnp.array(
                 [
@@ -565,7 +565,7 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
         .transpose()
     )
 
-    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    c: ClassVar[jtp.Vector] = jnp.array(
         [0, 1],
     ).astype(float)
 
@@ -578,7 +578,7 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 @jax_dataclasses.pytree_dataclass
 class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 
-    A: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    A: ClassVar[jtp.Matrix] = jnp.array(
         [
             [0, 0, 0, 0],
             [1 / 2, 0, 0, 0],
@@ -587,7 +587,7 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
         ]
     ).astype(float)
 
-    b: ClassVar[jax.typing.ArrayLike] = (
+    b: ClassVar[jtp.Matrix] = (
         jnp.atleast_2d(
             jnp.array(
                 [
@@ -600,7 +600,7 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
         .transpose()
     )
 
-    c: ClassVar[jax.typing.ArrayLike] = jnp.array(
+    c: ClassVar[jtp.Vector] = jnp.array(
         [0, 1 / 2, 3 / 4, 1],
     ).astype(float)
 

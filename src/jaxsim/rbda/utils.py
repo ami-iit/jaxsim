@@ -19,7 +19,7 @@ def process_inputs(
     joint_accelerations: jtp.VectorLike | None = None,
     joint_forces: jtp.VectorLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
-    standard_gravity: jtp.VectorLike | None = None,
+    standard_gravity: jtp.ScalarLike | None = None,
 ) -> tuple[
     jtp.Vector,
     jtp.Vector,

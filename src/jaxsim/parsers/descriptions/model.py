@@ -176,7 +176,7 @@ class ModelDescription(KinematicGraph):
             frames=self.frames,
             collisions=tuple(self.collision_shapes),
             fixed_base=self.fixed_base,
-            base_link_name=list(iter(self))[0].name,
+            base_link_name=next(iter(self)).name,
             model_pose=self.root_pose,
             considered_joints=considered_joints,
         )

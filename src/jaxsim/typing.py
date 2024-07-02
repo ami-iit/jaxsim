@@ -7,14 +7,14 @@ import jax
 # JAX types
 # =========
 
-ScalarJax = jax.Array
-IntJax = ScalarJax
-BoolJax = ScalarJax
-FloatJax = ScalarJax
+Array = jax.Array
+Scalar = Array
+Vector = Array
+Matrix = Array
 
-ArrayJax = jax.Array
-VectorJax = ArrayJax
-MatrixJax = ArrayJax
+Int = Scalar
+Bool = Scalar
+Float = Scalar
 
 PyTree = (
     dict[Hashable, "PyTree"] | list["PyTree"] | tuple["PyTree"] | None | jax.Array | Any
@@ -24,19 +24,11 @@ PyTree = (
 # Mixed JAX / NumPy types
 # =======================
 
-Array = jax.typing.ArrayLike
-Scalar = Array
-Vector = Array
-Matrix = Array
+ArrayLike = jax.typing.ArrayLike | tuple
+ScalarLike = int | float | Scalar | ArrayLike
+VectorLike = Vector | ArrayLike | tuple
+MatrixLike = Matrix | ArrayLike
 
-Int = int | IntJax
-Bool = bool | ArrayJax
-Float = float | FloatJax
-
-ScalarLike = Scalar | int | float
-ArrayLike = Array
-VectorLike = Vector
-MatrixLike = Matrix
-IntLike = Int
-BoolLike = Bool
-FloatLike = Float
+IntLike = int | Int | jax.typing.ArrayLike
+BoolLike = bool | Bool | jax.typing.ArrayLike
+FloatLike = float | Float | jax.typing.ArrayLike

@@ -227,12 +227,12 @@ def jaxsim_model_ergocub_reduced(jaxsim_model_ergocub) -> js.model.JaxSimModel:
 
     model_full = jaxsim_model_ergocub
 
-    # Get the names of the joints to keep
+    # Get the names of the joints to keep.
     reduced_joints = tuple(
         j
         for j in model_full.joint_names()
         if "camera" not in j
-        # Remove head and hands
+        # Remove head and hands.
         and "neck" not in j
         and "wrist" not in j
         and "thumb" not in j
@@ -240,7 +240,7 @@ def jaxsim_model_ergocub_reduced(jaxsim_model_ergocub) -> js.model.JaxSimModel:
         and "middle" not in j
         and "ring" not in j
         and "pinkie" not in j
-        # Remove upper body
+        # Remove upper body.
         and "torso" not in j and "elbow" not in j and "shoulder" not in j
     )
 

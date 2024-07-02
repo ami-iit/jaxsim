@@ -286,7 +286,7 @@ def test_model_rbda(
     # Tests
     # =====
 
-    # Support both fixed-base and floating-base models by slicing the first six rows
+    # Support both fixed-base and floating-base models by slicing the first six rows.
     sl = np.s_[0:] if model.floating_base() else np.s_[6:]
 
     # Mass matrix
@@ -494,7 +494,7 @@ def test_model_fd_id_consistency(
     # Tests
     # =====
 
-    # Create random references (joint torques and link forces)
+    # Create random references (joint torques and link forces).
     _, subkey1, subkey2 = jax.random.split(key, num=3)
     references = js.references.JaxSimModelReferences.build(
         model=model,
@@ -504,7 +504,7 @@ def test_model_fd_id_consistency(
         velocity_representation=data.velocity_representation,
     )
 
-    # Remove the force applied to the base link if the model is fixed-base
+    # Remove the force applied to the base link if the model is fixed-base.
     if not model.floating_base():
         references = references.apply_link_forces(
             forces=jnp.atleast_2d(jnp.zeros(6)),
@@ -514,7 +514,7 @@ def test_model_fd_id_consistency(
             additive=False,
         )
 
-    # Compute forward dynamics with ABA
+    # Compute forward dynamics with ABA.
     v̇_WB_aba, s̈_aba = js.model.forward_dynamics_aba(
         model=model,
         data=data,
@@ -522,7 +522,7 @@ def test_model_fd_id_consistency(
         link_forces=references.link_forces(model=model, data=data),
     )
 
-    # Compute forward dynamics with CRB
+    # Compute forward dynamics with CRB.
     v̇_WB_crb, s̈_crb = js.model.forward_dynamics_crb(
         model=model,
         data=data,

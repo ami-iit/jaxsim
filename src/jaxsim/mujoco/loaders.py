@@ -160,7 +160,7 @@ class RodModelToMjcf:
         considered_joints: list[str] | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: list[dict[str, str]] | dict[str, str] = None,
+        cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a ROD model to a Mujoco MJCF string.
@@ -274,7 +274,7 @@ class RodModelToMjcf:
 
         # Load the URDF model into Mujoco.
         assets = RodModelToMjcf.assets_from_rod_model(rod_model=rod_model)
-        mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)  # noqa
+        mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)
 
         # Get the joint names.
         mj_joint_names = set(
@@ -306,7 +306,7 @@ class RodModelToMjcf:
         root: ET._Element = tree.getroot()
 
         # Find the <mujoco> element (might be the root itself).
-        mujoco_element: ET._Element = list(root.iter("mujoco"))[0]
+        mujoco_element: ET._Element = next(iter(root.iter("mujoco")))
 
         # --------------
         # Add the motors
@@ -516,7 +516,7 @@ class UrdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: list[dict[str, str]] | dict[str, str] = None,
+        cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a URDF file to a Mujoco MJCF string.
@@ -558,7 +558,7 @@ class SdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: list[dict[str, str]] | dict[str, str] = None,
+        cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a SDF file to a Mujoco MJCF string.

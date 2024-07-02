@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import jaxlie
 
 import jaxsim.api as js
 import jaxsim.math
@@ -28,7 +27,7 @@ def com_position(
 
     W_H_L = js.model.forward_kinematics(model=model, data=data)
     W_H_B = data.base_transform()
-    B_H_W = jaxlie.SE3.from_matrix(W_H_B).inverse().as_matrix()
+    B_H_W = jaxsim.math.Transform.inverse(transform=W_H_B)
 
     def B_p̃_LCoM(i) -> jtp.Vector:
         m = js.link.mass(model=model, link_index=i)
@@ -179,9 +178,9 @@ def locked_centroidal_spatial_inertia(
         case _:
             raise ValueError(data.velocity_representation)
 
-    B_H_G = jaxlie.SE3.from_matrix(jaxsim.math.Transform.inverse(W_H_B) @ W_H_G)
+    B_H_G = jaxsim.math.Transform.inverse(W_H_B) @ W_H_G
 
-    B_Xv_G = B_H_G.adjoint()
+    B_Xv_G = jaxsim.math.Adjoint.from_transform(transform=B_H_G)
     G_Xf_B = B_Xv_G.transpose()
 
     return G_Xf_B @ B_Mbb_B @ B_Xv_G

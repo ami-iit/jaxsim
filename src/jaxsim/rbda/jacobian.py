@@ -50,7 +50,7 @@ def jacobian(
     # Propagate kinematics
     # ====================
 
-    PropagateKinematicsCarry = tuple[jtp.MatrixJax]
+    PropagateKinematicsCarry = tuple[jtp.Matrix]
     propagate_kinematics_carry: PropagateKinematicsCarry = (i_X_0,)
 
     def propagate_kinematics(
@@ -86,9 +86,9 @@ def jacobian(
     # Checking if j ∈ κ(i) is equivalent to: κ_bool(j) is True.
     κ_bool = model.kin_dyn_parameters.support_body_array_bool[link_index]
 
-    def compute_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> tuple[jtp.MatrixJax, None]:
+    def compute_jacobian(J: jtp.Matrix, i: jtp.Int) -> tuple[jtp.Matrix, None]:
 
-        def update_jacobian(J: jtp.MatrixJax, i: jtp.Int) -> jtp.MatrixJax:
+        def update_jacobian(J: jtp.Matrix, i: jtp.Int) -> jtp.Matrix:
 
             ii = i - 1
 
@@ -155,16 +155,16 @@ def jacobian_full_doubly_left(
     B_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     B_X_i = B_X_i.at[0].set(jnp.eye(6))
 
-    # =============================
-    # Compute doubly-left Jacobian
-    # =============================
+    # =================================
+    # Compute doubly-left full Jacobian
+    # =================================
 
     # Allocate the Jacobian matrix.
     # The Jbb section of the doubly-left Jacobian is an identity matrix.
     J = jnp.zeros(shape=(6, 6 + model.dofs()))
     J = J.at[0:6, 0:6].set(jnp.eye(6))
 
-    ComputeFullJacobianCarry = tuple[jtp.MatrixJax, jtp.MatrixJax]
+    ComputeFullJacobianCarry = tuple[jtp.Matrix, jtp.Matrix]
     compute_full_jacobian_carry: ComputeFullJacobianCarry = (B_X_i, J)
 
     def compute_full_jacobian(
@@ -261,7 +261,7 @@ def jacobian_derivative_full_doubly_left(
     J̇ = jnp.zeros(shape=(6, 6 + model.dofs()))
 
     ComputeFullJacobianDerivativeCarry = tuple[
-        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
+        jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix
     ]
 
     compute_full_jacobian_derivative_carry: ComputeFullJacobianDerivativeCarry = (

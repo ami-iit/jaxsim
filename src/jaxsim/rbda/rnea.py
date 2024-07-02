@@ -132,7 +132,7 @@ def rnea(
     # Pass 1
     # ======
 
-    ForwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax]
+    ForwardPassCarry = Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix]
     forward_pass_carry: ForwardPassCarry = (v, a, i_X_0, f)
 
     def forward_pass(
@@ -186,7 +186,7 @@ def rnea(
 
     τ = jnp.zeros_like(s)
 
-    BackwardPassCarry = Tuple[jtp.MatrixJax, jtp.MatrixJax]
+    BackwardPassCarry = Tuple[jtp.Vector, jtp.Matrix]
     backward_pass_carry: BackwardPassCarry = (τ, f)
 
     def backward_pass(
@@ -201,7 +201,7 @@ def rnea(
         τ = τ.at[ii].set(τ_i.squeeze())
 
         # Propagate the force to the parent link.
-        def update_f(f: jtp.MatrixJax) -> jtp.MatrixJax:
+        def update_f(f: jtp.Matrix) -> jtp.Matrix:
 
             f_λi = f[λ[i]] + i_X_λi[i].T @ f[i]
             f = f.at[λ[i]].set(f_λi)

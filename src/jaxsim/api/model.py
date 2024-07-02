@@ -1836,8 +1836,8 @@ def step(
         integrator_state: The state of the integrator.
         joint_forces: The joint forces to consider.
         link_forces:
-            The link 6D forces to consider.
-            The frame in which they are expressed must be `data.velocity_representation`.
+            The 6D forces to apply to the links expressed in the frame corresponding to
+            the velocity representation of `data`.
         kwargs: Additional kwargs to pass to the integrator.
 
     Returns:

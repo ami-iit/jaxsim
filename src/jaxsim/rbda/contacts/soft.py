@@ -151,7 +151,9 @@ class SoftContacts(ContactModel):
         default_factory=SoftContactsParams
     )
 
-    terrain: Terrain = dataclasses.field(default_factory=FlatTerrain)
+    terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
+        default_factory=FlatTerrain
+    )
 
     def compute_contact_forces(
         self,

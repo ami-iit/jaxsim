@@ -103,7 +103,6 @@ sphinx_gallery_conf = {
     "examples_dirs": "../examples",
     "gallery_dirs": "../generated_examples/",
     "doc_module": "jaxsim",
-    "abort_on_example_error": True,
 }
 
 # -- Options for myst -------------------------------------------------------
@@ -111,11 +110,12 @@ myst_enable_extensions = [
     "amsmath",
     "dollarmath",
 ]
-nb_execution_mode = "force"
-nb_execution_allow_errors = False
+nb_execution_mode = "auto"
+nb_execution_raise_on_error = True
 nb_render_image_options = {
     "scale": "60",
 }
+nb_execution_timeout = 180
 
 source_suffix = [".rst", ".md", ".ipynb"]
 

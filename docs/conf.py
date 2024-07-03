@@ -74,6 +74,7 @@ autosummary_generate = True
 
 epub_show_urls = "footnote"
 
+# Enable postponed evaluation of annotations (PEP 563)
 autodoc_type_aliases = {
     "jaxsim.typing.PyTree": "jaxsim.typing.PyTree",
     "jaxsim.typing.Vector": "jaxsim.typing.Vector",

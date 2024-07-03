@@ -33,17 +33,17 @@ def _is_editable() -> bool:
     import pathlib
     import site
 
-    # Get the ModuleSpec of jaxsim
+    # Get the ModuleSpec of jaxsim.
     jaxsim_spec = importlib.util.find_spec(name="jaxsim")
 
     # This can be None. If it's None, assume non-editable installation.
     if jaxsim_spec.origin is None:
         return False
 
-    # Get the folder containing the jaxsim package
+    # Get the folder containing the jaxsim package.
     jaxsim_package_dir = str(pathlib.Path(jaxsim_spec.origin).parent.parent)
 
-    # The installation is editable if the package dir is not in any {site|dist}-packages
+    # The installation is editable if the package dir is not in any {site|dist}-packages.
     return jaxsim_package_dir not in site.getsitepackages()
 
 
@@ -82,10 +82,10 @@ def _get_default_logging_level(env_var: str) -> logging.LoggingLevel:
 logging.configure(level=_get_default_logging_level(env_var="JAXSIM_LOGGING_LEVEL"))
 
 
-# Configure JAX
+# Configure JAX.
 _jnp_options()
 
-# Initialize the numpy print options
+# Initialize the numpy print options.
 _np_options()
 
 del _jnp_options

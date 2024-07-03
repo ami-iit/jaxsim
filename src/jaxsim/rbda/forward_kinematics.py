@@ -61,7 +61,7 @@ def forward_kinematics_model(
     # Propagate the kinematics
     # ========================
 
-    PropagateKinematicsCarry = tuple[jtp.MatrixJax]
+    PropagateKinematicsCarry = tuple[jtp.Matrix]
     propagate_kinematics_carry: PropagateKinematicsCarry = (W_X_i,)
 
     def propagate_kinematics(

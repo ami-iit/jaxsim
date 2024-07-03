@@ -102,7 +102,7 @@ def aba(
     i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))
     i_X_0 = i_X_0.at[0].set(jnp.eye(6))
 
-    # Initialize base quantities
+    # Initialize base quantities.
     if model.floating_base():
 
         # Base velocity v₀ in body-fixed representation.
@@ -121,10 +121,7 @@ def aba(
     # Pass 1
     # ======
 
-    Pass1Carry = tuple[
-        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
-    ]
-
+    Pass1Carry = tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix]
     pass_1_carry: Pass1Carry = (v, c, MA, pA, i_X_0)
 
     # Propagate kinematics and initialize AB inertia and AB bias forces.
@@ -178,10 +175,7 @@ def aba(
     d = jnp.zeros(shape=(model.number_of_links(), 1))
     u = jnp.zeros(shape=(model.number_of_links(), 1))
 
-    Pass2Carry = tuple[
-        jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax, jtp.MatrixJax
-    ]
-
+    Pass2Carry = tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix]
     pass_2_carry: Pass2Carry = (U, d, u, MA, pA)
 
     def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> tuple[Pass2Carry, None]:
@@ -204,8 +198,8 @@ def aba(
 
         # Propagate them to the parent, handling the base link.
         def propagate(
-            MA_pA: tuple[jtp.MatrixJax, jtp.MatrixJax]
-        ) -> tuple[jtp.MatrixJax, jtp.MatrixJax]:
+            MA_pA: tuple[jtp.Matrix, jtp.Matrix]
+        ) -> tuple[jtp.Matrix, jtp.Matrix]:
 
             MA, pA = MA_pA
 
@@ -248,7 +242,7 @@ def aba(
     s̈ = jnp.zeros_like(s)
     a = jnp.zeros_like(v).at[0].set(a0)
 
-    Pass3Carry = tuple[jtp.MatrixJax, jtp.VectorJax]
+    Pass3Carry = tuple[jtp.Matrix, jtp.Vector]
     pass_3_carry = (a, s̈)
 
     def loop_body_pass3(carry: Pass3Carry, i: jtp.Int) -> tuple[Pass3Carry, None]:

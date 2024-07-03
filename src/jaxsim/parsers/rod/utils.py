@@ -1,12 +1,11 @@
 import os
 
-import jaxlie
 import numpy as np
 import numpy.typing as npt
 import rod
 
 import jaxsim.typing as jtp
-from jaxsim.math import Inertia
+from jaxsim.math import Adjoint, Inertia
 from jaxsim.parsers import descriptions
 
 
@@ -21,10 +20,10 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
         The 6D inertia matrix of the link expressed in the link frame.
     """
 
-    # Extract the "mass" element
+    # Extract the "mass" element.
     m = inertial.mass
 
-    # Extract the "inertia" element
+    # Extract the "inertia" element.
     inertia_element = inertial.inertia
 
     ixx = inertia_element.ixx
@@ -34,7 +33,7 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
     ixz = inertia_element.ixz if inertia_element.ixz is not None else 0.0
     iyz = inertia_element.iyz if inertia_element.iyz is not None else 0.0
 
-    # Build the 3x3 inertia matrix expressed in the CoM
+    # Build the 3x3 inertia matrix expressed in the CoM.
     I_CoM = np.array(
         [
             [ixx, ixy, ixz],
@@ -43,17 +42,16 @@ def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
         ]
     )
 
-    # Build the 6x6 generalized inertia at the CoM
+    # Build the 6x6 generalized inertia at the CoM.
     M_CoM = Inertia.to_sixd(mass=m, com=np.zeros(3), I=I_CoM)
 
-    # Compute the transform from the inertial frame (CoM) to the link frame
+    # Compute the transform from the inertial frame (CoM) to the link frame.
     L_H_CoM = inertial.pose.transform() if inertial.pose is not None else np.eye(4)
 
-    # We need its inverse
-    CoM_H_L = jaxlie.SE3.from_matrix(matrix=L_H_CoM).inverse()
-    CoM_X_L = CoM_H_L.adjoint()
+    # We need its inverse.
+    CoM_X_L = Adjoint.from_transform(transform=L_H_CoM, inverse=True)
 
-    # Express the CoM inertia matrix in the link frame L
+    # Express the CoM inertia matrix in the link frame L.
     M_L = CoM_X_L.T @ M_CoM @ CoM_X_L
 
     return M_L.astype(dtype=float)

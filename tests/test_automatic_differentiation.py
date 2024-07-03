@@ -320,7 +320,7 @@ def test_ad_soft_contacts(
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
-        # On GPU, the tolerance needs to be increased
+        # On GPU, the tolerance needs to be increased.
         rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
     )
 
@@ -373,14 +373,14 @@ def test_ad_integration(
 
     # Function exposing only the parameters to be differentiated.
     def step(
-        W_p_B: jax.typing.ArrayLike,
-        W_Q_B: jax.typing.ArrayLike,
-        s: jax.typing.ArrayLike,
-        W_v_WB: jax.typing.ArrayLike,
-        ṡ: jax.typing.ArrayLike,
-        m: jax.typing.ArrayLike,
-        τ: jax.typing.ArrayLike,
-        W_f_L: jax.typing.ArrayLike,
+        W_p_B: jtp.Vector,
+        W_Q_B: jtp.Vector,
+        s: jtp.Vector,
+        W_v_WB: jtp.Vector,
+        ṡ: jtp.Vector,
+        m: jtp.Vector,
+        τ: jtp.Vector,
+        W_f_L: jtp.Matrix,
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
 
         # When JAX tests against finite differences, the injected ε will make the

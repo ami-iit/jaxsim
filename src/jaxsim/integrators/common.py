@@ -27,8 +27,8 @@ except ImportError:
 # Generic types
 # =============
 
-Time = jax.typing.ArrayLike
-TimeStep = jax.typing.ArrayLike
+Time = jtp.FloatLike
+TimeStep = jtp.FloatLike
 State = NextState = TypeVar("State")
 StateDerivative = TypeVar("StateDerivative")
 PyTreeType = TypeVar("PyTreeType", bound=jtp.PyTree)
@@ -79,7 +79,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             The integrator object.
         """
 
-        return cls(dynamics=dynamics, **kwargs)  # noqa
+        return cls(dynamics=dynamics, **kwargs)
 
     def step(
         self,
@@ -191,14 +191,14 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]):
 
     # The Runge-Kutta matrix.
-    A: ClassVar[jax.typing.ArrayLike]
+    A: ClassVar[jtp.Matrix]
 
     # The weights coefficients.
     # Note that in practice we typically use its transpose `b.transpose()`.
-    b: ClassVar[jax.typing.ArrayLike]
+    b: ClassVar[jtp.Matrix]
 
     # The nodes coefficients.
-    c: ClassVar[jax.typing.ArrayLike]
+    c: ClassVar[jtp.Vector]
 
     # Define the order of the solution.
     # It should have as many elements as the number of rows of `b.transpose()`.
@@ -384,7 +384,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             # Define the computation of the Runge-Kutta stage.
             def compute_ki() -> jax.Array:
 
-                # Compute ∑ⱼ aᵢⱼ kⱼ
+                # Compute ∑ⱼ aᵢⱼ kⱼ.
                 op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
                 sum_ak = jax.tree_util.tree_map(op_sum_ak, K)
 
@@ -440,7 +440,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     @staticmethod
     def butcher_tableau_is_valid(
-        A: jax.typing.ArrayLike, b: jax.typing.ArrayLike, c: jax.typing.ArrayLike
+        A: jtp.Matrix, b: jtp.Matrix, c: jtp.Vector
     ) -> jtp.Bool:
         """
         Check if the Butcher tableau is valid.
@@ -466,7 +466,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         return valid
 
     @staticmethod
-    def butcher_tableau_is_explicit(A: jax.typing.ArrayLike) -> jtp.Bool:
+    def butcher_tableau_is_explicit(A: jtp.Matrix) -> jtp.Bool:
         """
         Check if the Butcher tableau corresponds to an explicit integration scheme.
 
@@ -481,9 +481,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     @staticmethod
     def butcher_tableau_supports_fsal(
-        A: jax.typing.ArrayLike,
-        b: jax.typing.ArrayLike,
-        c: jax.typing.ArrayLike,
+        A: jtp.Matrix,
+        b: jtp.Matrix,
+        c: jtp.Vector,
         index_of_solution: jtp.IntLike = 0,
     ) -> [bool, int | None]:
         """
@@ -562,10 +562,9 @@ class ExplicitRungeKuttaSO3Mixin:
 
         # Indices to convert quaternions between serializations.
         to_xyzw = jnp.array([1, 2, 3, 0])
-        to_wxyz = jnp.array([3, 0, 1, 2])
 
-        # Get the initial quaternion.
-        W_Q_B_t0 = jaxlie.SO3.from_quaternion_xyzw(
+        # Get the initial rotation.
+        W_R_B_t0 = jaxlie.SO3.from_quaternion_xyzw(
             xyzw=x0.physics_model.base_quaternion[to_xyzw]
         )
 
@@ -575,15 +574,13 @@ class ExplicitRungeKuttaSO3Mixin:
         # on the SO(3) manifold.
         W_ω_WB_tf = xf.physics_model.base_angular_velocity
 
-        # Integrate the quaternion on SO(3).
+        # Integrate the orientation on SO(3).
         # Note that we left-multiply with the exponential map since the angular
         # velocity is expressed in the inertial frame.
-        W_Q_B_tf = jaxlie.SO3.exp(tangent=dt * W_ω_WB_tf) @ W_Q_B_t0
+        W_R_B_tf = jaxlie.SO3.exp(tangent=dt * W_ω_WB_tf) @ W_R_B_t0
 
         # Replace the quaternion in the final state.
         return xf.replace(
-            physics_model=xf.physics_model.replace(
-                base_quaternion=W_Q_B_tf.as_quaternion_xyzw()[to_wxyz]
-            ),
+            physics_model=xf.physics_model.replace(base_quaternion=W_R_B_tf.wxyz),
             validate=True,
         )

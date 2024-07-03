@@ -41,25 +41,26 @@ preview = true
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
-ignore = [
-  "B008", # Function call in default argument
-  "B024", # Abstract base class without abstract methods
-  "B904", # Raise without from inside exception
-  "B905", # Zip without explicit strict
-  "E402", # Module level import not at top of file
-  "E501", # Line too long
-  "E731", # Do not assign a `lambda` expression, use a `def`
-  "E741", # Ambiguous variable name
-  "F841", # Local variable is assigned to but never used
-  "I001", # Import block is unsorted or unformatted
-]
 select = [
   "B",
   "E",
   "F",
   "I",
   "W",
+  "RUF",
   "YTT",
+]
+
+ignore = [
+  "B008", # Function call in default argument
+  "B024", # Abstract base class without abstract methods
+  "E402", # Module level import not at top of file
+  "E501", # Line too long
+  "E731", # Do not assign a `lambda` expression, use a `def`
+  "E741", # Ambiguous variable name
+  "F841", # Local variable is assigned to but never used
+  "I001", # Import block is unsorted or unformatted
+  "RUF003", # Ambigous unicode character in comment
 ]
 
 [tool.ruff.lint.per-file-ignores]

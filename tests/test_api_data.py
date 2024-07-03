@@ -68,7 +68,7 @@ def test_data_switch_velocity_representation(
     new_base_linear_velocity = jnp.array([1.0, -2.0, 3.0])
     old_base_linear_velocity = data.state.physics_model.base_linear_velocity
 
-    # The following should not change the original `data` object since it raises
+    # The following should not change the original `data` object since it raises.
     with pytest.raises(RuntimeError):
         with data.switch_velocity_representation(
             velocity_representation=VelRepr.Inertial
@@ -81,7 +81,7 @@ def test_data_switch_velocity_representation(
         old_base_linear_velocity
     )
 
-    # The following instead should result to an updated `data` object
+    # The following instead should result to an updated `data` object.
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
         with data.mutable_context(mutability=Mutability.MUTABLE):
             data.state.physics_model.base_linear_velocity = new_base_linear_velocity

@@ -134,7 +134,7 @@ class JaxsimDataclass(abc.ABC):
             not a numpy-like array.
         """
 
-        return tuple(  # noqa
+        return tuple(
             leaf.shape if hasattr(leaf, "shape") else None
             for leaf in jax.tree_util.tree_leaves(tree)
             if hasattr(leaf, "shape")
@@ -326,7 +326,7 @@ class JaxsimDataclass(abc.ABC):
 
         return obj
 
-    def flatten(self) -> jtp.VectorJax:
+    def flatten(self) -> jtp.Vector:
         """
         Flatten the object into a 1D vector.
 
@@ -337,7 +337,7 @@ class JaxsimDataclass(abc.ABC):
         return self.flatten_fn()(self)
 
     @classmethod
-    def flatten_fn(cls: Type[Self]) -> Callable[[Self], jtp.VectorJax]:
+    def flatten_fn(cls: Type[Self]) -> Callable[[Self], jtp.Vector]:
         """
         Return a function to flatten the object into a 1D vector.
 
@@ -347,7 +347,7 @@ class JaxsimDataclass(abc.ABC):
 
         return lambda pytree: jax.flatten_util.ravel_pytree(pytree)[0]
 
-    def unflatten_fn(self: Self) -> Callable[[jtp.VectorJax], Self]:
+    def unflatten_fn(self: Self) -> Callable[[jtp.Vector], Self]:
         """
         Return a function to unflatten a 1D vector into the object.
 

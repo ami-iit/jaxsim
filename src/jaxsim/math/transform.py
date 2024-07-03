@@ -46,8 +46,8 @@ class Transform:
 
     @staticmethod
     def from_rotation_and_translation(
-        rotation: jtp.MatrixLike,
-        translation: jtp.VectorLike,
+        rotation: jtp.MatrixLike = jnp.eye(3),
+        translation: jtp.VectorLike = jnp.zeros(3),
         inverse: jtp.BoolLike = False,
     ) -> jtp.Matrix:
         """

@@ -4,12 +4,12 @@ from typing import Sequence
 import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
-import jaxlie
 
 import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import exceptions
+from jaxsim.math import Adjoint
 
 from .common import VelRepr
 
@@ -134,7 +134,7 @@ def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
 def spatial_inertia(
     model: js.model.JaxSimModel, *, link_index: jtp.IntLike
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the 6D spatial inertial of the link.
 
     Args:
@@ -142,7 +142,7 @@ def spatial_inertia(
         link_index: The index of the link.
 
     Returns:
-        The 6×6 matrix representing the spatial inertia of the link expressed in
+        The :math:`6 \times 6` matrix representing the spatial inertia of the link expressed in
         the link frame (body-fixed representation).
     """
 
@@ -243,7 +243,7 @@ def jacobian(
     link_index: jtp.IntLike,
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the free-floating jacobian of the link.
 
     Args:
@@ -254,7 +254,7 @@ def jacobian(
             The output velocity representation of the free-floating jacobian.
 
     Returns:
-        The 6×(6+n) free-floating jacobian of the link.
+        The :math:`6 \times (6+n)` free-floating jacobian of the link.
 
     Note:
         The input representation of the free-floating jacobian is the active
@@ -287,7 +287,7 @@ def jacobian(
     match data.velocity_representation:
         case VelRepr.Inertial:
             W_H_B = data.base_transform()
-            B_X_W = jaxlie.SE3.from_matrix(W_H_B).inverse().adjoint()
+            B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
             B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(
                 B_X_W, jnp.eye(model.dofs())
             )
@@ -298,7 +298,7 @@ def jacobian(
         case VelRepr.Mixed:
             W_R_B = data.base_orientation(dcm=True)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
-            B_X_BW = jaxlie.SE3.from_matrix(BW_H_B).inverse().adjoint()
+            B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(
                 B_X_BW, jnp.eye(model.dofs())
             )
@@ -312,11 +312,11 @@ def jacobian(
     match output_vel_repr:
         case VelRepr.Inertial:
             W_H_B = data.base_transform()
-            W_X_B = jaxlie.SE3.from_matrix(W_H_B).adjoint()
+            W_X_B = Adjoint.from_transform(transform=W_H_B)
             O_J_WL_I = W_J_WL_I = W_X_B @ B_J_WL_I
 
         case VelRepr.Body:
-            L_X_B = jaxlie.SE3.from_matrix(B_H_L).inverse().adjoint()
+            L_X_B = Adjoint.from_transform(transform=B_H_L, inverse=True)
             L_J_WL_I = L_X_B @ B_J_WL_I
             O_J_WL_I = L_J_WL_I
 
@@ -325,7 +325,7 @@ def jacobian(
             W_H_L = W_H_B @ B_H_L
             LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
             LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
-            LW_X_B = jaxlie.SE3.from_matrix(LW_H_B).adjoint()
+            LW_X_B = Adjoint.from_transform(transform=LW_H_B)
             LW_J_WL_I = LW_X_B @ B_J_WL_I
             O_J_WL_I = LW_J_WL_I
 
@@ -393,7 +393,7 @@ def jacobian_derivative(
     link_index: jtp.IntLike,
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
-    """
+    r"""
     Compute the derivative of the free-floating jacobian of the link.
 
     Args:
@@ -404,7 +404,7 @@ def jacobian_derivative(
             The output velocity representation of the free-floating jacobian derivative.
 
     Returns:
-        The derivative of the 6×(6+n) free-floating jacobian of the link.
+        The derivative of the :math:`6 \times (6+n)` free-floating jacobian of the link.
 
     Note:
         The input representation of the free-floating jacobian derivative is the active

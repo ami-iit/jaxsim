@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import abc
+import dataclasses
 
 import jax.numpy as jnp
 import jax_dataclasses
@@ -7,22 +10,23 @@ import jaxsim.typing as jtp
 
 
 class Terrain(abc.ABC):
+
     delta = 0.010
 
     @abc.abstractmethod
-    def height(self, x: float, y: float) -> float:
+    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
         pass
 
-    def normal(self, x: float, y: float) -> jtp.Vector:
+    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
         """
         Compute the normal vector of the terrain at a specific (x, y) location.
 
         Args:
-            x (float): The x-coordinate of the location.
-            y (float): The y-coordinate of the location.
+            x: The x-coordinate of the location.
+            y: The y-coordinate of the location.
 
         Returns:
-            jtp.Vector: The normal vector of the terrain surface at the specified location.
+            The normal vector of the terrain surface at the specified location.
         """
 
         # https://stackoverflow.com/a/5282364
@@ -40,43 +44,117 @@ class Terrain(abc.ABC):
 
 @jax_dataclasses.pytree_dataclass
 class FlatTerrain(Terrain):
-    def height(self, x: float, y: float) -> float:
-        return 0.0
+
+    z: float = dataclasses.field(default=0.0, kw_only=True)
+
+    @staticmethod
+    def build(height: jtp.FloatLike) -> FlatTerrain:
+
+        return FlatTerrain(z=float(height))
+
+    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+
+        return jnp.array(self.z, dtype=float)
+
+    def __hash__(self) -> int:
+
+        return hash(self.z)
+
+    def __eq__(self, other: FlatTerrain) -> bool:
+
+        if not isinstance(other, FlatTerrain):
+            return False
+
+        return self.z == other.z
 
 
 @jax_dataclasses.pytree_dataclass
-class PlaneTerrain(Terrain):
-    plane_normal: list = jax_dataclasses.field(default_factory=lambda: [0, 0, 1.0])
+class PlaneTerrain(FlatTerrain):
+
+    plane_normal: tuple[float, float, float] = jax_dataclasses.field(
+        default=(0.0, 0.0, 0.0), kw_only=True
+    )
 
     @staticmethod
-    def build(plane_normal: list) -> "PlaneTerrain":
+    def build(
+        plane_normal: jtp.VectorLike, plane_height_over_origin: jtp.FloatLike = 0.0
+    ) -> PlaneTerrain:
         """
         Create a PlaneTerrain instance with a specified plane normal vector.
 
         Args:
-            plane_normal (list): The normal vector of the terrain plane.
+            plane_normal: The normal vector of the terrain plane.
+            plane_height_over_origin: The height of the plane over the origin.
 
         Returns:
             PlaneTerrain: A PlaneTerrain instance.
         """
-        if not isinstance(plane_normal, list):
-            raise TypeError(
-                f"Expected a list for the plane normal vector, got: {type(plane_normal)}."
-            )
 
-        return PlaneTerrain(plane_normal=plane_normal)
+        plane_normal = jnp.array(plane_normal, dtype=float)
+        plane_height_over_origin = jnp.array(plane_height_over_origin, dtype=float)
 
-    def height(self, x: float, y: float) -> float:
+        if plane_normal.shape != (3,):
+            msg = "Expected a 3D vector for the plane normal, got '{}'."
+            raise ValueError(msg.format(plane_normal.shape))
+
+        # Make sure that the plane normal is a unit vector.
+        plane_normal = plane_normal / jnp.linalg.norm(plane_normal)
+
+        return PlaneTerrain(
+            z=float(plane_height_over_origin),
+            plane_normal=tuple(plane_normal.tolist()),
+        )
+
+    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
         """
         Compute the height of the terrain at a specific (x, y) location on a plane.
 
         Args:
-            x (float): The x-coordinate of the location.
-            y (float): The y-coordinate of the location.
+            x: The x-coordinate of the location.
+            y: The y-coordinate of the location.
 
         Returns:
-            float: The height of the terrain at the specified location on the plane.
+            The height of the terrain at the specified location on the plane.
         """
 
-        a, b, c = self.plane_normal
-        return -(a * x + b * y) / c
+        # Equation of the plane:      A x + B y + C z + D = 0
+        # Normal vector coordinates:  (A, B, C)
+        # The height over the origin: -D/C
+
+        # Get the plane equation coefficients from the terrain normal.
+        A, B, C = self.plane_normal
+
+        # Compute the final coefficient D considering the terrain height.
+        D = -C * self.z
+
+        # Invert the plane equation to get the height at the given (x, y) coordinates.
+        return jnp.array(-(A * x + B * y + D) / C).astype(float)
+
+    def __hash__(self) -> int:
+
+        from jaxsim.utils.wrappers import HashedNumpyArray
+
+        return hash(
+            (
+                hash(self.z),
+                HashedNumpyArray.hash_of_array(
+                    array=jnp.array(self.plane_normal, dtype=float)
+                ),
+            )
+        )
+
+    def __eq__(self, other: PlaneTerrain) -> bool:
+
+        if not isinstance(other, PlaneTerrain):
+            return False
+
+        if not (
+            jnp.allclose(self.z, other.z)
+            and jnp.allclose(
+                jnp.array(self.plane_normal, dtype=float),
+                jnp.array(other.plane_normal, dtype=float),
+            )
+        ):
+            return False
+
+        return True

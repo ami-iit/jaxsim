@@ -54,19 +54,19 @@ def extract_model_data(
     if isinstance(model_description, rod.Model):
         sdf_model = model_description
     else:
-        # Parse the SDF resource
+        # Parse the SDF resource.
         sdf_element = rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
 
         if len(sdf_element.models()) == 0:
             raise RuntimeError("Failed to find any model in SDF resource")
 
-        # Assume the SDF resource has only one model, or the desired model name is given
+        # Assume the SDF resource has only one model, or the desired model name is given.
         sdf_models = {m.name: m for m in sdf_element.models()}
         sdf_model = (
             sdf_element.models()[0] if len(sdf_models) == 1 else sdf_models[model_name]
         )
 
-    # Log model name
+    # Log model name.
     logging.debug(msg=f"Found model '{sdf_model.name}' in SDF resource")
 
     # Jaxsim supports only models compatible with URDF, i.e. those having all links
@@ -75,7 +75,7 @@ def extract_model_data(
     # pose is expressed wrt the parent link they are rigidly attached to.
     sdf_model.switch_frame_convention(frame_convention=rod.FrameConvention.Urdf)
 
-    # Log type of base link
+    # Log type of base link.
     logging.debug(
         msg="Model '{}' is {}".format(
             sdf_model.name,
@@ -83,7 +83,7 @@ def extract_model_data(
         )
     )
 
-    # Log detected base link
+    # Log detected base link.
     logging.debug(msg=f"Considering '{sdf_model.get_canonical_link()}' as base link")
 
     # Pose of the model
@@ -101,7 +101,7 @@ def extract_model_data(
     # Parse links
     # ===========
 
-    # Parse the links (unconnected)
+    # Parse the links (unconnected).
     links = [
         descriptions.LinkDescription(
             name=l.name,
@@ -113,14 +113,14 @@ def extract_model_data(
         if l.inertial.mass > 0
     ]
 
-    # Create a dictionary to find easily links
+    # Create a dictionary to find easily links.
     links_dict: Dict[str, descriptions.LinkDescription] = {l.name: l for l in links}
 
     # ============
     # Parse frames
     # ============
 
-    # Parse the frames (unconnected)
+    # Parse the frames (unconnected).
     frames = [
         descriptions.LinkDescription(
             name=f.name,
@@ -138,7 +138,7 @@ def extract_model_data(
     # =========================
 
     # In this case, we need to get the pose of the joint that connects the base link
-    # to the world and combine their pose
+    # to the world and combine their pose.
     if sdf_model.is_fixed_base():
         # Create a massless word link
         world_link = descriptions.LinkDescription(
@@ -200,7 +200,7 @@ def extract_model_data(
     # Parse joints
     # ============
 
-    # Check that all joint poses are expressed w.r.t. their parent link
+    # Check that all joint poses are expressed w.r.t. their parent link.
     for j in sdf_model.joints():
         if j.pose is None:
             continue
@@ -215,7 +215,7 @@ def extract_model_data(
             msg = "Pose of joint '{}' is not expressed wrt its parent link '{}'"
             raise ValueError(msg.format(j.name, j.parent))
 
-    # Parse the joints
+    # Parse the joints.
     joints = [
         descriptions.JointDescription(
             name=j.name,
@@ -278,10 +278,10 @@ def extract_model_data(
         and j.child in links_dict.keys()
     ]
 
-    # Create a dictionary to find the parent joint of the links
+    # Create a dictionary to find the parent joint of the links.
     joint_dict = {j.child.name: j.name for j in joints}
 
-    # Check that all the link poses are expressed wrt their parent joint
+    # Check that all the link poses are expressed wrt their parent joint.
     for l in sdf_model.links():
         if l.name not in links_dict:
             continue
@@ -354,7 +354,7 @@ def build_model_description(
         The parsed model description.
     """
 
-    # Parse data from the SDF assuming it contains a single model
+    # Parse data from the SDF assuming it contains a single model.
     sdf_data = extract_model_data(
         model_description=model_description, model_name=None, is_urdf=is_urdf
     )

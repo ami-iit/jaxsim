@@ -8,7 +8,6 @@ import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import jaxlie
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.rbda
@@ -390,7 +389,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         ).astype(float)
 
     @jax.jit
-    def base_transform(self) -> jtp.MatrixJax:
+    def base_transform(self) -> jtp.Matrix:
         """
         Get the base transform.
 
@@ -625,9 +624,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         W_p_B = base_pose[0:3, 3]
 
-        to_wxyz = np.array([3, 0, 1, 2])
-        W_R_B: jaxlie.SO3 = jaxlie.SO3.from_matrix(base_pose[0:3, 0:3])  # noqa
-        W_Q_B = W_R_B.as_quaternion_xyzw()[to_wxyz]
+        W_Q_B = jaxsim.math.Quaternion.from_dcm(dcm=base_pose[0:3, 0:3])
 
         return self.reset_base_position(base_position=W_p_B).reset_base_quaternion(
             base_quaternion=W_Q_B
@@ -815,7 +812,7 @@ def random_model_data(
 
         physics_model_state.base_quaternion = jaxlie.SO3.from_rpy_radians(
             *jax.random.uniform(key=k2, shape=(3,), minval=0, maxval=2 * jnp.pi)
-        ).as_quaternion_xyzw()[np.array([3, 0, 1, 2])]
+        ).wxyz
 
         if model.number_of_joints() > 0:
             physics_model_state.joint_positions = js.joint.random_joint_positions(

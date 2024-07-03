@@ -124,26 +124,26 @@ class KinDynComputations:
     @staticmethod
     def build(
         urdf: pathlib.Path | str,
-        considered_joints: list[str] = None,
+        considered_joints: list[str] | None = None,
         vel_repr: VelRepr = VelRepr.Inertial,
         gravity: npt.NDArray = np.array([0, 0, -10.0]),
         removed_joint_positions: dict[str, npt.NDArray | float | int] | None = None,
     ) -> KinDynComputations:
 
-        # Read the URDF description
+        # Read the URDF description.
         urdf_string = urdf.read_text() if isinstance(urdf, pathlib.Path) else urdf
 
-        # Create the model loader
+        # Create the model loader.
         mdl_loader = idt.ModelLoader()
 
-        # Handle removed_joint_positions if None
+        # Handle removed_joint_positions if None.
         removed_joint_positions = (
             {str(name): float(pos) for name, pos in removed_joint_positions.items()}
             if removed_joint_positions is not None
             else dict()
         )
 
-        # Load the URDF description
+        # Load the URDF description.
         if not (
             mdl_loader.loadModelFromString(urdf_string)
             if considered_joints is None
@@ -153,7 +153,7 @@ class KinDynComputations:
         ):
             raise RuntimeError("Failed to load URDF description")
 
-        # Create KinDynComputations and insert the model
+        # Create KinDynComputations and insert the model.
         kindyn = idt.KinDynComputations()
 
         if not kindyn.loadRobotModel(mdl_loader.model()):
@@ -165,7 +165,7 @@ class KinDynComputations:
             VelRepr.Mixed: idt.MIXED_REPRESENTATION,
         }
 
-        # Configure the frame representation
+        # Configure the frame representation.
         if not kindyn.setFrameVelocityRepresentation(vel_repr_to_idyntree[vel_repr]):
             raise RuntimeError("Failed to set the frame representation")
 
@@ -225,7 +225,7 @@ class KinDynComputations:
         if not self.kin_dyn.setRobotState(world_H_base, s, v_WB, s_dot, g):
             raise RuntimeError("Failed to set the robot state")
 
-        # Update stored gravity
+        # Update stored gravity.
         self.gravity = gravity
 
     def dofs(self) -> int:

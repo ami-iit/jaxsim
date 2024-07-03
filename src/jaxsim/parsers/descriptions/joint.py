@@ -26,7 +26,7 @@ class JointGenericAxis:
     A joint requiring the specification of a 3D axis.
     """
 
-    #: The axis of rotation or translation of the joint (must have norm 1).
+    # The axis of rotation or translation of the joint (must have norm 1).
     axis: jtp.Vector
 
     def __hash__(self) -> int:

@@ -96,7 +96,9 @@ def system_velocity_dynamics(
         model: The model to consider.
         data: The data of the considered model.
         joint_forces: The joint forces to apply.
-        link_forces: The 6D forces to apply to the links.
+        link_forces:
+            The 6D forces to apply to the links expressed in the frame corresponding to
+            the velocity representation of `data`.
 
     Returns:
         A tuple containing the derivative of the base 6D velocity in inertial-fixed
@@ -105,14 +107,16 @@ def system_velocity_dynamics(
         the system dynamics evaluation.
     """
 
-    # Build joint torques if not provided
+    # Build joint torques if not provided.
     τ = (
         jnp.atleast_1d(joint_forces.squeeze())
         if joint_forces is not None
         else jnp.zeros_like(data.joint_positions())
     ).astype(float)
 
-    # Build link forces if not provided
+    # Build link forces if not provided.
+    # These forces are expressed in the frame corresponding to the velocity
+    # representation of data.
     O_f_L = (
         jnp.atleast_2d(link_forces.squeeze())
         if link_forces is not None
@@ -127,16 +131,17 @@ def system_velocity_dynamics(
     # with the terrain.
     W_f_Li_terrain = jnp.zeros_like(O_f_L).astype(float)
 
-    # Initialize the 6D contact forces W_f ∈ ℝ^{n_c × 6} applied to collidable points,
-    # expressed in the world frame.
-    W_f_Ci = None
+    # Import privately the soft contacts classes.
+    from jaxsim.rbda.contacts.soft import SoftContactsState
 
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
+    assert isinstance(data.state.contact, SoftContactsState)
     ṁ = jnp.zeros_like(data.state.contact.tangential_deformation).astype(float)
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-        # Compute the 6D forces applied to each collidable point and the
-        # corresponding material deformation rates.
+
+        # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
+        #  and the corresponding material deformation rates.
         with data.switch_velocity_representation(VelRepr.Inertial):
             W_f_Ci, ṁ = js.contact.collidable_point_dynamics(model=model, data=data)
 
@@ -178,7 +183,7 @@ def system_velocity_dynamics(
             model.kin_dyn_parameters.joint_parameters.friction_viscous
         ).astype(float)
 
-        # Compute the joint friction torque
+        # Compute the joint friction torque.
         τ_friction = -(
             jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_velocities)
             + jnp.diag(kv) @ data.state.physics_model.joint_velocities
@@ -188,7 +193,7 @@ def system_velocity_dynamics(
     # Compute forward dynamics
     # ========================
 
-    # Compute the total joint forces
+    # Compute the total joint forces.
     τ_total = τ + τ_friction + τ_position_limit
 
     references = js.references.JaxSimModelReferences.build(
@@ -202,7 +207,7 @@ def system_velocity_dynamics(
     with references.switch_velocity_representation(VelRepr.Inertial):
         W_f_L = references.link_forces(model=model, data=data)
 
-    # Compute the total external 6D forces applied to the links
+    # Compute the total external 6D forces applied to the links.
     W_f_L_total = W_f_L + W_f_Li_terrain
 
     # - Joint accelerations: s̈ ∈ ℝⁿ
@@ -273,7 +278,9 @@ def system_dynamics(
         model: The model to consider.
         data: The data of the considered model.
         joint_forces: The joint forces to apply.
-        link_forces: The 6D forces to apply to the links.
+        link_forces:
+            The 6D forces to apply to the links expressed in the frame corresponding to
+            the velocity representation of `data`.
         baumgarte_quaternion_regularization:
             The Baumgarte regularization coefficient used to adjust the norm of the
             quaternion (only used in integrators not operating on the SO(3) manifold).

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsParams
+from jaxsim.rbda.contacts.soft import SoftContactsParams
 
 from .common import VelRepr
 
@@ -137,9 +137,17 @@ def collidable_point_dynamics(
     # all collidable points belonging to the robot.
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
+    # Import privately the soft contacts classes.
+    from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
+
     # Build the soft contact model.
     match model.contact_model:
-        case s if isinstance(s, SoftContacts):
+
+        case SoftContacts():
+
+            assert isinstance(model.contact_model, SoftContacts)
+            assert isinstance(data.state.contact, SoftContactsState)
+
             # Build the contact model.
             soft_contacts = SoftContacts(
                 parameters=data.contacts_params, terrain=model.terrain
@@ -337,7 +345,7 @@ def jacobian(
             The output velocity representation of the free-floating jacobian.
 
     Returns:
-        The stacked 6×(6+n) free-floating jacobians of the frames associated to the
+        The stacked :math:`6 \times (6+n)` free-floating jacobians of the frames associated to the
         collidable points.
 
     Note:

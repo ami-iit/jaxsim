@@ -5,11 +5,10 @@ This folder includes a Jupyter Notebook demonstrating the practical usage of JAX
 ### Examples
 
 - [PD_controller](./PD_controller.ipynb) <a target="_blank" href="https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/PD_controller.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
-</a> - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
+
 - [Parallel_computing](./Parallel_computing.ipynb) <a target="_blank" href="https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/Parallel_computing.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
-</a> - An example demonstrating how to simulate vectorized models in parallel using JAXsim.
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> - An example demonstrating how to simulate vectorized models in parallel using JAXsim.
 
 > [!TIP]
 > Stay tuned for more examples!

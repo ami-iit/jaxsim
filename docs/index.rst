@@ -21,7 +21,7 @@ Features
 
          .. div:: sd-font-normal
 
-            Physics engine in reduced coordinates implemented with `JAX <https://github.com/google/jax/>`_.
+            Physics engine in reduced coordinates implemented with JAX_.
             Compatibility with JIT compilation for increased performance and transparent support to execute logic on CPUs, GPUs, and TPUs.
             Parallel multi-body simulations on hardware accelerators for significantly increased throughput
 
@@ -68,17 +68,24 @@ Features
 
 .. toctree::
   :hidden:
-  :maxdepth: 1
-  :caption: User Guide
 
   guide/install
 
+  examples
+
 .. toctree::
   :hidden:
-  :maxdepth: 1
+  :maxdepth: 2
   :caption: JAXsim API
 
-  modules/index
+  modules/api
+  modules/integrators
+  modules/math
+  modules/mujoco
+  modules/parsers
+  modules/rbda
+  modules/typing
+  modules/utils
 
 Examples
 --------
@@ -90,13 +97,13 @@ Credits
 
 The physics module of JAXsim is based on the theory of the `Rigid Body Dynamics Algorithms <https://link.springer.com/book/10.1007/978-1-4899-7560-7>`_ book by Roy Featherstone.
 We structured part of our logic following its accompanying `code <http://royfeatherstone.org/spatial/index.html#spatial-software>`_.
-The physics engine is developed entirely in Python using `JAX <https://github.com/google/jax/>`_.
+The physics engine is developed entirely in Python using JAX_.
 
-The inspiration for developing JAXsim originally stemmed from early versions of `google/brax <https://github.com/google/brax>`_.
+The inspiration for developing JAXsim originally stemmed from early versions of Brax_.
 Here below we summarize the differences between the projects:
 
-- JAXsim simulates multibody dynamics in reduced coordinates, while brax v1 uses maximal coordinates.
-- The new v2 APIs of brax (and the new `MJX <https://mujoco.readthedocs.io/en/3.0.0/mjx.html>`_) were then implemented in reduced coordinates, following an approach comparable to JAXsim, with major differences in contact handling.
+- JAXsim simulates multibody dynamics in reduced coordinates, while :code:`brax v1` uses maximal coordinates.
+- The new v2 APIs of brax (and the new MJX_) were then implemented in reduced coordinates, following an approach comparable to JAXsim, with major differences in contact handling.
 - The rigid-body algorithms used in JAXsim allow to efficiently compute quantities based on the Euler-Poincarè
   formulation of the equations of motion, necessary for model-based robotics research.
 - JAXsim supports SDF (and, indirectly, URDF) models, assuming the model is described with the
@@ -122,3 +129,7 @@ License
 -------
 
 `BSD3 <https://choosealicense.com/licenses/bsd-3-clause/>`_
+
+.. _Brax: https://github.com/google/brax
+.. _MJX: https://mujoco.readthedocs.io/en/3.0.0/mjx.html
+.. _JAX: https://github.com/google/jax

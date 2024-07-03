@@ -1,18 +1,111 @@
 [project]
-dynamic = ["version", "dependencies", "optional-dependencies", "urls", "classifiers", "keywords", "authors", "requires-python", "license", "readme"]
 name = "jaxsim"
+dynamic = ["version"]
+requires-python = ">= 3.10"
+description = "A differentiable physics engine and multibody dynamics library for control and robot learning."
+authors = [
+  { name = "Diego Ferigo", email = "dgferigo@gmail.com" },
+]
+maintainers = [
+  { name = "Diego Ferigo", email = "dgferigo@gmail.com" },
+  { name = "Filippo Luca Ferretti", email = "filippo.ferretti@iit.it" },
+]
+license.file = "LICENSE"
+keywords = [
+    "physics",
+    "physics engine",
+    "jax",
+    "rigid body dynamics",
+    "featherstone",
+    "reinforcement learning",
+    "robot",
+    "robotics",
+    "sdf",
+    "urdf",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Framework :: Robot Framework",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Games/Entertainment :: Simulation",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Software Development",
+]
+dependencies = [
+    "coloredlogs",
+    "jax >= 0.4.13",
+    "jaxlib >= 0.4.13",
+    "jaxlie >= 1.3.0",
+    "jax_dataclasses >= 1.4.0",
+    "pptree",
+    "rod >= 0.3.0",
+    "typing_extensions ; python_version < '3.12'",
+]
+
+[project.optional-dependencies]
+style = [
+  "black[jupyter] ~= 24.0",
+  "isort",
+  "pre-commit",
+]
+testing = [
+  "idyntree >= 12.2.1",
+  "pytest >=6.0",
+  "pytest-icdiff",
+  "robot-descriptions",
+]
+viz = [
+  "lxml",
+  "mediapy",
+  "mujoco >= 3.0.0",
+]
+all = [
+  "jaxsim[style,testing,viz]",
+]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.urls]
+Changelog = "https://github.com/ami-iit/jaxsim/releases"
+Documentation = "https://jaxsim.readthedocs.io"
+Source = "https://github.com/ami-iit/jaxsim"
+Tracker = "https://github.com/ami-iit/jaxsim/issues"
+
+# ===========
+# Build tools
+# ===========
 
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-  "wheel",
   "setuptools>=64",
-  "setuptools_scm[toml]>=8",
+  "setuptools-scm[toml]>=8",
+  "wheel",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
 
 [tool.setuptools_scm]
 local_scheme = "dirty-tag"
 version_file = "src/jaxsim/_version.py"
+
+# =================
+# Style and testing
+# =================
 
 [tool.black]
 line-length = 88
@@ -27,6 +120,10 @@ minversion = "6.0"
 testpaths = [
   "tests",
 ]
+
+# ==================
+# Ruff configuration
+# ==================
 
 [tool.ruff]
 exclude = [
@@ -69,6 +166,10 @@ ignore = [
 "**/{tests}/*" = ["B007"]
 "__init__.py" = ["F401"]
 "docs/conf.py" = ["F401"]
+
+# ==================
+# Pixi configuration
+# ==================
 
 [tool.pixi.project]
 channels = ["conda-forge"]

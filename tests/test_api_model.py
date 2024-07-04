@@ -84,6 +84,7 @@ def test_model_creation_and_reduction(
                 data_full.joint_positions(
                     model=model_full, joint_names=model_full.joint_names()
                 ).tolist(),
+                strict=True,
             )
         ),
     )

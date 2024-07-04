@@ -797,7 +797,7 @@ class KinematicGraphTransforms:
         self._transform_cache.clear()
 
         # Update initial joint positions.
-        for joint_name, position in zip(joint_names, s):
+        for joint_name, position in zip(joint_names, s, strict=True):
             self._initial_joint_positions[joint_name] = position
 
     def transform(self, name: str) -> npt.NDArray:

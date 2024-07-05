@@ -163,7 +163,7 @@ def test_frame_jacobians(
 
     assert len(frame_indices) == len(frame_names)
 
-    for frame_name, frame_index in zip(frame_names, frame_indices):
+    for frame_name, frame_index in zip(frame_names, frame_indices, strict=True):
 
         J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_index)
         J_WL_idt = kin_dyn.jacobian_frame(frame_name=frame_name)

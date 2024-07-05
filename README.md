@@ -29,6 +29,7 @@ Its design facilitates research and accelerates prototyping in the intersection 
 - Provides all the quantities included in the Euler-Poincarè formulation of the equations of motion.
 - Supports body-fixed, inertial-fixed, and mixed [velocity representations][notation].
 - Exposes all the necessary quantities to develop controllers in centroidal coordinates.
+- Supports running open-loop and full closed-loop control architectures on hardware accelerators.
 
 ### JaxSim for robot learning
 
@@ -82,7 +83,7 @@ You can install the project using [`pypa/pip`][pip], preferably in a [virtual en
 pip install jaxsim
 ```
 
-Check [`setup.cfg`](setup.cfg) for the complete list of optional dependencies.
+Check [`pyproject.toml`](pyproject.toml) for the complete list of optional dependencies.
 You can obtain a full installation using `jaxsim[all]`.
 
 If you need GPU support, follow the official [installation instructions][jax_gpu] of JAX.
@@ -111,6 +112,71 @@ pip install --no-deps -e .
 [pip]: https://github.com/pypa/pip/
 [venv]: https://docs.python.org/3/tutorial/venv.html
 [jax_gpu]: https://github.com/google/jax/#installation
+
+## Overview
+
+<details>
+<summary>Structure of the Python package</summary>
+
+```
+# tree -L 2 -I "__pycache__" -I "__init__*" -I "__main__*" src/jaxsim
+
+src/jaxsim
+|-- api..........................# Package containing the main functional APIs.
+|   |-- com.py...................# |-- APIs for computing quantities related to the center of mass.
+|   |-- common.py................# |-- Common utilities used in the current package.
+|   |-- contact.py...............# |-- APIs for computing quantities related to the collidable points.
+|   |-- data.py..................# |-- Class storing the data of a simulated model.
+|   |-- frame.py.................# |-- APIs for computing quantities related to additional frames.
+|   |-- joint.py.................# |-- APIs for computing quantities related to the joints.
+|   |-- kin_dyn_parameters.py....# |-- Class storing kinematic and dynamic parameters of a model.
+|   |-- link.py..................# |-- APIs for computing quantities related to the links.
+|   |-- model.py.................# |-- Class defining a simulated model and APIs for computing related quantities.
+|   |-- ode.py...................# |-- APIs for computing quantities related to the system dynamics.
+|   |-- ode_data.py..............# |-- Set of classes to store the data of the system dynamics.
+|   `-- references.py............# `-- Helper class to create references (link forces and joint torques).
+|-- exceptions.py................# Module containing functions to raise exceptions from JIT-compiled functions.
+|-- integrators..................# Package containing the integrators used to simulate the system dynamics.
+|   |-- common.py................# |-- Common utilities used in the current package.
+|   |-- fixed_step.py............# |-- Fixed-step integrators (explicit Runge-Kutta schemes).
+|   `-- variable_step.py.........# `-- Variable-step integrators (embedded Runge-Kutta schemes).
+|-- logging.py...................# Module containing logging utilities.
+|-- math.........................# Package containing mathematical utilities.
+|   |-- adjoint.py...............# |-- APIs for creating and manipulating 6D transformations.
+|   |-- cross.py.................# |-- APIs for computing cross products of 6D quantities.
+|   |-- inertia.py...............# |-- APIs for creating and manipulating 6D inertia matrices.
+|   |-- joint_model.py...........# |-- APIs defining the supported joint model and the corresponding transformations.
+|   |-- quaternion.py............# |-- APIs for creating and manipulating quaternions.
+|   |-- rotation.py..............# |-- APIs for creating and manipulating rotation matrices.
+|   |-- skew.py..................# |-- APIs for creating and manipulating skew-symmetric matrices.
+|   `-- transform.py.............# `-- APIs for creating and manipulating homogeneous transformations.
+|-- mujoco.......................# Package containing utilities to interact with the Mujoco passive viewer.
+|   |-- loaders.py...............# |-- Utilities for converting JaxSim models to Mujoco models.
+|   |-- model.py.................# |-- Class providing high-level methods to compute quantities using Mujoco.
+|   `-- visualizer.py............# `-- Class that simplifies opening the passive viewer and recording videos.
+|-- parsers......................# Package containing utilities to parse model descriptions (SDF and URDF models).
+|   |-- descriptions/............# |-- Package containing the intermediate representation of a model description.
+|   |-- kinematic_graph.py.......# |-- Definition of the kinematic graph associated with a parsed model description.
+|   `-- rod/.....................# `-- Package to create the intermediate representation from model descriptions using ROD.
+|-- rbda.........................# Package containing the low-level rigid body dynamics algorithms.
+|   |-- aba.py...................# |-- The Articulated Body Algorithm.
+|   |-- collidable_points.py.....# |-- Kinematics of collidable points.
+|   |-- contacts/................# |-- Package containing the supported contact models.
+|   |-- crba.py..................# |-- The Composite Rigid Body Algorithm.
+|   |-- forward_kinematics.py....# |-- Forward kinematics of the model.
+|   |-- jacobian.py..............# |-- Full Jacobian and full Jacobian derivative.
+|   |-- rnea.py..................# |-- The Recursive Newton-Euler Algorithm.
+|   `-- utils.py.................# `-- Common utilities used in the current package.
+|-- terrain......................# Package containing resources to specify the terrain.
+|   `-- terrain.py...............# `-- Classes defining the supported terrains.
+|-- typing.py....................# Module containing type hints.
+`-- utils........................# Package of common utilities.
+    |-- jaxsim_dataclass.py......# |-- Utilities to operate on pytree dataclasses.
+    |-- tracing.py...............# |-- Utilities to use when JAX is tracing functions.
+    `-- wrappers.py..............# `-- Utilities to wrap objects for specific use cases on pytree dataclass attributes.
+```
+
+</details>
 
 ## Credits
 
@@ -153,6 +219,19 @@ Please read the [contributing guide](./CONTRIBUTING.md) to get started.
   author = {Diego Ferigo and Filippo Luca Ferretti and Silvio Traversaro and Daniele Pucci},
   title = {{JaxSim}: A Differentiable Physics Engine and Multibody Dynamics Library for Control and Robot Learning},
   url = {http://github.com/ami-iit/jaxsim},
+  year = {2022},
+}
+```
+
+Theoretical aspects of JaxSim are based on Chapters 7 and 8 of the following Ph.D. thesis:
+
+```bibtex
+@phdthesis{ferigo_phd_thesis_2022,
+  title = {Simulation Architectures for Reinforcement Learning applied to Robotics},
+  author = {Diego Ferigo},
+  school = {University of Manchester},
+  type = {PhD Thesis},
+  month = {July},
   year = {2022},
 }
 ```

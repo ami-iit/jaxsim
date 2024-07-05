@@ -75,6 +75,7 @@ def test_link_inertial_properties(
     for link_name, link_idx in zip(
         model.link_names(),
         js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        strict=True,
     ):
         if link_name == model.base_link():
             continue
@@ -118,7 +119,7 @@ def test_link_transforms(
 
     assert W_H_LL_model == pytest.approx(W_H_LL_links)
 
-    for W_H_L, link_name in zip(W_H_LL_links, model.link_names()):
+    for W_H_L, link_name in zip(W_H_LL_links, model.link_names(), strict=True):
 
         assert W_H_L == pytest.approx(
             kin_dyn.frame_transform(frame_name=link_name)
@@ -152,7 +153,7 @@ def test_link_jacobians(
         lambda idx: js.link.jacobian(model=model, data=data, link_index=idx)
     )(jnp.arange(model.number_of_links()))
 
-    for J_WL, link_name in zip(J_WL_links, model.link_names()):
+    for J_WL, link_name in zip(J_WL_links, model.link_names(), strict=True):
         assert J_WL == pytest.approx(
             kin_dyn.jacobian_frame(frame_name=link_name), abs=1e-9
         ), link_name
@@ -164,6 +165,7 @@ def test_link_jacobians(
     for link_name, link_idx in zip(
         model.link_names(),
         js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        strict=True,
     ):
         v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
         v_WL_js = js.link.velocity(model=model, data=data, link_index=link_idx)
@@ -184,6 +186,7 @@ def test_link_jacobians(
         for link_name, link_idx in zip(
             model.link_names(),
             js.link.names_to_idxs(model=model, link_names=model.link_names()),
+            strict=True,
         ):
             v_WL_idt = kin_dyn_other_repr.frame_velocity(frame_name=link_name)
             v_WL_js = js.link.velocity(
@@ -218,6 +221,7 @@ def test_link_bias_acceleration(
     for name, index in zip(
         model.link_names(),
         js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        strict=True,
     ):
         Jν_idt = kin_dyn.frame_bias_acc(frame_name=name)
         Jν_js = js.link.bias_acceleration(model=model, data=data, link_index=index)

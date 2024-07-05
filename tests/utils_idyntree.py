@@ -64,6 +64,7 @@ def build_kindyncomputations_from_jaxsim_model(
             zip(
                 model.joint_names(),
                 data.joint_positions(model=model, joint_names=model.joint_names()),
+                strict=True,
             )
         )
     )

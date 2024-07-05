@@ -1,18 +1,111 @@
 [project]
-dynamic = ["version", "dependencies", "optional-dependencies", "urls", "classifiers", "keywords", "authors", "requires-python", "license", "readme"]
 name = "jaxsim"
+dynamic = ["version"]
+requires-python = ">= 3.10"
+description = "A differentiable physics engine and multibody dynamics library for control and robot learning."
+authors = [
+    { name = "Diego Ferigo", email = "dgferigo@gmail.com" },
+]
+maintainers = [
+    { name = "Diego Ferigo", email = "dgferigo@gmail.com" },
+    { name = "Filippo Luca Ferretti", email = "filippo.ferretti@iit.it" },
+]
+license.file = "LICENSE"
+keywords = [
+    "physics",
+    "physics engine",
+    "jax",
+    "rigid body dynamics",
+    "featherstone",
+    "reinforcement learning",
+    "robot",
+    "robotics",
+    "sdf",
+    "urdf",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Robot Framework",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Games/Entertainment :: Simulation",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development",
+]
+dependencies = [
+    "coloredlogs",
+    "jax >= 0.4.13",
+    "jaxlib >= 0.4.13",
+    "jaxlie >= 1.3.0",
+    "jax_dataclasses >= 1.4.0",
+    "pptree",
+    "rod >= 0.3.0",
+    "typing_extensions ; python_version < '3.12'",
+]
+
+[project.optional-dependencies]
+style = [
+    "black[jupyter] ~= 24.0",
+    "isort",
+    "pre-commit",
+]
+testing = [
+    "idyntree >= 12.2.1",
+    "pytest >=6.0",
+    "pytest-icdiff",
+    "robot-descriptions",
+]
+viz = [
+    "lxml",
+    "mediapy",
+    "mujoco >= 3.0.0",
+]
+all = [
+    "jaxsim[style,testing,viz]",
+]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.urls]
+Changelog = "https://github.com/ami-iit/jaxsim/releases"
+Documentation = "https://jaxsim.readthedocs.io"
+Source = "https://github.com/ami-iit/jaxsim"
+Tracker = "https://github.com/ami-iit/jaxsim/issues"
+
+# ===========
+# Build tools
+# ===========
 
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-  "wheel",
-  "setuptools>=64",
-  "setuptools_scm[toml]>=8",
+    "setuptools>=64",
+    "setuptools-scm[toml]>=8",
+    "wheel",
 ]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
 
 [tool.setuptools_scm]
 local_scheme = "dirty-tag"
 version_file = "src/jaxsim/_version.py"
+
+# =================
+# Style and testing
+# =================
 
 [tool.black]
 line-length = 88
@@ -25,42 +118,46 @@ profile = "black"
 addopts = "-rsxX -v --strict-markers"
 minversion = "6.0"
 testpaths = [
-  "tests",
+    "tests",
 ]
+
+# ==================
+# Ruff configuration
+# ==================
 
 [tool.ruff]
 exclude = [
-  ".git",
-  ".pytest_cache",
-  ".ruff_cache",
-  ".vscode",
-  ".devcontainer",
-  "__pycache__",
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".vscode",
+    ".devcontainer",
+    "__pycache__",
 ]
 preview = true
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
 select = [
-  "B",
-  "E",
-  "F",
-  "I",
-  "W",
-  "RUF",
-  "YTT",
+    "B",
+    "E",
+    "F",
+    "I",
+    "W",
+    "RUF",
+    "YTT",
 ]
 
 ignore = [
-  "B008", # Function call in default argument
-  "B024", # Abstract base class without abstract methods
-  "E402", # Module level import not at top of file
-  "E501", # Line too long
-  "E731", # Do not assign a `lambda` expression, use a `def`
-  "E741", # Ambiguous variable name
-  "F841", # Local variable is assigned to but never used
-  "I001", # Import block is unsorted or unformatted
-  "RUF003", # Ambigous unicode character in comment
+    "B008", # Function call in default argument
+    "B024", # Abstract base class without abstract methods
+    "E402", # Module level import not at top of file
+    "E501", # Line too long
+    "E731", # Do not assign a `lambda` expression, use a `def`
+    "E741", # Ambiguous variable name
+    "F841", # Local variable is assigned to but never used
+    "I001", # Import block is unsorted or unformatted
+    "RUF003", # Ambigous unicode character in comment
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -69,6 +166,10 @@ ignore = [
 "**/{tests}/*" = ["B007"]
 "__init__.py" = ["F401"]
 "docs/conf.py" = ["F401"]
+
+# ==================
+# Pixi configuration
+# ==================
 
 [tool.pixi.project]
 channels = ["conda-forge"]
@@ -90,9 +191,9 @@ sdformat14 = "*"
 typing_extensions = "*"
 
 [tool.pixi.feature.test.tasks]
-examples = {cmd = "jupyter notebook ./examples"}
+examples = { cmd = "jupyter notebook ./examples" }
 pipcheck = "pip check"
-test = {cmd = "pytest", depends_on = ["pipcheck"]}
+test = { cmd = "pytest", depends_on = ["pipcheck"] }
 
 [tool.pixi.feature.test.dependencies]
 black = "24.*"
@@ -105,15 +206,15 @@ pytest-icdiff = "*"
 robot_descriptions = "*"
 
 [tool.pixi.feature.gpu]
-dependencies = {cuda-version = "12.*", cuda-cupti = "*", jaxlib = "**cuda*"}
+dependencies = { cuda-version = "12.*", cuda-cupti = "*", jaxlib = "**cuda*" }
 platforms = ["linux-64"]
-system-requirements = {cuda = "12.1"}
+system-requirements = { cuda = "12.1" }
 
 [tool.pixi.pypi-dependencies]
-jaxsim = {path = "./", editable = true}
+jaxsim = { path = "./", editable = true }
 
 [tool.pixi.environments]
-default = {solve-group = "cpugroup"}
-gpu = {features = ["gpu"], solve-group = "gpugroup"}
-test-cpu = {features = ["test"], solve-group = "cpugroup"}
-test-gpu = {features = ["test", "gpu"], solve-group = "gpugroup"}
+default = { solve-group = "cpugroup" }
+gpu = { features = ["gpu"], solve-group = "gpugroup" }
+test-cpu = { features = ["test"], solve-group = "cpugroup" }
+test-gpu = { features = ["test", "gpu"], solve-group = "gpugroup" }

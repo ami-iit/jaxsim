@@ -378,7 +378,7 @@ class MujocoModelHelper:
                             for i in range(self.joint_dofs(joint_name=joint_name))
                         ]
                     )
-                    for idx, joint_name in zip(idxs, joint_names)
+                    for idx, joint_name in zip(idxs, joint_names, strict=True)
                 ]
             ).squeeze()
         )

@@ -163,7 +163,6 @@ class MeshCollision(CollisionShape):
     def __hash__(self) -> int:
         return hash(
             (
-                hash(super()),
                 hash(tuple(self.center.tolist())),
                 hash(self.collidable_points),
             )

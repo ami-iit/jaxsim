@@ -248,17 +248,18 @@ def create_mesh_collision(
 
     points = mesh.vertices
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
-    center_of_collision_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
+    # Extract translation from transformation matrix
+    center_of_collision_wrt_link = H[:3, 3]
     mesh_points_wrt_link = (
         H @ np.hstack([points, np.vstack([1.0] * points.shape[0])]).T
-    )[0:3, :]
+    )[0:3, :].T
     collidable_points = [
         descriptions.CollidablePoint(
             parent_link=link_description,
             position=point,
             enabled=True,
         )
-        for point in mesh_points_wrt_link.T
+        for point in mesh_points_wrt_link
     ]
     return descriptions.MeshCollision(
         collidable_points=collidable_points, center=center_of_collision_wrt_link

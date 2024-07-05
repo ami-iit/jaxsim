@@ -2,6 +2,10 @@ ci:
   autofix_prs: false
   autoupdate_schedule: quarterly
   submodules: false
+
+default_language_version:
+  python: python3.11
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -16,13 +20,13 @@ repos:
     rev: 24.2.0
     hooks:
       - id: black
-        language_version: python3.11
+        args: ["--check", "--diff"]
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
-        name: isort (python)
+        args: ["--check", "--diff"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.3.2

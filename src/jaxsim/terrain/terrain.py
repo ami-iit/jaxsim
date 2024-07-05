@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import dataclasses
 
+import numpy as np
 import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np

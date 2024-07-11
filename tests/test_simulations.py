@@ -6,7 +6,7 @@ import jaxsim.api as js
 import jaxsim.integrators
 import jaxsim.rbda
 from jaxsim import VelRepr
-from jaxsim.rbda.contacts.soft import SoftContactsParams
+from jaxsim.utils import Mutability
 
 
 def test_box_with_external_forces(
@@ -102,23 +102,19 @@ def test_box_with_zero_gravity(
 
     model = jaxsim_model_box
 
+    # Move the terrain (almost) infinitely far away from the box.
+    with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+        model.terrain = jaxsim.terrain.FlatTerrain.build(height=-1e9)
+
     # Split the PRNG key.
-    _, subkey, subkey2 = jax.random.split(prng_key, num=3)
+    _, subkey = jax.random.split(prng_key, num=2)
 
     # Build the data of the model.
     data0 = js.data.JaxSimModelData.build(
         model=model,
-        base_position=jax.random.uniform(subkey2, shape=(3,)),
+        base_position=jax.random.uniform(subkey, shape=(3,)),
         velocity_representation=velocity_representation,
         standard_gravity=0.0,
-        contacts_params=SoftContactsParams.build(K=0.0, D=0.0, mu=0.0),
-    )
-
-    # Generate a random linear force.
-    L_f = (
-        jax.random.uniform(subkey, shape=(model.number_of_links(), 6))
-        .at[:, 3:]
-        .set(jnp.zeros(3))
     )
 
     # Initialize a references object that simplifies handling external forces.
@@ -129,13 +125,29 @@ def test_box_with_zero_gravity(
     )
 
     # Apply a link forces to the base link.
-    references = references.apply_link_forces(
-        forces=jnp.atleast_2d(L_f),
-        link_names=model.link_names(),
-        model=model,
-        data=data0,
-        additive=False,
-    )
+    with references.switch_velocity_representation(jaxsim.VelRepr.Mixed):
+
+        # Generate a random linear force.
+        # We enforce them to be the same for all velocity representations so that
+        # we can compare their outcomes.
+        LW_f = 10.0 * (
+            jax.random.uniform(jax.random.key(0), shape=(model.number_of_links(), 6))
+            .at[:, 3:]
+            .set(jnp.zeros(3))
+        )
+
+        # Note that the context manager does not switch back the newly created
+        # `references` (that is not the yielded object) to the original representation.
+        # In the simulation loop below, we need to make sure that we switch both `data`
+        # and `references` to the same representation before extracting the information
+        # passed to the step function.
+        references = references.apply_link_forces(
+            forces=jnp.atleast_2d(LW_f),
+            link_names=model.link_names(),
+            model=model,
+            data=data0,
+            additive=False,
+        )
 
     # Create the integrator.
     integrator = jaxsim.integrators.fixed_step.RungeKutta4SO3.build(
@@ -145,8 +157,7 @@ def test_box_with_zero_gravity(
     )
 
     # Initialize the integrator.
-    tf = 1.0
-    dt = 0.010
+    tf, dt = 1.0, 0.010
     T = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
     integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=dt)
 
@@ -156,19 +167,28 @@ def test_box_with_zero_gravity(
     # ... and step the simulation.
     for t_ns in T:
 
-        data, integrator_state = js.model.step(
-            model=model,
-            data=data,
-            dt=dt,
-            integrator=integrator,
-            integrator_state=integrator_state,
-            link_forces=references.link_forces(model=model, data=data),
-        )
+        assert data.time() == t_ns / 1e9
+
+        with (
+            data.switch_velocity_representation(velocity_representation),
+            references.switch_velocity_representation(velocity_representation),
+        ):
+
+            data, integrator_state = js.model.step(
+                model=model,
+                data=data,
+                dt=dt,
+                integrator=integrator,
+                integrator_state=integrator_state,
+                link_forces=references.link_forces(model=model, data=data),
+            )
+
+    # Check the final simulation time.
+    assert data.time() == T[-1] / 1e9 + dt
 
     # Check that the box moved as expected.
-    assert data.time() == t_ns / 1e9 + dt
     assert data.base_position() == pytest.approx(
         data0.base_position()
-        + 0.5 * L_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
+        + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
         abs=1e-3,
     )

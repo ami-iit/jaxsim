@@ -160,6 +160,7 @@ class RodModelToMjcf:
         considered_joints: list[str] | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
+        heightmap_samples_xy: tuple[int, int] = (101, 101),
         cameras: list[dict[str, str]] | dict[str, str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
@@ -170,10 +171,11 @@ class RodModelToMjcf:
             considered_joints: The list of joint names to consider in the conversion.
             plane_normal: The normal vector of the plane.
             heightmap: Whether to generate a heightmap.
+            heightmap_samples_xy: The number of points in the heightmap grid.
             cameras: The list of cameras to add to the scene.
 
         Returns:
-            tuple: A tuple containing the MJCF string and the assets dictionary.
+            tuple: A tuple containing the MJCF string and the dictionary of assets.
         """
 
         # -------------------------------------
@@ -404,9 +406,11 @@ class RodModelToMjcf:
                 asset_element,
                 "hfield",
                 name="terrain",
-                nrow="100",
-                ncol="100",
-                size="5 5 1 1",
+                nrow=f"{int(heightmap_samples_xy[0])}",
+                ncol=f"{int(heightmap_samples_xy[1])}",
+                # The following 'size' is a placeholder, it is updated dynamically
+                # when a hfield/heightmap is stored into MjData.
+                size="1 1 1 1",
             )
             if heightmap
             else None

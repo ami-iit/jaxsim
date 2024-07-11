@@ -2,6 +2,7 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import exceptions
 from jaxsim.math import StandardGravity
 
 
@@ -130,6 +131,13 @@ def process_inputs(
 
     if W_Q_B.shape != (4,):
         raise ValueError(W_Q_B.shape, (4,))
+
+    # Check that the quaternion is unary since our RBDAs make this assumption in order
+    # to prevent introducing additional normalizations that would affect AD.
+    exceptions.raise_value_error_if(
+        condition=jnp.logical_not(jnp.allclose(W_Q_B.dot(W_Q_B), 1.0)),
+        msg="A RBDA received a quaternion that is not normalized.",
+    )
 
     # Pack the 6D base velocity and acceleration.
     W_v_WB = jnp.hstack([W_vl_WB, W_ω_WB])

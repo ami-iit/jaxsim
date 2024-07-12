@@ -255,7 +255,7 @@ def supported_joint_motion(
         axis = jnp.array(joint_axis).astype(float).squeeze()
 
         pre_H_suc = jaxlie.SE3.from_rotation(
-            rotation=jaxlie.SO3.from_matrix(Rotation.from_axis_angle(vector=s * axis))
+            rotation=Rotation.from_axis_angle(vector=s * axis)
         )
 
         S = jnp.vstack(jnp.hstack([jnp.zeros(3), axis]))

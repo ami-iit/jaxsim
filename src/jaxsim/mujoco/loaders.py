@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import dataclasses
 import pathlib
 import tempfile
 import warnings
-from typing import Any
+from typing import Any, Sequence
 
 import mujoco as mj
 import rod.urdf.exporter
@@ -161,7 +163,12 @@ class RodModelToMjcf:
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
         heightmap_samples_xy: tuple[int, int] = (101, 101),
-        cameras: list[dict[str, str]] | dict[str, str] | None = None,
+        cameras: (
+            MujocoCamera
+            | Sequence[MujocoCamera]
+            | dict[str, str]
+            | Sequence[dict[str, str]]
+        ) = (),
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a ROD model to a Mujoco MJCF string.
@@ -172,10 +179,10 @@ class RodModelToMjcf:
             plane_normal: The normal vector of the plane.
             heightmap: Whether to generate a heightmap.
             heightmap_samples_xy: The number of points in the heightmap grid.
-            cameras: The list of cameras to add to the scene.
+            cameras: The custom cameras to add to the scene.
 
         Returns:
-            tuple: A tuple containing the MJCF string and the dictionary of assets.
+            A tuple containing the MJCF string and the dictionary of assets.
         """
 
         # -------------------------------------
@@ -478,13 +485,16 @@ class RodModelToMjcf:
             fovy="60",
         )
 
-        # Add user-defined camera
-        cameras = cameras if cameras is not None else []
-        for camera in cameras if isinstance(cameras, list) else [cameras]:
-            mj_camera = MujocoCamera.build(**camera)
-            _ = ET.SubElement(
-                worldbody_element, "camera", dataclasses.asdict(mj_camera)
+        # Add user-defined camera.
+        for camera in cameras if isinstance(cameras, Sequence) else [cameras]:
+
+            mj_camera = (
+                camera
+                if isinstance(camera, MujocoCamera)
+                else MujocoCamera.build(**camera)
             )
+
+            _ = ET.SubElement(worldbody_element, "camera", mj_camera.asdict())
 
         # ------------------------------------------------
         # Add a light following the  CoM of the first link
@@ -598,21 +608,29 @@ class SdfToMjcf:
 
 @dataclasses.dataclass
 class MujocoCamera:
-    name: str
-    mode: str
-    pos: str
-    xyaxes: str
-    fovy: str
+
+    mode: str = "fixed"
+
+    target: str | None = None
+    fovy: str = "45"
+    pos: str = "0 0 0"
+
+    quat: str | None = None
+    axisangle: str | None = None
+    xyaxes: str | None = None
+    zaxis: str | None = None
+    euler: str | None = None
+
+    name: str | None = None
 
     @classmethod
-    def build(cls, **kwargs):
+    def build(cls, **kwargs) -> MujocoCamera:
+
         if not all(isinstance(value, str) for value in kwargs.values()):
             raise ValueError("Values must be strings")
 
-        if len(kwargs["pos"].split()) != 3:
-            raise ValueError("pos must have three values separated by space")
-
-        if len(kwargs["xyaxes"].split()) != 6:
-            raise ValueError("xyaxes must have six values separated by space")
-
         return cls(**kwargs)
+
+    def asdict(self) -> dict[str, str]:
+
+        return {k: v for k, v in dataclasses.asdict(self).items() if v is not None}

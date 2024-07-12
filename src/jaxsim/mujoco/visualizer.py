@@ -63,18 +63,16 @@ class MujocoVideoRecorder:
         self.data = data if data is not None else self.data
         self.model = model if model is not None else self.model
 
-    def render_frame(self, camera_name: str | None = None) -> npt.NDArray:
+    def render_frame(self, camera_name: str = "track") -> npt.NDArray:
         """Renders a frame."""
-        camera_name = camera_name or "track"
 
         mujoco.mj_forward(self.model, self.data)
         self.renderer.update_scene(data=self.data, camera=camera_name)
 
         return self.renderer.render()
 
-    def record_frame(self, camera_name: str | None = None) -> None:
+    def record_frame(self, camera_name: str = "track") -> None:
         """Stores a frame in the buffer."""
-        camera_name = camera_name or "track"
 
         frame = self.render_frame(camera_name=camera_name)
         self.frames.append(frame)

@@ -93,7 +93,7 @@ def test_ad_aba(
     aba = lambda W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L, g: jaxsim.rbda.aba(
         model=model,
         base_position=W_p_B,
-        base_quaternion=W_Q_B,
+        base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
         base_linear_velocity=W_v_WB[0:3],
         base_angular_velocity=W_v_WB[3:6],
@@ -150,7 +150,7 @@ def test_ad_rnea(
     rnea = lambda W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, W_f_L, g: jaxsim.rbda.rnea(
         model=model,
         base_position=W_p_B,
-        base_quaternion=W_Q_B,
+        base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
         base_linear_velocity=W_v_WB[0:3],
         base_angular_velocity=W_v_WB[3:6],
@@ -229,7 +229,7 @@ def test_ad_fk(
     fk = lambda W_p_B, W_Q_B, s: jaxsim.rbda.forward_kinematics_model(
         model=model,
         base_position=W_p_B,
-        base_quaternion=W_Q_B,
+        base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
     )
 

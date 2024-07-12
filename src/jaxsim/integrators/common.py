@@ -5,11 +5,12 @@ from typing import Any, ClassVar, Generic, Protocol, Type, TypeVar
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
-import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+import jaxsim.math
 import jaxsim.typing as jtp
+from jaxsim import exceptions
 from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass, Mutability
 
 try:
@@ -540,47 +541,37 @@ class ExplicitRungeKuttaSO3Mixin:
     """
 
     @classmethod
-    def integrate_rk_stage(
-        cls, x0: js.ode_data.ODEState, t0: Time, dt: TimeStep, k: js.ode_data.ODEState
-    ) -> js.ode_data.ODEState:
-
-        op = lambda x0_leaf, k_leaf: x0_leaf + dt * k_leaf
-        xf: js.ode_data.ODEState = jax.tree_util.tree_map(op, x0, k)
-
-        W_Q_B_tf = xf.physics_model.base_quaternion
-
-        return xf.replace(
-            physics_model=xf.physics_model.replace(
-                base_quaternion=W_Q_B_tf / jnp.linalg.norm(W_Q_B_tf)
-            )
-        )
-
-    @classmethod
     def post_process_state(
         cls, x0: js.ode_data.ODEState, t0: Time, xf: js.ode_data.ODEState, dt: TimeStep
     ) -> js.ode_data.ODEState:
 
-        # Indices to convert quaternions between serializations.
-        to_xyzw = jnp.array([1, 2, 3, 0])
+        # Extract the initial base quaternion.
+        W_Q_B_t0 = x0.physics_model.base_quaternion
 
-        # Get the initial rotation.
-        W_R_B_t0 = jaxlie.SO3.from_quaternion_xyzw(
-            xyzw=x0.physics_model.base_quaternion[to_xyzw]
+        # We assume that the initial quaternion is already unary.
+        exceptions.raise_runtime_error_if(
+            condition=jnp.logical_not(jnp.allclose(W_Q_B_t0.dot(W_Q_B_t0), 1.0)),
+            msg="The SO(3) integrator received a quaternion at t0 that is not unary.",
         )
 
-        # Get the final angular velocity.
-        # This is already computed by averaging the kᵢ in RK-based schemes.
-        # Therefore, by using the ω at tf, we obtain a RK scheme operating
-        # on the SO(3) manifold.
-        W_ω_WB_tf = xf.physics_model.base_angular_velocity
+        # Get the angular velocity ω to integrate the quaternion.
+        # This velocity ω[t0] is computed in the previous timestep by averaging the kᵢ
+        # corresponding to the active RK-based scheme. Therefore, by using the ω[t0],
+        # we obtain an explicit RK scheme operating on the SO(3) manifold.
+        # Note that the current integrator is not a semi-implicit scheme, therefore
+        # using the final ω[tf] would be not correct.
+        W_ω_WB_t0 = x0.physics_model.base_angular_velocity
 
-        # Integrate the orientation on SO(3).
-        # Note that we left-multiply with the exponential map since the angular
-        # velocity is expressed in the inertial frame.
-        W_R_B_tf = jaxlie.SO3.exp(tangent=dt * W_ω_WB_tf) @ W_R_B_t0
+        # Integrate the quaternion on SO(3).
+        W_Q_B_tf = jaxsim.math.Quaternion.integration(
+            quaternion=W_Q_B_t0,
+            dt=dt,
+            omega=W_ω_WB_t0,
+            omega_in_body_fixed=False,
+        )
 
         # Replace the quaternion in the final state.
         return xf.replace(
-            physics_model=xf.physics_model.replace(base_quaternion=W_R_B_tf.wxyz),
+            physics_model=xf.physics_model.replace(base_quaternion=W_Q_B_tf),
             validate=True,
         )

@@ -1,10 +1,11 @@
 import contextlib
 import pathlib
-from typing import ContextManager
+from typing import ContextManager, Sequence
 
 import mediapy as media
 import mujoco as mj
 import mujoco.viewer
+import numpy as np
 import numpy.typing as npt
 
 
@@ -167,13 +168,72 @@ class MujocoVisualizer:
         self,
         model: mj.MjModel | None = None,
         data: mj.MjData | None = None,
+        *,
         close_on_exit: bool = True,
+        lookat: Sequence[float | int] | npt.NDArray | None = None,
+        distance: float | int | npt.NDArray | None = None,
+        azimut: float | int | npt.NDArray | None = None,
+        elevation: float | int | npt.NDArray | None = None,
     ) -> ContextManager[mujoco.viewer.Handle]:
-        """Context manager to open a viewer."""
+        """
+        Context manager to open the Mujoco passive viewer.
+
+        Note:
+            Refer to the Mujoco documentation for details of the camera options:
+            https://mujoco.readthedocs.io/en/stable/XMLreference.html#visual-global
+        """
 
         handle = self.open_viewer(model=model, data=data)
+
+        handle = MujocoVisualizer.setup_viewer_camera(
+            viewer=handle,
+            lookat=lookat,
+            distance=distance,
+            azimut=azimut,
+            elevation=elevation,
+        )
 
         try:
             yield handle
         finally:
             _ = handle.close() if close_on_exit else None
+
+    @staticmethod
+    def setup_viewer_camera(
+        viewer: mj.viewer.Handle,
+        *,
+        lookat: Sequence[float | int] | npt.NDArray | None,
+        distance: float | int | npt.NDArray | None = None,
+        azimut: float | int | npt.NDArray | None = None,
+        elevation: float | int | npt.NDArray | None = None,
+    ) -> mj.viewer.Handle:
+        """
+        Configure the initial viewpoint of the Mujoco passive viewer.
+
+        Note:
+            Refer to the Mujoco documentation for details of the camera options:
+            https://mujoco.readthedocs.io/en/stable/XMLreference.html#visual-global
+
+        Returns:
+            The viewer with configured camera.
+        """
+
+        if lookat is not None:
+
+            lookat_array = np.array(lookat, dtype=float).squeeze()
+
+            if lookat_array.size != 3:
+                raise ValueError(lookat)
+
+            viewer.cam.lookat = lookat_array
+
+        if distance is not None:
+            viewer.cam.distance = float(distance)
+
+        if azimut is not None:
+            viewer.cam.azimuth = float(azimut) % 360
+
+        if elevation is not None:
+            viewer.cam.elevation = float(elevation)
+
+        return viewer

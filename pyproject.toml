@@ -69,6 +69,7 @@ viz = [
     "lxml",
     "mediapy",
     "mujoco >= 3.0.0",
+    "scipy >= 1.14.0",
 ]
 all = [
     "jaxsim[style,testing,viz]",

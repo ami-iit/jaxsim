@@ -260,7 +260,6 @@ class RodModelToMjcf:
 
         parser = ET.XMLParser(remove_blank_text=True)
         root: ET._Element = ET.fromstring(text=urdf_string.encode(), parser=parser)
-        import numpy as np
 
         # Give a tiny radius to all dummy spheres
         for geometry in root.findall(".//visual/geometry[sphere]"):
@@ -611,6 +610,12 @@ class SdfToMjcf:
 
 @dataclasses.dataclass
 class MujocoCamera:
+    """
+    Helper class storing parameters of a Mujoco camera.
+
+    Refer to the official documentation for more details:
+    https://mujoco.readthedocs.io/en/stable/XMLreference.html#body-camera
+    """
 
     mode: str = "fixed"
 
@@ -702,7 +707,7 @@ class MujocoCamera:
 
         # Extract the position and the quaternion.
         p = W_H_C[0:3, 3]
-        Q = Rotation.from_matrix(W_H_C[0:3, 0:3]).as_quat()[np.array([3, 0, 1, 2])]
+        Q = Rotation.from_matrix(W_H_C[0:3, 0:3]).as_quat(scalar_first=True)
 
         return MujocoCamera.build(
             name=camera_name,

@@ -73,7 +73,7 @@ class FlatTerrain(Terrain):
 class PlaneTerrain(FlatTerrain):
 
     plane_normal: tuple[float, float, float] = jax_dataclasses.field(
-        default=(0.0, 0.0, 0.0), kw_only=True
+        default=(0.0, 0.0, 1.0), kw_only=True
     )
 
     @staticmethod

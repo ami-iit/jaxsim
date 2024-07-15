@@ -641,6 +641,7 @@ class MujocoCamera:
         distance: float | int | npt.NDArray = 3,
         azimut: float | int | npt.NDArray = 90,
         elevation: float | int | npt.NDArray = -45,
+        fovy: float | int | npt.NDArray = 45,
         degrees: bool = True,
         **kwargs,
     ) -> MujocoCamera:
@@ -667,6 +668,7 @@ class MujocoCamera:
             elevation:
                 The rotation around the x-axis of the camera frame `C`. Note that if
                 you want to lift the view angle, the elevation is negative.
+            fovy: The field of view of the camera.
             degrees: Whether the angles are in degrees or radians.
             **kwargs: Additional camera parameters.
 
@@ -705,7 +707,7 @@ class MujocoCamera:
         return MujocoCamera.build(
             name=camera_name,
             mode="fixed",
-            fovy="60",
+            fovy=f"{fovy if degrees else np.rad2deg(fovy)}",
             pos=" ".join(p.astype(str).tolist()),
             quat=" ".join(Q.astype(str).tolist()),
             **kwargs,

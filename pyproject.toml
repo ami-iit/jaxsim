@@ -55,6 +55,7 @@ dependencies = [
     "qpax",
     "rod >= 0.3.3",
     "typing_extensions ; python_version < '3.12'",
+    "trimesh",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +69,8 @@ testing = [
     "pytest >=6.0",
     "pytest-icdiff",
     "robot-descriptions",
+    "networkx",
+    "lark"
 ]
 viz = [
     "lxml",

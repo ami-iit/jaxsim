@@ -7,11 +7,13 @@ import numpy.typing as npt
 import rod
 import trimesh
 from rod.utils.resolve_uris import resolve_local_uri
+from typing import Tuple
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia
 from jaxsim import logging
 from jaxsim.parsers import descriptions
+from jaxsim.parsers.rod import meshes
 
 
 @enum.unique
@@ -20,9 +22,8 @@ class MeshMappingMethods(enum.IntEnum):
     RandomSurfaceSampling = enum.auto()  # Sample the surface of the mesh randomly
     UniformSurfaceSampling = enum.auto()  # Sample the surface of the mesh uniformly
     MeshDecimation = enum.auto()  # Decimate the mesh to a certain number of vertices
-    AxisAlignedBoundingBox = enum.auto()  # Subtraction of bounding box from mesh
+    MeshMapping = enum.auto()  # Subtraction of bounding box from mesh
     AxisAlignedPlane = enum.auto()  # Remove all points above a certain axis value
-
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
@@ -225,7 +226,9 @@ def create_mesh_collision(
     link_description: descriptions.LinkDescription,
     method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
     nsamples: int = 1000,
-    decimation_object: trimesh.Trimesh |  = None,
+    aap_axis: str = "z",
+    aap_value: float = 0.0,
+    aap_direction: str = "lower",
 ) -> descriptions.MeshCollision:
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
     _file_type = file.suffix.replace(".", "")
@@ -243,17 +246,26 @@ def create_mesh_collision(
     # Extract the points from the mesh to use as colliders according to the provided method
     match method:
         case MeshMappingMethods.VertexExtraction:
-            points = mesh.vertices
+            points = meshes.extract_points_vertex_extraction(mesh=mesh)
         case MeshMappingMethods.RandomSurfaceSampling:
-            points = mesh.sample(nsamples)
+            points = meshes.extract_points_random_surface_sampling(
+                mesh=mesh, num_points=nsamples
+            )
         case MeshMappingMethods.UniformSurfaceSampling:
-            points = trimesh.sample.sample_surface_even(mesh=mesh, count=nsamples)
+            points = meshes.extract_points_uniform_surface_sampling(
+                mesh=mesh, num_points=nsamples
+            )
         case MeshMappingMethods.MeshDecimation:
             raise NotImplementedError("Mesh decimation is not implemented yet")
-        case MeshMappingMethods.AxisAlignedBoundingBox:
-            raise NotImplementedError("Axis aligned bounding box is not implemented yet")
+        case MeshMappingMethods.MeshMapping:
+            raise NotImplementedError("AABMapping is not implemented yet")
         case MeshMappingMethods.AxisAlignedPlane:
-            raise NotImplementedError("Axis aligned plane is not implemented yet")
+            points = meshes.extract_points_aap(
+                mesh=mesh,
+                aap_axis=aap_axis,
+                aap_value=aap_value,
+                aap_direction=aap_direction,
+            )
         case _:
             raise ValueError("Invalid mesh mapping method")
 

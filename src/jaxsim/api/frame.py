@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim import exceptions
-from jaxsim.math import Adjoint, Transform
+from jaxsim.math import Adjoint, Cross, Transform
 
 from .common import VelRepr
 
@@ -257,3 +257,90 @@ def jacobian(
             raise ValueError(output_vel_repr)
 
     return O_J_WL_I
+
+
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def jacobian_derivative(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    frame_index: jtp.IntLike,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Matrix:
+    r"""
+    Compute the derivative of the free-floating jacobian of the frame.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        frame_index: The index of the frame.
+        output_vel_repr:
+            The output velocity representation of the free-floating jacobian derivative.
+
+    Returns:
+        The derivative of the :math:`6 \times (6+n)` free-floating jacobian of the frame.
+
+    Note:
+        The input representation of the free-floating jacobian derivative is the active
+        velocity representation.
+    """
+
+    n_l = model.number_of_links()
+    n_f = len(model.frame_names())
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
+        msg="Invalid frame index '{idx}'",
+        idx=frame_index,
+    )
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    # Get the index of the parent link.
+    L = idx_of_parent_link(model=model, frame_index=frame_index)
+
+    # Compute the Jacobian of the parent link in inertial representation.
+    W_J_WL_I = js.link.jacobian(
+        model=model,
+        data=data,
+        link_index=L,
+        output_vel_repr=VelRepr.Inertial,
+    )
+
+    # Compute the Jacobian derivative of the parent link in inertial representation.
+    W_J̇_WL_I = js.link.jacobian_derivative(
+        model=model,
+        data=data,
+        link_index=L,
+        output_vel_repr=VelRepr.Inertial,
+    )
+
+    # Compute the adjoint and its derivative from inertial to desired output representation.
+    match output_vel_repr:
+        case VelRepr.Inertial:
+            O_J̇_WF_I = W_J̇_WL_I
+
+        case VelRepr.Body:
+            W_H_F = transform(model=model, data=data, frame_index=frame_index)
+            F_H_W = Transform.inverse(W_H_F)
+            F_X_W = Adjoint.from_transform(transform=F_H_W)
+            W_v_WF = W_J_WL_I @ data.generalized_velocity()
+            W_vx_WF = Cross.vx(W_v_WF)
+            O_J̇_WF_I = F_X_W @ (W_J̇_WL_I - W_vx_WF @ W_J_WL_I)
+
+        case VelRepr.Mixed:
+            W_H_F = transform(model=model, data=data, frame_index=frame_index)
+            W_H_FW = W_H_F.at[0:3, 0:3].set(jnp.zeros((3, 3)))
+            FW_H_W = Transform.inverse(W_H_FW)
+            FW_X_W = Adjoint.from_transform(transform=FW_H_W)
+            W_v_WF = W_J_WL_I @ data.generalized_velocity()
+            W_v_WFW = W_v_WF.at[3:6].set(jnp.zeros(3))
+            W_vx_WFW = Cross.vx(W_v_WFW)
+            O_J̇_WF_I = FW_X_W @ (W_J̇_WL_I - W_vx_WFW @ W_J_WL_I)
+
+        case _:
+            raise ValueError(output_vel_repr)
+
+    return O_J̇_WF_I

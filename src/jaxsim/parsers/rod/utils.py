@@ -250,6 +250,10 @@ def create_mesh_collision(
             points = trimesh.sample.sample_surface_even(mesh=mesh, count=nsamples)
         case MeshMappingMethods.MeshDecimation:
             raise NotImplementedError("Mesh decimation is not implemented yet")
+        case MeshMappingMethods.AxisAlignedBoundingBox:
+            raise NotImplementedError("Axis aligned bounding box is not implemented yet")
+        case MeshMappingMethods.AxisAlignedPlane:
+            raise NotImplementedError("Axis aligned plane is not implemented yet")
         case _:
             raise ValueError("Invalid mesh mapping method")
 

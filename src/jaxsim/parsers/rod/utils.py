@@ -16,9 +16,13 @@ from jaxsim.parsers import descriptions
 
 @enum.unique
 class MeshMappingMethods(enum.IntEnum):
-    VertexExtraction = enum.auto()
-    RandomSurfaceSampling = enum.auto()
-    UniformSurfaceSampling = enum.auto()
+    VertexExtraction = enum.auto()  # Use the vertices of the mesh as colliders
+    RandomSurfaceSampling = enum.auto()  # Sample the surface of the mesh randomly
+    UniformSurfaceSampling = enum.auto()  # Sample the surface of the mesh uniformly
+    MeshDecimation = enum.auto()  # Decimate the mesh to a certain number of vertices
+    AxisAlignedBoundingBox = enum.auto()  # Subtraction of bounding box from mesh
+    AxisAlignedPlane = enum.auto()  # Remove all points above a certain axis value
+
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
@@ -221,6 +225,7 @@ def create_mesh_collision(
     link_description: descriptions.LinkDescription,
     method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
     nsamples: int = 1000,
+    decimation_object: trimesh.Trimesh |  = None,
 ) -> descriptions.MeshCollision:
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
     _file_type = file.suffix.replace(".", "")
@@ -243,6 +248,8 @@ def create_mesh_collision(
             points = mesh.sample(nsamples)
         case MeshMappingMethods.UniformSurfaceSampling:
             points = trimesh.sample.sample_surface_even(mesh=mesh, count=nsamples)
+        case MeshMappingMethods.MeshDecimation:
+            raise NotImplementedError("Mesh decimation is not implemented yet")
         case _:
             raise ValueError("Invalid mesh mapping method")
 

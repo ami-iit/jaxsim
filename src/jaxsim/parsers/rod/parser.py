@@ -341,6 +341,7 @@ def extract_model_data(
                     collision=collision,
                     link_description=links_dict[link.name],
                     method=utils.MeshMappingMethods.UniformSurfaceSampling,
+                    nsamples=200,
                 )
                 if mesh_collision is not None:
                     collisions.append(mesh_collision)

@@ -168,3 +168,63 @@ def test_frame_jacobians(
         J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_index)
         J_WL_idt = kin_dyn.jacobian_frame(frame_name=frame_name)
         assert J_WL_js == pytest.approx(J_WL_idt, abs=1e-9)
+
+
+def test_frame_jacobian_derivative(
+    jaxsim_models_types: js.model.JaxSimModel,
+    velocity_representation: VelRepr,
+    prng_key: jax.Array,
+):
+    model = jaxsim_models_types
+
+    _, subkey = jax.random.split(prng_key, num=2)
+    data = js.data.random_model_data(
+        model=model, key=subkey, velocity_representation=velocity_representation
+    )
+
+    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+        model=model, data=data
+    )
+
+    # =====
+    # Tests
+    # =====
+
+    # Get the frame names
+    frame_names = model.frame_names()
+    # Lower the number of frames for models with many frames.
+    if model.name().lower() == "ergocub":
+        assert any("sole" in name for name in frame_names)
+        frame_names = [name for name in frame_names if "sole" in name]
+
+    frame_idxs = js.frame.names_to_idxs(model=model, frame_names=tuple(frame_names))
+
+    # Get the generalized velocity.
+    I_ν = data.generalized_velocity()
+
+    # Compute J̇.
+    O_J̇_WF_I = jax.vmap(
+        lambda frame_index: js.frame.jacobian_derivative(
+            model=model, data=data, frame_index=frame_index
+        )
+    )(frame_idxs)
+
+    assert O_J̇_WF_I.shape == (len(frame_names), 6, 6 + model.dofs())
+    print(f"{frame_names=}")
+
+    # Compute the product J̇ν.
+    O_a_bias_WF = jax.vmap(
+        lambda O_J̇_WF_I, I_ν: O_J̇_WF_I @ I_ν,
+        in_axes=(0, None),
+    )(O_J̇_WF_I, I_ν)
+
+    # Compare the two computations.
+    for name, index in zip(
+        frame_names,
+        frame_idxs,
+        strict=True,
+    ):
+        J̇ν_idt = kin_dyn.frame_bias_acc(frame_name=name)
+        print(f"{name=}, {index=}, {O_a_bias_WF[index].shape=}")
+        J̇ν_js = O_a_bias_WF[index]
+        assert pytest.approx(J̇ν_idt) == J̇ν_js

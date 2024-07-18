@@ -22,8 +22,11 @@ class MeshMappingMethods(enum.IntEnum):
     RandomSurfaceSampling = enum.auto()  # Sample the surface of the mesh randomly
     UniformSurfaceSampling = enum.auto()  # Sample the surface of the mesh uniformly
     MeshDecimation = enum.auto()  # Decimate the mesh to a certain number of vertices
-    MeshMapping = enum.auto()  # Subtraction of bounding box from mesh
+    ObjectMapping = enum.auto()  # Subtraction of bounding box from mesh
     AxisAlignedPlane = enum.auto()  # Remove all points above a certain axis value
+    SelectPointsOverAxis = (
+        enum.auto()
+    )  # Remove N highest or lowest points over a certain axis value
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
@@ -226,9 +229,10 @@ def create_mesh_collision(
     link_description: descriptions.LinkDescription,
     method: MeshMappingMethods = MeshMappingMethods.VertexExtraction,
     nsamples: int = 1000,
-    aap_axis: str = "z",
+    axis: str = "z",
+    direction: str = "lower",
     aap_value: float = 0.0,
-    aap_direction: str = "lower",
+    object_mapping_object: trimesh.Trimesh | dict = None,
 ) -> descriptions.MeshCollision:
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
     _file_type = file.suffix.replace(".", "")
@@ -246,25 +250,50 @@ def create_mesh_collision(
     # Extract the points from the mesh to use as colliders according to the provided method
     match method:
         case MeshMappingMethods.VertexExtraction:
-            points = meshes.extract_points_vertex_extraction(mesh=mesh)
+            points = meshes.MeshMapping.vertex_extraction(mesh=mesh)
         case MeshMappingMethods.RandomSurfaceSampling:
-            points = meshes.extract_points_random_surface_sampling(
+            if nsamples > len(mesh.vertices):
+                logging.warning(
+                    f"Number of samples {nsamples} is larger than the number of vertices {len(mesh.vertices)} in the mesh. Falling back to number of vertices"
+                )
+                nsamples = len(mesh.vertices)
+            points = meshes.MeshMapping.random_surface_sampling(
                 mesh=mesh, num_points=nsamples
             )
         case MeshMappingMethods.UniformSurfaceSampling:
-            points = meshes.extract_points_uniform_surface_sampling(
+            if nsamples > len(mesh.vertices):
+                logging.warning(
+                    f"Number of samples {nsamples} is larger than the number of vertices {len(mesh.vertices)} in the mesh. Falling back to number of vertices"
+                )
+                nsamples = len(mesh.vertices)
+            points = meshes.MeshMapping.uniform_surface_sampling(
                 mesh=mesh, num_points=nsamples
             )
         case MeshMappingMethods.MeshDecimation:
             raise NotImplementedError("Mesh decimation is not implemented yet")
-        case MeshMappingMethods.MeshMapping:
-            raise NotImplementedError("AABMapping is not implemented yet")
+        case MeshMappingMethods.ObjectMapping:
+            if object_mapping_object is None:
+                raise ValueError("Object mapping object was not provided")
+            obj = meshes.parse_object_mapping_object(object_mapping_object)
+            points = meshes.MeshMapping.object_mapping(mesh=mesh, object=obj)
         case MeshMappingMethods.AxisAlignedPlane:
-            points = meshes.extract_points_aap(
+            points = meshes.MeshMapping.aap(
                 mesh=mesh,
-                aap_axis=aap_axis,
+                axis=axis,
+                direction=direction,
                 aap_value=aap_value,
-                aap_direction=aap_direction,
+            )
+        case MeshMappingMethods.SelectPointsOverAxis:
+            if nsamples > len(mesh.vertices):
+                logging.warning(
+                    f"Number of samples {nsamples} is larger than the number of vertices {len(mesh.vertices)} in the mesh. Falling back to number of vertices"
+                )
+                nsamples = len(mesh.vertices)
+            points = meshes.MeshMapping.select_points_over_axis(
+                mesh=mesh,
+                axis=axis,
+                direction=direction,
+                n=nsamples,
             )
         case _:
             raise ValueError("Invalid mesh mapping method")

@@ -182,12 +182,19 @@ def test_frame_jacobian_derivative(
         model=model, data=data
     )
 
-    # Get the frame names
-    frame_names = model.frame_names()
-    # Lower the number of frames for models with many frames.
-    if model.name().lower() == "ergocub":
-        assert any("sole" in name for name in frame_names)
-        frame_names = [name for name in frame_names if "sole" in name]
+    # Get all names of frames in the iDynTree model.
+    frame_names = [
+        frame.name
+        for frame in model.description.frames
+        if frame.name in kin_dyn.frame_names()
+    ]
+
+    # Skip some entry of models with many frames.
+    frame_names = [
+        name
+        for name in frame_names
+        if "skin" not in name or "laser" not in name or "depth" not in name
+    ]
 
     frame_idxs = js.frame.names_to_idxs(model=model, frame_names=tuple(frame_names))
 

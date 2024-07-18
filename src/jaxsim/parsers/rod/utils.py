@@ -1,5 +1,7 @@
 import os
 import pathlib
+from collections.abc import Callable
+from typing import TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -8,10 +10,12 @@ import trimesh
 from rod.utils.resolve_uris import resolve_local_uri
 
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Inertia
 from jaxsim import logging
+from jaxsim.math import Adjoint, Inertia
 from jaxsim.parsers import descriptions
 from jaxsim.parsers.rod import meshes
+
+MeshMappingMethod = TypeVar("MeshMappingMethod", bound=Callable[..., npt.NDArray])
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:
@@ -212,7 +216,7 @@ def create_sphere_collision(
 def create_mesh_collision(
     collision: rod.Collision,
     link_description: descriptions.LinkDescription,
-    method: meshes.MeshMappingMethod = None,
+    method: MeshMappingMethod = None,
 ) -> descriptions.MeshCollision:
 
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
@@ -225,16 +229,18 @@ def create_mesh_collision(
 
     mesh.apply_scale(collision.geometry.mesh.scale)
     logging.info(
-        f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+        msg=f"Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
     )
 
     if method is None:
         method = meshes.VertexExtraction()
         logging.debug("Using default Vertex Extraction method for mesh wrapping")
     else:
-        logging.debug(f"Using {method.__class__.__name__} method for mesh wrapping")
+        logging.debug(f"Using method {method} for mesh wrapping")
 
     points = method(mesh=mesh)
+    logging.debug(f"Extracted {len(points)} points from mesh")
+
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
     # Extract translation from transformation matrix
     center_of_collision_wrt_link = H[:3, 3]

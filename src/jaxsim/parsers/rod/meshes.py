@@ -1,9 +1,11 @@
-import trimesh
+from abc import ABC, abstractmethod
+from typing import List, Sequence
+
 import numpy as np
 import rod
-from typing import Sequence, List
+import trimesh
+
 from jaxsim import logging
-from abc import ABC, abstractmethod
 
 
 def parse_object_mapping_object(obj) -> trimesh.Trimesh:

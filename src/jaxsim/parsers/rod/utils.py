@@ -5,9 +5,7 @@ import numpy as np
 import numpy.typing as npt
 import rod
 import trimesh
-import inspect
 from rod.utils.resolve_uris import resolve_local_uri
-
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia

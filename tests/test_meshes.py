@@ -1,4 +1,5 @@
 import trimesh
+
 from jaxsim.parsers.rod import meshes
 
 

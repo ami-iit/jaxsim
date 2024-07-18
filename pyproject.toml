@@ -56,6 +56,7 @@ dependencies = [
     "rod >= 0.3.3",
     "typing_extensions ; python_version < '3.12'",
     "trimesh",
+    "manifold3d",
 ]
 
 [project.optional-dependencies]

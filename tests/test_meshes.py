@@ -37,22 +37,23 @@ def test_mesh_wrapping_aap():
     mesh = trimesh.creation.box(
         extents=[3.0, 3.0, 3.0],
     )
-    points = meshes.MeshMapping.aap(mesh, axis="x", aap_value=0.0, direction="higher")
+    points = meshes.MeshMapping.aap(mesh, axis="x", aap_value=0.0, operator=">")
     assert len(points) == len(mesh.vertices) // 2
     assert all(points[:, 0] > 0.0)
 
     # Test 1.2: Remove all points below y=0.0
     # Again, the expected result is that the number of points is halved
-    points = meshes.MeshMapping.aap(mesh, axis="y", aap_value=0.0, direction="lower")
+    points = meshes.MeshMapping.aap(mesh, axis="y", aap_value=0.0, operator="<")
     assert len(points) == len(mesh.vertices) // 2
     assert all(points[:, 1] < 0.0)
 
     # Test 2: A sphere
-    # The sphere is centered at the origin and has a radius of 1.0
+    # The sphere is centered at the origin and has a radius of 1.0. Points are expected to be halved
     mesh = trimesh.creation.icosphere(subdivisions=4, radius=1.0)
     # Remove all points above y=0.0
-    points = meshes.MeshMapping.aap(mesh, axis="y", aap_value=0.0, direction="higher")
-    assert all(points[:, 1] > 0.0)
+    points = meshes.MeshMapping.aap(mesh, axis="y", aap_value=0.0, operator=">=")
+    assert all(points[:, 1] >= 0.0)
+    assert len(points) < len(mesh.vertices)
 
 
 def test_mesh_wrapping_points_over_axis():

@@ -68,7 +68,7 @@ class MeshMapping:
     def aap(
         mesh: trimesh.Trimesh,
         axis: str,
-        direction: str,
+        operator: str,
         aap_value: float,
     ) -> np.ndarray:
         """Axis Aligned Plane
@@ -86,12 +86,23 @@ class MeshMapping:
 
         TODO: Implement inclined plane
         """
-        if direction == "higher":
-            aap_operator = np.greater
-        elif direction == "lower":
-            aap_operator = np.less
-        else:
-            raise ValueError("Invalid direction for axis-aligned plane")
+        valid_methods = [">", "<", ">=", "<="]
+        if operator not in valid_methods:
+            raise ValueError(
+                f"Invalid method {operator} for AAP. Valid methods are {valid_methods}"
+            )
+
+        match (operator):
+            case ">":
+                aap_operator = np.greater
+            case "<":
+                aap_operator = np.less
+            case ">=":
+                aap_operator = np.greater_equal
+            case "<=":
+                aap_operator = np.less_equal
+            case _:
+                raise ValueError(f"Invalid method {operator} for AAP")
 
         if axis == "x":
             points = mesh.vertices[aap_operator(mesh.vertices[:, 0], aap_value)]

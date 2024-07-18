@@ -1,6 +1,9 @@
 import trimesh
 import numpy as np
 import rod
+from typing import Sequence, List
+from jaxsim import logging
+from abc import ABC, abstractmethod
 
 
 def parse_object_mapping_object(obj) -> trimesh.Trimesh:
@@ -25,67 +28,59 @@ def parse_object_mapping_object(obj) -> trimesh.Trimesh:
         raise ValueError("Invalid object type")
 
 
-class MeshMapping:
-    @staticmethod
-    def vertex_extraction(mesh: trimesh.Trimesh) -> np.ndarray:
-        """Extracts the points of a mesh using the vertices of the mesh as colliders.
+class MeshMappingMethod(ABC):
+    @abstractmethod
+    def __init__(self, **kwargs):
+        pass
 
-        Args:
-            mesh: The mesh to extract the points from.
+    @abstractmethod
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        self.mesh = mesh
+        pass
 
-        Returns:
-            The points of the mesh.
-        """
-        return mesh.vertices
+    def __call__(self, mesh: trimesh.Trimesh):
+        return self.extract_points(mesh=mesh)
 
-    @staticmethod
-    def random_surface_sampling(mesh: trimesh.Trimesh, num_points: int) -> np.ndarray:
-        """Extracts the points of a mesh by sampling the surface of the mesh randomly.
 
-        Args:
-            mesh: The mesh to extract the points from.
-            num_points: The number of points to sample.
+class VertexExtraction(MeshMappingMethod):
+    def __init__(self):
+        pass
 
-        Returns:
-            The points of the mesh.
-        """
-        return mesh.sample(num_points)
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        super().extract_points(mesh)
+        return self.mesh.vertices
 
-    @staticmethod
-    def uniform_surface_sampling(mesh: trimesh.Trimesh, num_points: int) -> np.ndarray:
-        """Extracts the points of a mesh by sampling the surface of the mesh uniformly.
 
-        Args:
-            mesh: The mesh to extract the points from.
-            num_points: The number of points to sample.
+class RandomSurfaceSampling(MeshMappingMethod):
+    def __init__(self, n: int = -1):
+        if n <= 0 or n > len(self.mesh.vertices):
+            logging.warning(
+                "Invalid number of points for random surface sampling. Defaulting to all vertices"
+            )
+            n = len(self.mesh.vertices)
+        self.n = n
 
-        Returns:
-            The points of the mesh.
-        """
-        return trimesh.sample.sample_surface_even(mesh=mesh, count=num_points)
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        super().extract_points(mesh)
+        return self.mesh.sample(self.n)
 
-    @staticmethod
-    def aap(
-        mesh: trimesh.Trimesh,
-        axis: str,
-        operator: str,
-        aap_value: float,
-    ) -> np.ndarray:
-        """Axis Aligned Plane
-        Extracts the points of a mesh that are on one side of an axis-aligned plane (AAP).
-        This means that the algorithm considers all points above/below a certain value along one axis.
 
-        Args:
-            mesh: The mesh to extract the points from.
-            axis: The axis of the AAP.
-            direction: The direction of the AAP.
-            aap_value: The value of the AAP.
+class UniformSurfaceSampling(MeshMappingMethod):
+    def __init__(self, n: int = -1):
+        if n <= 0 or n > len(self.mesh.vertices):
+            logging.warning(
+                "Invalid number of points for uniform surface sampling. Defaulting to all vertices"
+            )
+            n = len(self.mesh.vertices)
+        self.n = n
 
-        Returns:
-            The points of the mesh that are on one side of the AAP.
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        super().extract_points(mesh)
+        return trimesh.sample.sample_surface_even(mesh=self.mesh, count=self.n)
 
-        TODO: Implement inclined plane
-        """
+
+class AAP(MeshMappingMethod):
+    def __init__(self, axis: str, operator: str, value: float):
         valid_methods = [">", "<", ">=", "<="]
         if operator not in valid_methods:
             raise ValueError(
@@ -94,120 +89,92 @@ class MeshMapping:
 
         match (operator):
             case ">":
-                aap_operator = np.greater
+                self.aap_operator = np.greater
             case "<":
-                aap_operator = np.less
+                self.aap_operator = np.less
             case ">=":
-                aap_operator = np.greater_equal
+                self.aap_operator = np.greater_equal
             case "<=":
-                aap_operator = np.less_equal
+                self.aap_operator = np.less_equal
             case _:
                 raise ValueError(f"Invalid method {operator} for AAP")
 
-        if axis == "x":
-            points = mesh.vertices[aap_operator(mesh.vertices[:, 0], aap_value)]
-        elif axis == "y":
-            points = mesh.vertices[aap_operator(mesh.vertices[:, 1], aap_value)]
-        elif axis == "z":
-            points = mesh.vertices[aap_operator(mesh.vertices[:, 2], aap_value)]
+        self.axis = axis
+        self.value = value
+
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        super().extract_points(mesh)
+        if self.axis == "x":
+            points = self.mesh.vertices[
+                self.aap_operator(self.mesh.vertices[:, 0], self.value)
+            ]
+        elif self.axis == "y":
+            points = self.mesh.vertices[
+                self.aap_operator(self.mesh.vertices[:, 1], self.value)
+            ]
+        elif self.axis == "z":
+            points = self.mesh.vertices[
+                self.aap_operator(self.mesh.vertices[:, 2], self.value)
+            ]
         else:
             raise ValueError("Invalid axis for axis-aligned plane")
 
         return points
 
-    @staticmethod
-    def select_points_over_axis(
-        mesh: trimesh.Trimesh,
-        axis: str,
-        direction: str,
-        n: int,
-    ):
-        """Select Points Over Axis.
-        Select N points over an axis, either starting from the lower or higher end.
 
-        Args:
-            mesh: The mesh to extract the points from.
-            axis: The axis along which to remove points.
-            direction: The direction of the AAP.
-            n: The number of points to remove.
-
-        Returns:
-            The points of the mesh.
-        """
+class SelectPointsOverAxis(MeshMappingMethod):
+    def __init__(self, axis: str, direction: str, n: int):
         valid_dirs = ["higher", "lower"]
         if direction not in valid_dirs:
             raise ValueError(f"Invalid direction. Valid directions are {valid_dirs}")
-        arr = mesh.vertices
+        self.axis = axis
+        self.direction = direction
+        self.n = n
 
-        index = 0 if axis == "x" else 1 if axis == "y" else 2
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        super().extract_points(mesh)
+        arr = self.mesh.vertices
+
+        index = 0 if self.axis == "x" else 1 if self.axis == "y" else 2
         # Sort the array in ascending order
         sorted_arr = arr[arr[:, index].argsort()]
 
-        if direction == "lower":
+        if self.direction == "lower":
             # Select first N points
-            points = sorted_arr[:n]
-        elif direction == "higher":
+            points = sorted_arr[: self.n]
+        elif self.direction == "higher":
             # Select last N points
-            points = sorted_arr[-n:]
+            points = sorted_arr[-self.n :]
         else:
             raise ValueError(
-                f"Invalid direction {direction} for SelectPointsOverAxis method"
+                f"Invalid direction {self.direction} for SelectPointsOverAxis method"
             )
 
         return points
 
-    @staticmethod
-    def object_mapping(
-        mesh: trimesh.Trimesh,
-        object: trimesh.Trimesh,
-        method: str = "subtraction",
-        **kwargs,
+
+class ObjectMapping(MeshMappingMethod):
+    def __init__(
+        self, objs: Sequence[trimesh.Trimesh | dict], method: str = "subtract"
     ):
-        """Object Mapping.
-        Removes points from a mesh that are inside another object, using subtraction or intersection.
-        The method can be either "subtraction" or "intersection".
-        The object can be a mesh or a primitive.
+        valid_methods = ["subtract", "intersect"]
+        if method not in valid_methods:
+            raise ValueError(f"Invalid method {method} for object mapping")
+        self.method = method
 
-        Args:
-            mesh: The mesh to extract the points from.
-            object: The object to use for mapping.
-            method: The method to use for mapping.
-            **kwargs: Additional arguments for the method.
+        self.objs: List[trimesh.Trimesh] = []
+        for obj in objs:
+            self.objs.append(parse_object_mapping_object(obj))
 
-        Returns:
-            The points of the mesh.
-        """
-        if method == "subtraction":
-            x: trimesh.Trimesh = mesh.difference(object, **kwargs)
-            x.show()
-            points = x.vertices
-        elif method == "intersection":
-            points = mesh.intersection(object, **kwargs).vertices
+    def extract_points(self, mesh: trimesh.Trimesh) -> np.ndarray:
+        super().extract_points(mesh)
+        if self.method == "subtract":
+            for obj in self.objs:
+                mesh = mesh.difference(obj)
+        elif self.method == "intersect":
+            for obj in self.objs:
+                mesh = mesh.intersection(obj)
         else:
-            raise ValueError("Invalid method for object mapping")
-
-        return points
-
-    @staticmethod
-    def mesh_decimation(
-        mesh: trimesh.Trimesh,
-        method: str = "",
-        nsamples: int = -1,
-    ):
-        """Object decimation algorithm to reduce the number of vertices in a mesh, then extract points.
-
-        Args:
-            mesh: The mesh to extract the points from.
-            method: The method to use for decimation.
-            nsamples: The number of desired samples.
-
-        Returns:
-            The points of the mesh.
-        """
-
-        if method == "quadric":
-            mesh = mesh.simplify_quadric_decimation(nsamples // 3)
-        else:
-            raise ValueError("Invalid method for mesh decimation")
+            raise ValueError(f"Invalid method {self.method} for object mapping")
 
         return mesh.vertices

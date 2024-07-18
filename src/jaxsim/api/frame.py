@@ -335,8 +335,14 @@ def jacobian_derivative(
             W_H_FW = W_H_F.at[0:3, 0:3].set(jnp.zeros((3, 3)))
             FW_H_W = Transform.inverse(W_H_FW)
             FW_X_W = Adjoint.from_transform(transform=FW_H_W)
-            W_v_WF = W_J_WL_I @ data.generalized_velocity()
-            W_v_WFW = W_v_WF.at[3:6].set(jnp.zeros(3))
+            FW_J_WF_I = jacobian(
+                model=model,
+                data=data,
+                frame_index=frame_index,
+                output_vel_repr=VelRepr.Mixed,
+            )
+            FW_v_WF = FW_J_WF_I @ data.generalized_velocity()
+            W_v_WFW = jnp.zeros(6).at[0:3].set(FW_v_WF[0:3])
             W_vx_WFW = Cross.vx(W_v_WFW)
             O_J̇_WF_I = FW_X_W @ (W_J̇_WL_I - W_vx_WFW @ W_J_WL_I)
 

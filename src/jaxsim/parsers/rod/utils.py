@@ -212,7 +212,7 @@ def create_sphere_collision(
 def create_mesh_collision(
     collision: rod.Collision,
     link_description: descriptions.LinkDescription,
-    method: meshes.MeshMappingMethod = meshes.VertexExtraction(),
+    method: meshes.MeshMappingMethod = None,
 ) -> descriptions.MeshCollision:
 
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
@@ -228,11 +228,13 @@ def create_mesh_collision(
         f"===> Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
     )
 
-    # Extract the points from the mesh to use as colliders according to the provided method
-    if method is not None:
-        points = method(mesh=mesh)
+    if method is None:
+        method = meshes.VertexExtraction()
+        logging.debug("Using default Vertex Extraction method for mesh wrapping")
+    else:
+        logging.debug(f"Using {method.__class__.__name__} method for mesh wrapping")
 
-    points = mesh.vertices
+    points = method(mesh=mesh)
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
     # Extract translation from transformation matrix
     center_of_collision_wrt_link = H[:3, 3]

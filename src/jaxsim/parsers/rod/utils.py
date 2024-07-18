@@ -213,12 +213,6 @@ def create_mesh_collision(
     collision: rod.Collision,
     link_description: descriptions.LinkDescription,
     method: meshes.MeshMappingMethod = meshes.VertexExtraction(),
-    nsamples: int = 1000,
-    axis: str = "z",
-    direction: str = "lower",
-    operator: str = "<",
-    value: float = 0.0,
-    obj: trimesh.Trimesh | dict = None,
 ) -> descriptions.MeshCollision:
 
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))

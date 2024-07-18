@@ -231,6 +231,7 @@ def create_mesh_collision(
     nsamples: int = 1000,
     axis: str = "z",
     direction: str = "lower",
+    aap_operator: str = "<",
     aap_value: float = 0.0,
     object_mapping_object: trimesh.Trimesh | dict = None,
 ) -> descriptions.MeshCollision:
@@ -280,7 +281,7 @@ def create_mesh_collision(
             points = meshes.MeshMapping.aap(
                 mesh=mesh,
                 axis=axis,
-                direction=direction,
+                operator=aap_operator,
                 aap_value=aap_value,
             )
         case MeshMappingMethods.SelectPointsOverAxis:

@@ -4,6 +4,18 @@ JaxSim is a **differentiable physics engine** and **multibody dynamics library**
 
 Its design facilitates research and accelerates prototyping in the intersection of robotics and artificial intelligence.
 
+<div align="center">
+<br/>
+<table>
+  <tr>
+    <th><img src="https://github.com/user-attachments/assets/115b1c1c-6ae5-4c59-92e0-1be13ba954db" width="250"></th>
+    <th><img src="https://github.com/user-attachments/assets/f9661fae-9a85-41dd-9a58-218758ec8c9c" width="250"></th>
+    <th><img src="https://github.com/user-attachments/assets/ae8adadf-3bca-47b8-97ca-3a9273633d60" width="250"></th>
+  </tr>
+</table>
+<br/>
+</div>
+
 ## Features
 
 - Physics engine in reduced coordinates supporting fixed-base and floating-base robots.

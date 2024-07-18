@@ -274,25 +274,20 @@ def test_frame_jacobian_derivative(
     dJ_dq = jax.jacfwd(J, argnums=0)(q, frame_idxs)
     O_J̇_ad_WF_I = jnp.einsum("ijkq,q->ijk", dJ_dq, q̇)
 
-    assert O_J̇_ad_WF_I == pytest.approx(expected=O_J̇_WF_I)
+    assert O_J̇_WF_I == pytest.approx(expected=O_J̇_ad_WF_I)
 
     # =====================
     # Test against iDynTree
     # =====================
 
     # Compute the product J̇ν.
-    # O_a_bias_WF = jax.vmap(
-    #     lambda O_J̇_WF_I, I_ν: O_J̇_WF_I @ I_ν,
-    #     in_axes=(0, None),
-    # )(O_J̇_ad_WF_I, I_ν)
+    O_a_bias_WF = jax.vmap(
+        lambda O_J̇_WF_I, I_ν: O_J̇_WF_I @ I_ν,
+        in_axes=(0, None),
+    )(O_J̇_WF_I, I_ν)
 
-    # # Compare the two computations.
-    # for name, index in zip(
-    #     frame_names,
-    #     frame_idxs,
-    #     strict=True,
-    # ):
-    #     J̇ν_idt = kin_dyn.frame_bias_acc(frame_name=name)
-    #     print(f"{name=}, {index=}, {O_a_bias_WF[index].shape=}")
-    #     J̇ν_js = O_a_bias_WF[index]
-    #     assert pytest.approx(J̇ν_idt) == J̇ν_js
+    # Compare the two computations.
+    for index, name in enumerate(frame_names):
+        J̇ν_idt = kin_dyn.frame_bias_acc(frame_name=name)
+        J̇ν_js = O_a_bias_WF[index]
+        assert J̇ν_js == pytest.approx(J̇ν_idt, abs=1e-9)

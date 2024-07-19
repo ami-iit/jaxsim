@@ -376,7 +376,6 @@ def jacobian_derivative(
         case VelRepr.Inertial:
             O_X_W = W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
             O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))
-            # O_J̇_WF_I = W_J̇_WL_I
             O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))
             O_J̇_WF_I += O_Ẋ_W @ W_J_WL_W @ T
             O_J̇_WF_I += O_X_W @ W_J̇_WL_W @ T
@@ -391,7 +390,6 @@ def jacobian_derivative(
             W_v_WF = W_J_WL_W @ W_nu
             W_vx_WF = Cross.vx(W_v_WF)
             O_Ẋ_W = F_Ẋ_W = -F_X_W @ W_vx_WF
-            # O_J̇_WF_I = F_X_W @ (W_J̇_WL_I - W_vx_WF @ W_J_WL_I)
             O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))
             O_J̇_WF_I += O_Ẋ_W @ W_J_WL_W @ T
             O_J̇_WF_I += O_X_W @ W_J̇_WL_W @ T
@@ -411,10 +409,7 @@ def jacobian_derivative(
                 )
                 FW_v_WF = FW_J_WF_FW @ data.generalized_velocity()
             W_v_W_FW = jnp.zeros(6).at[0:3].set(FW_v_WF[0:3])
-
             W_vx_W_FW = Cross.vx(W_v_W_FW)
-
-            # O_J̇_WF_I = FW_X_W @ (W_J̇_WL_I - W_vx_WFW @ W_J_WL_I)
             O_Ẋ_W = FW_Ẋ_W = -FW_X_W @ W_vx_W_FW
 
             O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))

@@ -213,7 +213,6 @@ def test_frame_jacobian_derivative(
     )(frame_idxs)
 
     assert O_J̇_WF_I.shape == (len(frame_names), 6, 6 + model.dofs())
-    print(f"{frame_names=}")
 
     # Compute O_J̇_WF_I using AD
 

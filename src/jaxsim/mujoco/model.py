@@ -238,9 +238,9 @@ class MujocoModelHelper:
             raise ValueError("The orientation is not a valid element of SO(3)")
 
         W_Q_B = (
-            Rotation.from_matrix(orientation).as_quat(canonical=True)[
-                np.array([3, 0, 1, 2])
-            ]
+            Rotation.from_matrix(orientation).as_quat(
+                canonical=True, scalar_first=False
+            )
             if dcm
             else orientation
         )
@@ -394,8 +394,8 @@ class MujocoModelHelper:
         if dcm:
             return R
 
-        q_xyzw = Rotation.from_matrix(R).as_quat(canonical=True)
-        return q_xyzw[[3, 0, 1, 2]]
+        q_xyzw = Rotation.from_matrix(R).as_quat(canonical=True, scalar_first=False)
+        return q_xyzw
 
     # ===============
     # Private methods

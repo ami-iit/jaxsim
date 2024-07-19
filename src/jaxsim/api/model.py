@@ -301,10 +301,10 @@ class JaxSimModel(JaxsimDataclass):
 
     def frame_names(self) -> tuple[str, ...]:
         """
-        Return the names of the links in the model.
+        Return the names of the frames in the model.
 
         Returns:
-            The names of the links in the model.
+            The names of the frames in the model.
         """
 
         return self.kin_dyn_parameters.frame_parameters.name

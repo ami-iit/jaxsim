@@ -11,6 +11,7 @@ from . import utils_idyntree
 
 
 def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
+
     model = jaxsim_models_types
 
     # =====
@@ -71,6 +72,7 @@ def test_frame_transforms(
     jaxsim_models_types: js.model.JaxSimModel,
     prng_key: jax.Array,
 ):
+
     model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
@@ -110,6 +112,7 @@ def test_frame_transforms(
     assert len(frame_indices) == len(frame_names)
 
     for frame_name in frame_names:
+
         W_H_F_js = js.frame.transform(
             model=model,
             data=data,
@@ -124,6 +127,7 @@ def test_frame_jacobians(
     velocity_representation: VelRepr,
     prng_key: jax.Array,
 ):
+
     model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
@@ -161,6 +165,7 @@ def test_frame_jacobians(
     assert len(frame_indices) == len(frame_names)
 
     for frame_name, frame_index in zip(frame_names, frame_indices, strict=True):
+
         J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_index)
         J_WL_idt = kin_dyn.jacobian_frame(frame_name=frame_name)
         assert J_WL_js == pytest.approx(J_WL_idt, abs=1e-9)
@@ -213,8 +218,6 @@ def test_frame_jacobian_derivative(
     )(frame_idxs)
 
     assert O_J̇_WF_I.shape == (len(frame_names), 6, 6 + model.dofs())
-
-    # Compute O_J̇_WF_I using AD
 
     # Compute the plain Jacobian.
     # This function will be used to compute the Jacobian derivative with AD.

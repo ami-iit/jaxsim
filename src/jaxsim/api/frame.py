@@ -376,24 +376,15 @@ def jacobian_derivative(
         case VelRepr.Inertial:
             O_X_W = W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
             O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))
-            O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))
-            O_J̇_WF_I += O_Ẋ_W @ W_J_WL_W @ T
-            O_J̇_WF_I += O_X_W @ W_J̇_WL_W @ T
-            O_J̇_WF_I += O_X_W @ W_J_WL_W @ Ṫ
 
         case VelRepr.Body:
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            F_H_W = Transform.inverse(W_H_F)
-            O_X_W = F_X_W = Adjoint.from_transform(transform=F_H_W)
+            O_X_W = F_X_W = Adjoint.from_transform(transform=W_H_F, inverse=True)
             with data.switch_velocity_representation(VelRepr.Inertial):
                 W_nu = data.generalized_velocity()
             W_v_WF = W_J_WL_W @ W_nu
             W_vx_WF = Cross.vx(W_v_WF)
             O_Ẋ_W = F_Ẋ_W = -F_X_W @ W_vx_WF
-            O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))
-            O_J̇_WF_I += O_Ẋ_W @ W_J_WL_W @ T
-            O_J̇_WF_I += O_X_W @ W_J̇_WL_W @ T
-            O_J̇_WF_I += O_X_W @ W_J_WL_W @ Ṫ
 
         case VelRepr.Mixed:
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
@@ -412,12 +403,12 @@ def jacobian_derivative(
             W_vx_W_FW = Cross.vx(W_v_W_FW)
             O_Ẋ_W = FW_Ẋ_W = -FW_X_W @ W_vx_W_FW
 
-            O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))
-            O_J̇_WF_I += O_Ẋ_W @ W_J_WL_W @ T
-            O_J̇_WF_I += O_X_W @ W_J̇_WL_W @ T
-            O_J̇_WF_I += O_X_W @ W_J_WL_W @ Ṫ
-
         case _:
             raise ValueError(output_vel_repr)
+
+    O_J̇_WF_I = jnp.zeros(shape=(6, 6 + model.dofs()))
+    O_J̇_WF_I += O_Ẋ_W @ W_J_WL_W @ T
+    O_J̇_WF_I += O_X_W @ W_J̇_WL_W @ T
+    O_J̇_WF_I += O_X_W @ W_J_WL_W @ Ṫ
 
     return O_J̇_WF_I

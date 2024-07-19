@@ -399,7 +399,7 @@ def jacobian_derivative(
 
         case VelRepr.Mixed:
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
-            W_H_FW = W_H_F.at[0:3, 0:3].set(jnp.zeros((3, 3)))
+            W_H_FW = W_H_F.at[0:3, 0:3].set(jnp.eye(3))
             FW_H_W = Transform.inverse(W_H_FW)
             O_X_W = FW_X_W = Adjoint.from_transform(transform=FW_H_W)
             with data.switch_velocity_representation(VelRepr.Mixed):

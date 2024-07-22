@@ -38,7 +38,8 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         Args:
             model: The model for which to create the zero references.
-            data: The data of the model, only needed if the velocity representation is
+            data:
+                The data of the model, only needed if the velocity representation is
                 not inertial-fixed.
             velocity_representation: The velocity representation to use.
 

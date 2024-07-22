@@ -501,26 +501,26 @@ def jacobian_derivative(
     # Compute quantities to adjust the output representation
     # =====================================================
 
+    with data.switch_velocity_representation(VelRepr.Inertial):
+        # Compute the Jacobian of the parent link in inertial representation.
+        W_J_WL_W = js.model.generalized_free_floating_jacobian(
+            model=model,
+            data=data,
+            output_vel_repr=VelRepr.Inertial,
+        )
+        # Compute the Jacobian derivative of the parent link in inertial representation.
+        W_J̇_WL_W = js.model.generalized_free_floating_jacobian_derivative(
+            model=model,
+            data=data,
+            output_vel_repr=VelRepr.Inertial,
+        )
+
     def compute_O_J̇_WC_I(
         L_p_C: jtp.Vector,
-        parent_link_idx: jtp.Int,
         contact_idx: jtp.Int,
     ) -> jtp.Matrix:
-        with data.switch_velocity_representation(VelRepr.Inertial):
-            # Compute the Jacobian of the parent link in inertial representation.
-            W_J_WL_W = js.link.jacobian(
-                model=model,
-                data=data,
-                link_index=parent_link_idx,
-                output_vel_repr=VelRepr.Inertial,
-            )
-            # Compute the Jacobian derivative of the parent link in inertial representation.
-            W_J̇_WL_W = js.link.jacobian_derivative(
-                model=model,
-                data=data,
-                link_index=parent_link_idx,
-                output_vel_repr=VelRepr.Inertial,
-            )
+
+        parent_link_idx = parent_link_idxs[contact_idx]
 
         match output_vel_repr:
             case VelRepr.Inertial:
@@ -536,7 +536,7 @@ def jacobian_derivative(
                 O_X_W = C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
                 with data.switch_velocity_representation(VelRepr.Inertial):
                     W_nu = data.generalized_velocity()
-                W_v_WC = W_J_WL_W @ W_nu
+                W_v_WC = W_J_WL_W[parent_link_idx] @ W_nu
                 W_vx_WC = Cross.vx(W_v_WC)
                 O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC
 
@@ -564,12 +564,12 @@ def jacobian_derivative(
                 raise ValueError(output_vel_repr)
 
         O_J̇_WC_I = jnp.zeros(shape=(6, 6 + model.dofs()))
-        O_J̇_WC_I += O_Ẋ_W @ W_J_WL_W @ T
-        O_J̇_WC_I += O_X_W @ W_J̇_WL_W @ T
-        O_J̇_WC_I += O_X_W @ W_J_WL_W @ Ṫ
+        O_J̇_WC_I += O_Ẋ_W @ W_J_WL_W[parent_link_idx] @ T
+        O_J̇_WC_I += O_X_W @ W_J̇_WL_W[parent_link_idx] @ T
+        O_J̇_WC_I += O_X_W @ W_J_WL_W[parent_link_idx] @ Ṫ
 
         return O_J̇_WC_I
 
-    O_J̇_WC = jax.vmap(compute_O_J̇_WC_I)(L_p_Ci, parent_link_idxs, contact_idxs)
+    O_J̇_WC = jax.vmap(compute_O_J̇_WC_I)(L_p_Ci, contact_idxs)
 
     return O_J̇_WC

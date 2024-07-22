@@ -4,7 +4,7 @@ import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Cross, Quaternion, StandardGravity
+from jaxsim.math import Adjoint, Cross, StandardGravity
 
 from . import utils
 
@@ -77,7 +77,7 @@ def aba(
 
     # Compute the base transform.
     W_H_B = jaxlie.SE3.from_rotation_and_translation(
-        rotation=jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(wxyz=W_Q_B)),
+        rotation=jaxlie.SO3(wxyz=W_Q_B),
         translation=W_p_B,
     )
 

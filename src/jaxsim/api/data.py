@@ -12,7 +12,6 @@ import jaxlie
 import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.math import Quaternion
 from jaxsim.rbda.contacts.soft import SoftContacts
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
@@ -191,9 +190,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         W_H_B = jaxlie.SE3.from_rotation_and_translation(
             translation=base_position,
-            rotation=jaxlie.SO3.from_quaternion_xyzw(
-                base_quaternion[jnp.array([1, 2, 3, 0])]
-            ),
+            rotation=jaxlie.SO3(wxyz=base_quaternion),
         ).as_matrix()
 
         v_WB = JaxSimModelData.other_representation_to_inertial(
@@ -380,13 +377,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             on_false=W_Q_B / jnp.linalg.norm(W_Q_B),
         )
 
-        return (
-            W_Q_B
-            if not dcm
-            else jaxlie.SO3.from_quaternion_xyzw(
-                Quaternion.to_xyzw(wxyz=W_Q_B)
-            ).as_matrix()
-        ).astype(float)
+        return (W_Q_B if not dcm else jaxlie.SO3(wxyz=W_Q_B).as_matrix()).astype(float)
 
     @jax.jit
     def base_transform(self) -> jtp.Matrix:

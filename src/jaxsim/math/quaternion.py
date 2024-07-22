@@ -43,9 +43,7 @@ class Quaternion:
         Returns:
             jtp.Matrix: Direction cosine matrix (DCM).
         """
-        return jaxlie.SO3.from_quaternion_xyzw(
-            xyzw=Quaternion.to_xyzw(quaternion)
-        ).as_matrix()
+        return jaxlie.SO3(wxyz=quaternion).as_matrix()
 
     @staticmethod
     def from_dcm(dcm: jtp.Matrix) -> jtp.Vector:
@@ -158,7 +156,7 @@ class Quaternion:
         A_Q_B = jnp.array(quaternion).squeeze().astype(float)
 
         # Build the initial SO(3) quaternion.
-        W_Q_B_t0 = jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(wxyz=A_Q_B))
+        W_Q_B_t0 = jaxlie.SO3(wxyz=A_Q_B)
 
         # Integrate the quaternion on the manifold.
         W_Q_B_tf = jax.lax.select(

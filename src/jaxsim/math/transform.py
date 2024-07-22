@@ -3,8 +3,6 @@ import jaxlie
 
 import jaxsim.typing as jtp
 
-from .quaternion import Quaternion
-
 
 class Transform:
 
@@ -35,7 +33,7 @@ class Transform:
         assert W_p_B.size == 3
         assert W_Q_B.size == 4
 
-        A_R_B = jaxlie.SO3.from_quaternion_xyzw(xyzw=Quaternion.to_xyzw(W_Q_B))
+        A_R_B = jaxlie.SO3(wxyz=W_Q_B)
         A_R_B = A_R_B if not normalize_quaternion else A_R_B.normalize()
 
         A_H_B = jaxlie.SE3.from_rotation_and_translation(

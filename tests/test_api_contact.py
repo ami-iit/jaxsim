@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
+import rod
 
 import jaxsim.api as js
 from jaxsim import VelRepr
@@ -56,3 +57,91 @@ def test_contact_kinematics(
 
     # Compare the two velocities.
     assert W_ṗ_C == pytest.approx(CW_vl_WC)
+
+
+def test_contact_jacobian_derivative(
+    jaxsim_models_floating_base: js.model.JaxSimModel,
+    velocity_representation: VelRepr,
+    prng_key: jax.Array,
+):
+
+    model = jaxsim_models_floating_base
+
+    _, subkey = jax.random.split(prng_key, num=2)
+    data = js.data.random_model_data(
+        model=model,
+        key=subkey,
+        velocity_representation=velocity_representation,
+    )
+
+    # =====
+    # Tests
+    # =====
+
+    # Extract the parent link names and the poses of the contact points.
+    parent_link_names = js.link.idxs_to_names(
+        model=model, link_indices=model.kin_dyn_parameters.contact_parameters.body
+    )
+    W_p_Ci = model.kin_dyn_parameters.contact_parameters.point
+
+    # Load the model in ROD.
+    rod_model = rod.Sdf.load(sdf=model.built_from, is_urdf=True).model
+
+    # Add dummy frames on the contact points.
+    for idx, (link_name, W_p_C) in enumerate(
+        zip(parent_link_names, W_p_Ci, strict=True)
+    ):
+        rod_model.add_frame(
+            frame=rod.Frame(
+                name=f"contact_point_{idx}",
+                attached_to=link_name,
+                pose=rod.Pose(
+                    relative_to=link_name, pose=jnp.zeros(shape=(6,)).at[0:3].set(W_p_C)
+                ),
+            ),
+        )
+
+    # Rebuild the JaxSim model.
+    model_with_frames = js.model.JaxSimModel.build_from_model_description(
+        model_description=rod_model
+    )
+    model_with_frames = js.model.reduce(
+        model=model_with_frames, considered_joints=model.joint_names()
+    )
+
+    # Rebuild the JaxSim data.
+    data_with_frames = js.data.JaxSimModelData.build(
+        model=model_with_frames,
+        base_position=data.base_position(),
+        base_quaternion=data.base_orientation(dcm=False),
+        joint_positions=data.joint_positions(),
+        base_linear_velocity=data.base_velocity()[0:3],
+        base_angular_velocity=data.base_velocity()[3:6],
+        joint_velocities=data.joint_velocities(),
+        velocity_representation=velocity_representation,
+    )
+
+    # Extract the indexes of the frames attached to the contact points.
+    frame_idxs = js.frame.names_to_idxs(
+        model=model_with_frames,
+        frame_names=(
+            f"contact_point_{idx}" for idx in list(range(len(parent_link_names)))
+        ),
+    )
+
+    # Check that the number of frames is correct.
+    assert len(frame_idxs) == len(parent_link_names)
+
+    # Compute the contact Jacobian derivative.
+    J̇_WC = js.contact.jacobian_derivative(
+        model=model_with_frames, data=data_with_frames
+    )
+
+    # Compute the contact Jacobian derivative using frames.
+    J̇_WF = jax.vmap(
+        js.frame.jacobian_derivative,
+        in_axes=(None, None),
+    )(model_with_frames, data, frame_index=frame_idxs)
+
+    # Compare the two Jacobians.
+    assert J̇_WC == pytest.approx(J̇_WF)

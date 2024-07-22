@@ -576,6 +576,41 @@ def generalized_free_floating_jacobian(
     return O_J_WL_I
 
 
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def generalized_free_floating_jacobian_derivative(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Matrix:
+    """
+    Compute the free-floating jacobian derivatives of all links.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        output_vel_repr:
+            The output velocity representation of the free-floating jacobian derivatives.
+
+    Returns:
+        The `(nL, 6, 6+dofs)` array containing the stacked free-floating
+        jacobian derivatives of the links. The first axis is the link index.
+    """
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    O_J̇_WL_I = jax.vmap(
+        lambda model, data, link_idxs, output_vel_repr: js.link.jacobian_derivative(
+            model, data, link_index=link_idxs, output_vel_repr=output_vel_repr
+        ),
+        in_axes=(None, None, 0, None),
+    )(model, data, jnp.arange(model.number_of_links()), output_vel_repr)
+
+    return O_J̇_WL_I
+
+
 @functools.partial(jax.jit, static_argnames=["prefer_aba"])
 def forward_dynamics(
     model: JaxSimModel,

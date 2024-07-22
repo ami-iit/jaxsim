@@ -82,19 +82,21 @@ def test_contact_jacobian_derivative(
     parent_link_names = js.link.idxs_to_names(
         model=model, link_indices=model.kin_dyn_parameters.contact_parameters.body
     )
-    poses = model.kin_dyn_parameters.contact_parameters.point
+    W_p_Ci = model.kin_dyn_parameters.contact_parameters.point
 
     # Load the model in ROD.
     rod_model = rod.Sdf.load(sdf=model.built_from, is_urdf=True).model
 
     # Add dummy frames on the contact points.
-    for idx, (link_name, pose) in enumerate(zip(parent_link_names, poses, strict=True)):
+    for idx, (link_name, W_p_C) in enumerate(
+        zip(parent_link_names, W_p_Ci, strict=True)
+    ):
         rod_model.add_frame(
             frame=rod.Frame(
                 name=f"contact_point_{idx}",
                 attached_to=link_name,
                 pose=rod.Pose(
-                    relative_to=link_name, pose=jnp.zeros(shape=(6,)).at[0:3].set(pose)
+                    relative_to=link_name, pose=jnp.zeros(shape=(6,)).at[0:3].set(W_p_C)
                 ),
             ),
         )
@@ -113,8 +115,8 @@ def test_contact_jacobian_derivative(
         base_position=data.base_position(),
         base_quaternion=data.base_orientation(dcm=False),
         joint_positions=data.joint_positions(),
-        base_linear_velocity=data.state.physics_model.base_linear_velocity,
-        base_angular_velocity=data.state.physics_model.base_angular_velocity,
+        base_linear_velocity=data.base_velocity()[0:3],
+        base_angular_velocity=data.base_velocity()[3:6],
         joint_velocities=data.joint_velocities(),
         velocity_representation=velocity_representation,
     )
@@ -131,15 +133,15 @@ def test_contact_jacobian_derivative(
     assert len(frame_idxs) == len(parent_link_names)
 
     # Compute the contact Jacobian derivative.
-    CW_J̇_WC = js.contact.jacobian_derivative(
+    J̇_WC = js.contact.jacobian_derivative(
         model=model_with_frames, data=data_with_frames
     )
 
     # Compute the contact Jacobian derivative using frames.
-    FW_J̇_WF = jax.vmap(
+    J̇_WF = jax.vmap(
         js.frame.jacobian_derivative,
         in_axes=(None, None),
     )(model_with_frames, data, frame_index=frame_idxs)
 
     # Compare the two Jacobians.
-    assert CW_J̇_WC == pytest.approx(FW_J̇_WF)
+    assert J̇_WC == pytest.approx(J̇_WF)

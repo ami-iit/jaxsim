@@ -79,11 +79,9 @@ class Rotation:
 
             return R.transpose()
 
-        return jaxlie.SO3.from_matrix(
-            jax.lax.cond(
-                pred=(theta == 0.0),
-                true_fun=lambda operand: jnp.eye(3),
-                false_fun=theta_is_not_zero,
-                operand=(theta, vector),
-            )
+        return jax.lax.cond(
+            pred=(theta == 0.0),
+            true_fun=lambda operand: jnp.eye(3),
+            false_fun=theta_is_not_zero,
+            operand=(theta, vector),
         )

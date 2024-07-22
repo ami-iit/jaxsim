@@ -450,14 +450,6 @@ def jacobian_derivative(
     # Get the transforms of all the parent links.
     W_H_Li = js.model.forward_kinematics(model=model, data=data)
 
-    # Get the Jacobian of the collidable points in the mixed representation.
-    with data.switch_velocity_representation(VelRepr.Mixed):
-        CW_J_WC_CWi = jacobian(
-            model=model,
-            data=data,
-            output_vel_repr=VelRepr.Mixed,
-        )
-
     # =====================================================
     # Compute quantities to adjust the input representation
     # =====================================================
@@ -526,10 +518,18 @@ def jacobian_derivative(
             output_vel_repr=VelRepr.Inertial,
         )
 
+    # Get the Jacobian of the collidable points in the mixed representation.
+    with data.switch_velocity_representation(VelRepr.Mixed):
+        CW_J_WC_BW = jacobian(
+            model=model,
+            data=data,
+            output_vel_repr=VelRepr.Mixed,
+        )
+
     def compute_O_J̇_WC_I(
         L_p_C: jtp.Vector,
         contact_idx: jtp.Int,
-        CW_J_WC_CW: jtp.Matrix,
+        CW_J_WC_BW: jtp.Matrix,
         W_H_L: jtp.Matrix,
     ) -> jtp.Matrix:
 
@@ -557,7 +557,7 @@ def jacobian_derivative(
                 CW_H_W = Transform.inverse(W_H_CW)
                 O_X_W = CW_X_W = Adjoint.from_transform(transform=CW_H_W)
                 with data.switch_velocity_representation(VelRepr.Mixed):
-                    CW_v_WC = CW_J_WC_CW @ data.generalized_velocity()
+                    CW_v_WC = CW_J_WC_BW @ data.generalized_velocity()
                 W_v_W_CW = jnp.zeros(6).at[0:3].set(CW_v_WC[0:3])
                 W_vx_W_CW = Cross.vx(W_v_W_CW)
                 O_Ẋ_W = CW_Ẋ_W = -CW_X_W @ W_vx_W_CW
@@ -573,7 +573,7 @@ def jacobian_derivative(
         return O_J̇_WC_I
 
     O_J̇_WC = jax.vmap(compute_O_J̇_WC_I, in_axes=(0, 0, 0, None))(
-        L_p_Ci, contact_idxs, CW_J_WC_CWi, W_H_Li
+        L_p_Ci, contact_idxs, CW_J_WC_BW, W_H_Li
     )
 
     return O_J̇_WC

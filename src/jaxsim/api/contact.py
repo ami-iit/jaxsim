@@ -447,6 +447,9 @@ def jacobian_derivative(
     L_p_Ci = jnp.array(model.kin_dyn_parameters.contact_parameters.point)
     contact_idxs = jnp.arange(L_p_Ci.shape[0])
 
+    # Get the transforms of all the parent links.
+    W_H_Li = js.model.forward_kinematics(model=model, data=data)
+
     # =====================================================
     # Compute quantities to adjust the input representation
     # =====================================================
@@ -518,6 +521,7 @@ def jacobian_derivative(
     def compute_O_J̇_WC_I(
         L_p_C: jtp.Vector,
         contact_idx: jtp.Int,
+        W_H_L: jtp.Matrix,
     ) -> jtp.Matrix:
 
         parent_link_idx = parent_link_idxs[contact_idx]
@@ -528,11 +532,8 @@ def jacobian_derivative(
                 O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))
 
             case VelRepr.Body:
-                W_H_L = js.link.transform(
-                    model=model, data=data, link_index=parent_link_idx
-                )
                 L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
-                W_H_C = W_H_L @ L_H_C
+                W_H_C = W_H_L[parent_link_idx] @ L_H_C
                 O_X_W = C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
                 with data.switch_velocity_representation(VelRepr.Inertial):
                     W_nu = data.generalized_velocity()
@@ -541,11 +542,8 @@ def jacobian_derivative(
                 O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC
 
             case VelRepr.Mixed:
-                W_H_L = js.link.transform(
-                    model=model, data=data, link_index=parent_link_idx
-                )
                 L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
-                W_H_C = W_H_L @ L_H_C
+                W_H_C = W_H_L[parent_link_idx] @ L_H_C
                 W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
                 CW_H_W = Transform.inverse(W_H_CW)
                 O_X_W = CW_X_W = Adjoint.from_transform(transform=CW_H_W)
@@ -570,6 +568,8 @@ def jacobian_derivative(
 
         return O_J̇_WC_I
 
-    O_J̇_WC = jax.vmap(compute_O_J̇_WC_I)(L_p_Ci, contact_idxs)
+    O_J̇_WC = jax.vmap(compute_O_J̇_WC_I, in_axes=(0, 0, None))(
+        L_p_Ci, contact_idxs, W_H_Li
+    )
 
     return O_J̇_WC

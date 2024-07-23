@@ -30,6 +30,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     @staticmethod
     def zero(
         model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
     ) -> JaxSimModelReferences:
         """
@@ -37,6 +38,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         Args:
             model: The model for which to create the zero references.
+            data:
+                The data of the model, only needed if the velocity representation is
+                not inertial-fixed.
             velocity_representation: The velocity representation to use.
 
         Returns:
@@ -44,7 +48,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         """
 
         return JaxSimModelReferences.build(
-            model=model, velocity_representation=velocity_representation
+            model=model, data=data, velocity_representation=velocity_representation
         )
 
     @staticmethod

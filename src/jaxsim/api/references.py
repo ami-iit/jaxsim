@@ -8,6 +8,7 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import exceptions
 from jaxsim.math import Adjoint
 from jaxsim.utils.tracing import not_tracing
 
@@ -496,9 +497,10 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             model=model, frame_idxs=frame_idxs
         )
 
-        if not_tracing(forces) and not data.valid(model=model):
-            raise ValueError("The provided data is not valid for the model")
-
+        exceptions.raise_value_error_if(
+            condition=not_tracing(forces) and not data.valid(model=model),
+            msg="The provided data is not valid for the model",
+        )
         W_H_Fi = jax.vmap(
             lambda frame_idx: js.frame.transform(
                 model=model, data=data, frame_index=frame_idx
@@ -507,9 +509,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # Helper function to convert a single 6D force to the inertial representation
         # considering as body the frame (i.e. L_f_F and LW_f_F).
-        def to_inertial(
-            f_F: jtp.MatrixLike, W_H_F: jtp.MatrixLike, frame_idx: jtp.ArrayLike
-        ) -> jtp.Matrix:
+        def to_inertial(f_F: jtp.MatrixLike, W_H_F: jtp.MatrixLike) -> jtp.Matrix:
             return JaxSimModelReferences.other_representation_to_inertial(
                 array=f_F,
                 other_representation=self.velocity_representation,
@@ -527,17 +527,14 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             case _:
                 raise ValueError("Invalid velocity representation.")
 
+        W_H_L = js.model.forward_kinematics(model=model, data=data)
+
         def convert_to_link_force(
             W_f_F: jtp.MatrixLike, W_H_F: jtp.MatrixLike, parent_link_idx: jtp.ArrayLike
         ) -> jtp.Matrix:
-            W_H_L = js.link.transform(
-                model=model, data=data, link_index=parent_link_idx
-            )
+            L_Xf_W = Adjoint.from_transform(W_H_L[parent_link_idx]).T
 
-            F_H_L = js.transform.inverse(W_H_F) @ W_H_L
-            F_X_L = Adjoint.from_transform(transform=F_H_L, inverse=True)
-
-            return F_X_L @ W_f_F
+            return L_Xf_W @ W_f_F
 
         W_f_L_i = jax.vmap(convert_to_link_force)(W_f_F, W_H_Fi, parent_link_idxs)
 
@@ -545,12 +542,15 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         mask = parent_link_idxs[:, jnp.newaxis] == jnp.arange(model.number_of_links())
         W_f_L = mask.T @ W_f_L_i
 
-        return self.apply_link_forces(
-            model=model,
-            data=data,
-            link_names=js.link.idxs_to_names(
-                model=model, link_indices=parent_link_idxs
-            ),
-            forces=W_f_L,
-            additive=additive,
-        )
+        with self.switch_velocity_representation(
+            velocity_representation=VelRepr.Inertial
+        ):
+            return self.apply_link_forces(
+                model=model,
+                data=data,
+                link_names=js.link.idxs_to_names(
+                    model=model, link_indices=parent_link_idxs
+                ),
+                forces=W_f_L,
+                additive=additive,
+            )

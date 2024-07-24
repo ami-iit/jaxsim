@@ -498,7 +498,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         )
 
         exceptions.raise_value_error_if(
-            condition=not_tracing(forces) and not data.valid(model=model),
+            condition=jnp.logical_not(data.valid(model=model)),
             msg="The provided data is not valid for the model",
         )
         W_H_Fi = jax.vmap(

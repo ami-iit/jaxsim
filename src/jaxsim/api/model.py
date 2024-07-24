@@ -495,8 +495,9 @@ def generalized_free_floating_jacobian(
             W_H_B = data.base_transform()
             B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
 
-            B_J_full_WX_I = B_J_full_WX_W = B_J_full_WX_B @ jax.scipy.linalg.block_diag(
-                B_X_W, jnp.eye(model.dofs())
+            B_J_full_WX_I = B_J_full_WX_W = (  # noqa: F841
+                B_J_full_WX_B
+                @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
             )
 
         case VelRepr.Body:
@@ -509,7 +510,7 @@ def generalized_free_floating_jacobian(
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
-            B_J_full_WX_I = B_J_full_WX_BW = (
+            B_J_full_WX_I = B_J_full_WX_BW = (  # noqa: F841
                 B_J_full_WX_B
                 @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
             )
@@ -542,11 +543,13 @@ def generalized_free_floating_jacobian(
             W_H_B = data.base_transform()
             W_X_B = jaxsim.math.Adjoint.from_transform(W_H_B)
 
-            O_J_WL_I = W_J_WL_I = jax.vmap(lambda B_J_WL_I: W_X_B @ B_J_WL_I)(B_J_WL_I)
+            O_J_WL_I = W_J_WL_I = jax.vmap(  # noqa: F841
+                lambda B_J_WL_I: W_X_B @ B_J_WL_I
+            )(B_J_WL_I)
 
         case VelRepr.Body:
 
-            O_J_WL_I = L_J_WL_I = jax.vmap(
+            O_J_WL_I = L_J_WL_I = jax.vmap(  # noqa: F841
                 lambda B_H_L, B_J_WL_I: jaxsim.math.Adjoint.from_transform(
                     B_H_L, inverse=True
                 )
@@ -565,7 +568,7 @@ def generalized_free_floating_jacobian(
                 lambda LW_H_L, B_H_L: LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
             )(LW_H_L, B_H_L)
 
-            O_J_WL_I = LW_J_WL_I = jax.vmap(
+            O_J_WL_I = LW_J_WL_I = jax.vmap(  # noqa: F841
                 lambda LW_H_B, B_J_WL_I: jaxsim.math.Adjoint.from_transform(LW_H_B)
                 @ B_J_WL_I
             )(LW_H_B, B_J_WL_I)
@@ -756,8 +759,8 @@ def forward_dynamics_aba(
     match data.velocity_representation:
         case VelRepr.Inertial:
             # In this case C=W
-            W_H_C = W_H_W = jnp.eye(4)
-            W_v_WC = W_v_WW = jnp.zeros(6)
+            W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
+            W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
 
         case VelRepr.Body:
             # In this case C=B
@@ -767,9 +770,9 @@ def forward_dynamics_aba(
         case VelRepr.Mixed:
             # In this case C=B[W]
             W_H_B = data.base_transform()
-            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))  # noqa: F841
             W_ṗ_B = data.base_velocity()[0:3]
-            W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+            W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
 
         case _:
             raise ValueError(data.velocity_representation)
@@ -1124,8 +1127,8 @@ def inverse_dynamics(
 
     match data.velocity_representation:
         case VelRepr.Inertial:
-            W_H_C = W_H_W = jnp.eye(4)
-            W_v_WC = W_v_WW = jnp.zeros(6)
+            W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
+            W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
 
         case VelRepr.Body:
             W_H_C = W_H_B = data.base_transform()
@@ -1134,9 +1137,9 @@ def inverse_dynamics(
 
         case VelRepr.Mixed:
             W_H_B = data.base_transform()
-            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+            W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))  # noqa: F841
             W_ṗ_B = data.base_velocity()[0:3]
-            W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+            W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
 
         case _:
             raise ValueError(data.velocity_representation)
@@ -1571,15 +1574,15 @@ def link_bias_accelerations(
     # a simple C_X_W 6D transform.
     match data.velocity_representation:
         case VelRepr.Inertial:
-            W_H_C = W_H_W = jnp.eye(4)
-            W_v_WC = W_v_WW = jnp.zeros(6)
+            W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
+            W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
             with data.switch_velocity_representation(VelRepr.Inertial):
                 C_v_WB = W_v_WB = data.base_velocity()
 
         case VelRepr.Body:
             W_H_C = W_H_B
             with data.switch_velocity_representation(VelRepr.Inertial):
-                W_v_WC = W_v_WB = data.base_velocity()
+                W_v_WC = W_v_WB = data.base_velocity()  # noqa: F841
             with data.switch_velocity_representation(VelRepr.Body):
                 C_v_WB = B_v_WB = data.base_velocity()
 
@@ -1590,9 +1593,9 @@ def link_bias_accelerations(
                 W_ṗ_B = data.base_velocity()[0:3]
                 BW_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
                 W_X_BW = jaxsim.math.Adjoint.from_transform(transform=W_H_BW)
-                W_v_WC = W_v_W_BW = W_X_BW @ BW_v_W_BW
+                W_v_WC = W_v_W_BW = W_X_BW @ BW_v_W_BW  # noqa: F841
             with data.switch_velocity_representation(VelRepr.Mixed):
-                C_v_WB = BW_v_WB = data.base_velocity()
+                C_v_WB = BW_v_WB = data.base_velocity()  # noqa: F841
 
         case _:
             raise ValueError(data.velocity_representation)
@@ -1700,8 +1703,12 @@ def link_bias_accelerations(
 
     match data.velocity_representation:
         case VelRepr.Body:
-            C_H_L = L_H_L = jnp.stack([jnp.eye(4)] * model.number_of_links())
-            L_v_CL = L_v_LL = jnp.zeros(shape=(model.number_of_links(), 6))
+            C_H_L = L_H_L = jnp.stack(  # noqa: F841
+                [jnp.eye(4)] * model.number_of_links()
+            )
+            L_v_CL = L_v_LL = jnp.zeros(  # noqa: F841
+                shape=(model.number_of_links(), 6)
+            )
 
         case VelRepr.Inertial:
             C_H_L = W_H_L = js.model.forward_kinematics(model=model, data=data)
@@ -1711,7 +1718,9 @@ def link_bias_accelerations(
             W_H_L = js.model.forward_kinematics(model=model, data=data)
             LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
             C_H_L = LW_H_L
-            L_v_CL = L_v_LW_L = jax.vmap(lambda v: v.at[0:3].set(jnp.zeros(3)))(L_v_WL)
+            L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
+                lambda v: v.at[0:3].set(jnp.zeros(3))
+            )(L_v_WL)
 
         case _:
             raise ValueError(data.velocity_representation)

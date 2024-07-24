@@ -261,8 +261,10 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         # Check if the Butcher tableau supports FSAL (first-same-as-last).
         # If it does, store the index of the intermediate derivative to be used as the
         # first derivative of the next iteration.
-        has_fsal, index_of_fsal = ExplicitRungeKutta.butcher_tableau_supports_fsal(
-            A=cls.A, b=cls.b, c=cls.c, index_of_solution=cls.row_index_of_solution
+        has_fsal, index_of_fsal = (  # noqa: F841
+            ExplicitRungeKutta.butcher_tableau_supports_fsal(
+                A=cls.A, b=cls.b, c=cls.c, index_of_solution=cls.row_index_of_solution
+            )
         )
 
         # Build the integrator object.

@@ -156,7 +156,6 @@ ignore = [
     "E501", # Line too long
     "E731", # Do not assign a `lambda` expression, use a `def`
     "E741", # Ambiguous variable name
-    "F841", # Local variable is assigned to but never used
     "I001", # Import block is unsorted or unformatted
     "RUF003", # Ambigous unicode character in comment
 ]

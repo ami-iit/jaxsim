@@ -192,7 +192,7 @@ class SoftContacts(ContactModel):
 
         # Unpack the position of the collidable point.
         px, py, pz = W_p_C = position.squeeze()
-        vx, vy, vz = W_ṗ_C = velocity.squeeze()
+        W_ṗ_C = velocity.squeeze()
 
         # Compute the terrain normal and the contact depth.
         n̂ = self.terrain.normal(x=px, y=py).squeeze()

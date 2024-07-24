@@ -537,8 +537,10 @@ def jacobian_derivative(
 
         match output_vel_repr:
             case VelRepr.Inertial:
-                O_X_W = W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
-                O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))
+                O_X_W = W_X_W = Adjoint.from_transform(  # noqa: F841
+                    transform=jnp.eye(4)
+                )
+                O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))  # noqa: F841
 
             case VelRepr.Body:
                 L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
@@ -548,7 +550,7 @@ def jacobian_derivative(
                     W_nu = data.generalized_velocity()
                 W_v_WC = W_J_WL_W[parent_link_idx] @ W_nu
                 W_vx_WC = Cross.vx(W_v_WC)
-                O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC
+                O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC  # noqa: F841
 
             case VelRepr.Mixed:
                 L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
@@ -560,7 +562,7 @@ def jacobian_derivative(
                     CW_v_WC = CW_J_WC_BW @ data.generalized_velocity()
                 W_v_W_CW = jnp.zeros(6).at[0:3].set(CW_v_WC[0:3])
                 W_vx_W_CW = Cross.vx(W_v_W_CW)
-                O_Ẋ_W = CW_Ẋ_W = -CW_X_W @ W_vx_W_CW
+                O_Ẋ_W = CW_Ẋ_W = -CW_X_W @ W_vx_W_CW  # noqa: F841
 
             case _:
                 raise ValueError(output_vel_repr)

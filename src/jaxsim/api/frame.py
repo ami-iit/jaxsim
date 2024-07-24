@@ -384,7 +384,7 @@ def jacobian_derivative(
                 W_nu = data.generalized_velocity()
             W_v_WF = W_J_WL_W @ W_nu
             W_vx_WF = Cross.vx(W_v_WF)
-            O_Ẋ_W = F_Ẋ_W = -F_X_W @ W_vx_WF
+            O_Ẋ_W = F_Ẋ_W = -F_X_W @ W_vx_WF  # noqa: F841
 
         case VelRepr.Mixed:
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
@@ -401,7 +401,7 @@ def jacobian_derivative(
                 FW_v_WF = FW_J_WF_FW @ data.generalized_velocity()
             W_v_W_FW = jnp.zeros(6).at[0:3].set(FW_v_WF[0:3])
             W_vx_W_FW = Cross.vx(W_v_W_FW)
-            O_Ẋ_W = FW_Ẋ_W = -FW_X_W @ W_vx_W_FW
+            O_Ẋ_W = FW_Ẋ_W = -FW_X_W @ W_vx_W_FW  # noqa: F841
 
         case _:
             raise ValueError(output_vel_repr)

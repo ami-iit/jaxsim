@@ -8,6 +8,8 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import exceptions
+from jaxsim.math import Adjoint
 from jaxsim.utils.tracing import not_tracing
 
 from .common import VelRepr
@@ -445,3 +447,110 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         return replace(
             forces=self.input.physics_model.f_ext.at[link_idxs, :].set(W_f0_L + W_f_L)
         )
+
+    def apply_frame_forces(
+        self,
+        forces: jtp.MatrixLike,
+        model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData,
+        frame_names: tuple[str, ...] | str | None = None,
+        additive: bool = False,
+    ) -> Self:
+        """
+        Apply the frame forces.
+
+        Args:
+            forces: The frame 6D forces in the active representation.
+            model:
+                The model to consider, only needed if a frame serialization different
+                from the implicit one is used.
+            data:
+                The data of the considered model, only needed if the velocity
+                representation is not inertial-fixed.
+            frame_names: The names of the frames corresponding to the forces.
+            additive:
+                Whether to add the forces to the existing ones instead of replacing them.
+
+        Returns:
+            A new `JaxSimModelReferences` object with the given frame forces.
+
+        Note:
+            The frame forces must be expressed in the active representation.
+            Then, we always convert and store forces in inertial-fixed representation.
+        """
+
+        f_F = jnp.atleast_2d(forces).astype(float)
+
+        # If we have the model, we can extract the frame names if not provided.
+        frame_names = frame_names if frame_names is not None else model.frame_names()
+
+        # Make sure that the frame names are a tuple if they are provided by the user.
+        frame_names = (frame_names,) if isinstance(frame_names, str) else frame_names
+
+        if len(frame_names) != f_F.shape[0]:
+            msg = "The number of frame names ({}) must match the number of forces ({})"
+            raise ValueError(msg.format(len(frame_names), f_F.shape[0]))
+
+        # Extract the frame indices.
+        frame_idxs = js.frame.names_to_idxs(frame_names=frame_names, model=model)
+        parent_link_idxs = js.frame.idx_of_parent_link(
+            model=model, frame_idxs=frame_idxs
+        )
+
+        exceptions.raise_value_error_if(
+            condition=jnp.logical_not(data.valid(model=model)),
+            msg="The provided data is not valid for the model",
+        )
+        W_H_Fi = jax.vmap(
+            lambda frame_idx: js.frame.transform(
+                model=model, data=data, frame_index=frame_idx
+            )
+        )(frame_idxs)
+
+        # Helper function to convert a single 6D force to the inertial representation
+        # considering as body the frame (i.e. L_f_F and LW_f_F).
+        def to_inertial(f_F: jtp.MatrixLike, W_H_F: jtp.MatrixLike) -> jtp.Matrix:
+            return JaxSimModelReferences.other_representation_to_inertial(
+                array=f_F,
+                other_representation=self.velocity_representation,
+                transform=W_H_F,
+                is_force=True,
+            )
+
+        match self.velocity_representation:
+            case VelRepr.Inertial:
+                W_f_F = f_F
+
+            case VelRepr.Body | VelRepr.Mixed:
+                W_f_F = jax.vmap(to_inertial)(f_F, W_H_Fi, frame_idxs)
+
+            case _:
+                raise ValueError("Invalid velocity representation.")
+
+        W_H_L = js.model.forward_kinematics(model=model, data=data)
+
+        def convert_to_link_force(
+            W_f_F: jtp.MatrixLike, W_H_F: jtp.MatrixLike, parent_link_idx: jtp.ArrayLike
+        ) -> jtp.Matrix:
+            L_Xf_W = Adjoint.from_transform(W_H_L[parent_link_idx]).T
+
+            return L_Xf_W @ W_f_F
+
+        W_f_L_i = jax.vmap(convert_to_link_force)(W_f_F, W_H_Fi, parent_link_idxs)
+
+        # Sum the forces on the parent links.
+        mask = parent_link_idxs[:, jnp.newaxis] == jnp.arange(model.number_of_links())
+        W_f_L = mask.T @ W_f_L_i
+
+        with self.switch_velocity_representation(
+            velocity_representation=VelRepr.Inertial
+        ):
+            return self.apply_link_forces(
+                model=model,
+                data=data,
+                link_names=js.link.idxs_to_names(
+                    model=model, link_indices=parent_link_idxs
+                ),
+                forces=W_f_L,
+                additive=additive,
+            )

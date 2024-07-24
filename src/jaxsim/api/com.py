@@ -137,9 +137,9 @@ def centroidal_momentum_jacobian(
 
     match data.velocity_representation:
         case VelRepr.Inertial | VelRepr.Mixed:
-            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)  # noqa: F841
         case VelRepr.Body:
-            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
+            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)  # noqa: F841
         case _:
             raise ValueError(data.velocity_representation)
 
@@ -172,9 +172,9 @@ def locked_centroidal_spatial_inertia(
 
     match data.velocity_representation:
         case VelRepr.Inertial | VelRepr.Mixed:
-            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)
+            W_H_G = W_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM)  # noqa: F841
         case VelRepr.Body:
-            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)
+            W_H_G = W_H_GB = W_H_B.at[0:3, 3].set(W_p_CoM)  # noqa: F841
         case _:
             raise ValueError(data.velocity_representation)
 
@@ -290,14 +290,14 @@ def bias_acceleration(
 
         case VelRepr.Inertial:
 
-            C_v̇_WL = W_v̇_bias_WL = v̇_bias_WL
-            C_v_WC = W_v_WW = jnp.zeros(6)
+            C_v̇_WL = W_v̇_bias_WL = v̇_bias_WL  # noqa: F841
+            C_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
 
-            L_H_C = L_H_W = jax.vmap(
+            L_H_C = L_H_W = jax.vmap(  # noqa: F841
                 lambda W_H_L: jaxsim.math.Transform.inverse(W_H_L)
             )(W_H_L)
 
-            L_v_LC = L_v_LW = jax.vmap(
+            L_v_LC = L_v_LW = jax.vmap(  # noqa: F841
                 lambda i: -js.link.velocity(
                     model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
                 )
@@ -314,9 +314,9 @@ def bias_acceleration(
 
         case VelRepr.Mixed:
 
-            C_v̇_WL = LW_v̇_bias_WL = v̇_bias_WL
+            C_v̇_WL = LW_v̇_bias_WL = v̇_bias_WL  # noqa: F841
 
-            C_v_WC = LW_v_W_LW = jax.vmap(
+            C_v_WC = LW_v_W_LW = jax.vmap(  # noqa: F841
                 lambda i: js.link.velocity(
                     model=model, data=data, link_index=i, output_vel_repr=VelRepr.Mixed
                 )
@@ -324,13 +324,13 @@ def bias_acceleration(
                 .set(jnp.zeros(3))
             )(jnp.arange(model.number_of_links()))
 
-            L_H_C = L_H_LW = jax.vmap(
+            L_H_C = L_H_LW = jax.vmap(  # noqa: F841
                 lambda W_H_L: jaxsim.math.Transform.inverse(
                     W_H_L.at[0:3, 3].set(jnp.zeros(3))
                 )
             )(W_H_L)
 
-            L_v_LC = L_v_L_LW = jax.vmap(
+            L_v_LC = L_v_L_LW = jax.vmap(  # noqa: F841
                 lambda i: -js.link.velocity(
                     model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
                 )

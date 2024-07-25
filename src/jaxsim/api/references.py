@@ -522,7 +522,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 W_f_F = f_F
 
             case VelRepr.Body | VelRepr.Mixed:
-                W_f_F = jax.vmap(to_inertial)(f_F, W_H_Fi, frame_idxs)
+                W_f_F = jax.vmap(to_inertial)(f_F, W_H_Fi)
 
             case _:
                 raise ValueError("Invalid velocity representation.")

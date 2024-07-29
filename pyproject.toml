@@ -51,6 +51,8 @@ dependencies = [
     "pptree",
     "rod >= 0.3.0",
     "typing_extensions ; python_version < '3.12'",
+    "trimesh",
+    "manifold3d",
 ]
 
 [project.optional-dependencies]
@@ -64,6 +66,8 @@ testing = [
     "pytest >=6.0",
     "pytest-icdiff",
     "robot-descriptions",
+    "networkx",
+    "lark"
 ]
 viz = [
     "lxml",

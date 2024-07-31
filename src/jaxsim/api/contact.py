@@ -469,40 +469,50 @@ def jacobian_derivative(
 
     # Compute the operator to change the representation of ν, and its
     # time derivative.
-    match data.velocity_representation:
-        case VelRepr.Inertial:
-            W_H_W = jnp.eye(4)
-            W_X_W = Adjoint.from_transform(transform=W_H_W)
-            W_Ẋ_W = jnp.zeros((6, 6))
+    def from_inertial():
+        W_H_W = jnp.eye(4)
+        W_X_W = Adjoint.from_transform(transform=W_H_W)
+        W_Ẋ_W = jnp.zeros((6, 6))
 
-            T = compute_T(model=model, X=W_X_W)
-            Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_W)
+        T = compute_T(model=model, X=W_X_W)
+        Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_W)
 
-        case VelRepr.Body:
-            W_H_B = data.base_transform()
-            W_X_B = Adjoint.from_transform(transform=W_H_B)
-            B_v_WB = data.base_velocity()
-            B_vx_WB = Cross.vx(B_v_WB)
-            W_Ẋ_B = W_X_B @ B_vx_WB
+        return T, Ṫ
 
-            T = compute_T(model=model, X=W_X_B)
-            Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_B)
+    def from_body():
+        W_H_B = data.base_transform()
+        W_X_B = Adjoint.from_transform(transform=W_H_B)
+        B_v_WB = data.base_velocity()
+        B_vx_WB = Cross.vx(B_v_WB)
+        W_Ẋ_B = W_X_B @ B_vx_WB
 
-        case VelRepr.Mixed:
-            W_H_B = data.base_transform()
-            W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
-            W_X_BW = Adjoint.from_transform(transform=W_H_BW)
-            BW_v_WB = data.base_velocity()
-            BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
-            BW_vx_W_BW = Cross.vx(BW_v_W_BW)
-            W_Ẋ_BW = W_X_BW @ BW_vx_W_BW
+        T = compute_T(model=model, X=W_X_B)
+        Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_B)
 
-            T = compute_T(model=model, X=W_X_BW)
-            Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_BW)
+        return T, Ṫ
 
-        case _:
-            raise ValueError(data.velocity_representation)
+    def from_mixed():
+        W_H_B = data.base_transform()
+        W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
+        W_X_BW = Adjoint.from_transform(transform=W_H_BW)
+        BW_v_WB = data.base_velocity()
+        BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
+        BW_vx_W_BW = Cross.vx(BW_v_W_BW)
+        W_Ẋ_BW = W_X_BW @ BW_vx_W_BW
 
+        T = compute_T(model=model, X=W_X_BW)
+        Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_BW)
+
+        return T, Ṫ
+
+    T, Ṫ = jax.lax.switch(
+        index=data.velocity_representation,
+        branches=(
+            from_body,  # VelRepr.Body
+            from_mixed,  # VelRepr.Mixed
+            from_inertial,  # VelRepr.Inertial
+        ),
+    )
     # =====================================================
     # Compute quantities to adjust the output representation
     # =====================================================
@@ -538,37 +548,46 @@ def jacobian_derivative(
 
         parent_link_idx = parent_link_idxs[contact_idx]
 
-        match output_vel_repr:
-            case VelRepr.Inertial:
-                O_X_W = W_X_W = Adjoint.from_transform(  # noqa: F841
-                    transform=jnp.eye(4)
-                )
-                O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))  # noqa: F841
+        def to_inertial():
+            W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
+            W_Ẋ_W = jnp.zeros((6, 6))
 
-            case VelRepr.Body:
-                L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
-                W_H_C = W_H_L[parent_link_idx] @ L_H_C
-                O_X_W = C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
-                with data.switch_velocity_representation(VelRepr.Inertial):
-                    W_nu = data.generalized_velocity()
-                W_v_WC = W_J_WL_W[parent_link_idx] @ W_nu
-                W_vx_WC = Cross.vx(W_v_WC)
-                O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC  # noqa: F841
+            return W_X_W, W_Ẋ_W
 
-            case VelRepr.Mixed:
-                L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
-                W_H_C = W_H_L[parent_link_idx] @ L_H_C
-                W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
-                CW_H_W = Transform.inverse(W_H_CW)
-                O_X_W = CW_X_W = Adjoint.from_transform(transform=CW_H_W)
-                with data.switch_velocity_representation(VelRepr.Mixed):
-                    CW_v_WC = CW_J_WC_BW @ data.generalized_velocity()
-                W_v_W_CW = jnp.zeros(6).at[0:3].set(CW_v_WC[0:3])
-                W_vx_W_CW = Cross.vx(W_v_W_CW)
-                O_Ẋ_W = CW_Ẋ_W = -CW_X_W @ W_vx_W_CW  # noqa: F841
+        def to_body():
+            L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
+            W_H_C = W_H_L[parent_link_idx] @ L_H_C
+            C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
+            with data.switch_velocity_representation(VelRepr.Inertial):
+                W_nu = data.generalized_velocity()
+            W_v_WC = W_J_WL_W[parent_link_idx] @ W_nu
+            W_vx_WC = Cross.vx(W_v_WC)
+            C_Ẋ_W = -C_X_W @ W_vx_WC
 
-            case _:
-                raise ValueError(output_vel_repr)
+            return C_X_W, C_Ẋ_W
+
+        def to_mixed():
+            L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
+            W_H_C = W_H_L[parent_link_idx] @ L_H_C
+            W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
+            CW_H_W = Transform.inverse(W_H_CW)
+            CW_X_W = Adjoint.from_transform(transform=CW_H_W)
+            with data.switch_velocity_representation(VelRepr.Mixed):
+                CW_v_WC = CW_J_WC_BW @ data.generalized_velocity()
+            W_v_W_CW = jnp.zeros(6).at[0:3].set(CW_v_WC[0:3])
+            W_vx_W_CW = Cross.vx(W_v_W_CW)
+            CW_Ẋ_W = -CW_X_W @ W_vx_W_CW
+
+            return CW_X_W, CW_Ẋ_W
+
+        O_X_W, O_Ẋ_W = jax.lax.switch(
+            index=output_vel_repr,
+            branches=(
+                to_body,  # VelRepr.Body
+                to_mixed,  # VelRepr.Mixed
+                to_inertial,  # VelRepr.Inertial
+            ),
+        )
 
         O_J̇_WC_I = jnp.zeros(shape=(6, 6 + model.dofs()))
         O_J̇_WC_I += O_Ẋ_W @ W_J_WL_W[parent_link_idx] @ T

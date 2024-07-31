@@ -597,15 +597,13 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 is_force=True,
             )
 
-        match self.velocity_representation:
-            case VelRepr.Inertial:
-                W_f_F = f_F
-
-            case VelRepr.Body | VelRepr.Mixed:
-                W_f_F = jax.vmap(to_inertial)(f_F, W_H_Fi)
-
-            case _:
-                raise ValueError("Invalid velocity representation.")
+        W_f_F = jax.lax.switch(
+            index=self.velocity_representation,
+            branches=(
+                lambda: f_F,
+                lambda: jax.vmap(to_inertial)(f_F, W_H_Fi),
+            ),
+        )
 
         # Sum the forces on the parent links.
         mask = parent_link_idxs[:, jnp.newaxis] == jnp.arange(model.number_of_links())

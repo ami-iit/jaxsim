@@ -488,19 +488,21 @@ def generalized_free_floating_jacobian(
     # Update the input velocity representation such that v_WL = J_WL_I @ I_ν
     # ======================================================================
 
-    def from_inertial():
+    def from_inertial() -> jtp.Matrix:
         W_H_B = data.base_transform()
         B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
 
         B_J_full_WX_W = B_J_full_WX_B @ jax.scipy.linalg.block_diag(
             B_X_W, jnp.eye(model.dofs())
         )
+
         return B_J_full_WX_W
 
-    def from_body():
+    def from_body() -> jtp.Matrix:
+
         return B_J_full_WX_B
 
-    def from_mixed():
+    def from_mixed() -> jtp.Matrix:
         W_R_B = data.base_orientation(dcm=True)
         BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
         B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
@@ -508,6 +510,7 @@ def generalized_free_floating_jacobian(
         B_J_full_WX_BW = B_J_full_WX_B @ jax.scipy.linalg.block_diag(
             B_X_BW, jnp.eye(model.dofs())
         )
+
         return B_J_full_WX_BW
 
     # Update the input velocity representation such that `J_WL_I @ I_ν`.
@@ -520,35 +523,9 @@ def generalized_free_floating_jacobian(
         ),
     )
 
-    def to_inertial():
-        W_H_B = data.base_transform()
-        W_X_B = Adjoint.from_transform(transform=W_H_B)
-        W_J_full_WX_I = W_X_B @ B_J_full_WX_I
-        return W_J_full_WX_I
-
-    def to_body():
-        return B_J_full_WX_I
-
-    def to_mixed():
-        W_R_B = data.base_orientation(dcm=True)
-        BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
-        BW_X_B = Adjoint.from_transform(transform=BW_H_B)
-        BW_J_full_WX_I = BW_X_B @ B_J_full_WX_I
-        return BW_J_full_WX_I
-
     # ====================================================================
     # Create stacked Jacobian for each link by filtering the full Jacobian
     # ====================================================================
-
-    # Update the output velocity representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
-    O_J_full_WX_I = jax.lax.switch(
-        index=output_vel_repr,
-        branches=(
-            to_body,  # VelRepr.Body
-            to_mixed,  # VelRepr.Mixed
-            to_inertial,  # VelRepr.Inertial
-        ),
-    )
 
     κ_bool = model.kin_dyn_parameters.support_body_array_bool
 
@@ -556,7 +533,7 @@ def generalized_free_floating_jacobian(
     # body array of each link.
     B_J_WL_I = jax.vmap(
         lambda κ: jnp.where(
-            jnp.hstack([jnp.ones(5), κ]), O_J_full_WX_I, jnp.zeros_like(O_J_full_WX_I)
+            jnp.hstack([jnp.ones(5), κ]), B_J_full_WX_I, jnp.zeros_like(B_J_full_WX_I)
         )
     )(κ_bool)
 
@@ -568,19 +545,19 @@ def generalized_free_floating_jacobian(
         W_H_B = data.base_transform()
         W_X_B = jaxsim.math.Adjoint.from_transform(W_H_B)
 
-        O_J_WL_I = W_J_WL_I = jax.vmap(lambda B_J_WL_I: W_X_B @ B_J_WL_I)(  # noqa: F841
-            B_J_WL_I
-        )
-        return O_J_WL_I
+        W_J_WL_I = jax.vmap(lambda B_J_WL_I: W_X_B @ B_J_WL_I)(B_J_WL_I)
+
+        return W_J_WL_I
 
     def to_body() -> jtp.Matrix:
-        O_J_WL_I = L_J_WL_I = jax.vmap(  # noqa: F841
+        L_J_WL_I = jax.vmap(
             lambda B_H_L, B_J_WL_I: jaxsim.math.Adjoint.from_transform(
                 B_H_L, inverse=True
             )
             @ B_J_WL_I
         )(B_H_L, B_J_WL_I)
-        return O_J_WL_I
+
+        return L_J_WL_I
 
     def to_mixed() -> jtp.Matrix:
         W_H_B = data.base_transform()
@@ -591,11 +568,12 @@ def generalized_free_floating_jacobian(
             lambda LW_H_L, B_H_L: LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
         )(LW_H_L, B_H_L)
 
-        O_J_WL_I = LW_J_WL_I = jax.vmap(  # noqa: F841
+        LW_J_WL_I = jax.vmap(
             lambda LW_H_B, B_J_WL_I: jaxsim.math.Adjoint.from_transform(LW_H_B)
             @ B_J_WL_I
         )(LW_H_B, B_J_WL_I)
-        return O_J_WL_I
+
+        return LW_J_WL_I
 
     O_J_WL_I = jax.lax.switch(
         index=output_vel_repr,
@@ -786,25 +764,27 @@ def forward_dynamics_aba(
         C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
         return C_X_W @ W_v̇_WB - Cross.vx(W_v_WC) @ W_v_WB
 
-    def to_inertial():
+    def to_inertial() -> tuple[jtp.Vector, jtp.Matrix]:
         # In this case C=W
-        W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
-        W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
-        return W_v_WC, W_H_C
+        W_H_W = jnp.eye(4)
+        W_v_WW = jnp.zeros(6)
 
-    def to_body():
+        return W_v_WW, W_H_W
+
+    def to_body() -> tuple[jtp.Vector, jtp.Matrix]:
         # In this case C=B
-        W_H_C = W_H_B = data.base_transform()  # noqa: F841
-        W_v_WC = W_v_WB
-        return W_v_WC, W_H_C
+        W_H_B = data.base_transform()
 
-    def to_mixed():
+        return W_v_WB, W_H_B
+
+    def to_mixed() -> tuple[jtp.Vector, jtp.Matrix]:
         # In this case C=B[W]
         W_H_B = data.base_transform()
-        W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))  # noqa: F841
+        W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
         W_ṗ_B = data.base_velocity()[0:3]
-        W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
-        return W_v_WC, W_H_C
+        W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+
+        return W_v_W_BW, W_H_BW
 
     W_v_WC, W_H_C = jax.lax.switch(
         index=data.velocity_representation,
@@ -1046,10 +1026,10 @@ def free_floating_coriolis_matrix(
 
     # Adjust the representation of the Coriolis matrix.
     # Refer to https://github.com/traversaro/traversaro-phd-thesis, Section 3.6.
-    def to_body():
+    def to_body() -> jtp.Matrix:
         return C_B
 
-    def to_inertial():
+    def to_inertial() -> jtp.Matrix:
         n = model.dofs()
         W_H_B = data.base_transform()
         B_X_W = jaxsim.math.Adjoint.from_transform(W_H_B, inverse=True)
@@ -1068,7 +1048,7 @@ def free_floating_coriolis_matrix(
 
         return C
 
-    def to_mixed():
+    def to_mixed() -> jtp.Matrix:
         n = model.dofs()
         BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
         B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
@@ -1169,22 +1149,25 @@ def inverse_dynamics(
         return W_X_C @ (C_v̇_WB + Cross.vx(C_v_WC) @ C_v_WB)
 
     def convert_inertial() -> jtp.Vector:
-        W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
-        W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
-        return W_H_C, W_v_WC
+        W_H_W = jnp.eye(4)
+        W_v_WW = jnp.zeros(6)
+
+        return W_H_W, W_v_WW
 
     def convert_body() -> jtp.Vector:
-        W_H_C = W_H_B = data.base_transform()  # noqa: F841
+        W_H_B = data.base_transform()
         with data.switch_velocity_representation(VelRepr.Inertial):
-            W_v_WC = W_v_WB = data.base_velocity()  # noqa: F841
-            return W_H_C, W_v_WC
+            W_v_WB = data.base_velocity()
+
+            return W_H_B, W_v_WB
 
     def convert_mixed() -> jtp.Vector:
         W_H_B = data.base_transform()
-        W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))  # noqa: F841
+        W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
         W_ṗ_B = data.base_velocity()[0:3]
-        W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
-        return W_H_C, W_v_WC
+        W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
+
+        return W_H_BW, W_v_W_BW
 
     W_H_C, W_v_WC = jax.lax.switch(
         index=data.velocity_representation,
@@ -1447,15 +1430,18 @@ def total_momentum_jacobian(
         B_Jh_B = free_floating_mass_matrix(model=model, data=data)[0:6]
 
     def to_body() -> jtp.Matrix:
+
         return B_Jh_B
 
     def to_inertial() -> jtp.Matrix:
         B_X_W = Adjoint.from_transform(transform=data.base_transform(), inverse=True)
+
         return B_Jh_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
     def to_mixed() -> jtp.Matrix:
         BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
         B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
+
         return B_Jh_B @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
     B_Jh = jax.lax.switch(
@@ -1638,29 +1624,30 @@ def link_bias_accelerations(
     # W_a_WB, and intrinsic accelerations can be expressed in different frames through
     # a simple C_X_W 6D transform.
     def to_inertial() -> jtp.Matrix:
-        W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
-        W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
+        W_H_W = jnp.eye(4)
+        W_v_WW = jnp.zeros(6)
         with data.switch_velocity_representation(VelRepr.Inertial):
-            C_v_WB = W_v_WB = data.base_velocity()  # noqa: F841
-            return W_H_C, W_v_WC, C_v_WB
+            W_v_WB = data.base_velocity()
+
+            return W_H_W, W_v_WW, W_v_WB
 
     def to_body() -> jtp.Matrix:
-        W_H_C = W_H_B
         with data.switch_velocity_representation(VelRepr.Inertial):
-            W_v_WC = W_v_WB = data.base_velocity()  # noqa: F841
+            W_v_WB = data.base_velocity()
         with data.switch_velocity_representation(VelRepr.Body):
-            C_v_WB = B_v_WB = data.base_velocity()  # noqa: F841
-            return W_H_C, W_v_WC, C_v_WB
+            B_v_WB = data.base_velocity()
+
+            return W_H_B, W_v_WB, B_v_WB
 
     def to_mixed() -> jtp.Matrix:
         W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
-        W_H_C = W_H_BW
         with data.switch_velocity_representation(VelRepr.Mixed):
             W_ṗ_B = data.base_velocity()[0:3]
-            W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
+            W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
         with data.switch_velocity_representation(VelRepr.Mixed):
-            C_v_WB = BW_v_WB = data.base_velocity()  # noqa: F841
-            return W_H_C, W_v_WC, C_v_WB
+            BW_v_WB = data.base_velocity()
+
+            return W_H_BW, W_v_W_BW, BW_v_WB
 
     W_H_C, W_v_WC, C_v_WB = jax.lax.switch(
         index=data.velocity_representation,
@@ -1772,26 +1759,23 @@ def link_bias_accelerations(
         C_X_L = jaxsim.math.Adjoint.from_transform(transform=C_H_L)
         return C_X_L @ (L_v̇_WL + jaxsim.math.Cross.vx(L_v_CL) @ L_v_WL)
 
-    def to_body() -> jtp.Matrix:
-        C_H_L = L_H_L = jnp.stack([jnp.eye(4)] * model.number_of_links())  # noqa: F841
-        L_v_CL = L_v_LL = jnp.zeros(shape=(model.number_of_links(), 6))  # noqa: F841
-        return C_H_L, L_v_CL
+    def to_body() -> tuple[jtp.Matrix, jtp.Vector]:
+        L_H_L = jnp.stack([jnp.eye(4)] * model.number_of_links())
+        L_v_LL = jnp.zeros(shape=(model.number_of_links(), 6))
 
-    def to_inertial() -> jtp.Matrix:
-        C_H_L = W_H_L = js.model.forward_kinematics(  # noqa: F841
-            model=model, data=data
-        )
-        L_v_CL = L_v_WL
-        return C_H_L, L_v_CL
+        return L_H_L, L_v_LL
 
-    def to_mixed() -> jtp.Matrix:
+    def to_inertial() -> tuple[jtp.Matrix, jtp.Vector]:
+        W_H_L = js.model.forward_kinematics(model=model, data=data)
+
+        return W_H_L, L_v_WL
+
+    def to_mixed() -> tuple[jtp.Matrix, jtp.Vector]:
         W_H_L = js.model.forward_kinematics(model=model, data=data)
         LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
-        C_H_L = LW_H_L
-        L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
-            lambda v: v.at[0:3].set(jnp.zeros(3))
-        )(L_v_WL)
-        return C_H_L, L_v_CL
+        L_v_LW_L = jax.vmap(lambda v: v.at[0:3].set(jnp.zeros(3)))(L_v_WL)
+
+        return LW_H_L, L_v_LW_L
 
     C_H_L, L_v_CL = jax.lax.switch(
         index=data.velocity_representation,

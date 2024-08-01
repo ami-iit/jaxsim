@@ -38,4 +38,4 @@ IntLike = int | Int | jax.typing.ArrayLike
 BoolLike = bool | Bool | jax.typing.ArrayLike
 FloatLike = float | Float | jax.typing.ArrayLike
 
-VelRepr = int
+VelRepr = Int

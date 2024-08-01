@@ -301,18 +301,17 @@ def bias_acceleration(
 
     def to_body() -> jtp.Vector:
         L_a_bias_WL = v̇_bias_WL
+
         return L_a_bias_WL
 
     def to_inertial() -> jtp.Vector:
 
-        C_v̇_WL = W_v̇_bias_WL = v̇_bias_WL  # noqa: F841
-        C_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
+        W_v̇_bias_WL = v̇_bias_WL
+        W_v_WW = jnp.zeros(6)
 
-        L_H_C = L_H_W = jax.vmap(lambda W_H_L: Transform.inverse(W_H_L))(  # noqa: F841
-            W_H_L
-        )
+        L_H_W = jax.vmap(lambda W_H_L: Transform.inverse(W_H_L))(W_H_L)
 
-        L_v_LC = L_v_LW = jax.vmap(  # noqa: F841
+        L_v_LW = jax.vmap(
             lambda i: -js.link.velocity(
                 model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
             )
@@ -320,19 +319,20 @@ def bias_acceleration(
 
         L_a_bias_WL = jax.vmap(
             lambda i: other_representation_to_body(
-                C_v̇_WL=C_v̇_WL[i],
-                C_v_WC=C_v_WC,
-                L_H_C=L_H_C[i],
-                L_v_LC=L_v_LC[i],
+                C_v̇_WL=W_v̇_bias_WL[i],
+                C_v_WC=W_v_WW,
+                L_H_C=L_H_W[i],
+                L_v_LC=L_v_LW[i],
             )
         )(jnp.arange(model.number_of_links()))
+
         return L_a_bias_WL
 
     def to_mixed() -> jtp.Vector:
 
-        C_v̇_WL = LW_v̇_bias_WL = v̇_bias_WL  # noqa: F841
+        LW_v̇_bias_WL = v̇_bias_WL
 
-        C_v_WC = LW_v_W_LW = jax.vmap(  # noqa: F841
+        LW_v_W_LW = jax.vmap(
             lambda i: js.link.velocity(
                 model=model, data=data, link_index=i, output_vel_repr=VelRepr.Mixed
             )
@@ -340,11 +340,11 @@ def bias_acceleration(
             .set(jnp.zeros(3))
         )(jnp.arange(model.number_of_links()))
 
-        L_H_C = L_H_LW = jax.vmap(  # noqa: F841
+        L_H_LW = jax.vmap(
             lambda W_H_L: Transform.inverse(W_H_L.at[0:3, 3].set(jnp.zeros(3)))
         )(W_H_L)
 
-        L_v_LC = L_v_L_LW = jax.vmap(  # noqa: F841
+        L_v_L_LW = jax.vmap(
             lambda i: -js.link.velocity(
                 model=model, data=data, link_index=i, output_vel_repr=VelRepr.Body
             )
@@ -354,12 +354,13 @@ def bias_acceleration(
 
         L_a_bias_WL = jax.vmap(
             lambda i: other_representation_to_body(
-                C_v̇_WL=C_v̇_WL[i],
-                C_v_WC=C_v_WC[i],
-                L_H_C=L_H_C[i],
-                L_v_LC=L_v_LC[i],
+                C_v̇_WL=LW_v̇_bias_WL[i],
+                C_v_WC=LW_v_W_LW[i],
+                L_H_C=L_H_LW[i],
+                L_v_LC=L_v_L_LW[i],
             )
         )(jnp.arange(model.number_of_links()))
+
         return L_a_bias_WL
 
     # We need here to get the body-fixed bias acceleration of the links.

@@ -356,7 +356,7 @@ def system_dynamics(
 
     match model.contact_model:
         case SoftContacts():
-            ṁ = aux_dict["ṁ"]
+            ṁ = aux_dict["m_dot"]
         case RigidContacts():
             nu_impact = aux_dict["nu_impact"]
             # Update system velocity with the impact velocity

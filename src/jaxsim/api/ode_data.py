@@ -229,7 +229,7 @@ class ODEState(JaxsimDataclass):
         return ODEState(physics_model=physics_model_state, contact=contact)
 
     @staticmethod
-    def zero(model: js.model.JaxSimModel) -> ODEState:
+    def zero(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> ODEState:
         """
         Build a zero `ODEState` from a `JaxSimModel`.
 
@@ -240,7 +240,9 @@ class ODEState(JaxsimDataclass):
             A zero `ODEState` instance.
         """
 
-        model_state = ODEState.build(model=model)
+        model_state = ODEState.build(
+            model=model, contact=data.state.contact.zero(model=model)
+        )
 
         return model_state
 

@@ -231,6 +231,7 @@ def jacobian(
         W_H_L = js.link.transform(model=model, data=data, link_index=L)
         W_X_L = Adjoint.from_transform(transform=W_H_L)
         W_J_WL = W_X_L @ L_J_WL
+
         return W_J_WL
 
     def to_body() -> jtp.Matrix:
@@ -239,6 +240,7 @@ def jacobian(
         F_H_L = Transform.inverse(W_H_F) @ W_H_L
         F_X_L = Adjoint.from_transform(transform=F_H_L)
         F_J_WL = F_X_L @ L_J_WL
+
         return F_J_WL
 
     def to_mixed() -> jtp.Matrix:
@@ -249,6 +251,7 @@ def jacobian(
         FW_H_L = FW_H_F @ F_H_L
         FW_X_L = Adjoint.from_transform(transform=FW_H_L)
         FW_J_WL = FW_X_L @ L_J_WL
+
         return FW_J_WL
 
     # Adjust the output representation
@@ -388,13 +391,13 @@ def jacobian_derivative(
     # Compute quantities to adjust the output representation
     # =====================================================
 
-    def to_inertial():
+    def to_inertial() -> tuple[jtp.Matrix, jtp.Matrix]:
         W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
         W_Ẋ_W = jnp.zeros((6, 6))
 
         return W_X_W, W_Ẋ_W
 
-    def to_body():
+    def to_body() -> tuple[jtp.Matrix, jtp.Matrix]:
         W_H_F = transform(model=model, data=data, frame_index=frame_index)
         F_X_W = Adjoint.from_transform(transform=W_H_F, inverse=True)
         with data.switch_velocity_representation(VelRepr.Inertial):
@@ -405,7 +408,7 @@ def jacobian_derivative(
 
         return F_X_W, F_Ẋ_W
 
-    def to_mixed():
+    def to_mixed() -> tuple[jtp.Matrix, jtp.Matrix]:
         W_H_F = transform(model=model, data=data, frame_index=frame_index)
         W_H_FW = W_H_F.at[0:3, 0:3].set(jnp.eye(3))
         FW_H_W = Transform.inverse(W_H_FW)

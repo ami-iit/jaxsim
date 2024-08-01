@@ -112,19 +112,21 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         if W_H_O.shape != (4, 4):
             raise ValueError(W_H_O.shape, (4, 4))
 
-        def to_inertial():
+        def to_inertial() -> jtp.Array:
+
             return W_array
 
-        def to_body():
+        def to_body() -> jtp.Array:
             if not is_force:
                 O_Xv_W = Adjoint.from_transform(transform=W_H_O, inverse=True)
                 O_array = O_Xv_W @ W_array
             else:
                 O_Xf_W = Adjoint.from_transform(transform=W_H_O).T
                 O_array = O_Xf_W @ W_array
+
             return O_array
 
-        def to_mixed():
+        def to_mixed() -> jtp.Array:
             W_p_O = W_H_O[0:3, 3]
             W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
             if not is_force:
@@ -133,6 +135,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             else:
                 OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).T
                 OW_array = OW_Xf_W @ W_array
+
             return OW_array
 
         return jax.lax.switch(

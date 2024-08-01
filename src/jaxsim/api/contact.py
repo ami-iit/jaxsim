@@ -373,8 +373,8 @@ def jacobian(
     )
 
     def to_inertial() -> jtp.Matrix:
-        O_J_WC = W_J_WC
-        return O_J_WC
+
+        return W_J_WC
 
     def to_body() -> jtp.Matrix:
 
@@ -385,8 +385,9 @@ def jacobian(
             C_J_WC = C_X_W @ W_J_WC
             return C_J_WC
 
-        O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
-        return O_J_WC
+        C_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
+
+        return C_J_WC
 
     def to_mixed() -> jtp.Matrix:
 
@@ -401,8 +402,9 @@ def jacobian(
             CW_J_WC = CW_X_W @ W_J_WC
             return CW_J_WC
 
-        O_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
-        return O_J_WC
+        CW_J_WC = jax.vmap(jacobian)(W_H_C, W_J_WC)
+
+        return CW_J_WC
 
     # Adjust the output representation.
     O_J_WC = jax.lax.switch(
@@ -548,13 +550,13 @@ def jacobian_derivative(
 
         parent_link_idx = parent_link_idxs[contact_idx]
 
-        def to_inertial():
+        def to_inertial() -> tuple[jtp.Matrix, jtp.Matrix]:
             W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
             W_Ẋ_W = jnp.zeros((6, 6))
 
             return W_X_W, W_Ẋ_W
 
-        def to_body():
+        def to_body() -> tuple[jtp.Matrix, jtp.Matrix]:
             L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
             W_H_C = W_H_L[parent_link_idx] @ L_H_C
             C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
@@ -566,7 +568,7 @@ def jacobian_derivative(
 
             return C_X_W, C_Ẋ_W
 
-        def to_mixed():
+        def to_mixed() -> tuple[jtp.Matrix, jtp.Matrix]:
             L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
             W_H_C = W_H_L[parent_link_idx] @ L_H_C
             W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))

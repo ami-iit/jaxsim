@@ -287,21 +287,22 @@ def jacobian(
     def to_inertial() -> jtp.Matrix:
         W_H_B = data.base_transform()
         B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
-        B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
-            B_X_W, jnp.eye(model.dofs())
-        )
+        B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+
         return B_J_WL_W
 
     def to_body() -> jtp.Matrix:
+
         return B_J_WL_B
 
     def to_mixed() -> jtp.Matrix:
         W_R_B = data.base_orientation(dcm=True)
         BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
         B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
-        B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
+        B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(
             B_X_BW, jnp.eye(model.dofs())
         )
+
         return B_J_WL_BW
 
     B_J_WL_I = jax.lax.switch(
@@ -319,11 +320,13 @@ def jacobian(
         W_H_B = data.base_transform()
         W_X_B = Adjoint.from_transform(transform=W_H_B)
         W_J_WL_I = W_X_B @ B_J_WL_I
+
         return W_J_WL_I
 
     def to_body() -> jtp.Matrix:
         L_X_B = Adjoint.from_transform(transform=B_H_L, inverse=True)
         L_J_WL_I = L_X_B @ B_J_WL_I
+
         return L_J_WL_I
 
     def to_mixed() -> jtp.Matrix:
@@ -333,6 +336,7 @@ def jacobian(
         LW_H_B = LW_H_L @ Transform.inverse(B_H_L)
         LW_X_B = Adjoint.from_transform(transform=LW_H_B)
         LW_J_WL_I = LW_X_B @ B_J_WL_I
+
         return LW_J_WL_I
 
     # Adjust the output representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
@@ -455,7 +459,7 @@ def jacobian_derivative(
     In = jnp.eye(model.dofs())
     On = jnp.zeros(shape=(model.dofs(), model.dofs()))
 
-    def from_inertial() -> jtp.Matrix:
+    def from_inertial() -> tuple[jtp.Matrix, jtp.Matrix]:
 
         W_H_B = data.base_transform()
         B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
@@ -468,9 +472,10 @@ def jacobian_derivative(
         # time derivative.
         T = jax.scipy.linalg.block_diag(B_X_W, In)
         Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_W, On)
+
         return T, Ṫ
 
-    def from_body() -> jtp.Matrix:
+    def from_body() -> tuple[jtp.Matrix, jtp.Matrix]:
 
         B_X_B = Adjoint.from_rotation_and_translation(
             translation=jnp.zeros(3), rotation=jnp.eye(3)
@@ -482,9 +487,10 @@ def jacobian_derivative(
         # time derivative.
         T = jax.scipy.linalg.block_diag(B_X_B, In)
         Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_B, On)
+
         return T, Ṫ
 
-    def from_mixed() -> jtp.Matrix:
+    def from_mixed() -> tuple[jtp.Matrix, jtp.Matrix]:
 
         BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
         B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
@@ -500,6 +506,7 @@ def jacobian_derivative(
         # time derivative.
         T = jax.scipy.linalg.block_diag(B_X_BW, In)
         Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_BW, On)
+
         return T, Ṫ
 
     T, Ṫ = jax.lax.switch(
@@ -515,22 +522,21 @@ def jacobian_derivative(
     # Compute quantities to adjust the output representation
     # ======================================================
 
-    def to_inertial() -> jtp.Matrix:
+    def to_inertial() -> tuple[jtp.Matrix, jtp.Matrix]:
 
         W_H_B = data.base_transform()
-        O_X_B = W_X_B = Adjoint.from_transform(transform=W_H_B)
+        W_X_B = Adjoint.from_transform(transform=W_H_B)
 
         with data.switch_velocity_representation(VelRepr.Body):
             B_v_WB = data.base_velocity()
 
-        O_Ẋ_B = W_Ẋ_B = W_X_B @ jaxsim.math.Cross.vx(B_v_WB)  # noqa: F841
-        return O_X_B, O_Ẋ_B
+        W_Ẋ_B = W_X_B @ jaxsim.math.Cross.vx(B_v_WB)
 
-    def to_body() -> jtp.Matrix:
+        return W_X_B, W_Ẋ_B
 
-        O_X_B = L_X_B = Adjoint.from_transform(
-            transform=B_H_L[link_index, :, :], inverse=True
-        )
+    def to_body() -> tuple[jtp.Matrix, jtp.Matrix]:
+
+        L_X_B = Adjoint.from_transform(transform=B_H_L[link_index, :, :], inverse=True)
 
         B_X_L = Adjoint.inverse(adjoint=L_X_B)
 
@@ -538,19 +544,18 @@ def jacobian_derivative(
             B_v_WB = data.base_velocity()
             L_v_WL = js.link.velocity(model=model, data=data, link_index=link_index)
 
-        O_Ẋ_B = L_Ẋ_B = -L_X_B @ jaxsim.math.Cross.vx(  # noqa: F841
-            B_X_L @ L_v_WL - B_v_WB
-        )
-        return O_X_B, O_Ẋ_B
+        L_Ẋ_B = -L_X_B @ jaxsim.math.Cross.vx(B_X_L @ L_v_WL - B_v_WB)
 
-    def to_mixed() -> jtp.Matrix:
+        return L_X_B, L_Ẋ_B
+
+    def to_mixed() -> tuple[jtp.Matrix, jtp.Matrix]:
 
         W_H_B = data.base_transform()
         W_H_L = W_H_B @ B_H_L[link_index, :, :]
         LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
         LW_H_B = LW_H_L @ Transform.inverse(B_H_L[link_index, :, :])
 
-        O_X_B = LW_X_B = Adjoint.from_transform(transform=LW_H_B)
+        LW_X_B = Adjoint.from_transform(transform=LW_H_B)
 
         B_X_LW = Adjoint.inverse(adjoint=LW_X_B)
 
@@ -564,10 +569,9 @@ def jacobian_derivative(
         LW_v_LW_L = LW_v_WL - LW_v_W_LW
         LW_v_B_LW = LW_v_WL - LW_X_B @ B_v_WB - LW_v_LW_L
 
-        O_Ẋ_B = LW_Ẋ_B = -LW_X_B @ jaxsim.math.Cross.vx(  # noqa: F841
-            B_X_LW @ LW_v_B_LW
-        )
-        return O_X_B, O_Ẋ_B
+        LW_Ẋ_B = -LW_X_B @ jaxsim.math.Cross.vx(B_X_LW @ LW_v_B_LW)
+
+        return LW_X_B, LW_Ẋ_B
 
     O_X_B, O_Ẋ_B = jax.lax.switch(
         index=output_vel_repr,

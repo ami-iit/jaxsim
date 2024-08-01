@@ -20,6 +20,8 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+from .data import JaxSimModelData
+
 
 @jax_dataclasses.pytree_dataclass
 class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
@@ -33,7 +35,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     def zero(
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData | None = None,
-        velocity_representation: VelRepr = VelRepr.Inertial,
+        velocity_representation: jtp.VelRepr = VelRepr.Inertial,
     ) -> JaxSimModelReferences:
         """
         Create a `JaxSimModelReferences` object with zero references.
@@ -59,7 +61,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         joint_force_references: jtp.Vector | None = None,
         link_forces: jtp.Matrix | None = None,
         data: js.data.JaxSimModelData | None = None,
-        velocity_representation: VelRepr | None = None,
+        velocity_representation: jtp.VelRepr | None = None,
     ) -> JaxSimModelReferences:
         """
         Create a `JaxSimModelReferences` object with the given references.
@@ -184,48 +186,93 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # Return all link forces in inertial-fixed representation using the implicit
         # serialization.
         if model is None:
-            if self.velocity_representation is not VelRepr.Inertial:
-                msg = "Missing model to use a representation different from {}"
-                raise ValueError(msg.format(VelRepr.Inertial.name))
 
-            if link_names is not None:
-                raise ValueError("Link names cannot be provided without a model")
+            def inertial() -> jtp.Array:
+                if link_names is not None:
+                    raise ValueError("Link names cannot be provided without a model")
 
-            return self.input.physics_model.f_ext
+                return self.input.physics_model.f_ext
+
+            return jax.lax.cond(
+                pred=(self.velocity_representation == VelRepr.Inertial),
+                true_fun=inertial,
+                false_fun=lambda: jax.pure_callback(
+                    callback=lambda: (_ for _ in ()).throw(
+                        ValueError(
+                            "Missing model to use a representation different from `VelRepr.Inertial`"
+                        )
+                    ),
+                    result_shape_dtypes=self.input.physics_model.f_ext,
+                ),
+            )
 
         # If we have the model, we can extract the link names, if not provided.
         link_names = link_names if link_names is not None else model.link_names()
         link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
 
-        # In inertial-fixed representation, we already have the link forces.
-        if self.velocity_representation is VelRepr.Inertial:
-            return W_f_L[link_idxs, :]
-
-        if data is None:
-            msg = "Missing model data to use a representation different from {}"
-            raise ValueError(msg.format(VelRepr.Inertial.name))
-
-        if not_tracing(self.input.physics_model.f_ext) and not data.valid(model=model):
-            raise ValueError("The provided data is not valid for the model")
-
-        # Helper function to convert a single 6D force to the active representation
-        # considering as body the link (i.e. L_f_L and LW_f_L).
-        def convert(W_f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike) -> jtp.Matrix:
-
-            return jax.vmap(
-                lambda W_f_L, W_H_L: JaxSimModelReferences.inertial_to_other_representation(
-                    array=W_f_L,
-                    other_representation=self.velocity_representation,
-                    transform=W_H_L,
-                    is_force=True,
+        def check_not_inertial() -> None:
+            if data is None:
+                raise ValueError(
+                    "Missing model data to use a representation different from `VelRepr.Inertial`"
                 )
-            )(W_f_L, W_H_L)
 
-        # The f_L output is either L_f_L or LW_f_L, depending on the representation.
-        W_H_L = js.model.forward_kinematics(model=model, data=data)
-        f_L = convert(W_f_L=W_f_L[link_idxs, :], W_H_L=W_H_L[link_idxs, :, :])
+            if not_tracing(self.input.physics_model.f_ext) and not data.valid(
+                model=model
+            ):
+                raise ValueError("The provided data is not valid for the model")
 
-        return f_L
+        # If not inertial-fixed representation, we need the model data.
+        jax.lax.cond(
+            pred=(self.velocity_representation != VelRepr.Inertial),
+            true_fun=lambda: jax.pure_callback(
+                callback=check_not_inertial,
+                result_shape_dtypes=None,
+            ),
+            false_fun=lambda: None,
+        )
+
+        def not_inertial(velocity_representation: jtp.VelRepr) -> jtp.Matrix:
+            # Helper function to convert a single 6D force to the active representation
+            # considering as body the link (i.e. L_f_L and LW_f_L).
+            def convert(W_f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike) -> jtp.Matrix:
+
+                return jax.vmap(
+                    lambda W_f_L, W_H_L: JaxSimModelReferences.inertial_to_other_representation(
+                        array=W_f_L,
+                        other_representation=velocity_representation,
+                        transform=W_H_L,
+                        is_force=True,
+                    )
+                )(W_f_L, W_H_L)
+
+            # The f_L output is either L_f_L or LW_f_L, depending on the representation.
+            W_H_L = jax.lax.cond(
+                pred=(data is None),
+                true_fun=lambda: jax.pure_callback(
+                    callback=lambda: (_ for _ in ()).throw(
+                        ValueError(
+                            "Missing model data to use a representation different from `VelRepr.Inertial`"
+                        )
+                    ),
+                    result_shape_dtypes=jnp.empty(
+                        shape=(model.number_of_links(), 4, 4)
+                    ),
+                ),
+                false_fun=lambda: js.model.forward_kinematics(
+                    model=model, data=data or JaxSimModelData.zero(model=model)
+                ),
+            )
+            f_L = convert(W_f_L=W_f_L[link_idxs, :], W_H_L=W_H_L[link_idxs, :, :])
+
+            return f_L
+
+        # In inertial-fixed representation, we already have the link forces.
+        return jax.lax.cond(
+            pred=(self.velocity_representation == VelRepr.Inertial),
+            true_fun=lambda _: W_f_L[link_idxs, :],
+            false_fun=not_inertial,
+            operand=self.velocity_representation,
+        )
 
     def joint_force_references(
         self,
@@ -372,22 +419,33 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         # In this case, we allow only to set the inertial 6D forces to all links
         # using the implicit link serialization.
         if model is None:
-            if self.velocity_representation is not VelRepr.Inertial:
-                msg = "Missing model to use a representation different from {}"
-                raise ValueError(msg.format(VelRepr.Inertial.name))
 
-            if link_names is not None:
-                raise ValueError("Link names cannot be provided without a model")
+            def inertial() -> JaxSimModelReferences:
+                if link_names is not None:
+                    raise ValueError("Link names cannot be provided without a model")
 
-            W_f_L = f_L
+                W_f_L = f_L
 
-            W_f0_L = (
-                jnp.zeros_like(W_f_L)
-                if not additive
-                else self.input.physics_model.f_ext
+                W_f0_L = (
+                    jnp.zeros_like(W_f_L)
+                    if not additive
+                    else self.input.physics_model.f_ext
+                )
+
+                return replace(forces=W_f0_L + W_f_L)
+
+            return jax.lax.cond(
+                pred=(self.velocity_representation == VelRepr.Inertial),
+                true_fun=inertial,
+                false_fun=lambda: jax.pure_callback(
+                    callback=lambda: (_ for _ in ()).throw(
+                        ValueError(
+                            "Missing model to use a representation different from `VelRepr.Inertial`"
+                        )
+                    ),
+                    result_shape_dtypes=self,
+                ),
             )
-
-            return replace(forces=W_f0_L + W_f_L)
 
         # If we have the model, we can extract the link names if not provided.
         link_names = link_names if link_names is not None else model.link_names()
@@ -410,7 +468,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         )
 
         # If inertial-fixed representation, we can directly store the link forces.
-        if self.velocity_representation is VelRepr.Inertial:
+        def inertial(velocity_representation: jtp.VelRepr) -> JaxSimModelReferences:
             W_f_L = f_L
             return replace(
                 forces=self.input.physics_model.f_ext.at[link_idxs, :].set(
@@ -418,34 +476,57 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 )
             )
 
-        if data is None:
-            msg = "Missing model data to use a representation different from {}"
-            raise ValueError(msg.format(VelRepr.Inertial.name))
+        def not_inertial(velocity_representation: jtp.VelRepr) -> JaxSimModelReferences:
+            # Helper function to convert a single 6D force to the inertial representation
+            # considering as body the link (i.e. L_f_L and LW_f_L).
+            def convert_using_link_frame(
+                f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike
+            ) -> jtp.Matrix:
 
-        if not_tracing(forces) and not data.valid(model=model):
-            raise ValueError("The provided data is not valid for the model")
+                return jax.vmap(
+                    lambda f_L, W_H_L: JaxSimModelReferences.other_representation_to_inertial(
+                        array=f_L,
+                        other_representation=velocity_representation,
+                        transform=W_H_L,
+                        is_force=True,
+                    )
+                )(f_L, W_H_L)
 
-        # Helper function to convert a single 6D force to the inertial representation
-        # considering as body the link (i.e. L_f_L and LW_f_L).
-        def convert_using_link_frame(
-            f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike
-        ) -> jtp.Matrix:
+            # If not inertial-fixed representation, we need the model data.
+            W_H_L = jax.lax.cond(
+                pred=(data is None),
+                true_fun=lambda: jax.pure_callback(
+                    callback=lambda: (_ for _ in ()).throw(
+                        ValueError(
+                            "Missing model data to use a representation different from `VelRepr.Inertial`"
+                        )
+                    ),
+                    result_shape_dtypes=jnp.empty(
+                        shape=(model.number_of_links(), 4, 4)
+                    ),
+                ),
+                false_fun=lambda: js.model.forward_kinematics(
+                    model=model, data=data or JaxSimModelData.zero(model=model)
+                ),
+            )
 
-            return jax.vmap(
-                lambda f_L, W_H_L: JaxSimModelReferences.other_representation_to_inertial(
-                    array=f_L,
-                    other_representation=self.velocity_representation,
-                    transform=W_H_L,
-                    is_force=True,
+            # The f_L input is either L_f_L or LW_f_L, depending on the representation.
+            # W_H_L = js.model.forward_kinematics(
+            #     model=model, data=data or JaxSimModelData.zero(model=model)
+            # )
+            W_f_L = convert_using_link_frame(f_L=f_L, W_H_L=W_H_L[link_idxs, :, :])
+
+            return replace(
+                forces=self.input.physics_model.f_ext.at[link_idxs, :].set(
+                    W_f0_L + W_f_L
                 )
-            )(f_L, W_H_L)
+            )
 
-        # The f_L input is either L_f_L or LW_f_L, depending on the representation.
-        W_H_L = js.model.forward_kinematics(model=model, data=data)
-        W_f_L = convert_using_link_frame(f_L=f_L, W_H_L=W_H_L[link_idxs, :, :])
-
-        return replace(
-            forces=self.input.physics_model.f_ext.at[link_idxs, :].set(W_f0_L + W_f_L)
+        return jax.lax.cond(
+            pred=(self.velocity_representation == VelRepr.Inertial),
+            true_fun=inertial,
+            false_fun=not_inertial,
+            operand=self.velocity_representation,
         )
 
     def apply_frame_forces(
@@ -517,15 +598,13 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
                 is_force=True,
             )
 
-        match self.velocity_representation:
-            case VelRepr.Inertial:
-                W_f_F = f_F
-
-            case VelRepr.Body | VelRepr.Mixed:
-                W_f_F = jax.vmap(to_inertial)(f_F, W_H_Fi)
-
-            case _:
-                raise ValueError("Invalid velocity representation.")
+        W_f_F = jax.lax.switch(
+            index=self.velocity_representation,
+            branches=(
+                lambda: f_F,
+                lambda: jax.vmap(to_inertial)(f_F, W_H_Fi),
+            ),
+        )
 
         W_H_L = js.model.forward_kinematics(model=model, data=data)
 

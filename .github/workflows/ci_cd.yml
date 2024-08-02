@@ -33,9 +33,6 @@ jobs:
       - name: Install Python tools
         run: pip install build twine
 
-      - name: Install QPAX
-        run: pip install git+https://github.com/kevin-tracy/qpax
-
       - name: Create distributions
         run: python -m build -o dist/
 
@@ -92,6 +89,9 @@ jobs:
         if: contains(matrix.os, 'macos') || contains(matrix.os, 'windows')
         shell: bash
         run: pip install "$(find dist/ -type f -name '*.whl')"
+
+      - name: Install QPAX
+        run: pip install git+https://github.com/kevin-tracy/qpax
 
       - name: Document installed pip packages
         shell: bash

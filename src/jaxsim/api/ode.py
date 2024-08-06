@@ -356,13 +356,38 @@ def system_dynamics(
 
     match model.contact_model:
         case SoftContacts():
-            ṁ = aux_dict["m_dot"]
+            ode_state_kwargs = dict(tangential_deformation=aux_dict["m_dot"])
+
         case RigidContacts():
             nu_impact = aux_dict["nu_impact"]
-            # Update system velocity with the impact velocity
-            data = data.reset_base_velocity(nu_impact[0:6])
-            data = data.reset_joint_velocities(nu_impact[6:])
-            ṁ = None
+            new_impacts = aux_dict["new_impacts"]
+
+            def reset_system_velocity(
+                model: js.model.JaxSimModel,
+                data: js.data.JaxSimModelData,
+                nu: jtp.Array,
+            ) -> js.data.JaxSimModelData:
+                data = data.reset_base_velocity(
+                    nu[0:6], velocity_representation=VelRepr.Mixed
+                )
+                data = data.reset_joint_velocities(nu[6:], model=model)
+                return data
+
+            # Update system velocity with the impact velocity only if there is a new impact
+            data = jax.lax.cond(
+                new_impacts,
+                lambda operands: reset_system_velocity(
+                    model=operands["model"],
+                    data=operands["data"],
+                    nu=operands["nu_post"],
+                ),
+                lambda operands: operands["data"],
+                dict(model=model, data=data, nu_post=nu_impact),
+            )
+            ode_state_kwargs = dict(
+                inactive_collidable_points=aux_dict["inactive_collidable_points"]
+            )
+
         case _:
             raise ValueError("Unable to determine contact state class prefix.")
 
@@ -384,7 +409,7 @@ def system_dynamics(
         base_linear_velocity=W_v̇_WB[0:3],
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
-        tangential_deformation=ṁ,
+        **ode_state_kwargs,
     )
 
     return ode_state_derivative, aux_dict

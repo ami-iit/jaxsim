@@ -14,7 +14,6 @@ import jaxsim.typing as jtp
 from jaxsim import math
 from jaxsim.api.common import VelRepr
 from jaxsim.terrain.terrain import FlatTerrain, Terrain
-from jaxsim.utils import Mutability
 
 from .common import ContactModel, ContactsParams, ContactsState
 
@@ -22,9 +21,6 @@ from .common import ContactModel, ContactsParams, ContactsState
 @jax_dataclasses.pytree_dataclass
 class RigidContactParams(ContactsParams):
     """Parameters of the rigid contacts model."""
-
-    # Inactive contact points at the previous time step
-    inactive_points_prev: jtp.Vector
 
     # Static friction coefficient
     mu: jtp.Float = dataclasses.field(
@@ -49,7 +45,6 @@ class RigidContactParams(ContactsParams):
                 HashedNumpyArray.hash_of_array(self.mu),
                 HashedNumpyArray.hash_of_array(self.K),
                 HashedNumpyArray.hash_of_array(self.D),
-                HashedNumpyArray.hash_of_array(self.inactive_points_prev),
             )
         )
 
@@ -64,9 +59,7 @@ class RigidContactParams(ContactsParams):
         D: jtp.Float = 0.0,
     ) -> RigidContactParams:
         """Create a `RigidContactParams` instance"""
-        return RigidContactParams(
-            mu=mu, K=K, D=D, inactive_points_prev=inactive_points_prev
-        )
+        return RigidContactParams(mu=mu, K=K, D=D)
 
     @staticmethod
     def build_from_jaxsim_model(
@@ -78,20 +71,10 @@ class RigidContactParams(ContactsParams):
     ) -> RigidContactParams:
         """Build a `RigidContactParams` instance from a `JaxSimModel`."""
 
-        inactive_points_prev = jnp.zeros(
-            model.kin_dyn_parameters.contact_parameters.point.shape[0]
-        )
-
-        jax.debug.print(
-            "==========inactive_points_prev={inactive_points_prev}",
-            inactive_points_prev=inactive_points_prev.shape,
-        )
-
         return RigidContactParams.build(
             mu=static_friction_coefficient,
             K=K,
             D=D,
-            inactive_points_prev=inactive_points_prev,
         )
 
     def valid(self) -> bool:
@@ -106,8 +89,10 @@ class RigidContactParams(ContactsParams):
 class RigidContactsState(ContactsState):
     """Class storing the state of the rigid contacts model."""
 
+    inactive_points_prev: jtp.Vector
+
     def __hash__(self) -> int:
-        return hash(tuple(jnp.atleast_1d(self.inactive_points_prev.flatten()).tolist()))
+        return hash(tuple(jnp.atleast_1d(self.inactive_points_prev).tolist()))
 
     def __eq__(self, other: RigidContactsState) -> bool:
         return hash(self) == hash(other)
@@ -115,21 +100,49 @@ class RigidContactsState(ContactsState):
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
+        inactive_points_prev: jtp.Vector | None = None,
     ) -> RigidContactsState:
         """Build a `RigidContactsState` instance from a `JaxSimModel`."""
-        return RigidContactsState.build()
+        return RigidContactsState.build(
+            inactive_points_prev=inactive_points_prev,
+            number_of_collidable_points=len(
+                model.kin_dyn_parameters.contact_parameters.body
+            ),
+        )
 
     @staticmethod
-    def build() -> RigidContactsState:
+    def build(
+        inactive_points_prev: jtp.Vector | None = None,
+        number_of_collidable_points: int | None = None,
+    ) -> RigidContactsState:
         """Create a `RigidContactsState` instance"""
-        return RigidContactsState()
+
+        inactive_points_prev = (
+            inactive_points_prev
+            if inactive_points_prev is not None
+            else jnp.zeros(number_of_collidable_points, dtype=bool)
+        )
+
+        if inactive_points_prev.ndim != 1:
+            raise RuntimeError("The inactive points array must be 1-dimensional.")
+
+        if (
+            number_of_collidable_points is not None
+            and inactive_points_prev.shape[0] != number_of_collidable_points
+        ):
+            msg = "The number of collidable points must match the number of elements in the inactive points array."
+            raise RuntimeError(msg)
+
+        return RigidContactsState(inactive_points_prev=inactive_points_prev)
 
     @staticmethod
     def zero(model: js.model.JaxSimModel) -> RigidContactsState:
         """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
-        return RigidContactsState.build()
+        return RigidContactsState.build_from_jaxsim_model(model=model)
 
     def valid(self, model: js.model.JaxSimModel) -> bool:
+        if self.inactive_points_prev.ndim != 1:
+            return False
         return True
 
 
@@ -422,7 +435,7 @@ class RigidContacts(ContactModel):
             ),
         )
 
-        return nu
+        return new_impacts, nu
 
     @staticmethod
     def _compute_link_forces_inertial_fixed(
@@ -447,6 +460,7 @@ class RigidContacts(ContactModel):
         self,
         position: jtp.Vector,
         velocity: jtp.Vector,
+        inactive_collidable_points_prev: jtp.Vector,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
@@ -458,7 +472,6 @@ class RigidContacts(ContactModel):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
             J_WC = js.contact.jacobian(model=model, data=data)
             W_H_C = js.contact.transforms(model=model, data=data)
-        inactive_collisable_points_prev = self.parameters.inactive_points_prev
         terrain_height = jax.vmap(self.terrain.height)(position[:, 0], position[:, 1])
         terrain_normal = jax.vmap(self.terrain.normal)(position[:, 0], position[:, 1])
         n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]
@@ -522,46 +535,41 @@ class RigidContacts(ContactModel):
         )
 
         # Solve the optimization problem
-        solution, s, z, y, converged, iters = qpax.solve_qp(
+        solution, s, z, y, converged, iters = qpax.solve_qp(  # noqa: F841
             Q=Q, q=q, A=A, b=b, G=G, h=h
         )
 
-        jax.debug.print(
-            "x={x}, s={s}, z={z}, y={y}, converged={converged}, iters={iters}",
-            x=solution,
-            s=s,
-            z=z,
-            y=y,
-            converged=converged,
-            iters=iters,
-        )
+        # jax.debug.print(
+        #     "x={x}, s={s}, z={z}, y={y}, converged={converged}, iters={iters}",
+        #     x=solution,
+        #     s=s,
+        #     z=z,
+        #     y=y,
+        #     converged=converged,
+        #     iters=iters,
+        # )
 
         f_C_lin = solution.reshape(-1, 3)
 
         # Compute the impact velocity
-        nu = RigidContacts._compute_impact_velocity(
+        new_impacts, nu = RigidContacts._compute_impact_velocity(
             model=model,
             data=data,
             inactive_collidable_points=inactive_collidable_points,
-            inactive_collidable_points_prev=inactive_collisable_points_prev,
+            inactive_collidable_points_prev=inactive_collidable_points_prev,
             M=M,
             J_WC=J_WC,
         )
 
         jax.debug.print(
             "inactive_collidable_points_prev={inactive_collidable_points_prev}",
-            inactive_collidable_points_prev=inactive_collisable_points_prev,
+            inactive_collidable_points_prev=inactive_collidable_points_prev,
         )
 
         jax.debug.print(
             "inactive_collidable_points={inactive_collidable_points}",
             inactive_collidable_points=inactive_collidable_points,
         )
-
-        with self.mutable_context(
-            mutability=Mutability.MUTABLE, restore_after_exception=True
-        ):
-            self.parameters.inactive_points_prev = inactive_collidable_points
 
         # Transform linear contact forces to 6D
         CW_f_C = jnp.hstack(
@@ -576,4 +584,4 @@ class RigidContacts(ContactModel):
             CW_f_C=CW_f_C, W_H_C=W_H_C
         )
 
-        return W_f_C, (nu,)
+        return W_f_C, (new_impacts, nu, inactive_collidable_points)

@@ -134,7 +134,7 @@ class ODEState(JaxsimDataclass):
         base_quaternion: jtp.Vector | None = None,
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
-        tangential_deformation: jtp.Matrix | None = None,
+        **kwargs,
     ) -> ODEState:
         """
         Build an `ODEState` from a `JaxSimModel`.
@@ -149,9 +149,7 @@ class ODEState(JaxsimDataclass):
                 The linear velocity of the base link in inertial-fixed representation.
             base_angular_velocity:
                 The angular velocity of the base link in inertial-fixed representation.
-            tangential_deformation:
-                The matrix of 3D tangential material deformations corresponding to
-                each collidable point.
+            kwargs: Additional arguments needed to build the contact state.
 
         Returns:
             The `ODEState` built from the `JaxSimModel`.
@@ -164,6 +162,7 @@ class ODEState(JaxsimDataclass):
         # Get the contact model from the `JaxSimModel`.
         match model.contact_model:
             case SoftContacts():
+                tangential_deformation = kwargs.get("tangential_deformation", None)
                 contact = SoftContactsState.build_from_jaxsim_model(
                     model=model,
                     **(
@@ -173,7 +172,10 @@ class ODEState(JaxsimDataclass):
                     ),
                 )
             case RigidContacts():
-                contact = RigidContactsState.build_from_jaxsim_model(model=model)
+                inactive_points_prev = kwargs.get("inactive_collidable_points", None)
+                contact = RigidContactsState.build_from_jaxsim_model(
+                    model=model, inactive_points_prev=inactive_points_prev
+                )
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 

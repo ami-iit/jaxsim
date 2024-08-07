@@ -139,7 +139,11 @@ def collidable_point_dynamics(
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
     # Import privately the contacts classes.
-    from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
+    from jaxsim.rbda.contacts.rigid import (
+        RigidContactParams,
+        RigidContacts,
+        RigidContactsState,
+    )
     from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 
     # Build the soft contact model.
@@ -175,11 +179,16 @@ def collidable_point_dynamics(
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
+            if isinstance(data.contacts_params, RigidContactParams):
+                inactive_points_previous = data.contacts_params.inactive_points_prev
+            else:
+                raise ValueError("Invalid contact parameters")
+
             W_f_Ci, (new_impacts, nu, inactive_collidable_points) = (
                 rigid_contacts.compute_contact_forces(
                     position=W_p_Ci,
                     velocity=W_ṗ_Ci,
-                    inactive_collidable_points_prev=data.state.contact.inactive_points_prev,
+                    inactive_collidable_points_prev=inactive_points_previous,
                     model=model,
                     data=data,
                 )

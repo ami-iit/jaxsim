@@ -8,6 +8,7 @@ import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.integrators import Time
 from jaxsim.math import Quaternion
+from jaxsim.utils import Mutability
 
 from .common import VelRepr
 from .ode_data import ODEState
@@ -343,7 +344,7 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
-    from jaxsim.rbda.contacts.rigid import RigidContacts
+    from jaxsim.rbda.contacts.rigid import RigidContactParams, RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 
     # Compute the accelerations and the material deformation rate.
@@ -354,13 +355,16 @@ def system_dynamics(
         link_forces=link_forces,
     )
 
+    ode_state_kwargs = {}
+
     match model.contact_model:
         case SoftContacts():
-            ode_state_kwargs = dict(tangential_deformation=aux_dict["m_dot"])
+            ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
 
         case RigidContacts():
             nu_impact = aux_dict["nu_impact"]
             new_impacts = aux_dict["new_impacts"]
+            inactive_collidable_points = aux_dict["inactive_collidable_points"]
 
             def reset_system_velocity(
                 model: js.model.JaxSimModel,
@@ -384,9 +388,16 @@ def system_dynamics(
                 lambda operands: operands["data"],
                 dict(model=model, data=data, nu_post=nu_impact),
             )
-            ode_state_kwargs = dict(
-                inactive_collidable_points=aux_dict["inactive_collidable_points"]
-            )
+
+            # Update activation state of collidable points
+            with data.mutable_context(
+                mutability=Mutability.MUTABLE_NO_VALIDATION,
+                restore_after_exception=True,
+            ):
+                if isinstance(data.contacts_params, RigidContactParams):
+                    data.contacts_params.inactive_points_prev = (
+                        inactive_collidable_points
+                    )
 
         case _:
             raise ValueError("Unable to determine contact state class prefix.")

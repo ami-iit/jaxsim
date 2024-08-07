@@ -37,6 +37,11 @@ class RigidContactParams(ContactsParams):
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
+    # Inactive contact points at the previous time step
+    inactive_points_prev: jtp.Vector = dataclasses.field(
+        default_factory=lambda: jnp.zeros(0, dtype=bool)
+    )
+
     def __hash__(self) -> int:
         from jaxsim.utils.wrappers import HashedNumpyArray
 
@@ -45,6 +50,7 @@ class RigidContactParams(ContactsParams):
                 HashedNumpyArray.hash_of_array(self.mu),
                 HashedNumpyArray.hash_of_array(self.K),
                 HashedNumpyArray.hash_of_array(self.D),
+                HashedNumpyArray.hash_of_array(self.inactive_points_prev),
             )
         )
 
@@ -59,7 +65,9 @@ class RigidContactParams(ContactsParams):
         D: jtp.Float = 0.0,
     ) -> RigidContactParams:
         """Create a `RigidContactParams` instance"""
-        return RigidContactParams(mu=mu, K=K, D=D)
+        return RigidContactParams(
+            mu=mu, K=K, D=D, inactive_points_prev=inactive_points_prev
+        )
 
     @staticmethod
     def build_from_jaxsim_model(
@@ -75,6 +83,9 @@ class RigidContactParams(ContactsParams):
             mu=static_friction_coefficient,
             K=K,
             D=D,
+            inactive_points_prev=jnp.zeros(
+                len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
+            ),
         )
 
     def valid(self) -> bool:
@@ -89,60 +100,28 @@ class RigidContactParams(ContactsParams):
 class RigidContactsState(ContactsState):
     """Class storing the state of the rigid contacts model."""
 
-    inactive_points_prev: jtp.Vector
-
-    def __hash__(self) -> int:
-        return hash(tuple(jnp.atleast_1d(self.inactive_points_prev).tolist()))
-
     def __eq__(self, other: RigidContactsState) -> bool:
         return hash(self) == hash(other)
 
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
-        inactive_points_prev: jtp.Vector | None = None,
     ) -> RigidContactsState:
         """Build a `RigidContactsState` instance from a `JaxSimModel`."""
-        return RigidContactsState.build(
-            inactive_points_prev=inactive_points_prev,
-            number_of_collidable_points=len(
-                model.kin_dyn_parameters.contact_parameters.body
-            ),
-        )
+        return RigidContactsState.build()
 
     @staticmethod
-    def build(
-        inactive_points_prev: jtp.Vector | None = None,
-        number_of_collidable_points: int | None = None,
-    ) -> RigidContactsState:
+    def build() -> RigidContactsState:
         """Create a `RigidContactsState` instance"""
 
-        inactive_points_prev = (
-            inactive_points_prev
-            if inactive_points_prev is not None
-            else jnp.zeros(number_of_collidable_points, dtype=bool)
-        )
-
-        if inactive_points_prev.ndim != 1:
-            raise RuntimeError("The inactive points array must be 1-dimensional.")
-
-        if (
-            number_of_collidable_points is not None
-            and inactive_points_prev.shape[0] != number_of_collidable_points
-        ):
-            msg = "The number of collidable points must match the number of elements in the inactive points array."
-            raise RuntimeError(msg)
-
-        return RigidContactsState(inactive_points_prev=inactive_points_prev)
+        return RigidContactsState()
 
     @staticmethod
     def zero(model: js.model.JaxSimModel) -> RigidContactsState:
         """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
-        return RigidContactsState.build_from_jaxsim_model(model=model)
+        return RigidContactsState.build()
 
     def valid(self, model: js.model.JaxSimModel) -> bool:
-        if self.inactive_points_prev.ndim != 1:
-            return False
         return True
 
 

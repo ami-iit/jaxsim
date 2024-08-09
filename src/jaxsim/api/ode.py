@@ -50,7 +50,7 @@ def wrap_system_dynamics_for_integration(
     # The wrapped dynamics will hold a reference of this object.
     model_closed = model.copy()
     data_closed = data.copy().replace(
-        state=js.ode_data.ODEState.zero(model=model_closed)
+        state=js.ode_data.ODEState.zero(model=model_closed, data=data)
     )
 
     def f(x: ODEState, t: Time, **kwargs_f) -> tuple[ODEState, dict[str, Any]]:
@@ -88,7 +88,7 @@ def system_velocity_dynamics(
     *,
     joint_forces: jtp.Vector | None = None,
     link_forces: jtp.Vector | None = None,
-) -> tuple[jtp.Vector, jtp.Vector, jtp.Matrix, dict[str, Any]]:
+) -> tuple[jtp.Vector, jtp.Vector, dict[str, Any]]:
     """
     Compute the dynamics of the system velocity.
 
@@ -107,12 +107,8 @@ def system_velocity_dynamics(
         the system dynamics evaluation.
     """
 
-    # Build joint torques if not provided.
-    τ = (
-        jnp.atleast_1d(joint_forces.squeeze())
-        if joint_forces is not None
-        else jnp.zeros_like(data.joint_positions())
-    ).astype(float)
+    from jaxsim.rbda.contacts.rigid import RigidContacts
+    from jaxsim.rbda.contacts.soft import SoftContacts
 
     # Build link forces if not provided.
     # These forces are expressed in the frame corresponding to the velocity
@@ -132,18 +128,30 @@ def system_velocity_dynamics(
     W_f_Li_terrain = jnp.zeros_like(O_f_L).astype(float)
 
     # Import privately the soft contacts classes.
-    from jaxsim.rbda.contacts.soft import SoftContactsState
-
-    # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
-    assert isinstance(data.state.contact, SoftContactsState)
-    ṁ = jnp.zeros_like(data.state.contact.tangential_deformation).astype(float)
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
         # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
         #  and the corresponding material deformation rates.
         with data.switch_velocity_representation(VelRepr.Inertial):
-            W_f_Ci, ṁ = js.contact.collidable_point_dynamics(model=model, data=data)
+            W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
+                model=model, data=data
+            )
+
+        match model.contact_model:
+            case SoftContacts():
+                pass
+            case RigidContacts():
+                data_post_impact: js.data.JaxSimModelData = aux_data.get(
+                    "data_post_impact"
+                )
+                # Update the data object with the post-impact data with the same velocity representation.
+                with data_post_impact.switch_velocity_representation(
+                    data.velocity_representation
+                ):
+                    data = data_post_impact
+            case _:
+                raise ValueError("Invalid contact model {}".format(model.contact_model))
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly
@@ -160,6 +168,80 @@ def system_velocity_dynamics(
         )
 
         W_f_Li_terrain = mask.T @ W_f_Ci
+
+    # ===========================
+    # Compute system acceleration
+    # ===========================
+
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        link_forces=O_f_L,
+        data=data,
+        velocity_representation=data.velocity_representation,
+    )
+
+    with references.switch_velocity_representation(VelRepr.Inertial):
+        W_f_L = references.link_forces(model=model, data=data)
+
+    W_v̇_WB, s̈ = system_acceleration(
+        model=model,
+        data=data,
+        joint_forces=joint_forces,
+        link_external_forces_inertial=W_f_L,
+        link_contact_forces_inertial=W_f_Li_terrain,
+    )
+
+    return W_v̇_WB, s̈, aux_data
+
+
+def system_acceleration(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    joint_forces: jtp.Vector | None = None,
+    link_external_forces_inertial: jtp.Vector | None = None,
+    link_contact_forces_inertial: jtp.Vector | None = None,
+):
+    """
+    Compute the system acceleration in inertial-fixed representation.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        joint_forces: The joint forces to apply.
+        link_external_forces_inertial:
+            The 6D forces to apply to the links expressed in inertial-fixed representation.
+        link_contact_forces_inertial:
+            The 6D forces applied to the links due to contact with the terrain in inertial-fixed representation.
+
+    Returns:
+        A tuple containing the derivative of the base 6D velocity in inertial-fixed
+        representation and the derivative of the joint velocities.
+    """
+
+    # ====================
+    # Validate input data
+    # ====================
+
+    # Build link forces if not provided.
+    W_f_L_ext = (
+        jnp.atleast_2d(link_external_forces_inertial.squeeze())
+        if link_external_forces_inertial is not None
+        else jnp.zeros((model.number_of_links(), 6))
+    ).astype(float)
+
+    W_f_L_contact = (
+        jnp.atleast_2d(link_contact_forces_inertial.squeeze())
+        if link_contact_forces_inertial is not None
+        else jnp.zeros((model.number_of_links(), 6))
+    ).astype(float)
+
+    # Build joint torques if not provided.
+    τ = (
+        jnp.atleast_1d(joint_forces.squeeze())
+        if joint_forces is not None
+        else jnp.zeros_like(data.joint_positions())
+    ).astype(float)
 
     # ====================
     # Enforce joint limits
@@ -196,19 +278,8 @@ def system_velocity_dynamics(
     # Compute the total joint forces.
     τ_total = τ + τ_friction + τ_position_limit
 
-    references = js.references.JaxSimModelReferences.build(
-        model=model,
-        joint_force_references=τ_total,
-        link_forces=O_f_L,
-        data=data,
-        velocity_representation=data.velocity_representation,
-    )
-
-    with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(model=model, data=data)
-
     # Compute the total external 6D forces applied to the links.
-    W_f_L_total = W_f_L + W_f_Li_terrain
+    W_f_L_total = W_f_L_ext + W_f_L_contact
 
     # - Joint accelerations: s̈ ∈ ℝⁿ
     # - Base inertial-fixed acceleration: W_v̇_WB = (W_p̈_B, W_ω̇_B) ∈ ℝ⁶
@@ -219,8 +290,7 @@ def system_velocity_dynamics(
             joint_forces=τ_total,
             link_forces=W_f_L_total,
         )
-
-    return W_v̇_WB, s̈, ṁ, dict()
+    return W_v̇_WB, s̈
 
 
 @jax.jit
@@ -291,13 +361,33 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
+    from jaxsim.rbda.contacts.rigid import RigidContacts
+    from jaxsim.rbda.contacts.soft import SoftContacts
+
     # Compute the accelerations and the material deformation rate.
-    W_v̇_WB, s̈, ṁ, aux_dict = system_velocity_dynamics(
+    W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
         model=model,
         data=data,
         joint_forces=joint_forces,
         link_forces=link_forces,
     )
+
+    ode_state_kwargs = {}
+
+    match model.contact_model:
+        case SoftContacts():
+            ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
+
+        case RigidContacts():
+            data_post_impact: js.data.JaxSimModelData = aux_dict.pop("data_post_impact")
+            # Update the data object with the post-impact data with the same velocity representation.
+            with data_post_impact.switch_velocity_representation(
+                data.velocity_representation
+            ):
+                data = data_post_impact
+
+        case _:
+            raise ValueError("Unable to determine contact state class prefix.")
 
     # Extract the velocities.
     W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
@@ -317,7 +407,7 @@ def system_dynamics(
         base_linear_velocity=W_v̇_WB[0:3],
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
-        tangential_deformation=ṁ,
+        **ode_state_kwargs,
     )
 
     return ode_state_derivative, aux_dict

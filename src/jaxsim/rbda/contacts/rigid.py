@@ -37,11 +37,6 @@ class RigidContactParams(ContactsParams):
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
-    # Inactive contact points at the previous time step
-    inactive_points_prev: jtp.Vector = dataclasses.field(
-        default_factory=lambda: jnp.zeros(0, dtype=bool)
-    )
-
     def __hash__(self) -> int:
         from jaxsim.utils.wrappers import HashedNumpyArray
 
@@ -50,7 +45,6 @@ class RigidContactParams(ContactsParams):
                 HashedNumpyArray.hash_of_array(self.mu),
                 HashedNumpyArray.hash_of_array(self.K),
                 HashedNumpyArray.hash_of_array(self.D),
-                HashedNumpyArray.hash_of_array(self.inactive_points_prev),
             )
         )
 
@@ -65,9 +59,7 @@ class RigidContactParams(ContactsParams):
         D: jtp.Float = 0.0,
     ) -> RigidContactParams:
         """Create a `RigidContactParams` instance"""
-        return RigidContactParams(
-            mu=mu, K=K, D=D, inactive_points_prev=inactive_points_prev
-        )
+        return RigidContactParams(mu=mu, K=K, D=D)
 
     @staticmethod
     def build_from_jaxsim_model(
@@ -83,9 +75,6 @@ class RigidContactParams(ContactsParams):
             mu=static_friction_coefficient,
             K=K,
             D=D,
-            inactive_points_prev=jnp.zeros(
-                len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-            ),
         )
 
     def valid(self) -> bool:
@@ -350,10 +339,8 @@ class RigidContacts(ContactModel):
     @staticmethod
     def _compute_impact_velocity(
         inactive_collidable_points: jtp.Array,
-        inactive_collidable_points_prev: jtp.Array,
         M: jtp.Matrix,
         J_WC: jtp.Matrix,
-        model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
     ):
         """Returns the new velocity of the system after a potential impact."""
@@ -387,34 +374,18 @@ class RigidContacts(ContactModel):
                 ) @ nu_pre
                 return nu_post
 
-        new_impacts = jnp.any(
-            inactive_collidable_points_prev & ~inactive_collidable_points
-        )
-        jax.debug.print("new_impacts={new_impacts}", new_impacts=new_impacts)
+        with data.switch_velocity_representation(VelRepr.Mixed):
+            BW_nu_pre_impact = data.generalized_velocity()
 
-        nu_pre = data.generalized_velocity()
-
-        nu = jax.lax.cond(
-            new_impacts,
-            lambda operands: impact_velocity(
-                data=operands["data"],
-                inactive_collidable_points=operands["inactive_collidable_points"],
-                nu_pre=operands["nu_pre"],
-                M=operands["M"],
-                J_WC=operands["J_WC"],
-            ),
-            lambda operands: operands["nu_pre"],
-            dict(
-                model=model,
+            BW_nu_post_impact = impact_velocity(
                 data=data,
                 inactive_collidable_points=inactive_collidable_points,
-                nu_pre=nu_pre,
+                nu_pre=BW_nu_pre_impact,
                 M=M,
                 J_WC=J_WC,
-            ),
-        )
+            )
 
-        return new_impacts, nu
+        return BW_nu_post_impact
 
     @staticmethod
     def _compute_link_forces_inertial_fixed(
@@ -439,7 +410,6 @@ class RigidContacts(ContactModel):
         self,
         position: jtp.Vector,
         velocity: jtp.Vector,
-        inactive_collidable_points_prev: jtp.Vector,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
@@ -531,18 +501,11 @@ class RigidContacts(ContactModel):
         f_C_lin = solution.reshape(-1, 3)
 
         # Compute the impact velocity
-        new_impacts, nu = RigidContacts._compute_impact_velocity(
-            model=model,
+        BW_nu_post_impact = RigidContacts._compute_impact_velocity(
             data=data,
             inactive_collidable_points=inactive_collidable_points,
-            inactive_collidable_points_prev=inactive_collidable_points_prev,
             M=M,
             J_WC=J_WC,
-        )
-
-        jax.debug.print(
-            "inactive_collidable_points_prev={inactive_collidable_points_prev}",
-            inactive_collidable_points_prev=inactive_collidable_points_prev,
         )
 
         jax.debug.print(
@@ -563,4 +526,4 @@ class RigidContacts(ContactModel):
             CW_f_C=CW_f_C, W_H_C=W_H_C
         )
 
-        return W_f_C, (new_impacts, nu, inactive_collidable_points)
+        return W_f_C, (BW_nu_post_impact, inactive_collidable_points)

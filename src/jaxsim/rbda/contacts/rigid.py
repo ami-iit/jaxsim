@@ -355,23 +355,26 @@ class RigidContacts(ContactModel):
             # Compute system velocity after impact maintaining zero linear velocity of active points
             with data.switch_velocity_representation(VelRepr.Mixed):
                 sl = jnp.s_[:, 0:3, :]
-                J_WC_lin = J_WC[sl]
+                J_WC = J_WC[sl]
                 # Zero out the jacobian rows of inactive points
-                J_WC_lin = jax.vmap(
-                    lambda J, inactive: jax.lax.cond(
-                        inactive, lambda _: jnp.zeros_like(J), lambda _: J, operand=None
+                J_WC = jnp.vstack(
+                    jnp.where(
+                        inactive_collidable_points[:, jnp.newaxis, jnp.newaxis],
+                        jnp.zeros_like(J_WC),
+                        J_WC,
                     )
-                )(J_WC_lin, inactive_collidable_points)
-                J_WC_lin = jnp.vstack(J_WC_lin)
+                )
 
-                I = jnp.eye(M.shape[0])
-                nu_post = (
-                    I
-                    - pinv(M)
-                    @ J_WC_lin.T
-                    @ pinv(J_WC_lin @ pinv(M) @ J_WC_lin.T)
-                    @ J_WC_lin
-                ) @ nu_pre
+                A = jnp.vstack(
+                    [
+                        jnp.hstack([M, -J_WC.T]),
+                        jnp.hstack([J_WC, jnp.zeros((J_WC.shape[0], J_WC.shape[0]))]),
+                    ]
+                )
+                b = jnp.hstack([M @ nu_pre, jnp.zeros(J_WC.shape[0])])
+                x = jnp.linalg.lstsq(A, b)[0]
+                nu_post = x[0 : M.shape[0]]
+
                 return nu_post
 
         with data.switch_velocity_representation(VelRepr.Mixed):

@@ -379,7 +379,7 @@ def system_dynamics(
             ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
 
         case RigidContacts():
-            data_post_impact: js.data.JaxSimModelData = aux_dict.pop("data_post_impact")
+            data_post_impact: js.data.JaxSimModelData = aux_dict.get("data_post_impact")
             # Update the data object with the post-impact data with the same velocity representation.
             with data_post_impact.switch_velocity_representation(
                 data.velocity_representation

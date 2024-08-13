@@ -497,7 +497,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         b: jtp.Matrix,
         c: jtp.Vector,
         index_of_solution: jtp.IntLike = 0,
-    ) -> [bool, int | None]:
+    ) -> tuple[bool, int | None]:
         """
         Check if the Butcher tableau supports the FSAL (first-same-as-last) property.
 

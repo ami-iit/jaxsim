@@ -110,7 +110,7 @@ class HashedNumpyArray:
             return np.allclose(
                 self.array,
                 other.array,
-                **({dict(atol=self.precision)} if self.precision is not None else {}),
+                **(dict(atol=self.precision) if self.precision is not None else {}),
             )
 
         return hash(self) == hash(other)

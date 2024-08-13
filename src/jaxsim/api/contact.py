@@ -233,7 +233,7 @@ def in_contact(
 
     W_p_Ci = collidable_point_positions(model=model, data=data)
 
-    terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
+    terrain_height = jax.vmap(lambda x, y: model.terrain.get_height_at(x=x, y=y))(
         W_p_Ci[:, 0], W_p_Ci[:, 1]
     )
 

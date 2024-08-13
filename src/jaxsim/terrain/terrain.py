@@ -15,10 +15,10 @@ class Terrain(abc.ABC):
     delta = 0.010
 
     @abc.abstractmethod
-    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+    def get_height_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
         pass
 
-    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+    def get_normal_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
         """
         Compute the normal vector of the terrain at a specific (x, y) location.
 
@@ -31,10 +31,10 @@ class Terrain(abc.ABC):
         """
 
         # https://stackoverflow.com/a/5282364
-        h_xp = self.height(x=x + self.delta, y=y)
-        h_xm = self.height(x=x - self.delta, y=y)
-        h_yp = self.height(x=x, y=y + self.delta)
-        h_ym = self.height(x=x, y=y - self.delta)
+        h_xp = self.get_height_at(x=x + self.delta, y=y)
+        h_xm = self.get_height_at(x=x - self.delta, y=y)
+        h_yp = self.get_height_at(x=x, y=y + self.delta)
+        h_ym = self.get_height_at(x=x, y=y - self.delta)
 
         n = jnp.array(
             [(h_xm - h_xp) / (2 * self.delta), (h_ym - h_yp) / (2 * self.delta), 1.0]
@@ -81,9 +81,7 @@ class PlaneTerrain(FlatTerrain):
     )
 
     @staticmethod
-    def build(
-        height_over_origin: jtp.FloatLike = 0.0, *, normal: jtp.VectorLike
-    ) -> PlaneTerrain:
+    def build(height: jtp.FloatLike = 0.0, *, normal: jtp.VectorLike) -> PlaneTerrain:
         """
         Create a PlaneTerrain instance with a specified plane normal vector.
 
@@ -96,7 +94,7 @@ class PlaneTerrain(FlatTerrain):
         """
 
         normal = jnp.array(normal, dtype=float)
-        height = jnp.array(height_over_origin, dtype=float)
+        height = jnp.array(height, dtype=float)
 
         if normal.shape != (3,):
             msg = "Expected a 3D vector for the plane normal, got '{}'."

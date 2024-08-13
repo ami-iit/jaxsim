@@ -424,8 +424,12 @@ class RigidContacts(ContactModel):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
             J_WC = js.contact.jacobian(model=model, data=data)
             W_H_C = js.contact.transforms(model=model, data=data)
-        terrain_height = jax.vmap(self.terrain.height)(position[:, 0], position[:, 1])
-        terrain_normal = jax.vmap(self.terrain.normal)(position[:, 0], position[:, 1])
+        terrain_height = jax.vmap(self.terrain.get_height_at)(
+            position[:, 0], position[:, 1]
+        )
+        terrain_normal = jax.vmap(self.terrain.get_normal_at)(
+            position[:, 0], position[:, 1]
+        )
         n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]
 
         # Compute the activation state of the collidable points

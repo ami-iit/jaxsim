@@ -353,6 +353,7 @@ def system_dynamics(
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
+    from jaxsim.rbda.contacts.relaxed_rigid import RelaxedRigidContacts
     from jaxsim.rbda.contacts.rigid import RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 
@@ -370,7 +371,7 @@ def system_dynamics(
         case SoftContacts():
             ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
 
-        case RigidContacts():
+        case RigidContacts() | RelaxedRigidContacts():
             pass
 
         case _:

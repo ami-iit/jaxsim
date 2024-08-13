@@ -145,9 +145,9 @@ def collidable_point_dynamics(
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
     # Import privately the contacts classes.
-    from jaxsim.rbda.contacts.quasi_rigid import (
-        QuasiRigidContacts,
-        QuasiRigidContactsState,
+    from jaxsim.rbda.contacts.relaxed_rigid import (
+        RelaxedRigidContacts,
+        RelaxedRigidContactsState,
     )
     from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
     from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
@@ -195,18 +195,18 @@ def collidable_point_dynamics(
 
             aux_data = dict()
 
-        case QuasiRigidContacts():
-            assert isinstance(model.contact_model, QuasiRigidContacts)
-            assert isinstance(data.state.contact, QuasiRigidContactsState)
+        case RelaxedRigidContacts():
+            assert isinstance(model.contact_model, RelaxedRigidContacts)
+            assert isinstance(data.state.contact, RelaxedRigidContactsState)
 
             # Build the contact model.
-            quasi_rigid_contacts = QuasiRigidContacts(
+            relaxed_rigid_contacts = RelaxedRigidContacts(
                 parameters=data.contacts_params, terrain=model.terrain
             )
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
-            W_f_Ci, _ = quasi_rigid_contacts.compute_contact_forces(
+            W_f_Ci, _ = relaxed_rigid_contacts.compute_contact_forces(
                 position=W_p_Ci,
                 velocity=W_ṗ_Ci,
                 model=model,

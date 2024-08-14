@@ -106,7 +106,7 @@ def system_velocity_dynamics(
         the material deformation, and the dictionary of auxiliary data returned by
         the system dynamics evaluation.
     """
-
+    from jaxsim.rbda.contacts.quasi_rigid import QuasiRigidContacts
     from jaxsim.rbda.contacts.rigid import RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 
@@ -139,7 +139,7 @@ def system_velocity_dynamics(
             )
 
         match model.contact_model:
-            case SoftContacts():
+            case SoftContacts() | QuasiRigidContacts():
                 pass
             case RigidContacts():
                 data_post_impact: js.data.JaxSimModelData = aux_data.get(
@@ -360,7 +360,7 @@ def system_dynamics(
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
-
+    from jaxsim.rbda.contacts.quasi_rigid import QuasiRigidContacts
     from jaxsim.rbda.contacts.rigid import RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 
@@ -385,7 +385,8 @@ def system_dynamics(
                 data.velocity_representation
             ):
                 data = data_post_impact
-
+        case QuasiRigidContacts():
+            pass
         case _:
             raise ValueError("Unable to determine contact state class prefix.")
 

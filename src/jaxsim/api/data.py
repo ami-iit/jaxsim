@@ -593,16 +593,18 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             The updated `JaxSimModelData` object.
         """
 
-        base_quaternion = jnp.array(base_quaternion)
+        W_Q_B = jnp.array(base_quaternion, dtype=float)
+
+        W_Q_B = jax.lax.select(
+            pred=jnp.allclose(jnp.linalg.norm(W_Q_B), 1.0, atol=1e-6, rtol=0.0),
+            on_true=W_Q_B,
+            on_false=W_Q_B / jnp.linalg.norm(W_Q_B),
+        )
 
         return self.replace(
             validate=True,
             state=self.state.replace(
-                physics_model=self.state.physics_model.replace(
-                    base_quaternion=jnp.atleast_1d(base_quaternion.squeeze()).astype(
-                        float
-                    )
-                )
+                physics_model=self.state.physics_model.replace(base_quaternion=W_Q_B)
             ),
         )
 

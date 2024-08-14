@@ -8,6 +8,7 @@ dependencies:
   - python >= 3.12.0
   - coloredlogs
   - jax >= 0.4.13
+  - jaxopt >= 0.8.0
   - jaxlib >= 0.4.13
   - jaxlie >= 1.3.0
   - jax-dataclasses >= 1.4.0

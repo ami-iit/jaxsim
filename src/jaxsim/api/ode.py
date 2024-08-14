@@ -353,7 +353,6 @@ def system_dynamics(
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
-
     from jaxsim.rbda.contacts.rigid import RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 

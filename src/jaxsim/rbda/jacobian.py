@@ -67,10 +67,14 @@ def jacobian(
 
         return (i_X_0,), None
 
-    (i_X_0,), _ = jax.lax.scan(
-        f=propagate_kinematics,
-        init=propagate_kinematics_carry,
-        xs=np.arange(start=1, stop=model.number_of_links()),
+    (i_X_0,), _ = (
+        jax.lax.scan(
+            f=propagate_kinematics,
+            init=propagate_kinematics_carry,
+            xs=np.arange(start=1, stop=model.number_of_links()),
+        )
+        if model.number_of_links() > 1
+        else [(i_X_0,), None]
     )
 
     # ============================
@@ -105,10 +109,14 @@ def jacobian(
 
         return J, None
 
-    L_J_WL_B, _ = jax.lax.scan(
-        f=compute_jacobian,
-        init=J,
-        xs=np.arange(start=1, stop=model.number_of_links()),
+    L_J_WL_B, _ = (
+        jax.lax.scan(
+            f=compute_jacobian,
+            init=J,
+            xs=np.arange(start=1, stop=model.number_of_links()),
+        )
+        if model.number_of_links() > 1
+        else [J, None]
     )
 
     return L_J_WL_B
@@ -184,10 +192,14 @@ def jacobian_full_doubly_left(
 
         return (B_X_i, J), None
 
-    (B_X_i, J), _ = jax.lax.scan(
-        f=compute_full_jacobian,
-        init=compute_full_jacobian_carry,
-        xs=np.arange(start=1, stop=model.number_of_links()),
+    (B_X_i, J), _ = (
+        jax.lax.scan(
+            f=compute_full_jacobian,
+            init=compute_full_jacobian_carry,
+            xs=np.arange(start=1, stop=model.number_of_links()),
+        )
+        if model.number_of_links() > 1
+        else [(B_X_i, J), None]
     )
 
     # Convert adjoints to SE(3) transforms.

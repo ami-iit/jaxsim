@@ -139,14 +139,7 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
                 xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
             )
             if model.number_of_links() > 1
-            else [
-                (
-                    j,
-                    Fi,
-                    M,
-                ),
-                None,
-            ]
+            else [(j, Fi, M), None]
         )
 
         Fi = i_X_0[j].T @ Fi

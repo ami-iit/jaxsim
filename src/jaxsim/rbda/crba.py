@@ -59,10 +59,14 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
 
         return (i_X_0,), None
 
-    (i_X_0,), _ = jax.lax.scan(
-        f=propagate_kinematics,
-        init=forward_pass_carry,
-        xs=jnp.arange(start=1, stop=model.number_of_links()),
+    (i_X_0,), _ = (
+        jax.lax.scan(
+            f=propagate_kinematics,
+            init=forward_pass_carry,
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
+        )
+        if model.number_of_links() > 1
+        else [(i_X_0,), None]
     )
 
     # ===================
@@ -128,10 +132,14 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
                 operand=carry,
             )
 
-        (j, Fi, M), _ = jax.lax.scan(
-            f=inner_fn,
-            init=carry_inner_fn,
-            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
+        (j, Fi, M), _ = (
+            jax.lax.scan(
+                f=inner_fn,
+                init=carry_inner_fn,
+                xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
+            )
+            if model.number_of_links() > 1
+            else [(j, Fi, M), None]
         )
 
         Fi = i_X_0[j].T @ Fi
@@ -143,10 +151,14 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
 
     # This scan performs the backward pass to compute Mbj, Mjb and Mjj, that
     # also includes a fake while loop implemented with a scan and two cond.
-    (Mc, M), _ = jax.lax.scan(
-        f=backward_pass,
-        init=backward_pass_carry,
-        xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
+    (Mc, M), _ = (
+        jax.lax.scan(
+            f=backward_pass,
+            init=backward_pass_carry,
+            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
+        )
+        if model.number_of_links() > 1
+        else [(Mc, M), None]
     )
 
     # Store the locked 6D rigid-body inertia matrix Mbb ∈ ℝ⁶ˣ⁶.

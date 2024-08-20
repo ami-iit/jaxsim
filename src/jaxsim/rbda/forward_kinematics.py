@@ -75,10 +75,14 @@ def forward_kinematics_model(
 
         return (W_X_i,), None
 
-    (W_X_i,), _ = jax.lax.scan(
-        f=propagate_kinematics,
-        init=propagate_kinematics_carry,
-        xs=jnp.arange(start=1, stop=model.number_of_links()),
+    (W_X_i,), _ = (
+        jax.lax.scan(
+            f=propagate_kinematics,
+            init=propagate_kinematics_carry,
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
+        )
+        if model.number_of_links() > 1
+        else [(W_X_i,), None]
     )
 
     return jax.vmap(Adjoint.to_transform)(W_X_i)

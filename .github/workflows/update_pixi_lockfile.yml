@@ -1,0 +1,56 @@
+name: Update pixi lockfile
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 5 1 * *
+
+jobs:
+  pixi-update:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          run-install: false
+
+      - name: Install pixi-diff-to-markdown
+        run: pip install pixi-diff-to-markdown
+
+      - name: Update pixi lockfile and generate diff
+        run: |
+          set -o pipefail
+          pixi update --json --no-install
+          pixi-diff-to-markdown --explicit-column=true --hide=false > diff.md
+
+      - name: Configure Git for LFS
+        run: |
+          git lfs install
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+
+      - name: Commit and push changes
+        run: |
+          git add pixi.lock
+          git commit -m "Update pixi.lock file"
+          git push origin HEAD:update-pixi
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: This PR updates the `pixi` lockfile.
+          title: Update `pixi` lockfile
+          body-path: diff.md
+          branch: update-pixi
+          base: main
+          labels: pixi
+          delete-branch: true

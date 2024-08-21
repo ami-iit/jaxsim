@@ -30,12 +30,6 @@ jobs:
           set -o pipefail
           pixi update --json | pixi exec pixi-diff-to-markdown --explicit-column > diff.md
 
-      - name: Configure Git for LFS
-        run: |
-          git lfs install
-          git config --global user.name 'github-actions'
-          git config --global user.email 'actions@github.com'
-
       - name: Commit and push changes
         run: |
           echo "BRANCH_NAME=update-pixi-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV

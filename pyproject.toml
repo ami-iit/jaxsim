@@ -206,9 +206,13 @@ pytest-icdiff = "*"
 robot_descriptions = "*"
 
 [tool.pixi.feature.gpu]
-dependencies = { cuda-version = "12.*", cuda-cupti = "*", jaxlib = "**cuda*" }
 platforms = ["linux-64"]
 system-requirements = { cuda = "12.1" }
+
+[tool.pixi.feature.gpu.dependencies]
+cuda-cupti = "*"
+cuda-version = "12.*"
+jaxlib = {version = "*", build = "*cuda*"}
 
 [tool.pixi.pypi-dependencies]
 jaxsim = { path = "./", editable = true }

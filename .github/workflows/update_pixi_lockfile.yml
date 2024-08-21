@@ -1,0 +1,48 @@
+name: Update pixi lockfile
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 5 1 * *
+
+jobs:
+  pixi-update:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          run-install: false
+
+      - name: Install pixi-diff-to-markdown
+        run: pixi global install pixi-diff-to-markdown
+
+      - name: Update pixi lockfile and generate diff
+        run: |
+          set -o pipefail
+          pixi update --json | pixi exec pixi-diff-to-markdown --explicit-column > diff.md
+
+      - name: Commit and push changes
+        run: |
+          echo "BRANCH_NAME=update-pixi-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Update `pixi.lock`
+          title: Update `pixi` lockfile
+          body-path: diff.md
+          branch: ${{ env.BRANCH_NAME }}
+          base: main
+          labels: pixi
+          add-paths: pixi.lock
+          delete-branch: true

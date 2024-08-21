@@ -50,4 +50,5 @@ jobs:
           branch: ${{ env.BRANCH_NAME }}
           base: main
           labels: pixi
+          add-paths: pixi.lock
           delete-branch: true

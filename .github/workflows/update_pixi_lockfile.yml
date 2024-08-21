@@ -23,13 +23,12 @@ jobs:
           run-install: false
 
       - name: Install pixi-diff-to-markdown
-        run: pip install pixi-diff-to-markdown
+        run: pixi global install pixi-diff-to-markdown
 
       - name: Update pixi lockfile and generate diff
         run: |
           set -o pipefail
-          pixi update --json --no-install
-          pixi-diff-to-markdown --explicit-column=true --hide=false > diff.md
+          pixi update --json | pixi exec pixi-diff-to-markdown --explicit-column > diff.md
 
       - name: Configure Git for LFS
         run: |
@@ -39,20 +38,16 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          BRANCH_NAME="update-pixi-$(date +'%Y%m%d%H%M%S')"
-          git checkout -b "$BRANCH_NAME"
-          git add pixi.lock
-          git commit -m "Update pixi.lock file"
-          git push origin HEAD:"$BRANCH_NAME"
+          echo "BRANCH_NAME=update-pixi-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: This PR updates the `pixi` lockfile.
+          commit-message: Update `pixi.lock`
           title: Update `pixi` lockfile
           body-path: diff.md
-          branch: ${{ github.ref_name }}
+          branch: ${{ env.BRANCH_NAME }}
           base: main
           labels: pixi
           delete-branch: true

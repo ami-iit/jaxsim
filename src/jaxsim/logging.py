@@ -1,6 +1,5 @@
 import enum
 import logging
-from typing import Union
 
 import coloredlogs
 
@@ -20,7 +19,7 @@ def _logger() -> logging.Logger:
     return logging.getLogger(name=LOGGER_NAME)
 
 
-def set_logging_level(level: Union[int, LoggingLevel] = LoggingLevel.WARNING):
+def set_logging_level(level: int | LoggingLevel = LoggingLevel.WARNING):
     if isinstance(level, int):
         level = LoggingLevel(level)
 

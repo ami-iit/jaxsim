@@ -1,5 +1,5 @@
 import functools
-from typing import Any, ClassVar, Generic, Type
+from typing import Any, ClassVar, Generic
 
 try:
     from typing import Self
@@ -495,7 +495,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         dynamics: SystemDynamics[State, StateDerivative],
         fsal_enabled_if_supported: jtp.BoolLike = True,

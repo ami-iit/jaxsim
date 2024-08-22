@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import jax
 import jax.numpy as jnp
 import jaxlie
@@ -25,7 +23,7 @@ def rnea(
     joint_accelerations: jtp.Vector | None = None,
     link_forces: jtp.Matrix | None = None,
     standard_gravity: jtp.FloatLike = StandardGravity,
-) -> Tuple[jtp.Vector, jtp.Vector]:
+) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute inverse dynamics using the Recursive Newton-Euler Algorithm (RNEA).
 
@@ -132,12 +130,12 @@ def rnea(
     # Pass 1
     # ======
 
-    ForwardPassCarry = Tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix]
+    ForwardPassCarry = tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix]
     forward_pass_carry: ForwardPassCarry = (v, a, i_X_0, f)
 
     def forward_pass(
         carry: ForwardPassCarry, i: jtp.Int
-    ) -> Tuple[ForwardPassCarry, None]:
+    ) -> tuple[ForwardPassCarry, None]:
 
         ii = i - 1
         v, a, i_X_0, f = carry
@@ -186,12 +184,12 @@ def rnea(
 
     τ = jnp.zeros_like(s)
 
-    BackwardPassCarry = Tuple[jtp.Vector, jtp.Matrix]
+    BackwardPassCarry = tuple[jtp.Vector, jtp.Matrix]
     backward_pass_carry: BackwardPassCarry = (τ, f)
 
     def backward_pass(
         carry: BackwardPassCarry, i: jtp.Int
-    ) -> Tuple[BackwardPassCarry, None]:
+    ) -> tuple[BackwardPassCarry, None]:
 
         ii = i - 1
         τ, f = carry

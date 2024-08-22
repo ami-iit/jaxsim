@@ -1,5 +1,5 @@
 import functools
-from typing import Sequence
+from collections.abc import Sequence
 
 import jax
 import jax.numpy as jnp

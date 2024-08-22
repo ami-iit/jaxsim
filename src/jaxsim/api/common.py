@@ -3,7 +3,7 @@ import contextlib
 import dataclasses
 import enum
 import functools
-from typing import Generator
+from collections.abc import Generator
 
 import jax
 import jax.numpy as jnp

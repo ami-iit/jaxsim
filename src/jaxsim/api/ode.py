@@ -151,7 +151,7 @@ def system_velocity_dynamics(
                 ):
                     data = data_post_impact
             case _:
-                raise ValueError("Invalid contact model {}".format(model.contact_model))
+                raise ValueError(f"Invalid contact model {model.contact_model}")
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly

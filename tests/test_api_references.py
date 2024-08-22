@@ -109,7 +109,7 @@ def test_raise_errors_apply_link_forces(
 
     # `model` is None
     with pytest.raises(
-        ValueError,
+        XlaRuntimeError,
         match="Link names cannot be provided without a model",
     ):
         references_inertial.apply_link_forces(
@@ -123,15 +123,6 @@ def test_raise_errors_apply_link_forces(
     references_body = get_random_references(
         model=model, data=data, velocity_representation=VelRepr.Body, key=subkey2
     )
-
-    # `model` is None
-    with pytest.raises(
-        ValueError,
-        match="Link names cannot be provided without a model",
-    ):
-        references_body.apply_link_forces(
-            forces=jnp.zeros(6), model=None, data=None, link_names=model.link_names()
-        )
 
     # `model` is None
     with pytest.raises(

@@ -45,7 +45,7 @@ class Inertia:
             M (jtp.Matrix): The 6x6 inertia matrix.
 
         Returns:
-            Tuple[jtp.Float, jtp.Vector, jtp.Matrix]: A tuple containing mass, center of mass (3D), and inertia matrix (3x3).
+            tuple[jtp.Float, jtp.Vector, jtp.Matrix]: A tuple containing mass, center of mass (3D), and inertia matrix (3x3).
 
         Raises:
             ValueError: If the input matrix M has an unexpected shape.

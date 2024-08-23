@@ -346,9 +346,15 @@ class RelaxedRigidContacts(ContactModel):
             )
 
             # Compute the regularization terms.
-            R = (2 * μ**2 * (1 - ξ) / (ξ + 1e-12)) * (1 + μ**2) @ jnp.linalg.inv(I)
+            R = (
+                (2 * μ**2 * (1 - ξ) / (ξ + 1e-12))
+                * (1 + μ**2)
+                @ jnp.linalg.inv(M_L[link_idx, :3, :3])
+            )
 
-            return jax.tree.map(lambda leaf: leaf * position[2] < 0, (a_ref, R))
+            return a_ref * (position[2] < 0), R * (position[2] < 0)
+
+        M_L = js.model.link_spatial_inertia_matrices(model=model)
 
         a_ref, R = jax.tree.map(
             jnp.concatenate,

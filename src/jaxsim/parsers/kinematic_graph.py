@@ -394,7 +394,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             return copy.deepcopy(self)
 
         # Check if all considered joints are part of the full kinematic graph
-        if len(set(considered_joints) - set(j.name for j in full_graph.joints)) != 0:
+        if len(set(considered_joints) - {j.name for j in full_graph.joints}) != 0:
             extra_j = set(considered_joints) - {j.name for j in full_graph.joints}
             msg = f"Not all joints to consider are part of the graph ({{{extra_j}}})"
             raise ValueError(msg)
@@ -536,8 +536,8 @@ class KinematicGraph(Sequence[LinkDescription]):
             root_link_name=full_graph.root.name,
         )
 
-        assert set(f.name for f in self.frames).isdisjoint(
-            set(f.name for f in unconnected_frames + reduced_frames)
+        assert {f.name for f in self.frames}.isdisjoint(
+            {f.name for f in unconnected_frames + reduced_frames}
         )
 
         for link in unconnected_links:

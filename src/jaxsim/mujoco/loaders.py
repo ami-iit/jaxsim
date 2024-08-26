@@ -211,7 +211,7 @@ class RodModelToMjcf:
         joints_dict = {j.name: j for j in rod_model.joints()}
 
         # Convert all the joints not considered to fixed joints.
-        for joint_name in set(j.name for j in rod_model.joints()) - considered_joints:
+        for joint_name in {j.name for j in rod_model.joints()} - considered_joints:
             joints_dict[joint_name].type = "fixed"
 
         # Convert the ROD model to URDF.
@@ -289,10 +289,10 @@ class RodModelToMjcf:
         mj_model = mj.MjModel.from_xml_string(xml=urdf_string, assets=assets)
 
         # Get the joint names.
-        mj_joint_names = set(
+        mj_joint_names = {
             mj.mj_id2name(mj_model, mj.mjtObj.mjOBJ_JOINT, idx)
             for idx in range(mj_model.njnt)
-        )
+        }
 
         # Check that the Mujoco model only has the considered joints.
         if mj_joint_names != considered_joints:

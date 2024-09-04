@@ -84,7 +84,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     @staticmethod
     def zero(
         model: js.model.JaxSimModel,
-        velocity_representation: VelRepr = VelRepr.Inertial,
+        velocity_representation: jtp.VelRepr = VelRepr.Inertial,
     ) -> JaxSimModelData:
         """
         Create a `JaxSimModelData` object with zero state.
@@ -113,7 +113,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
         contact: jaxsim.rbda.ContactsState | None = None,
         contacts_params: jaxsim.rbda.ContactsParams | None = None,
-        velocity_representation: VelRepr = VelRepr.Inertial,
+        velocity_representation: jtp.VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
         """
@@ -621,11 +621,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=W_Q_B
         )
 
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    @jax.jit
     def reset_base_linear_velocity(
         self,
         linear_velocity: jtp.VectorLike,
-        velocity_representation: VelRepr | None = None,
+        velocity_representation: jtp.VelRepr | None = None,
     ) -> Self:
         """
         Reset the base linear velocity.
@@ -652,11 +652,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             velocity_representation=velocity_representation,
         )
 
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    @jax.jit
     def reset_base_angular_velocity(
         self,
         angular_velocity: jtp.VectorLike,
-        velocity_representation: VelRepr | None = None,
+        velocity_representation: jtp.VelRepr | None = None,
     ) -> Self:
         """
         Reset the base angular velocity.
@@ -683,11 +683,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             velocity_representation=velocity_representation,
         )
 
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
+    @jax.jit
     def reset_base_velocity(
         self,
         base_velocity: jtp.VectorLike,
-        velocity_representation: VelRepr | None = None,
+        velocity_representation: jtp.VelRepr | None = None,
     ) -> Self:
         """
         Reset the base 6D velocity.
@@ -732,7 +732,7 @@ def random_model_data(
     model: js.model.JaxSimModel,
     *,
     key: jax.Array | None = None,
-    velocity_representation: VelRepr | None = None,
+    velocity_representation: jtp.VelRepr | None = None,
     base_pos_bounds: tuple[
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],

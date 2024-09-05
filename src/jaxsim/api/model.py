@@ -1935,7 +1935,7 @@ def step(
         # Store the new state of the model and the new time.
         data.replace(
             state=state_tf,
-            time_ns=t0_ns + jnp.array(dt * 1e9).astype(jnp.uint64),
+            time_ns=t0_ns + jnp.array(dt * 1e9).astype(int),
         )
     )
 

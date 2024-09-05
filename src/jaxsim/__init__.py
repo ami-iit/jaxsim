@@ -20,6 +20,11 @@ def _jnp_options() -> None:
         if jnp.empty(0, dtype=float).dtype != jnp.empty(0, dtype=np.float64).dtype:
             logging.warning("Failed to enable 64bit precision in JAX")
 
+    else:
+        logging.warning(
+            "Using 32bit precision in JaxSim is still experimental, please avoid to use variable step integrators."
+        )
+
 
 def _np_options() -> None:
     import numpy as np

@@ -445,7 +445,7 @@ class KinematicGraph(Sequence[LinkDescription]):
                 msg.format(
                     link_to_remove.name,
                     self.joints_connection_dict[
-                        (parent_of_link_to_remove.name, link_to_remove.name)
+                        parent_of_link_to_remove.name, link_to_remove.name
                     ].name,
                     parent_of_link_to_remove.name,
                 )
@@ -853,7 +853,7 @@ class KinematicGraphTransforms:
 
             # Get the joint between the link and its parent.
             parent_joint = self.graph.joints_connection_dict[
-                (link.parent.name, link.name)
+                link.parent.name, link.name
             ]
 
             # Get the transform of the parent joint.

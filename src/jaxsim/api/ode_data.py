@@ -7,6 +7,7 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.rbda import ContactsState
 from jaxsim.rbda.contacts.relaxed_rigid import (
+    RelaxedRigidContacts,
     RelaxedRigidContactsState,
 )
 from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
@@ -176,6 +177,10 @@ class ODEState(JaxsimDataclass):
                 )
             case RigidContacts():
                 contact = RigidContactsState.build()
+
+            case RelaxedRigidContacts():
+                contact = RelaxedRigidContactsState.build()
+
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 

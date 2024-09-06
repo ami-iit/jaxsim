@@ -116,36 +116,6 @@ class RelaxedRigidContactsParams(ContactsParams):
             }
         )
 
-    @staticmethod
-    def build_from_jaxsim_model(
-        model: js.model.JaxSimModel,
-        *,
-        time_constant: jtp.Float | None = None,
-        damping_coefficient: jtp.Float | None = None,
-        d_min: jtp.Float | None = None,
-        d_max: jtp.Float | None = None,
-        width: jtp.Float | None = None,
-        midpoint: jtp.Float | None = None,
-        power: jtp.Float | None = None,
-        stiffness: jtp.Float | None = None,
-        damping: jtp.Float | None = None,
-        mu: jtp.Float | None = None,
-    ) -> RelaxedRigidContactsParams:
-        """Build a `RelaxedRigidContactsParams` instance from a `JaxSimModel`."""
-
-        return RelaxedRigidContactsParams.build(
-            time_constant=time_constant,
-            damping_coefficient=damping_coefficient,
-            d_min=d_min,
-            d_max=d_max,
-            width=width,
-            midpoint=midpoint,
-            power=power,
-            stiffness=stiffness,
-            damping=damping,
-            mu=mu,
-        )
-
     def valid(self) -> bool:
         return bool(
             jnp.all(self.time_constant >= 0.0)
@@ -166,13 +136,6 @@ class RelaxedRigidContactsState(ContactsState):
 
     def __eq__(self, other: RelaxedRigidContactsState) -> bool:
         return hash(self) == hash(other)
-
-    @staticmethod
-    def build_from_jaxsim_model(
-        model: js.model.JaxSimModel | None = None,
-    ) -> RelaxedRigidContactsState:
-        """Build a `RelaxedRigidContactsState` instance from a `JaxSimModel`."""
-        return RelaxedRigidContactsState.build()
 
     @staticmethod
     def build() -> RelaxedRigidContactsState:
@@ -223,7 +186,7 @@ class RelaxedRigidContacts(ContactModel):
         with data.switch_velocity_representation(VelRepr.Mixed):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
             J_WC = jnp.vstack(
-                jax.vmap(lambda j, height: j * (height < 0))(
+                jax.vmap(lambda J, height: J * (height < 0))(
                     js.contact.jacobian(model=model, data=data)[:, :3], position[:, 2]
                 )
             )
@@ -231,7 +194,7 @@ class RelaxedRigidContacts(ContactModel):
             h = js.model.free_floating_bias_forces(model=model, data=data)
             W_ν = data.generalized_velocity()
             J̇_WC = jnp.vstack(
-                jax.vmap(lambda j, height: j * (height < 0))(
+                jax.vmap(lambda J̇, height: J̇ * (height < 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3],
                     position[:, 2],
                 ),
@@ -244,9 +207,11 @@ class RelaxedRigidContacts(ContactModel):
                 parameters=self.parameters,
             )
 
-        G = J_WC @ jnp.linalg.lstsq(M, J_WC.T)[0]
+        M_inv = jnp.linalg.inv(M)
 
-        CW_al_free_WC = J_WC @ jnp.linalg.lstsq(M, -h)[0] + J̇_WC @ W_ν
+        G = J_WC @ M_inv @ J_WC.T
+
+        CW_al_free_WC = J_WC @ M_inv @ (-h) + J̇_WC @ W_ν
 
         # Calculate quantities for the linear optimization problem.
         A = G + R

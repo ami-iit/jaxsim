@@ -146,6 +146,7 @@ select = [
     "I",
     "W",
     "RUF",
+    "UP",
     "YTT",
 ]
 

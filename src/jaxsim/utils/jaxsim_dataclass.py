@@ -2,8 +2,8 @@ import abc
 import contextlib
 import dataclasses
 import functools
-from collections.abc import Iterator
-from typing import Any, Callable, ClassVar, Sequence, Type
+from collections.abc import Callable, Iterator, Sequence
+from typing import Any, ClassVar
 
 import jax.flatten_util
 import jax_dataclasses
@@ -337,7 +337,7 @@ class JaxsimDataclass(abc.ABC):
         return self.flatten_fn()(self)
 
     @classmethod
-    def flatten_fn(cls: Type[Self]) -> Callable[[Self], jtp.Vector]:
+    def flatten_fn(cls: type[Self]) -> Callable[[Self], jtp.Vector]:
         """
         Return a function to flatten the object into a 1D vector.
 

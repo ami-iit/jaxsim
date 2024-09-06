@@ -4,7 +4,8 @@ import dataclasses
 import pathlib
 import tempfile
 import warnings
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import mujoco as mj
 import numpy as np

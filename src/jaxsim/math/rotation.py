@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import jax
 import jax.numpy as jnp
 import jaxlie
@@ -64,7 +62,7 @@ class Rotation:
         vector = vector.squeeze()
         theta = jnp.linalg.norm(vector)
 
-        def theta_is_not_zero(theta_and_v: Tuple[jtp.Float, jtp.Vector]) -> jtp.Matrix:
+        def theta_is_not_zero(theta_and_v: tuple[jtp.Float, jtp.Vector]) -> jtp.Matrix:
             theta, v = theta_and_v
 
             s = jnp.sin(theta)

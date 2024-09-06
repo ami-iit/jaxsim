@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import Any, ClassVar, Generic, Protocol, Type, TypeVar
+from typing import Any, ClassVar, Generic, Protocol, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -64,7 +64,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         dynamics: SystemDynamics[State, StateDerivative],
         **kwargs,
@@ -224,7 +224,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     @override
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         dynamics: SystemDynamics[State, StateDerivative],
         fsal_enabled_if_supported: jtp.BoolLike = True,

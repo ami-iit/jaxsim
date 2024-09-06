@@ -3,7 +3,8 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
-from typing import Any, Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt

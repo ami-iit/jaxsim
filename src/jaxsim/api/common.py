@@ -3,7 +3,6 @@ import contextlib
 import dataclasses
 import enum
 import functools
-from typing import ContextManager
 
 import jax
 import jax.numpy as jnp
@@ -44,7 +43,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
     @contextlib.contextmanager
     def switch_velocity_representation(
         self, velocity_representation: VelRepr
-    ) -> ContextManager[Self]:
+    ) -> contextlib.AbstractContextManager[Self]:
         """
         Context manager to temporarily switch the velocity representation.
 

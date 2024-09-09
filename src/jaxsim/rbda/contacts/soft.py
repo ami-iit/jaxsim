@@ -195,8 +195,8 @@ class SoftContacts(ContactModel):
         W_ṗ_C = velocity.squeeze()
 
         # Compute the terrain normal and the contact depth.
-        n̂ = self.terrain.get_normal_at(x=px, y=py).squeeze()
-        h = jnp.array([0, 0, self.terrain.get_height_at(x=px, y=py) - pz])
+        n̂ = self.terrain.normal(x=px, y=py).squeeze()
+        h = jnp.array([0, 0, self.terrain.height(x=px, y=py) - pz])
 
         # Compute the penetration depth normal to the terrain.
         δ = jnp.maximum(0.0, jnp.dot(h, n̂))
@@ -254,7 +254,7 @@ class SoftContacts(ContactModel):
             # Check if the collidable point is below ground.
             # Note: when δ=0, we consider the point still not it contact such that
             #       we prevent divisions by 0 in the computations below.
-            active_contact = pz < self.terrain.get_height_at(x=px, y=py)
+            active_contact = pz < self.terrain.height(x=px, y=py)
 
             def above_terrain():
                 return jnp.zeros(6), (ṁ,)

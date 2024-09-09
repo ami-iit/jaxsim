@@ -15,10 +15,10 @@ class Terrain(abc.ABC):
     delta = 0.010
 
     @abc.abstractmethod
-    def get_height_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
         pass
 
-    def get_normal_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
         """
         Compute the normal vector of the terrain at a specific (x, y) location.
 
@@ -31,10 +31,10 @@ class Terrain(abc.ABC):
         """
 
         # https://stackoverflow.com/a/5282364
-        h_xp = self.get_height_at(x=x + self.delta, y=y)
-        h_xm = self.get_height_at(x=x - self.delta, y=y)
-        h_yp = self.get_height_at(x=x, y=y + self.delta)
-        h_ym = self.get_height_at(x=x, y=y - self.delta)
+        h_xp = self.height(x=x + self.delta, y=y)
+        h_xm = self.height(x=x - self.delta, y=y)
+        h_yp = self.height(x=x, y=y + self.delta)
+        h_ym = self.height(x=x, y=y - self.delta)
 
         n = jnp.array(
             [(h_xm - h_xp) / (2 * self.delta), (h_ym - h_yp) / (2 * self.delta), 1.0]
@@ -46,37 +46,37 @@ class Terrain(abc.ABC):
 @jax_dataclasses.pytree_dataclass
 class FlatTerrain(Terrain):
 
-    height: float = dataclasses.field(default=0.0, kw_only=True)
+    _height: float = dataclasses.field(default=0.0, kw_only=True)
 
     @staticmethod
     def build(height: jtp.FloatLike) -> FlatTerrain:
 
-        return FlatTerrain(height=float(height))
+        return FlatTerrain(_height=float(height))
 
-    def get_height_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
 
-        return jnp.array(self.height, dtype=float)
+        return jnp.array(self._height, dtype=float)
 
-    def get_normal_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
 
         return jnp.array([0.0, 0.0, 1.0], dtype=float)
 
     def __hash__(self) -> int:
 
-        return hash(self.height)
+        return hash(self._height)
 
     def __eq__(self, other: FlatTerrain) -> bool:
 
         if not isinstance(other, FlatTerrain):
             return False
 
-        return self.height == other.height
+        return self._height == other._height
 
 
 @jax_dataclasses.pytree_dataclass
 class PlaneTerrain(FlatTerrain):
 
-    normal: tuple[float, float, float] = jax_dataclasses.field(
+    _normal: tuple[float, float, float] = jax_dataclasses.field(
         default=(0.0, 0.0, 1.0), kw_only=True
     )
 
@@ -104,11 +104,11 @@ class PlaneTerrain(FlatTerrain):
         normal = normal / jnp.linalg.norm(normal)
 
         return PlaneTerrain(
-            height=height.item(),
-            normal=tuple(normal.tolist()),
+            _height=height.item(),
+            _normal=tuple(normal.tolist()),
         )
 
-    def get_normal_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
         """
         Compute the normal vector of the terrain at a specific (x, y) location.
 
@@ -120,9 +120,9 @@ class PlaneTerrain(FlatTerrain):
             The normal vector of the terrain surface at the specified location.
         """
 
-        return jnp.array(self.normal, dtype=float)
+        return jnp.array(self._normal, dtype=float)
 
-    def get_height_at(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+    def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
         """
         Compute the height of the terrain at a specific (x, y) location on a plane.
 
@@ -139,10 +139,10 @@ class PlaneTerrain(FlatTerrain):
         # The height over the origin: -D/C
 
         # Get the plane equation coefficients from the terrain normal.
-        A, B, C = self.normal
+        A, B, C = self._normal
 
         # Compute the final coefficient D considering the terrain height.
-        D = -C * self.height
+        D = -C * self._height
 
         # Invert the plane equation to get the height at the given (x, y) coordinates.
         return jnp.array(-(A * x + B * y + D) / C).astype(float)
@@ -153,9 +153,9 @@ class PlaneTerrain(FlatTerrain):
 
         return hash(
             (
-                hash(self.height),
+                hash(self._height),
                 HashedNumpyArray.hash_of_array(
-                    array=jnp.array(self.normal, dtype=float)
+                    array=jnp.array(self._normal, dtype=float)
                 ),
             )
         )
@@ -166,10 +166,10 @@ class PlaneTerrain(FlatTerrain):
             return False
 
         if not (
-            np.allclose(self.height, other.height)
+            np.allclose(self._height, other._height)
             and np.allclose(
-                np.array(self.normal, dtype=float),
-                np.array(other.normal, dtype=float),
+                np.array(self._normal, dtype=float),
+                np.array(other._normal, dtype=float),
             )
         ):
             return False

@@ -178,16 +178,16 @@ class RelaxedRigidContacts(ContactModel):
             n̂ = self.terrain.get_normal_at(x=x, y=y).squeeze()
             h = jnp.array([0, 0, z - model.terrain.get_height_at(x=x, y=y)])
 
-            return jnp.array([0, 0, jnp.dot(h, n̂)], dtype=float)
+            return jnp.dot(h, n̂)
 
         # Compute the activation state of the collidable points
-        position = jax.vmap(_detect_contact)(*position.T)
+        δ = jax.vmap(_detect_contact)(*position.T)
 
         with data.switch_velocity_representation(VelRepr.Mixed):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
             J_WC = jnp.vstack(
                 jax.vmap(lambda J, height: J * (height < 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3], position[:, 2]
+                    js.contact.jacobian(model=model, data=data)[:, :3], δ
                 )
             )
             W_H_C = js.contact.transforms(model=model, data=data)
@@ -195,14 +195,13 @@ class RelaxedRigidContacts(ContactModel):
             W_ν = data.generalized_velocity()
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(
-                    js.contact.jacobian_derivative(model=model, data=data)[:, :3],
-                    position[:, 2],
+                    js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
 
-            a_ref, R = self._regularizers(
+            a_ref, R, K, D = self._regularizers(
                 model=model,
-                position=position,
+                penetration=δ,
                 velocity=velocity,
                 parameters=self.parameters,
             )
@@ -229,7 +228,11 @@ class RelaxedRigidContacts(ContactModel):
             max_stepsize=100.0,
         )
 
-        CW_f_Ci = opt.run(init_params=jnp.zeros_like(b)).params.reshape(-1, 3)
+        init_params = K * jnp.zeros_like(position).at[:, 2].set(δ) + D * velocity.at[
+            :, :2
+        ].set(0)
+
+        CW_f_Ci = opt.run(init_params=init_params).params.reshape(-1, 3)
 
         def mixed_to_inertial(W_H_C: jax.Array, CW_fl: jax.Array) -> jax.Array:
             W_Xf_CW = Adjoint.from_transform(
@@ -245,7 +248,7 @@ class RelaxedRigidContacts(ContactModel):
     @staticmethod
     def _regularizers(
         model: js.model.JaxSimModel,
-        position: jtp.Array,
+        penetration: jtp.Array,
         velocity: jtp.Array,
         parameters: RelaxedRigidContactsParams,
     ) -> tuple:
@@ -254,7 +257,7 @@ class RelaxedRigidContacts(ContactModel):
 
         Args:
             model (js.model.JaxSimModel): The jaxsim model.
-            position (jtp.Vector): The position of the collidable points.
+            penetration (jtp.Vector): The penetration of the collidable points.
             velocity (jtp.Vector): The velocity of the collidable points.
             parameters (RelaxedRigidContactsParams): The parameters of the relaxed rigid contacts model.
 
@@ -265,20 +268,22 @@ class RelaxedRigidContacts(ContactModel):
         Ω, ζ, ξ_min, ξ_max, width, mid, p, K, D, μ = jax_dataclasses.astuple(parameters)
 
         def _imp_aref(
-            position: jtp.Array,
+            penetration: jtp.Array,
             velocity: jtp.Array,
         ) -> tuple[jtp.Array, jtp.Array]:
             """
             Calculates impedance and offset acceleration in constraint frame.
 
             Args:
-                position: position in constraint frame
+                penetration: penetration in constraint frame
                 velocity: velocity in constraint frame
 
             Returns:
                 impedance: constraint impedance
                 a_ref: offset acceleration in constraint frame
             """
+            position = jnp.zeros(shape=(3,)).at[2].set(penetration)
+
             imp_x = jnp.abs(position) / width
             imp_a = (1.0 / jnp.power(mid, p - 1)) * jnp.power(imp_x, p)
 
@@ -295,18 +300,18 @@ class RelaxedRigidContacts(ContactModel):
 
             a_ref = -jnp.atleast_1d(D_f * velocity + K_f * imp * position)
 
-            return imp, a_ref
+            return imp, a_ref, jnp.atleast_1d(K_f), jnp.atleast_1d(D_f)
 
         def _compute_row(
             *,
             link_idx: jtp.Float,
-            position: jtp.Array,
+            penetration: jtp.Array,
             velocity: jtp.Array,
         ) -> tuple[jtp.Array, jtp.Array]:
 
             # Compute the reference acceleration.
-            ξ, a_ref = _imp_aref(
-                position=position,
+            ξ, a_ref, K, D = _imp_aref(
+                penetration=penetration,
                 velocity=velocity,
             )
 
@@ -317,20 +322,20 @@ class RelaxedRigidContacts(ContactModel):
                 @ jnp.linalg.inv(M_L[link_idx, :3, :3])
             )
 
-            return a_ref * (position[2] < 0), R * (position[2] < 0)
+            return jax.tree.map(lambda x: x * (penetration < 0), (a_ref, R, K, D))
 
         M_L = js.model.link_spatial_inertia_matrices(model=model)
 
-        a_ref, R = jax.tree.map(
+        a_ref, R, K, D = jax.tree.map(
             jnp.concatenate,
             (
                 *jax.vmap(_compute_row)(
                     link_idx=jnp.array(
                         model.kin_dyn_parameters.contact_parameters.body
                     ),
-                    position=position,
+                    penetration=penetration,
                     velocity=velocity,
                 ),
             ),
         )
-        return a_ref, jnp.diag(R)
+        return a_ref, jnp.diag(R), K, D

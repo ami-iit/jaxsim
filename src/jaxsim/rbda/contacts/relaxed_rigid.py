@@ -71,6 +71,16 @@ class RelaxedRigidContactsParams(ContactsParams):
         default_factory=lambda: jnp.array(0.5, dtype=float)
     )
 
+    # Maximum number of iterations
+    max_iterations: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array(50, dtype=int)
+    )
+
+    # Solver Tolerance
+    tolerance: jtp.Float = dataclasses.field(
+        default_factory=lambda: jnp.array(1e-6, dtype=float)
+    )
+
     def __hash__(self) -> int:
         from jaxsim.utils.wrappers import HashedNumpyArray
 
@@ -86,6 +96,8 @@ class RelaxedRigidContactsParams(ContactsParams):
                 HashedNumpyArray(self.stiffness),
                 HashedNumpyArray(self.damping),
                 HashedNumpyArray(self.mu),
+                HashedNumpyArray(self.max_iterations),
+                HashedNumpyArray(self.tolerance),
             )
         )
 
@@ -127,6 +139,8 @@ class RelaxedRigidContactsParams(ContactsParams):
             and jnp.all(self.midpoint >= 0.0)
             and jnp.all(self.power >= 0.0)
             and jnp.all(self.mu >= 0.0)
+            and jnp.all(self.max_iterations > 0)
+            and jnp.all(self.tolerance > 0.0)
         )
 
 
@@ -221,8 +235,8 @@ class RelaxedRigidContacts(ContactModel):
         # Compute the 3D linear force in C[W] frame
         opt = jaxopt.LBFGS(
             fun=objective,
-            maxiter=50,
-            tol=1e-6,
+            maxiter=self.parameters.max_iterations,
+            tol=self.parameters.tolerance,
             maxls=30,
             history_size=10,
             max_stepsize=100.0,
@@ -265,7 +279,9 @@ class RelaxedRigidContacts(ContactModel):
             A tuple containing the reference acceleration and the regularization matrix.
         """
 
-        Ω, ζ, ξ_min, ξ_max, width, mid, p, K, D, μ = jax_dataclasses.astuple(parameters)
+        Ω, ζ, ξ_min, ξ_max, width, mid, p, K, D, μ, *_ = jax_dataclasses.astuple(
+            parameters
+        )
 
         def _imp_aref(
             penetration: jtp.Array,

@@ -107,7 +107,7 @@ class JointModel:
             λ_H_pre=λ_H_pre,
             suc_H_i=suc_H_i,
             # Static attributes
-            joint_dofs=tuple([base_dofs] + [int(1) for _ in ordered_joints]),
+            joint_dofs=tuple([base_dofs] + [1 for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
             joint_types=tuple([JointType.Fixed] + [j.jtype for j in ordered_joints]),
             joint_axis=tuple(JointGenericAxis(axis=j.axis) for j in ordered_joints),

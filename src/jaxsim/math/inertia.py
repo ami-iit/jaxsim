@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import jax.numpy as jnp
 
 import jaxsim.typing as jtp
@@ -39,7 +37,7 @@ class Inertia:
         return M
 
     @staticmethod
-    def to_params(M: jtp.Matrix) -> Tuple[jtp.Float, jtp.Vector, jtp.Matrix]:
+    def to_params(M: jtp.Matrix) -> tuple[jtp.Float, jtp.Vector, jtp.Matrix]:
         """
         Convert a 6x6 inertia matrix to mass, center of mass, and inertia matrix.
 

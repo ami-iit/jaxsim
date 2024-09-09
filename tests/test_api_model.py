@@ -36,7 +36,7 @@ def test_model_creation_and_reduction(
     assert data_full.valid(model=model_full)
 
     # Build the ROD model from the original description.
-    assert isinstance(model_full.built_from, (str, pathlib.Path))
+    assert isinstance(model_full.built_from, str | pathlib.Path)
     rod_sdf = rod.Sdf.load(sdf=model_full.built_from)
     assert len(rod_sdf.models()) == 1
 

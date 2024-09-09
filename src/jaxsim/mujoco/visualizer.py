@@ -1,6 +1,6 @@
 import contextlib
 import pathlib
-from typing import ContextManager, Sequence
+from collections.abc import Sequence
 
 import mediapy as media
 import mujoco as mj
@@ -172,7 +172,7 @@ class MujocoVisualizer:
         distance: float | int | npt.NDArray | None = None,
         azimut: float | int | npt.NDArray | None = None,
         elevation: float | int | npt.NDArray | None = None,
-    ) -> ContextManager[mujoco.viewer.Handle]:
+    ) -> contextlib.AbstractContextManager[mujoco.viewer.Handle]:
         """
         Context manager to open the Mujoco passive viewer.
 

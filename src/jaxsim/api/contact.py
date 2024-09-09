@@ -163,7 +163,7 @@ def collidable_point_dynamics(
             )
 
         case _:
-            raise ValueError("Invalid contact model {}".format(model.contact_model))
+            raise ValueError(f"Invalid contact model {model.contact_model}")
 
     # Convert the 6D forces to the active representation.
     f_Ci = jax.vmap(

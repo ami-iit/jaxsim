@@ -1,6 +1,6 @@
 import dataclasses
 import pathlib
-from typing import Dict, List, NamedTuple, Optional, Union
+from typing import NamedTuple
 
 import jax.numpy as jnp
 import numpy as np
@@ -23,17 +23,17 @@ class SDFData(NamedTuple):
     fixed_base: bool
     base_link_name: str
 
-    link_descriptions: List[descriptions.LinkDescription]
-    joint_descriptions: List[descriptions.JointDescription]
-    frame_descriptions: List[descriptions.LinkDescription]
-    collision_shapes: List[descriptions.CollisionShape]
+    link_descriptions: list[descriptions.LinkDescription]
+    joint_descriptions: list[descriptions.JointDescription]
+    frame_descriptions: list[descriptions.LinkDescription]
+    collision_shapes: list[descriptions.CollisionShape]
 
     sdf_model: rod.Model | None = None
     model_pose: kinematic_graph.RootPose = kinematic_graph.RootPose()
 
 
 def extract_model_data(
-    model_description: Union[pathlib.Path, str, rod.Model],
+    model_description: pathlib.Path | str | rod.Model,
     model_name: str | None = None,
     is_urdf: bool | None = None,
 ) -> SDFData:
@@ -114,7 +114,7 @@ def extract_model_data(
     ]
 
     # Create a dictionary to find easily links.
-    links_dict: Dict[str, descriptions.LinkDescription] = {l.name: l for l in links}
+    links_dict: dict[str, descriptions.LinkDescription] = {l.name: l for l in links}
 
     # ============
     # Parse frames
@@ -304,7 +304,7 @@ def extract_model_data(
     # ================
 
     # Initialize the collision shapes
-    collisions: List[descriptions.CollisionShape] = []
+    collisions: list[descriptions.CollisionShape] = []
 
     # Parse the collisions
     for link in sdf_model.links():
@@ -339,8 +339,8 @@ def extract_model_data(
 
 
 def build_model_description(
-    model_description: Union[pathlib.Path, str, rod.Model],
-    is_urdf: Optional[bool] = False,
+    model_description: pathlib.Path | str | rod.Model,
+    is_urdf: bool | None = False,
 ) -> descriptions.ModelDescription:
     """
     Builds a model description from an SDF/URDF resource.

@@ -51,14 +51,19 @@ class RigidContactParams(ContactsParams):
     def __eq__(self, other: RigidContactParams) -> bool:
         return hash(self) == hash(other)
 
-    @staticmethod
+    @classmethod
     def build(
-        mu: jtp.Float = 0.5,
-        K: jtp.Float = 0.0,
-        D: jtp.Float = 0.0,
+        cls,
+        mu: jtp.Float | None = None,
+        K: jtp.Float | None = None,
+        D: jtp.Float | None = None,
     ) -> RigidContactParams:
         """Create a `RigidContactParams` instance"""
-        return RigidContactParams(mu=mu, K=K, D=D)
+        return RigidContactParams(
+            mu=mu or cls.__dataclass_fields__["mu"].default,
+            K=K or cls.__dataclass_fields__["K"].default,
+            D=D or cls.__dataclass_fields__["D"].default,
+        )
 
     def valid(self) -> bool:
         return bool(

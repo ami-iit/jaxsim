@@ -119,6 +119,13 @@ def system_velocity_dynamics(
         else jnp.zeros((model.number_of_links(), 6))
     ).astype(float)
 
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        link_forces=O_f_L,
+        data=data,
+        velocity_representation=data.velocity_representation,
+    )
+
     # ======================
     # Compute contact forces
     # ======================
@@ -135,7 +142,7 @@ def system_velocity_dynamics(
         #  and the corresponding material deformation rates.
         with data.switch_velocity_representation(VelRepr.Inertial):
             W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
-                model=model, data=data
+                model=model, data=data, link_external_forces=references
             )
 
         match model.contact_model:
@@ -172,13 +179,6 @@ def system_velocity_dynamics(
     # ===========================
     # Compute system acceleration
     # ===========================
-
-    references = js.references.JaxSimModelReferences.build(
-        model=model,
-        link_forces=O_f_L,
-        data=data,
-        velocity_representation=data.velocity_representation,
-    )
 
     with references.switch_velocity_representation(VelRepr.Inertial):
         W_f_L = references.link_forces(model=model, data=data)

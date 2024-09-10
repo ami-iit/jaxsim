@@ -1890,6 +1890,8 @@ def step(
         and the new state of the integrator.
     """
 
+    from jaxsim.rbda.contacts.rigid import RigidContacts
+
     # Extract the integrator kwargs.
     # The following logic allows using integrators having kwargs colliding with the
     # kwargs of this step function.
@@ -1928,11 +1930,34 @@ def step(
         ),
     )
 
-    return (
+    data = (
         # Store the new state of the model and the new time.
         data.replace(
             state=state_xf,
             time_ns=t0_ns + jnp.array(dt * 1e9).astype(jnp.uint64),
-        ),
+        )
+    )
+
+    jax.debug.print("before data base vel{base_vel}", base_vel=data.base_velocity())
+
+    # In case of rigid contact model, update data
+    match model.contact_model:
+        case RigidContacts():
+            data_post_impact: js.data.JaxSimModelData = integrator_state_xf.pop(
+                "data_post_impact"
+            )
+            jax.debug.print(
+                "post_impact base vel{base_vel}",
+                base_vel=data_post_impact.base_velocity(),
+            )
+            with data_post_impact.switch_velocity_representation(
+                data.velocity_representation
+            ):
+                data = data.reset_base_velocity(data_post_impact.base_velocity())
+                data = data.reset_joint_velocities(data_post_impact.joint_velocities())
+
+    jax.debug.print("updated data base vel{base_vel}", base_vel=data.base_velocity())
+    return (
+        data,
         integrator_state_xf,
     )

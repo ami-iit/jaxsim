@@ -127,7 +127,7 @@ class RigidContacts(ContactModel):
     )
 
     @staticmethod
-    def _detect_contacts(
+    def detect_contacts(
         W_o_C: jtp.Array,
         W_o_dot_C: jtp.Array,
         terrain_height: jtp.Array,
@@ -135,6 +135,15 @@ class RigidContacts(ContactModel):
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
         Detect contacts between the collidable points and the terrain.
+
+        Args:
+            W_o_C: The position of the collidable points.
+            W_o_dot_C: The linear velocity of the collidable points.
+            terrain_height: The height of the terrain at the collidable point position.
+            terrain_normal: The normal of the terrain at the collidable point position.
+
+        Returns:
+            A tuple containing the activation state of the collidable points along contact normal penetration depth and velocity.
         """
 
         # TODO: reduce code duplication with js.contact.in_contact
@@ -336,13 +345,20 @@ class RigidContacts(ContactModel):
         return baumgarte_term
 
     @staticmethod
-    def _compute_impact_velocity(
+    def compute_impact_velocity(
         inactive_collidable_points: jtp.Array,
         M: jtp.Matrix,
         J_WC: jtp.Matrix,
         data: js.data.JaxSimModelData,
     ):
-        """Returns the new velocity of the system after a potential impact."""
+        """Returns the new velocity of the system after a potential impact.
+
+        Args:
+            inactive_collidable_points: The activation state of the collidable points.
+            M: The mass matrix of the system.
+            J_WC: The Jacobian matrix of the collidable points.
+            data: The `JaxSimModelData` instance.
+        """
 
         def impact_velocity(
             inactive_collidable_points: jtp.Array,
@@ -416,6 +432,19 @@ class RigidContacts(ContactModel):
         data: js.data.JaxSimModelData,
         link_external_forces: js.references.JaxSimModelReferences | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+        """
+        Compute the contact forces.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The linear velocity of the collidable point.
+            model: The `JaxSimModel` instance.
+            data: The `JaxSimModelData` instance.
+            link_external_forces: Optional `JaxSimModelReferences` instance containing external forces acting on the links.
+
+        Returns:
+            A tuple containing the contact forces.
+        """
 
         # Import qpax just in this method
         import qpax
@@ -430,7 +459,7 @@ class RigidContacts(ContactModel):
         n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]
 
         # Compute the activation state of the collidable points
-        inactive_collidable_points, (delta, delta_dot) = RigidContacts._detect_contacts(
+        inactive_collidable_points, (delta, delta_dot) = RigidContacts.detect_contacts(
             W_o_C=position,
             W_o_dot_C=velocity,
             terrain_height=terrain_height,
@@ -486,19 +515,9 @@ class RigidContacts(ContactModel):
         b = jnp.zeros((0,))
 
         # Solve the optimization problem
-        solution, *_ = qpax.solve_qp(  # noqa: F841
-            Q=Q, q=q, A=A, b=b, G=G, h=h
-        )
+        solution, *_ = qpax.solve_qp(Q=Q, q=q, A=A, b=b, G=G, h=h)
 
         f_C_lin = solution.reshape(-1, 3)
-
-        # Compute the impact velocity
-        BW_nu_post_impact = RigidContacts._compute_impact_velocity(
-            data=data,
-            inactive_collidable_points=inactive_collidable_points,
-            M=M,
-            J_WC=J_WC,
-        )
 
         # Transform linear contact forces to 6D
         CW_f_C = jnp.hstack(
@@ -513,4 +532,4 @@ class RigidContacts(ContactModel):
             CW_f_C=CW_f_C, W_H_C=W_H_C
         )
 
-        return W_f_C, (BW_nu_post_impact, inactive_collidable_points)
+        return (W_f_C, ())

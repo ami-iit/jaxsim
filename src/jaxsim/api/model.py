@@ -1951,13 +1951,13 @@ def step(
                 terrain_normal = jax.vmap(model.contact_model.terrain.normal)(
                     W_o_C[:, 0], W_o_C[:, 1]
                 )
-                inactive_collidable_points, _ = RigidContacts._detect_contacts(
+                inactive_collidable_points, _ = RigidContacts.detect_contacts(
                     W_o_C=W_o_C,
                     W_o_dot_C=W_o_dot_C,
                     terrain_height=terrain_height,
                     terrain_normal=terrain_normal,
                 )
-                BW_nu_post_impact = RigidContacts._compute_impact_velocity(
+                BW_nu_post_impact = RigidContacts.compute_impact_velocity(
                     data=data,
                     inactive_collidable_points=inactive_collidable_points,
                     M=M,

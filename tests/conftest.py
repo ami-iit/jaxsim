@@ -386,3 +386,28 @@ def jaxsim_models_fixed_base(request) -> pathlib.Path | str:
 
     model_name: str = request.param
     return get_jaxsim_model_fixture(model_name=model_name, request=request)
+
+
+@pytest.fixture(scope="function")
+def set_jax_32bit(monkeypatch):
+    """
+    Fixture that temporarily sets JAX precision to 32-bit for the duration of the test.
+    """
+
+    del globals()["jaxsim"]
+    del globals()["js"]
+
+    # Temporarily disable x64
+    monkeypatch.setenv("JAX_ENABLE_X64", "0")
+
+
+@pytest.fixture(scope="function")
+def jaxsim_model_box_32bit(set_jax_32bit, request) -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a box with 32-bit precision.
+
+    Returns:
+        The JaxSim model of a box with 32-bit precision.
+    """
+
+    return get_jaxsim_model_fixture(model_name="box", request=request)

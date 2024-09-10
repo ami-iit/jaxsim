@@ -116,7 +116,7 @@ def collidable_point_forces(
 def collidable_point_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
-    link_external_forces: jtp.Matrix | None = None,
+    link_external_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Matrix, dict[str, jtp.Array]]:
     r"""
     Compute the 6D force applied to each collidable point.

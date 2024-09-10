@@ -169,15 +169,20 @@ def system_velocity_dynamics(
         data.switch_velocity_representation(VelRepr.Inertial),
         references.switch_velocity_representation(VelRepr.Inertial),
     ):
-        W_f_L_total = W_f_Li_terrain + references.link_forces(model=model, data=data)
+        references = references.apply_link_forces(
+            model=model,
+            data=data,
+            forces=W_f_Li_terrain,
+            additive=True,
+        )
+    # Get the link forces in the data representation
+    with references.switch_velocity_representation(data.velocity_representation):
+        f_L_total = references.link_forces(model=model, data=data)
 
     # The following method always returns the inertial-fixed acceleration, and expects
     # the link_forces expressed in the inertial frame.
     W_v̇_WB, s̈ = system_acceleration(
-        model=model,
-        data=data,
-        joint_forces=joint_forces,
-        link_forces=W_f_L_total,
+        model=model, data=data, joint_forces=joint_forces, link_forces=f_L_total
     )
 
     return W_v̇_WB, s̈, aux_data
@@ -258,7 +263,6 @@ def system_acceleration(
     # Compute the total joint forces.
     τ_total = τ + τ_friction + τ_position_limit
 
-    # Convert link forces to inertial-frame representation.
     references = js.references.JaxSimModelReferences.build(
         model=model,
         data=data,

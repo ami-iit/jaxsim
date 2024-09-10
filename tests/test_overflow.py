@@ -1,8 +1,7 @@
-import pytest
-
 import jax
 import jax.numpy as jnp
 import jaxlib
+import pytest
 
 import jaxsim.api as js
 from jaxsim import exceptions
@@ -16,6 +15,7 @@ def test_time_overflow(jaxsim_model_box_32bit: js.model.JaxSimModel):
     data = js.data.JaxSimModelData.build(
         model=model,
         base_position=jnp.array([0.0, 0.0, 0.5]),
+        contacts_params=model.contact_model.parameters,
     )
 
     # Initialize the simulation time.
@@ -35,6 +35,9 @@ def test_time_overflow(jaxsim_model_box_32bit: js.model.JaxSimModel):
         )
 
         data = data.replace(time_ns=tf)
+
+    print(data.time_ns.dtype)
+    data = data.replace(time_ns=jnp.array(2**32 - 1, dtype=jnp.uint32))
 
     with pytest.raises(
         jaxlib.xla_extension.XlaRuntimeError,

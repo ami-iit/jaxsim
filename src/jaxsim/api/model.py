@@ -1933,8 +1933,7 @@ def step(
     )
 
     exceptions.raise_if(
-        condition=t0_ns + jnp.array(dt * 1e9).astype(t0_ns.dtype)
-        > jnp.iinfo(t0_ns.dtype).max,
+        condition=t0_ns + jnp.array(dt * 1e9).astype(t0_ns.dtype) < t0_ns,
         exception=OverflowError,
         msg="The simulation time overflowed the maximum integer value. Consider using x64 by setting `JAX_ENABLE_X64=1`.",
     )

@@ -175,10 +175,20 @@ def collidable_point_dynamics(
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
-            W_f_Ci, (nu,) = rigid_contacts.compute_contact_forces(
-                W_p_Ci, W_ṗ_Ci, model, data
+            W_f_Ci, (new_impacts, nu, inactive_collidable_points) = (
+                rigid_contacts.compute_contact_forces(
+                    position=W_p_Ci,
+                    velocity=W_ṗ_Ci,
+                    inactive_collidable_points_prev=data.state.contact.inactive_points_prev,
+                    model=model,
+                    data=data,
+                )
             )
-            aux_data = dict(nu_impact=nu)
+            aux_data = dict(
+                nu_impact=nu,
+                inactive_collidable_points=inactive_collidable_points,
+                new_impacts=new_impacts,
+            )
 
         case _:
             raise ValueError(f"Invalid contact model {model.contact_model}")

@@ -115,7 +115,7 @@ def collidable_point_forces(
 @jax.jit
 def collidable_point_dynamics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
-) -> tuple[jtp.Matrix, tuple[jtp.Array]]:
+) -> tuple[jtp.Matrix, dict[str, jtp.Array]]:
     r"""
     Compute the 6D force applied to each collidable point.
 
@@ -162,7 +162,7 @@ def collidable_point_dynamics(
             W_f_Ci, (CW_ṁ,) = jax.vmap(soft_contacts.compute_contact_forces)(
                 W_p_Ci, W_ṗ_Ci, data.state.contact.tangential_deformation
             )
-            aux_data = (CW_ṁ,)
+            aux_data = dict(ṁ=CW_ṁ)
 
         case RigidContacts():
             assert isinstance(model.contact_model, RigidContacts)
@@ -178,7 +178,7 @@ def collidable_point_dynamics(
             W_f_Ci, (nu,) = rigid_contacts.compute_contact_forces(
                 W_p_Ci, W_ṗ_Ci, model, data
             )
-            aux_data = nu
+            aux_data = dict(nu_impact=nu)
 
         case _:
             raise ValueError(f"Invalid contact model {model.contact_model}")

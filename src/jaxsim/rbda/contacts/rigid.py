@@ -467,7 +467,7 @@ class RigidContacts(ContactModel):
             baumgarte_term = jax.lax.cond(
                 inactive,
                 lambda δ, δ̇, K, D: jnp.zeros(shape=(3,)),
-                lambda δ, δ̇, K, D: jnp.zeros(3).at[2].set(K * δ + D * δ̇),
+                lambda δ, δ̇, K, D: jnp.zeros(shape=(3,)).at[2].set(K * δ + D * δ̇),
                 *(
                     delta,
                     delta_dot,

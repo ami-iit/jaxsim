@@ -132,11 +132,9 @@ def system_velocity_dynamics(
     W_f_Li_terrain = jnp.zeros_like(O_f_L).astype(float)
 
     # Import privately the soft contacts classes.
-    from jaxsim.rbda.contacts.soft import SoftContactsState
 
     # Initialize the derivative of the tangential deformation ṁ ∈ ℝ^{n_c × 3}.
-    assert isinstance(data.state.contact, SoftContactsState)
-    ṁ = jnp.zeros_like(data.state.contact.tangential_deformation).astype(float)
+    ṁ = jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point).astype(float)
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
@@ -291,13 +289,28 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
+    from jaxsim.rbda.contacts.rigid import RigidContacts
+    from jaxsim.rbda.contacts.soft import SoftContacts
+
     # Compute the accelerations and the material deformation rate.
-    W_v̇_WB, s̈, ṁ, aux_dict = system_velocity_dynamics(
+    W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
         model=model,
         data=data,
         joint_forces=joint_forces,
         link_forces=link_forces,
     )
+
+    match model.contact_model:
+        case SoftContacts():
+            ṁ = aux_dict["ṁ"]
+        case RigidContacts():
+            nu_impact = aux_dict["nu_impact"]
+            # Update system velocity with the impact velocity
+            data = data.reset_base_velocity(nu_impact[0:6])
+            data = data.reset_joint_velocities(nu_impact[6:])
+            ṁ = None
+        case _:
+            raise ValueError("Unable to determine contact state class prefix.")
 
     # Extract the velocities.
     W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(

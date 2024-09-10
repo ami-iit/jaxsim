@@ -107,9 +107,6 @@ def system_velocity_dynamics(
         the system dynamics evaluation.
     """
 
-    from jaxsim.rbda.contacts.rigid import RigidContacts
-    from jaxsim.rbda.contacts.soft import SoftContacts
-
     # Build link forces if not provided.
     # These forces are expressed in the frame corresponding to the velocity
     # representation of data.
@@ -144,21 +141,7 @@ def system_velocity_dynamics(
             W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
                 model=model, data=data, link_external_forces=references
             )
-
-        match model.contact_model:
-            case SoftContacts():
-                pass
-            case RigidContacts():
-                data_post_impact: js.data.JaxSimModelData = aux_data.get(
-                    "data_post_impact"
-                )
-                # Update the data object with the post-impact data with the same velocity representation.
-                with data_post_impact.switch_velocity_representation(
-                    data.velocity_representation
-                ):
-                    data = data_post_impact
-            case _:
-                raise ValueError("Invalid contact model {}".format(model.contact_model))
+            # jax.debug.print("W_f_Ci={W_f_Ci}", W_f_Ci=W_f_Ci)
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly
@@ -379,12 +362,7 @@ def system_dynamics(
             ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
 
         case RigidContacts():
-            data_post_impact: js.data.JaxSimModelData = aux_dict.get("data_post_impact")
-            # Update the data object with the post-impact data with the same velocity representation.
-            with data_post_impact.switch_velocity_representation(
-                data.velocity_representation
-            ):
-                data = data_post_impact
+            pass
 
         case _:
             raise ValueError("Unable to determine contact state class prefix.")

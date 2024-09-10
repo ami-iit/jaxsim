@@ -172,7 +172,7 @@ class ODEState(JaxsimDataclass):
                     ),
                 )
             case RigidContacts():
-                contact = RigidContactsState.build_from_jaxsim_model(model=model)
+                contact = RigidContactsState.build()
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 

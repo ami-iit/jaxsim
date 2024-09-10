@@ -116,7 +116,7 @@ def collidable_point_forces(
 def collidable_point_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
-    link_external_forces: js.references.JaxSimModelReferences | None = None,
+    link_external_forces: jtp.Matrix | None = None,
 ) -> tuple[jtp.Matrix, dict[str, jtp.Array]]:
     r"""
     Compute the 6D force applied to each collidable point.
@@ -124,7 +124,8 @@ def collidable_point_dynamics(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        link_external_forces: References object containing the 6D external forces applied to links.
+        link_external_forces: The 6D external forces to apply to the links
+            expressed in the same representation of data.
 
     Returns:
         The 6D force applied to each collidable point and additional data based on the contact model configured:

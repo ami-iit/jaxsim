@@ -53,29 +53,12 @@ class RigidContactParams(ContactsParams):
 
     @staticmethod
     def build(
-        inactive_points_prev: jtp.Vector,
         mu: jtp.Float = 0.5,
         K: jtp.Float = 0.0,
         D: jtp.Float = 0.0,
     ) -> RigidContactParams:
         """Create a `RigidContactParams` instance"""
         return RigidContactParams(mu=mu, K=K, D=D)
-
-    @staticmethod
-    def build_from_jaxsim_model(
-        model: js.model.JaxSimModel,
-        *,
-        mu: jtp.Float = 0.5,
-        K: jtp.Float = 0.0,
-        D: jtp.Float = 0.0,
-    ) -> RigidContactParams:
-        """Build a `RigidContactParams` instance from a `JaxSimModel`."""
-
-        return RigidContactParams.build(
-            mu=mu,
-            K=K,
-            D=D,
-        )
 
     def valid(self) -> bool:
         return bool(
@@ -91,13 +74,6 @@ class RigidContactsState(ContactsState):
 
     def __eq__(self, other: RigidContactsState) -> bool:
         return hash(self) == hash(other)
-
-    @staticmethod
-    def build_from_jaxsim_model(
-        model: js.model.JaxSimModel | None = None,
-    ) -> RigidContactsState:
-        """Build a `RigidContactsState` instance from a `JaxSimModel`."""
-        return RigidContactsState.build()
 
     @staticmethod
     def build(**kwargs) -> RigidContactsState:
@@ -229,10 +205,14 @@ class RigidContacts(ContactModel):
     def _compute_mixed_nu_dot_free(
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
-        references: js.references.JaxSimModelReferences,
+        references: js.references.JaxSimModelReferences | None = None,
     ) -> jtp.Array:
-        references = references or js.references.JaxSimModelReferences.zero(
-            model=model, data=data, velocity_representation=VelRepr.Mixed
+        references = (
+            references
+            if references is not None
+            else js.references.JaxSimModelReferences.zero(
+                model=model, data=data, velocity_representation=VelRepr.Mixed
+            )
         )
 
         with (
@@ -246,9 +226,7 @@ class RigidContacts(ContactModel):
                 model=model,
                 data=data,
                 joint_forces=references.joint_force_references(model=model),
-                link_external_forces_inertial=references.link_forces(
-                    model=model, data=data
-                ),
+                link_forces=references.link_forces(model=model, data=data),
             )
 
         # Convert the inertial-fixed base acceleration to a body-fixed base acceleration.
@@ -414,7 +392,7 @@ class RigidContacts(ContactModel):
         velocity: jtp.Vector,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
-        link_external_forces: js.references.JaxSimModelReferences | None = None,
+        link_external_forces: jtp.MatrixLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
         Compute the contact forces.
@@ -424,7 +402,8 @@ class RigidContacts(ContactModel):
             velocity: The linear velocity of the collidable point.
             model: The `JaxSimModel` instance.
             data: The `JaxSimModelData` instance.
-            link_external_forces: Optional `JaxSimModelReferences` instance containing external forces acting on the links.
+            link_external_forces: Optional `(n_links, 6)` matrix of external forces acting on the links,
+                expressed in the same representation of data.
 
         Returns:
             A tuple containing the contact forces.
@@ -432,6 +411,12 @@ class RigidContacts(ContactModel):
 
         # Import qpax just in this method
         import qpax
+
+        link_external_forces = (
+            link_external_forces
+            if link_external_forces is not None
+            else jnp.zeros((model.number_of_links(), 6))
+        )
 
         # Compute kin-dyn quantities used in the contact model
         with data.switch_velocity_representation(VelRepr.Mixed):
@@ -461,16 +446,16 @@ class RigidContacts(ContactModel):
         # Add regularization for better numerical conditioning
         delassus_matrix = delassus_matrix + 1e-6 * jnp.eye(delassus_matrix.shape[0])
 
-        link_external_forces = (
-            link_external_forces
-            if link_external_forces is not None
-            else js.references.JaxSimModelReferences.zero(
-                model=model, data=data, velocity_representation=VelRepr.Mixed
-            )
+        references = js.references.JaxSimModelReferences.build(
+            model=model,
+            data=data,
+            velocity_representation=data.velocity_representation,
+            link_forces=link_external_forces,
         )
-        with link_external_forces.switch_velocity_representation(VelRepr.Mixed):
+
+        with references.switch_velocity_representation(VelRepr.Mixed):
             nu_dot_free_mixed = RigidContacts._compute_mixed_nu_dot_free(
-                model, data, references=link_external_forces
+                model, data, references=references
             )
 
         free_contact_acc = RigidContacts._linear_acceleration_of_collidable_points(

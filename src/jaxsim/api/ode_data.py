@@ -6,6 +6,7 @@ import jax_dataclasses
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.rbda import ContactsState
+from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
 from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 from jaxsim.utils import JaxsimDataclass
 
@@ -171,6 +172,8 @@ class ODEState(JaxsimDataclass):
                         else dict()
                     ),
                 )
+            case RigidContacts():
+                contact = RigidContactsState.build_from_jaxsim_model(model=model)
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 
@@ -216,6 +219,8 @@ class ODEState(JaxsimDataclass):
         match contact:
             case SoftContactsState():
                 pass
+            case RigidContactsState():
+                pass
             case None:
                 contact = SoftContactsState.zero(model=model)
             case _:
@@ -224,7 +229,7 @@ class ODEState(JaxsimDataclass):
         return ODEState(physics_model=physics_model_state, contact=contact)
 
     @staticmethod
-    def zero(model: js.model.JaxSimModel) -> ODEState:
+    def zero(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> ODEState:
         """
         Build a zero `ODEState` from a `JaxSimModel`.
 
@@ -235,7 +240,9 @@ class ODEState(JaxsimDataclass):
             A zero `ODEState` instance.
         """
 
-        model_state = ODEState.build(model=model)
+        model_state = ODEState.build(
+            model=model, contact=data.state.contact.zero(model=model)
+        )
 
         return model_state
 

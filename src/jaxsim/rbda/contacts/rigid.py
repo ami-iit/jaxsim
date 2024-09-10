@@ -108,56 +108,40 @@ class RigidContacts(ContactModel):
     @staticmethod
     def detect_contacts(
         W_p_C: jtp.ArrayLike,
-        W_ṗ_C: jtp.ArrayLike,
         terrain_height: jtp.ArrayLike,
-        terrain_normal: jtp.ArrayLike,
-    ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+    ) -> tuple[jtp.Vector, jtp.Vector]:
         """
         Detect contacts between the collidable points and the terrain.
 
         Args:
             W_p_C: The position of the collidable points.
-            W_ṗ_C: The linear velocity of the collidable points.
             terrain_height: The height of the terrain at the collidable point position.
-            terrain_normal: The normal of the terrain at the collidable point position.
 
         Returns:
-            A tuple containing the activation state of the collidable points along contact penetration depth and velocity (δ, δ̇).
+            A tuple containing the activation state of the collidable points and the contact penetration depth h.
         """
 
         # TODO: reduce code duplication with js.contact.in_contact
         def detect_contact(
             W_p_C: jtp.ArrayLike,
-            W_ṗ_C: jtp.ArrayLike,
             terrain_height: jtp.FloatLike,
-            terrain_normal: jtp.Vector,
-        ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+        ) -> tuple[jtp.Vector, jtp.Float]:
             """
             Detect contacts between the collidable points and the terrain."""
 
             # Unpack the position of the collidable point.
             _, _, pz = W_p_C.squeeze()
-            W_ṗ_C = W_ṗ_C.squeeze()
 
             inactive = pz > terrain_height
 
-            # Compute the terrain normal and the contact depth
-            n̂ = terrain_normal.squeeze()
-            h = jnp.array([0, 0, terrain_height - pz])
+            # Compute contact penetration depth
+            h = jnp.maximum(0.0, terrain_height - pz)
 
-            # Compute the penetration depth normal to the terrain.
-            δ = jnp.maximum(0.0, jnp.dot(h, n̂))
+            return inactive, h
 
-            # Compute the penetration normal velocity.
-            δ̇ = -jnp.dot(W_ṗ_C, n̂)
+        inactive_collidable_points, h = jax.vmap(detect_contact)(W_p_C, terrain_height)
 
-            return inactive, (δ, δ̇)
-
-        inactive_collidable_points, (δ, δ̇) = jax.vmap(detect_contact)(
-            W_p_C, W_ṗ_C, terrain_height, terrain_normal
-        )
-
-        return inactive_collidable_points, (δ, δ̇)
+        return inactive_collidable_points, h
 
     @staticmethod
     def compute_impact_velocity(
@@ -261,15 +245,12 @@ class RigidContacts(ContactModel):
             J_WC = js.contact.jacobian(model=model, data=data)
             W_H_C = js.contact.transforms(model=model, data=data)
         terrain_height = jax.vmap(self.terrain.height)(position[:, 0], position[:, 1])
-        terrain_normal = jax.vmap(self.terrain.normal)(position[:, 0], position[:, 1])
         n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]
 
         # Compute the activation state of the collidable points
-        inactive_collidable_points, (δ, δ̇) = RigidContacts.detect_contacts(
+        inactive_collidable_points, h = RigidContacts.detect_contacts(
             W_p_C=position,
-            W_ṗ_C=velocity,
             terrain_height=terrain_height,
-            terrain_normal=terrain_normal,
         )
 
         delassus_matrix = RigidContacts._delassus_matrix(M=M, J_WC=J_WC)
@@ -297,10 +278,11 @@ class RigidContacts(ContactModel):
             BW_ν̇_free,
         ).flatten()
         # Compute stabilization term
+        ḣ = velocity[:, 2].squeeze()
         baumgarte_term = RigidContacts._compute_baumgarte_stabilization_term(
             inactive_collidable_points=inactive_collidable_points,
-            δ=δ,
-            δ̇=δ̇,
+            h=h,
+            ḣ=ḣ,
             K=self.parameters.K,
             D=self.parameters.D,
         ).flatten()
@@ -312,12 +294,14 @@ class RigidContacts(ContactModel):
         G = RigidContacts._compute_ineq_constraint_matrix(
             inactive_collidable_points=inactive_collidable_points, mu=self.parameters.mu
         )
-        δ = RigidContacts._compute_ineq_bounds(n_collidable_points=n_collidable_points)
+        h_bounds = RigidContacts._compute_ineq_bounds(
+            n_collidable_points=n_collidable_points
+        )
         A = jnp.zeros((0, 3 * n_collidable_points))
         b = jnp.zeros((0,))
 
         # Solve the optimization problem
-        solution, *_ = qpax.solve_qp(Q=Q, q=q, A=A, b=b, G=G, h=δ)
+        solution, *_ = qpax.solve_qp(Q=Q, q=q, A=A, b=b, G=G, h=h_bounds)
 
         f_C_lin = solution.reshape(-1, 3)
 
@@ -457,25 +441,25 @@ class RigidContacts(ContactModel):
     @staticmethod
     def _compute_baumgarte_stabilization_term(
         inactive_collidable_points: jtp.ArrayLike,
-        δ: jtp.ArrayLike,
-        δ̇: jtp.ArrayLike,
+        h: jtp.ArrayLike,
+        ḣ: jtp.ArrayLike,
         K: jtp.FloatLike,
         D: jtp.FloatLike,
     ) -> jtp.Array:
         def baumgarte_stabilization(
             inactive: jtp.BoolLike,
-            δ: jtp.ArrayLike,
-            δ̇: jtp.ArrayLike,
+            h: jtp.FloatLike,
+            ḣ: jtp.FloatLike,
             k_baumgarte: jtp.FloatLike,
             d_baumgarte: jtp.FloatLike,
         ) -> jtp.Array:
             baumgarte_term = jax.lax.cond(
                 inactive,
-                lambda δ, δ̇, K, D: jnp.zeros(shape=(3,)),
-                lambda δ, δ̇, K, D: jnp.zeros(shape=(3,)).at[2].set(K * δ + D * δ̇),
+                lambda h, ḣ, K, D: jnp.zeros(shape=(3,)),
+                lambda h, ḣ, K, D: jnp.zeros(shape=(3,)).at[2].set(K * h + D * ḣ),
                 *(
-                    δ,
-                    δ̇,
+                    h,
+                    ḣ,
                     k_baumgarte,
                     d_baumgarte,
                 ),
@@ -486,8 +470,8 @@ class RigidContacts(ContactModel):
             baumgarte_stabilization, in_axes=(0, 0, 0, None, None)
         )(
             inactive_collidable_points,
-            δ,
-            δ̇,
+            h,
+            ḣ,
             K,
             D,
         )

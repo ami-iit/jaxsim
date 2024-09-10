@@ -115,18 +115,18 @@ def collidable_point_forces(
 @jax.jit
 def collidable_point_dynamics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
-) -> tuple[jtp.Matrix, jtp.Matrix]:
+) -> tuple[jtp.Matrix, tuple[jtp.Array]]:
     r"""
-    Compute the 6D force applied to each collidable point and the corresponding
-    material deformation rate.
+    Compute the 6D force applied to each collidable point.
 
     Args:
         model: The model to consider.
         data: The data of the considered model.
 
     Returns:
-        The 6D force applied to each collidable point and the corresponding
-        material deformation rate.
+        The 6D force applied to each collidable point and additional data based on the contact model configured:
+        - Soft: the material deformation rate.
+        - Rigid: the new system velocity after potential impacts.
 
     Note:
         The material deformation rate is always returned in the mixed frame
@@ -138,7 +138,8 @@ def collidable_point_dynamics(
     # all collidable points belonging to the robot.
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
-    # Import privately the soft contacts classes.
+    # Import privately the contacts classes.
+    from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
     from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 
     # Build the soft contact model.
@@ -161,6 +162,23 @@ def collidable_point_dynamics(
             W_f_Ci, (CW_ṁ,) = jax.vmap(soft_contacts.compute_contact_forces)(
                 W_p_Ci, W_ṗ_Ci, data.state.contact.tangential_deformation
             )
+            aux_data = (CW_ṁ,)
+
+        case RigidContacts():
+            assert isinstance(model.contact_model, RigidContacts)
+            assert isinstance(data.state.contact, RigidContactsState)
+
+            # Build the contact model.
+            rigid_contacts = RigidContacts(
+                parameters=data.contacts_params, terrain=model.terrain
+            )
+
+            # Compute the 6D force expressed in the inertial frame and applied to each
+            # collidable point.
+            W_f_Ci, (nu,) = rigid_contacts.compute_contact_forces(
+                W_p_Ci, W_ṗ_Ci, model, data
+            )
+            aux_data = nu
 
         case _:
             raise ValueError(f"Invalid contact model {model.contact_model}")
@@ -175,7 +193,7 @@ def collidable_point_dynamics(
         )
     )(W_f_Ci)
 
-    return f_Ci, CW_ṁ
+    return f_Ci, aux_data
 
 
 @functools.partial(jax.jit, static_argnames=["link_names"])

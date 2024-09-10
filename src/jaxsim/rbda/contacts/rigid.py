@@ -6,7 +6,6 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
-import qpax
 from jax.numpy.linalg import pinv
 from jax.scipy.linalg import block_diag
 
@@ -451,6 +450,9 @@ class RigidContacts(ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+        # Import qpax just in this method
+        import qpax
+
         # Compute kin-dyn quantities used in the contact model
         with data.switch_velocity_representation(VelRepr.Mixed):
             M = js.model.free_floating_mass_matrix(model=model, data=data)

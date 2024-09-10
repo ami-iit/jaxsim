@@ -380,7 +380,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         )
 
         # Apply FSAL property by passing ẋ0 = f(x0, t0) from the previous iteration.
-        get_ẋ0 = lambda: self.params.get("dxdt0", f(x0, t0))
+        get_ẋ0_and_aux_dict = lambda: self.params.get("dxdt0", f(x0, t0))
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
         # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
@@ -413,7 +413,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             # This selector enables FSAL property in the first iteration (i=0).
             ki, aux_dict = jax.lax.cond(
                 pred=jnp.logical_and(i == 0, self.has_fsal),
-                true_fun=get_ẋ0,
+                true_fun=get_ẋ0_and_aux_dict,
                 false_fun=compute_ki,
             )
 

@@ -415,7 +415,9 @@ class RigidContacts(ContactModel):
         velocity: jtp.Vector,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
+        link_external_forces: js.references.JaxSimModelReferences | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+
         # Import qpax just in this method
         import qpax
 
@@ -447,9 +449,17 @@ class RigidContacts(ContactModel):
         # Add regularization for better numerical conditioning
         delassus_matrix = delassus_matrix + 1e-6 * jnp.eye(delassus_matrix.shape[0])
 
-        nu_dot_free_mixed = RigidContacts._compute_mixed_nu_dot_free(
-            model, data, references=None
+        link_external_forces = (
+            link_external_forces
+            if link_external_forces is not None
+            else js.references.JaxSimModelReferences.zero(
+                model=model, data=data, velocity_representation=VelRepr.Mixed
+            )
         )
+        with link_external_forces.switch_velocity_representation(VelRepr.Mixed):
+            nu_dot_free_mixed = RigidContacts._compute_mixed_nu_dot_free(
+                model, data, references=link_external_forces
+            )
 
         free_contact_acc = RigidContacts._linear_acceleration_of_collidable_points(
             model,

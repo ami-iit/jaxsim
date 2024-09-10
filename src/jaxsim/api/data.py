@@ -172,9 +172,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         time_ns = (
-            jnp.array(time * 1e9, dtype=int)
+            jnp.array(
+                time * 1e9,
+                dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32,
+            )
             if time is not None
-            else jnp.array(0, dtype=int)
+            else jnp.array(
+                0, dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32
+            )
         )
 
         if isinstance(model.contact_model, SoftContacts):

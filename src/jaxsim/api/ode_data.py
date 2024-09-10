@@ -172,10 +172,7 @@ class ODEState(JaxsimDataclass):
                     ),
                 )
             case RigidContacts():
-                inactive_points_prev = kwargs.get("inactive_collidable_points", None)
-                contact = RigidContactsState.build_from_jaxsim_model(
-                    model=model, inactive_points_prev=inactive_points_prev
-                )
+                contact = RigidContactsState.build_from_jaxsim_model(model=model)
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 

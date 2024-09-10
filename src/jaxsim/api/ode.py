@@ -50,7 +50,7 @@ def wrap_system_dynamics_for_integration(
     # The wrapped dynamics will hold a reference of this object.
     model_closed = model.copy()
     data_closed = data.copy().replace(
-        state=js.ode_data.ODEState.zero(model=model_closed)
+        state=js.ode_data.ODEState.zero(model=model_closed, data=data)
     )
 
     def f(x: ODEState, t: Time, **kwargs_f) -> tuple[ODEState, dict[str, Any]]:

@@ -72,7 +72,7 @@ class RigidContactParams(ContactsParams):
         """Build a `RigidContactParams` instance from a `JaxSimModel`."""
 
         return RigidContactParams.build(
-            mu=static_friction_coefficient,
+            mu=mu,
             K=K,
             D=D,
         )
@@ -231,10 +231,8 @@ class RigidContacts(ContactModel):
         data: js.data.JaxSimModelData,
         references: js.references.JaxSimModelReferences,
     ) -> jtp.Array:
-        references = (
-            references or js.references.JaxSimModelReferences.zero(
-                model=model, data=data, velocity_representation=VelRepr.Mixed
-            )
+        references = references or js.references.JaxSimModelReferences.zero(
+            model=model, data=data, velocity_representation=VelRepr.Mixed
         )
 
         with (
@@ -269,7 +267,7 @@ class RigidContacts(ContactModel):
     def _linear_acceleration_of_collidable_points(
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
-        nu_dot_mixed: jax.Array,
+        BW_ν̇: jax.Array,
     ) -> jax.Array:
         with data.switch_velocity_representation(VelRepr.Mixed):
             CW_J_WC_BW = js.contact.jacobian(
@@ -277,7 +275,7 @@ class RigidContacts(ContactModel):
                 data=data,
                 output_vel_repr=VelRepr.Mixed,
             )
-            CW_J_dot_WC_BW = js.contact.jacobian_derivative(
+            CW_J̇_WC_BW = js.contact.jacobian_derivative(
                 model=model,
                 data=data,
                 output_vel_repr=VelRepr.Mixed,
@@ -285,15 +283,8 @@ class RigidContacts(ContactModel):
 
             BW_ν = data.generalized_velocity()
 
-        CW_a_WC = jax.vmap(
-            lambda J_dot, J, nu_dot, nu: J_dot @ nu + J @ nu_dot,
-            in_axes=(0, 0, None, None),
-        )(
-            CW_J_dot_WC_BW,
-            CW_J_WC_BW,
-            nu_dot_mixed,
-            BW_ν,
-        )
+        CW_a_WC = jnp.vstack(CW_J̇_WC_BW) @ BW_ν̇ + jnp.vstack(CW_J_WC_BW) @ BW_ν
+        CW_a_WC = CW_a_WC.reshape(-1, 6)
 
         return CW_a_WC[:, 0:3].squeeze()
 
@@ -315,9 +306,7 @@ class RigidContacts(ContactModel):
             baumgarte_term = jax.lax.cond(
                 inactive,
                 lambda δ, δ̇, K, D: jnp.zeros(shape=(3,)),
-                lambda δ, δ̇, K, D: jnp.zeros(3)
-                .at[2]
-                .set(K * δ + D * δ̇),
+                lambda δ, δ̇, K, D: jnp.zeros(3).at[2].set(K * δ + D * δ̇),
                 *(
                     delta,
                     delta_dot,

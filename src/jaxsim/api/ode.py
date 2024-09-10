@@ -141,7 +141,6 @@ def system_velocity_dynamics(
             W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
                 model=model, data=data, link_external_forces=references
             )
-            # jax.debug.print("W_f_Ci={W_f_Ci}", W_f_Ci=W_f_Ci)
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly

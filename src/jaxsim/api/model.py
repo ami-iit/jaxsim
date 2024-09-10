@@ -1938,8 +1938,6 @@ def step(
         )
     )
 
-    jax.debug.print("before data base vel{base_vel}", base_vel=data.base_velocity())
-
     # In case of rigid contact model, update data
     match model.contact_model:
         case RigidContacts():
@@ -1968,7 +1966,6 @@ def step(
                 data = data.reset_base_velocity(BW_nu_post_impact[0:6])
                 data = data.reset_joint_velocities(BW_nu_post_impact[6:])
 
-    jax.debug.print("updated data base vel{base_vel}", base_vel=data.base_velocity())
     return (
         data,
         integrator_state_xf,

@@ -100,17 +100,17 @@ class RigidContactsState(ContactsState):
         return RigidContactsState.build()
 
     @staticmethod
-    def build() -> RigidContactsState:
+    def build(**kwargs) -> RigidContactsState:
         """Create a `RigidContactsState` instance"""
 
         return RigidContactsState()
 
     @staticmethod
-    def zero(model: js.model.JaxSimModel) -> RigidContactsState:
+    def zero(**kwargs) -> RigidContactsState:
         """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
         return RigidContactsState.build()
 
-    def valid(self, model: js.model.JaxSimModel) -> bool:
+    def valid(self, **kwargs) -> bool:
         return True
 
 
@@ -290,7 +290,6 @@ class RigidContacts(ContactModel):
             nu_dot_mixed,
             BW_ν,
         )
-        print(f"{CW_a_WC.shape=}")
 
         return CW_a_WC[:, 0:3].squeeze()
 
@@ -311,7 +310,7 @@ class RigidContacts(ContactModel):
         ) -> jtp.Array:
             baumgarte_term = jax.lax.cond(
                 inactive,
-                lambda in_arg: jnp.zeros(shape=(3)),
+                lambda in_arg: jnp.zeros(shape=(3,)),
                 lambda in_arg: jnp.zeros(3)
                 .at[2]
                 .set(in_arg[2] * in_arg[0] + in_arg[3] * in_arg[1]),
@@ -486,30 +485,10 @@ class RigidContacts(ContactModel):
         A = jnp.zeros((0, 3 * n_collidable_points))
         b = jnp.zeros((0,))
 
-        jax.debug.print(
-            "Shapes: Q={Q}, q={q}, A={A}, b={b}, G={G}, h={h}",
-            Q=Q.shape,
-            q=q.shape,
-            A=A.shape,
-            b=b.shape,
-            G=G.shape,
-            h=h.shape,
-        )
-
         # Solve the optimization problem
-        solution, s, z, y, converged, iters = qpax.solve_qp(  # noqa: F841
+        solution, *_ = qpax.solve_qp(  # noqa: F841
             Q=Q, q=q, A=A, b=b, G=G, h=h
         )
-
-        # jax.debug.print(
-        #     "x={x}, s={s}, z={z}, y={y}, converged={converged}, iters={iters}",
-        #     x=solution,
-        #     s=s,
-        #     z=z,
-        #     y=y,
-        #     converged=converged,
-        #     iters=iters,
-        # )
 
         f_C_lin = solution.reshape(-1, 3)
 
@@ -519,11 +498,6 @@ class RigidContacts(ContactModel):
             inactive_collidable_points=inactive_collidable_points,
             M=M,
             J_WC=J_WC,
-        )
-
-        jax.debug.print(
-            "inactive_collidable_points={inactive_collidable_points}",
-            inactive_collidable_points=inactive_collidable_points,
         )
 
         # Transform linear contact forces to 6D

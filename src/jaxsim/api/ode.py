@@ -141,7 +141,7 @@ def system_velocity_dynamics(
             W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
                 model=model,
                 data=data,
-                link_external_forces=references.link_forces(model=model, data=data),
+                link_forces=references.link_forces(model=model, data=data),
             )
 
         # Construct the vector defining the parent link index of each collidable point.

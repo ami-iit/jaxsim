@@ -1938,22 +1938,25 @@ def step(
         )
     )
 
-    # In case of rigid contact model, update data
+    # Post process the simulation state, if needed.
     match model.contact_model:
+
+        # Rigid contact models use an impact model that produces a discontinuous model velocity.
+        # Hence here we need to reset the velocity after each impact to guarantee that
+        # the linear velocity of the active collidable points is zero.
         case RigidContacts():
+            inputa_data_repr = data.velocity_representation
             with data.switch_velocity_representation(VelRepr.Mixed):
-                W_o_C, W_ȯ_C = js.contact.collidable_point_kinematics(model, data)
+                W_p_C, W_ṗ_C = js.contact.collidable_point_kinematics(model, data)
                 M = js.model.free_floating_mass_matrix(model, data)
                 J_WC = js.contact.jacobian(model, data)
-                terrain_height = jax.vmap(model.contact_model.terrain.height)(
-                    W_o_C[:, 0], W_o_C[:, 1]
-                )
-                terrain_normal = jax.vmap(model.contact_model.terrain.normal)(
-                    W_o_C[:, 0], W_o_C[:, 1]
-                )
+                px, py, _ = W_p_C.T
+                terrain = model.contact_model.terrain
+                terrain_height = jax.vmap(terrain.height)(px, py)
+                terrain_normal = jax.vmap(terrain.normal)(px, py)
                 inactive_collidable_points, _ = RigidContacts.detect_contacts(
-                    W_o_C=W_o_C,
-                    W_o_dot_C=W_ȯ_C,
+                    W_p_C=W_p_C,
+                    W_ṗ_C=W_ṗ_C,
                     terrain_height=terrain_height,
                     terrain_normal=terrain_normal,
                 )
@@ -1965,6 +1968,10 @@ def step(
                 )
                 data = data.reset_base_velocity(BW_nu_post_impact[0:6])
                 data = data.reset_joint_velocities(BW_nu_post_impact[6:])
+            # Restore the input velocity representation.
+            data = data.replace(
+                velocity_representation=inputa_data_repr, validate=False
+            )
 
     return (
         data,

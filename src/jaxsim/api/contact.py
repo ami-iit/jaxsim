@@ -162,7 +162,7 @@ def collidable_point_dynamics(
             W_f_Ci, (CW_ṁ,) = jax.vmap(soft_contacts.compute_contact_forces)(
                 W_p_Ci, W_ṗ_Ci, data.state.contact.tangential_deformation
             )
-            aux_data = dict(ṁ=CW_ṁ)
+            aux_data = dict(m_dot=CW_ṁ)
 
         case RigidContacts():
             assert isinstance(model.contact_model, RigidContacts)

@@ -129,7 +129,7 @@ def collidable_point_dynamics(
     Returns:
         The 6D force applied to each collidable point and additional data based on the contact model configured:
         - Soft: the material deformation rate.
-        - Rigid: the new system velocity after potential impacts.
+        - Rigid: nothing.
 
     Note:
         The material deformation rate is always returned in the mixed frame
@@ -178,7 +178,7 @@ def collidable_point_dynamics(
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
-            W_f_Ci, (BW_nu_post_impact, _) = rigid_contacts.compute_contact_forces(
+            W_f_Ci, _ = rigid_contacts.compute_contact_forces(
                 position=W_p_Ci,
                 velocity=W_ṗ_Ci,
                 model=model,
@@ -186,14 +186,7 @@ def collidable_point_dynamics(
                 link_external_forces=link_external_forces,
             )
 
-            data_post_impact = data.reset_base_velocity(
-                BW_nu_post_impact[0:6], velocity_representation=VelRepr.Mixed
-            ).reset_joint_velocities(BW_nu_post_impact[6:])
-
-            aux_data = dict(data_post_impact=data_post_impact)
-
-            # Update the data object with the post-impact data
-            data = data_post_impact
+            aux_data = dict()
 
         case _:
             raise ValueError(f"Invalid contact model {model.contact_model}")

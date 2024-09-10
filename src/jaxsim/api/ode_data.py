@@ -216,9 +216,7 @@ class ODEState(JaxsimDataclass):
 
         # Get the contact model from the `JaxSimModel`.
         match contact:
-            case SoftContactsState():
-                pass
-            case RigidContactsState():
+            case SoftContactsState() | RigidContactsState():
                 pass
             case None:
                 contact = SoftContactsState.zero(model=model)

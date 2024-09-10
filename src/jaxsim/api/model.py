@@ -1942,7 +1942,7 @@ def step(
     match model.contact_model:
         case RigidContacts():
             with data.switch_velocity_representation(VelRepr.Mixed):
-                W_o_C, W_o_dot_C = js.contact.collidable_point_kinematics(model, data)
+                W_o_C, W_ȯ_C = js.contact.collidable_point_kinematics(model, data)
                 M = js.model.free_floating_mass_matrix(model, data)
                 J_WC = js.contact.jacobian(model, data)
                 terrain_height = jax.vmap(model.contact_model.terrain.height)(
@@ -1953,7 +1953,7 @@ def step(
                 )
                 inactive_collidable_points, _ = RigidContacts.detect_contacts(
                     W_o_C=W_o_C,
-                    W_o_dot_C=W_o_dot_C,
+                    W_o_dot_C=W_ȯ_C,
                     terrain_height=terrain_height,
                     terrain_normal=terrain_normal,
                 )

@@ -65,7 +65,7 @@ class RigidContactParams(ContactsParams):
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel,
         *,
-        static_friction_coefficient: jtp.Float = 0.5,
+        mu: jtp.Float = 0.5,
         K: jtp.Float = 0.0,
         D: jtp.Float = 0.0,
     ) -> RigidContactParams:
@@ -232,9 +232,7 @@ class RigidContacts(ContactModel):
         references: js.references.JaxSimModelReferences,
     ) -> jtp.Array:
         references = (
-            references
-            if references is not None
-            else js.references.JaxSimModelReferences.zero(
+            references or js.references.JaxSimModelReferences.zero(
                 model=model, data=data, velocity_representation=VelRepr.Mixed
             )
         )
@@ -258,10 +256,7 @@ class RigidContacts(ContactModel):
         # Convert the inertial-fixed base acceleration to a body-fixed base acceleration.
         W_H_B = data.base_transform()
         W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
-        BW_H_W = math.Transform.inverse(W_H_BW)
-        BW_X_W = math.Adjoint.from_transform(
-            BW_H_W,
-        )
+        BW_X_W = math.Adjoint.from_transform(W_H_BW, inverse=True)
         term1 = BW_X_W @ W_v̇_WB
         term2 = jnp.zeros(6).at[0:3].set(jnp.cross(W_o_dot_B, W_omega_WB))
         BW_v̇_WB = term1 - term2
@@ -311,19 +306,19 @@ class RigidContacts(ContactModel):
         D: jtp.Float,
     ) -> jtp.Array:
         def baumgarte_stabilization(
-            inactive: bool,
+            inactive: jtp.Bool,
             delta: jax.Array,
             delta_dot: jax.Array,
-            k_baumgarte: float,
-            d_baumgarte: float,
+            k_baumgarte: jtp.Float,
+            d_baumgarte: jtp.Float,
         ) -> jtp.Array:
             baumgarte_term = jax.lax.cond(
                 inactive,
-                lambda in_arg: jnp.zeros(shape=(3,)),
-                lambda in_arg: jnp.zeros(3)
+                lambda δ, δ̇, K, D: jnp.zeros(shape=(3,)),
+                lambda δ, δ̇, K, D: jnp.zeros(3)
                 .at[2]
-                .set(in_arg[2] * in_arg[0] + in_arg[3] * in_arg[1]),
-                (
+                .set(K * δ + D * δ̇),
+                *(
                     delta,
                     delta_dot,
                     k_baumgarte,

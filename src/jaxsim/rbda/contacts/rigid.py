@@ -226,7 +226,7 @@ class RigidContacts(ContactModel):
         velocity: jtp.Vector,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
-        link_external_forces: jtp.MatrixLike | None = None,
+        link_forces: jtp.MatrixLike | None = None,
         regularization_term: jtp.FloatLike = 1e-6,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
@@ -237,7 +237,7 @@ class RigidContacts(ContactModel):
             velocity: The linear velocity of the collidable point.
             model: The `JaxSimModel` instance.
             data: The `JaxSimModelData` instance.
-            link_external_forces: Optional `(n_links, 6)` matrix of external forces acting on the links,
+            link_forces: Optional `(n_links, 6)` matrix of external forces acting on the links,
                 expressed in the same representation of data.
             regularization_term: The regularization term to add to the diagonal of the Delassus
                 matrix for better numerical conditioning.
@@ -249,9 +249,9 @@ class RigidContacts(ContactModel):
         # Import qpax just in this method
         import qpax
 
-        link_external_forces = (
-            link_external_forces
-            if link_external_forces is not None
+        link_forces = (
+            link_forces
+            if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
         )
 
@@ -283,7 +283,7 @@ class RigidContacts(ContactModel):
             model=model,
             data=data,
             velocity_representation=data.velocity_representation,
-            link_forces=link_external_forces,
+            link_forces=link_forces,
         )
 
         with references.switch_velocity_representation(VelRepr.Mixed):

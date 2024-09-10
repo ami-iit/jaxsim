@@ -1951,9 +1951,12 @@ def step(
                 M = js.model.free_floating_mass_matrix(model, data)
                 J_WC = js.contact.jacobian(model, data)
                 px, py, _ = W_p_C.T
-                terrain = model.contact_model.terrain
-                terrain_height = jax.vmap(terrain.height)(px, py)
-                terrain_normal = jax.vmap(terrain.normal)(px, py)
+                terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
+                    px, py
+                )
+                terrain_normal = jax.vmap(lambda x, y: model.terrain.normal(x=x, y=y))(
+                    px, py
+                )
                 inactive_collidable_points, _ = RigidContacts.detect_contacts(
                     W_p_C=W_p_C,
                     W_ṗ_C=W_ṗ_C,

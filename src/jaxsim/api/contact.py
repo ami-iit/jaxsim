@@ -139,11 +139,7 @@ def collidable_point_dynamics(
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
     # Import privately the contacts classes.
-    from jaxsim.rbda.contacts.rigid import (
-        RigidContactParams,
-        RigidContacts,
-        RigidContactsState,
-    )
+    from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
     from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 
     # Build the soft contact model.
@@ -179,25 +175,21 @@ def collidable_point_dynamics(
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
-            if isinstance(data.contacts_params, RigidContactParams):
-                inactive_points_previous = data.contacts_params.inactive_points_prev
-            else:
-                raise ValueError("Invalid contact parameters")
+            W_f_Ci, (BW_nu_post_impact, _) = rigid_contacts.compute_contact_forces(
+                position=W_p_Ci,
+                velocity=W_ṗ_Ci,
+                model=model,
+                data=data,
+            )
 
-            W_f_Ci, (new_impacts, nu, inactive_collidable_points) = (
-                rigid_contacts.compute_contact_forces(
-                    position=W_p_Ci,
-                    velocity=W_ṗ_Ci,
-                    inactive_collidable_points_prev=inactive_points_previous,
-                    model=model,
-                    data=data,
-                )
-            )
-            aux_data = dict(
-                nu_impact=nu,
-                inactive_collidable_points=inactive_collidable_points,
-                new_impacts=new_impacts,
-            )
+            data_post_impact = data.reset_base_velocity(
+                BW_nu_post_impact[0:6], velocity_representation=VelRepr.Mixed
+            ).reset_joint_velocities(BW_nu_post_impact[6:])
+
+            aux_data = dict(data_post_impact=data_post_impact)
+
+            # Update the data object with the post-impact data
+            data = data_post_impact
 
         case _:
             raise ValueError(f"Invalid contact model {model.contact_model}")

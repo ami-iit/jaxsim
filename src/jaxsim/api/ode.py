@@ -8,7 +8,6 @@ import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.integrators import Time
 from jaxsim.math import Quaternion
-from jaxsim.utils import Mutability
 
 from .common import VelRepr
 from .ode_data import ODEState
@@ -108,6 +107,9 @@ def system_velocity_dynamics(
         the system dynamics evaluation.
     """
 
+    from jaxsim.rbda.contacts.rigid import RigidContacts
+    from jaxsim.rbda.contacts.soft import SoftContacts
+
     # Build link forces if not provided.
     # These forces are expressed in the frame corresponding to the velocity
     # representation of data.
@@ -135,6 +137,21 @@ def system_velocity_dynamics(
             W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
                 model=model, data=data
             )
+
+        match model.contact_model:
+            case SoftContacts():
+                pass
+            case RigidContacts():
+                data_post_impact: js.data.JaxSimModelData = aux_data.get(
+                    "data_post_impact"
+                )
+                # Update the data object with the post-impact data with the same velocity representation.
+                with data_post_impact.switch_velocity_representation(
+                    data.velocity_representation
+                ):
+                    data = data_post_impact
+            case _:
+                raise ValueError("Invalid contact model {}".format(model.contact_model))
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly
@@ -344,7 +361,7 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
-    from jaxsim.rbda.contacts.rigid import RigidContactParams, RigidContacts
+    from jaxsim.rbda.contacts.rigid import RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 
     # Compute the accelerations and the material deformation rate.
@@ -362,42 +379,12 @@ def system_dynamics(
             ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
 
         case RigidContacts():
-            nu_impact = aux_dict["nu_impact"]
-            new_impacts = aux_dict["new_impacts"]
-            inactive_collidable_points = aux_dict["inactive_collidable_points"]
-
-            def reset_system_velocity(
-                model: js.model.JaxSimModel,
-                data: js.data.JaxSimModelData,
-                nu: jtp.Array,
-            ) -> js.data.JaxSimModelData:
-                data = data.reset_base_velocity(
-                    nu[0:6], velocity_representation=VelRepr.Mixed
-                )
-                data = data.reset_joint_velocities(nu[6:], model=model)
-                return data
-
-            # Update system velocity with the impact velocity only if there is a new impact
-            data = jax.lax.cond(
-                new_impacts,
-                lambda operands: reset_system_velocity(
-                    model=operands["model"],
-                    data=operands["data"],
-                    nu=operands["nu_post"],
-                ),
-                lambda operands: operands["data"],
-                dict(model=model, data=data, nu_post=nu_impact),
-            )
-
-            # Update activation state of collidable points
-            with data.mutable_context(
-                mutability=Mutability.MUTABLE_NO_VALIDATION,
-                restore_after_exception=True,
+            data_post_impact: js.data.JaxSimModelData = aux_dict.pop("data_post_impact")
+            # Update the data object with the post-impact data with the same velocity representation.
+            with data_post_impact.switch_velocity_representation(
+                data.velocity_representation
             ):
-                if isinstance(data.contacts_params, RigidContactParams):
-                    data.contacts_params.inactive_points_prev = (
-                        inactive_collidable_points
-                    )
+                data = data_post_impact
 
         case _:
             raise ValueError("Unable to determine contact state class prefix.")

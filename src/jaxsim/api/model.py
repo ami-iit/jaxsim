@@ -1943,18 +1943,30 @@ def step(
     # In case of rigid contact model, update data
     match model.contact_model:
         case RigidContacts():
-            data_post_impact: js.data.JaxSimModelData = integrator_state_xf.pop(
-                "data_post_impact"
-            )
-            jax.debug.print(
-                "post_impact base vel{base_vel}",
-                base_vel=data_post_impact.base_velocity(),
-            )
-            with data_post_impact.switch_velocity_representation(
-                data.velocity_representation
-            ):
-                data = data.reset_base_velocity(data_post_impact.base_velocity())
-                data = data.reset_joint_velocities(data_post_impact.joint_velocities())
+            with data.switch_velocity_representation(VelRepr.Mixed):
+                W_o_C, W_o_dot_C = js.contact.collidable_point_kinematics(model, data)
+                M = js.model.free_floating_mass_matrix(model, data)
+                J_WC = js.contact.jacobian(model, data)
+                terrain_height = jax.vmap(model.contact_model.terrain.height)(
+                    W_o_C[:, 0], W_o_C[:, 1]
+                )
+                terrain_normal = jax.vmap(model.contact_model.terrain.normal)(
+                    W_o_C[:, 0], W_o_C[:, 1]
+                )
+                inactive_collidable_points, _ = RigidContacts._detect_contacts(
+                    W_o_C=W_o_C,
+                    W_o_dot_C=W_o_dot_C,
+                    terrain_height=terrain_height,
+                    terrain_normal=terrain_normal,
+                )
+                BW_nu_post_impact = RigidContacts._compute_impact_velocity(
+                    data=data,
+                    inactive_collidable_points=inactive_collidable_points,
+                    M=M,
+                    J_WC=J_WC,
+                )
+                data = data.reset_base_velocity(BW_nu_post_impact[0:6])
+                data = data.reset_joint_velocities(BW_nu_post_impact[6:])
 
     jax.debug.print("updated data base vel{base_vel}", base_vel=data.base_velocity())
     return (

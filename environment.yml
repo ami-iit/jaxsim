@@ -12,6 +12,7 @@ dependencies:
   - jaxlie >= 1.3.0
   - jax-dataclasses >= 1.4.0
   - pptree
+  - qpax
   - rod >= 0.3.0
   - typing_extensions # python<3.12
   # ====================================

@@ -109,11 +109,14 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             integrator.params = params
 
         with integrator.mutable_context(mutability=Mutability.MUTABLE):
-            xf = integrator(x0, t0, dt, **kwargs)
+            xf, aux_dict = integrator(x0, t0, dt, **kwargs)
 
-        return xf, integrator.params | {
-            Integrator.AfterInitKey: jnp.array(False).astype(bool)
-        }
+        return (
+            xf,
+            integrator.params
+            | {Integrator.AfterInitKey: jnp.array(False).astype(bool)}
+            | aux_dict,
+        )
 
     @abc.abstractmethod
     def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
@@ -277,15 +280,19 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         return integrator
 
-    def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
+    def __call__(
+        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+    ) -> tuple[NextState, dict[str, Any]]:
 
         # Here z is a batched state with as many batch elements as b.T rows.
         # Note that z has multiple batches only if b.T has more than one row,
         # e.g. in Butcher tableau of embedded schemes.
-        z = self._compute_next_state(x0=x0, t0=t0, dt=dt, **kwargs)
+        z, aux_dict = self._compute_next_state(x0=x0, t0=t0, dt=dt, **kwargs)
 
         # The next state is the batch element located at the configured index of solution.
-        return jax.tree_util.tree_map(lambda l: l[self.row_index_of_solution], z)
+        next_state = jax.tree_util.tree_map(lambda l: l[self.row_index_of_solution], z)
+
+        return next_state, aux_dict
 
     @classmethod
     def integrate_rk_stage(
@@ -343,7 +350,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     def _compute_next_state(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
-    ) -> NextState:
+    ) -> tuple[NextState, dict[str, Any]]:
         """
         Compute the next state of the system, returning all the output states.
 
@@ -373,19 +380,21 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         )
 
         # Apply FSAL property by passing ẋ0 = f(x0, t0) from the previous iteration.
-        get_ẋ0 = lambda: self.params.get("dxdt0", f(x0, t0)[0])
+        get_ẋ0_and_aux_dict = lambda: self.params.get("dxdt0", f(x0, t0))
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
         # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
         # would include 4 repetitions of the `f` logic, making everything extremely slow.
-        def scan_body(carry: jax.Array, i: int | jax.Array) -> tuple[jax.Array, None]:
+        def scan_body(
+            carry: jax.Array, i: int | jax.Array
+        ) -> tuple[jax.Array, dict[str, Any]]:
             """"""
 
             # Unpack the carry, i.e. the stacked kᵢ vectors.
             K = carry
 
             # Define the computation of the Runge-Kutta stage.
-            def compute_ki() -> jax.Array:
+            def compute_ki() -> tuple[jax.Array, dict[str, Any]]:
 
                 # Compute ∑ⱼ aᵢⱼ kⱼ.
                 op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
@@ -398,13 +407,13 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
                 # Compute the next time for the kᵢ evaluation.
                 ti = t0 + c[i] * Δt
 
-                # This is kᵢ = f(xᵢ, tᵢ).
-                return f(xi, ti)[0]
+                # This is kᵢ, aux_dict = f(xᵢ, tᵢ).
+                return f(xi, ti)
 
             # This selector enables FSAL property in the first iteration (i=0).
-            ki = jax.lax.cond(
+            ki, aux_dict = jax.lax.cond(
                 pred=jnp.logical_and(i == 0, self.has_fsal),
-                true_fun=get_ẋ0,
+                true_fun=get_ẋ0_and_aux_dict,
                 false_fun=compute_ki,
             )
 
@@ -413,10 +422,10 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             K = jax.tree_util.tree_map(op, K, ki)
 
             carry = K
-            return carry, None
+            return carry, aux_dict
 
         # Compute the state derivatives kᵢ.
-        K, _ = jax.lax.scan(
+        K, aux_dict = jax.lax.scan(
             f=scan_body,
             init=carry0,
             xs=jnp.arange(c.size),
@@ -439,7 +448,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             lambda xf: self.post_process_state(x0=x0, t0=t0, xf=xf, dt=dt)
         )(z)
 
-        return z_transformed
+        return z_transformed, aux_dict
 
     @staticmethod
     def butcher_tableau_is_valid(

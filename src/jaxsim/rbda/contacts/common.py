@@ -5,6 +5,7 @@ from typing import Any
 
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim.utils import JaxsimDataclass
 
 
 class ContactsState(abc.ABC):
@@ -42,7 +43,7 @@ class ContactsState(abc.ABC):
         pass
 
 
-class ContactsParams(abc.ABC):
+class ContactsParams(JaxsimDataclass):
     """
     Abstract class representing the parameters of a contact model.
     """
@@ -67,7 +68,7 @@ class ContactsParams(abc.ABC):
         pass
 
 
-class ContactModel(abc.ABC):
+class ContactModel(JaxsimDataclass):
     """
     Abstract class representing a contact model.
 

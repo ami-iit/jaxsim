@@ -6,6 +6,7 @@ import jax_dataclasses
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.rbda import ContactsState
+from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
 from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 from jaxsim.utils import JaxsimDataclass
 
@@ -133,7 +134,7 @@ class ODEState(JaxsimDataclass):
         base_quaternion: jtp.Vector | None = None,
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
-        tangential_deformation: jtp.Matrix | None = None,
+        **kwargs,
     ) -> ODEState:
         """
         Build an `ODEState` from a `JaxSimModel`.
@@ -148,9 +149,7 @@ class ODEState(JaxsimDataclass):
                 The linear velocity of the base link in inertial-fixed representation.
             base_angular_velocity:
                 The angular velocity of the base link in inertial-fixed representation.
-            tangential_deformation:
-                The matrix of 3D tangential material deformations corresponding to
-                each collidable point.
+            kwargs: Additional arguments needed to build the contact state.
 
         Returns:
             The `ODEState` built from the `JaxSimModel`.
@@ -163,6 +162,7 @@ class ODEState(JaxsimDataclass):
         # Get the contact model from the `JaxSimModel`.
         match model.contact_model:
             case SoftContacts():
+                tangential_deformation = kwargs.get("tangential_deformation", None)
                 contact = SoftContactsState.build_from_jaxsim_model(
                     model=model,
                     **(
@@ -171,6 +171,8 @@ class ODEState(JaxsimDataclass):
                         else dict()
                     ),
                 )
+            case RigidContacts():
+                contact = RigidContactsState.build()
             case _:
                 raise ValueError("Unable to determine contact state class prefix.")
 
@@ -214,7 +216,7 @@ class ODEState(JaxsimDataclass):
 
         # Get the contact model from the `JaxSimModel`.
         match contact:
-            case SoftContactsState():
+            case SoftContactsState() | RigidContactsState():
                 pass
             case None:
                 contact = SoftContactsState.zero(model=model)
@@ -224,7 +226,7 @@ class ODEState(JaxsimDataclass):
         return ODEState(physics_model=physics_model_state, contact=contact)
 
     @staticmethod
-    def zero(model: js.model.JaxSimModel) -> ODEState:
+    def zero(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> ODEState:
         """
         Build a zero `ODEState` from a `JaxSimModel`.
 
@@ -235,7 +237,9 @@ class ODEState(JaxsimDataclass):
             A zero `ODEState` instance.
         """
 
-        model_state = ODEState.build(model=model)
+        model_state = ODEState.build(
+            model=model, contact=data.state.contact.zero(model=model)
+        )
 
         return model_state
 

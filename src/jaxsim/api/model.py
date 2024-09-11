@@ -14,6 +14,7 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Cross
@@ -1890,6 +1891,8 @@ def step(
         and the new state of the integrator.
     """
 
+    from jaxsim.rbda.contacts.rigid import RigidContacts
+
     # Extract the integrator kwargs.
     # The following logic allows using integrators having kwargs colliding with the
     # kwargs of this step function.
@@ -1901,12 +1904,12 @@ def step(
 
     # Extract the initial resources.
     t0_ns = data.time_ns
-    state_x0 = data.state
+    state_t0 = data.state
     integrator_state_x0 = integrator_state
 
     # Step the dynamics forward.
-    state_xf, integrator_state_xf = integrator.step(
-        x0=state_x0,
+    state_tf, integrator_state_tf = integrator.step(
+        x0=state_t0,
         t0=jnp.array(t0_ns / 1e9).astype(float),
         dt=dt,
         params=integrator_state_x0,
@@ -1928,11 +1931,61 @@ def step(
         ),
     )
 
-    return (
+    data_tf = (
         # Store the new state of the model and the new time.
         data.replace(
-            state=state_xf,
+            state=state_tf,
             time_ns=t0_ns + jnp.array(dt * 1e9).astype(jnp.uint64),
-        ),
-        integrator_state_xf,
+        )
+    )
+
+    # Post process the simulation state, if needed.
+    match model.contact_model:
+
+        # Rigid contact models use an impact model that produces a discontinuous model velocity.
+        # Hence here we need to reset the velocity after each impact to guarantee that
+        # the linear velocity of the active collidable points is zero.
+        case RigidContacts():
+            # Raise runtime error for not supported case in which Rigid contacts and Baumgarte stabilization
+            # enabled are used with ForwardEuler integrator.
+            jaxsim.exceptions.raise_runtime_error_if(
+                condition=jnp.logical_and(
+                    isinstance(
+                        integrator,
+                        jaxsim.integrators.fixed_step.ForwardEuler
+                        | jaxsim.integrators.fixed_step.ForwardEulerSO3,
+                    ),
+                    jnp.array(
+                        [data_tf.contacts_params.K, data_tf.contacts_params.D]
+                    ).any(),
+                ),
+                msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
+            )
+
+            with data_tf.switch_velocity_representation(VelRepr.Mixed):
+                W_p_C = js.contact.collidable_point_positions(model, data_tf)
+                M = js.model.free_floating_mass_matrix(model, data_tf)
+                J_WC = js.contact.jacobian(model, data_tf)
+                px, py, _ = W_p_C.T
+                terrain_height = jax.vmap(model.terrain.height)(px, py)
+                inactive_collidable_points, _ = RigidContacts.detect_contacts(
+                    W_p_C=W_p_C,
+                    terrain_height=terrain_height,
+                )
+                BW_nu_post_impact = RigidContacts.compute_impact_velocity(
+                    data=data_tf,
+                    inactive_collidable_points=inactive_collidable_points,
+                    M=M,
+                    J_WC=J_WC,
+                )
+                data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
+                data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
+            # Restore the input velocity representation.
+            data_tf = data_tf.replace(
+                velocity_representation=data.velocity_representation, validate=False
+            )
+
+    return (
+        data_tf,
+        integrator_state_tf,
     )

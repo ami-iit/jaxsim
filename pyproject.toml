@@ -49,6 +49,7 @@ dependencies = [
     "jaxlie >= 1.3.0",
     "jax_dataclasses >= 1.4.0",
     "pptree",
+    "qpax",
     "rod >= 0.3.0",
     "typing_extensions ; python_version < '3.12'",
 ]
@@ -187,6 +188,7 @@ mediapy = "*"
 mujoco = "*"
 notebook = "*"
 pptree = "*"
+qpax = "*"
 rod = "*"
 sdformat14 = "*"
 typing_extensions = "*"

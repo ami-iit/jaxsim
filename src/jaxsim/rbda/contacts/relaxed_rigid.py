@@ -221,9 +221,7 @@ class RelaxedRigidContacts(ContactModel):
             )
 
         M_inv = jnp.linalg.inv(M)
-
         G = J_WC @ M_inv @ J_WC.T
-
         CW_al_free_WC = J_WC @ M_inv @ (-h) + J̇_WC @ W_ν
 
         # Calculate quantities for the linear optimization problem.
@@ -242,9 +240,10 @@ class RelaxedRigidContacts(ContactModel):
             max_stepsize=100.0,
         )
 
-        init_params = K * jnp.zeros_like(position).at[:, 2].set(δ) + D * velocity.at[
-            :, :2
-        ].set(0)
+        init_params = (
+            K[:, jnp.newaxis] * jnp.zeros_like(position).at[:, 2].set(δ)
+            + D[:, jnp.newaxis] * velocity
+        ).flatten()
 
         CW_f_Ci = opt.run(init_params=init_params).params.reshape(-1, 3)
 

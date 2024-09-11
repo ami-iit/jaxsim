@@ -14,6 +14,7 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Cross
@@ -1945,6 +1946,20 @@ def step(
         # Hence here we need to reset the velocity after each impact to guarantee that
         # the linear velocity of the active collidable points is zero.
         case RigidContacts():
+            # Raise runtime error for not supported case in which Rigid contacts and Baumgarte stabilization
+            # enabled are used with ForwardEuler integrator.
+            jaxsim.exceptions.raise_runtime_error_if(
+                jnp.logical_and(
+                    isinstance(
+                        integrator,
+                        jaxsim.integrators.fixed_step.ForwardEuler
+                        | jaxsim.integrators.fixed_step.ForwardEulerSO3,
+                    ),
+                    jnp.array([data.contacts_params.K, data.contacts_params.D]).any(),
+                ),
+                "Rigid contacts with Baumgarte stabilization is not supported with the ForwardEuler integrator.",
+            )
+
             inputa_data_repr = data.velocity_representation
             with data.switch_velocity_representation(VelRepr.Mixed):
                 W_p_C = js.contact.collidable_point_positions(model, data)

@@ -1904,12 +1904,12 @@ def step(
 
     # Extract the initial resources.
     t0_ns = data.time_ns
-    state_x0 = data.state
+    state_t0 = data.state
     integrator_state_x0 = integrator_state
 
     # Step the dynamics forward.
-    state_xf, integrator_state_xf = integrator.step(
-        x0=state_x0,
+    state_tf, integrator_state_tf = integrator.step(
+        x0=state_t0,
         t0=jnp.array(t0_ns / 1e9).astype(float),
         dt=dt,
         params=integrator_state_x0,
@@ -1931,10 +1931,10 @@ def step(
         ),
     )
 
-    data = (
+    data_tf = (
         # Store the new state of the model and the new time.
         data.replace(
-            state=state_xf,
+            state=state_tf,
             time_ns=t0_ns + jnp.array(dt * 1e9).astype(jnp.uint64),
         )
     )
@@ -1949,44 +1949,43 @@ def step(
             # Raise runtime error for not supported case in which Rigid contacts and Baumgarte stabilization
             # enabled are used with ForwardEuler integrator.
             jaxsim.exceptions.raise_runtime_error_if(
-                jnp.logical_and(
+                condition=jnp.logical_and(
                     isinstance(
                         integrator,
                         jaxsim.integrators.fixed_step.ForwardEuler
                         | jaxsim.integrators.fixed_step.ForwardEulerSO3,
                     ),
-                    jnp.array([data.contacts_params.K, data.contacts_params.D]).any(),
+                    jnp.array(
+                        [data_tf.contacts_params.K, data_tf.contacts_params.D]
+                    ).any(),
                 ),
-                "Rigid contacts with Baumgarte stabilization is not supported with the ForwardEuler integrator.",
+                msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
             )
 
-            inputa_data_repr = data.velocity_representation
-            with data.switch_velocity_representation(VelRepr.Mixed):
-                W_p_C = js.contact.collidable_point_positions(model, data)
-                M = js.model.free_floating_mass_matrix(model, data)
-                J_WC = js.contact.jacobian(model, data)
+            with data_tf.switch_velocity_representation(VelRepr.Mixed):
+                W_p_C = js.contact.collidable_point_positions(model, data_tf)
+                M = js.model.free_floating_mass_matrix(model, data_tf)
+                J_WC = js.contact.jacobian(model, data_tf)
                 px, py, _ = W_p_C.T
-                terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
-                    px, py
-                )
+                terrain_height = jax.vmap(model.terrain.height)(px, py)
                 inactive_collidable_points, _ = RigidContacts.detect_contacts(
                     W_p_C=W_p_C,
                     terrain_height=terrain_height,
                 )
                 BW_nu_post_impact = RigidContacts.compute_impact_velocity(
-                    data=data,
+                    data=data_tf,
                     inactive_collidable_points=inactive_collidable_points,
                     M=M,
                     J_WC=J_WC,
                 )
-                data = data.reset_base_velocity(BW_nu_post_impact[0:6])
-                data = data.reset_joint_velocities(BW_nu_post_impact[6:])
+                data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
+                data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
             # Restore the input velocity representation.
-            data = data.replace(
-                velocity_representation=inputa_data_repr, validate=False
+            data_tf = data_tf.replace(
+                velocity_representation=data.velocity_representation, validate=False
             )
 
     return (
-        data,
-        integrator_state_xf,
+        data_tf,
+        integrator_state_tf,
     )

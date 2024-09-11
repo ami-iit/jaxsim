@@ -11,7 +11,7 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim import math
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
-from jaxsim.terrain.terrain import FlatTerrain, Terrain
+from jaxsim.terrain import FlatTerrain, Terrain
 
 from .common import ContactModel, ContactsParams, ContactsState
 
@@ -125,9 +125,10 @@ class RigidContacts(ContactModel):
         def detect_contact(
             W_p_C: jtp.ArrayLike,
             terrain_height: jtp.FloatLike,
-        ) -> tuple[jtp.Vector, jtp.Float]:
+        ) -> tuple[jtp.Bool, jtp.Float]:
             """
-            Detect contacts between the collidable points and the terrain."""
+            Detect contacts between the collidable points and the terrain.
+            """
 
             # Unpack the position of the collidable point.
             _, _, pz = W_p_C.squeeze()
@@ -149,7 +150,7 @@ class RigidContacts(ContactModel):
         M: jtp.MatrixLike,
         J_WC: jtp.MatrixLike,
         data: js.data.JaxSimModelData,
-    ):
+    ) -> jtp.Vector:
         """Returns the new velocity of the system after a potential impact.
 
         Args:
@@ -169,23 +170,25 @@ class RigidContacts(ContactModel):
             # Compute system velocity after impact maintaining zero linear velocity of active points
             with data.switch_velocity_representation(VelRepr.Mixed):
                 sl = jnp.s_[:, 0:3, :]
-                J_WC = J_WC[sl]
+                Jl_WC = J_WC[sl]
                 # Zero out the jacobian rows of inactive points
-                J_WC = jnp.vstack(
+                Jl_WC = jnp.vstack(
                     jnp.where(
                         inactive_collidable_points[:, jnp.newaxis, jnp.newaxis],
-                        jnp.zeros_like(J_WC),
-                        J_WC,
+                        jnp.zeros_like(Jl_WC),
+                        Jl_WC,
                     )
                 )
 
                 A = jnp.vstack(
                     [
-                        jnp.hstack([M, -J_WC.T]),
-                        jnp.hstack([J_WC, jnp.zeros((J_WC.shape[0], J_WC.shape[0]))]),
+                        jnp.hstack([M, -Jl_WC.T]),
+                        jnp.hstack(
+                            [Jl_WC, jnp.zeros((Jl_WC.shape[0], Jl_WC.shape[0]))]
+                        ),
                     ]
                 )
-                b = jnp.hstack([M @ nu_pre, jnp.zeros(J_WC.shape[0])])
+                b = jnp.hstack([M @ nu_pre, jnp.zeros(Jl_WC.shape[0])])
                 x = jnp.linalg.lstsq(A, b)[0]
                 nu_post = x[0 : M.shape[0]]
 
@@ -221,9 +224,11 @@ class RigidContacts(ContactModel):
             velocity: The linear velocity of the collidable point.
             model: The `JaxSimModel` instance.
             data: The `JaxSimModelData` instance.
-            link_forces: Optional `(n_links, 6)` matrix of external forces acting on the links,
+            link_forces:
+                Optional `(n_links, 6)` matrix of external forces acting on the links,
                 expressed in the same representation of data.
-            regularization_term: The regularization term to add to the diagonal of the Delassus
+            regularization_term:
+                The regularization term to add to the diagonal of the Delassus
                 matrix for better numerical conditioning.
 
         Returns:
@@ -277,6 +282,7 @@ class RigidContacts(ContactModel):
             data,
             BW_ν̇_free,
         ).flatten()
+
         # Compute stabilization term
         ḣ = velocity[:, 2].squeeze()
         baumgarte_term = RigidContacts._compute_baumgarte_stabilization_term(
@@ -286,6 +292,7 @@ class RigidContacts(ContactModel):
             K=self.parameters.K,
             D=self.parameters.D,
         ).flatten()
+
         free_contact_acc -= baumgarte_term
 
         # Setup optimization problem
@@ -332,7 +339,7 @@ class RigidContacts(ContactModel):
     def _delassus_matrix(
         M: jtp.MatrixLike,
         J_WC: jtp.MatrixLike,
-    ):
+    ) -> jtp.Matrix:
         sl = jnp.s_[:, 0:3, :]
         J_WC_lin = jnp.vstack(J_WC[sl])
 
@@ -382,9 +389,7 @@ class RigidContacts(ContactModel):
         references = (
             references
             if references is not None
-            else js.references.JaxSimModelReferences.zero(
-                model=model, data=data, velocity_representation=VelRepr.Mixed
-            )
+            else js.references.JaxSimModelReferences.zero(model=model, data=data)
         )
 
         with (
@@ -417,7 +422,7 @@ class RigidContacts(ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         mixed_nu_dot: jtp.ArrayLike,
-    ) -> jtp.Array:
+    ) -> jtp.Matrix:
         with data.switch_velocity_representation(VelRepr.Mixed):
             CW_J_WC_BW = js.contact.jacobian(
                 model=model,
@@ -468,12 +473,6 @@ class RigidContacts(ContactModel):
 
         baumgarte_term = jax.vmap(
             baumgarte_stabilization, in_axes=(0, 0, 0, None, None)
-        )(
-            inactive_collidable_points,
-            h,
-            ḣ,
-            K,
-            D,
-        )
+        )(inactive_collidable_points, h, ḣ, K, D)
 
         return baumgarte_term

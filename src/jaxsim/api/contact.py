@@ -124,8 +124,9 @@ def collidable_point_dynamics(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        link_forces: The 6D external forces to apply to the links
-            expressed in the same representation of data.
+        link_forces:
+            The 6D external forces to apply to the links expressed in the same
+            representation of data.
 
     Returns:
         The 6D force applied to each collidable point and additional data based on the contact model configured:

@@ -17,7 +17,7 @@ from .common import ContactModel, ContactsParams, ContactsState
 
 
 @jax_dataclasses.pytree_dataclass
-class RigidContactParams(ContactsParams):
+class RigidContactsParams(ContactsParams):
     """Parameters of the rigid contacts model."""
 
     # Static friction coefficient
@@ -46,7 +46,7 @@ class RigidContactParams(ContactsParams):
             )
         )
 
-    def __eq__(self, other: RigidContactParams) -> bool:
+    def __eq__(self, other: RigidContactsParams) -> bool:
         return hash(self) == hash(other)
 
     @classmethod
@@ -55,9 +55,9 @@ class RigidContactParams(ContactsParams):
         mu: jtp.FloatLike | None = None,
         K: jtp.FloatLike | None = None,
         D: jtp.FloatLike | None = None,
-    ) -> RigidContactParams:
+    ) -> RigidContactsParams:
         """Create a `RigidContactParams` instance"""
-        return RigidContactParams(
+        return RigidContactsParams(
             mu=mu or cls.__dataclass_fields__["mu"].default,
             K=K or cls.__dataclass_fields__["K"].default,
             D=D or cls.__dataclass_fields__["D"].default,
@@ -97,8 +97,8 @@ class RigidContactsState(ContactsState):
 class RigidContacts(ContactModel):
     """Rigid contacts model."""
 
-    parameters: RigidContactParams = dataclasses.field(
-        default_factory=RigidContactParams
+    parameters: RigidContactsParams = dataclasses.field(
+        default_factory=RigidContactsParams
     )
 
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(

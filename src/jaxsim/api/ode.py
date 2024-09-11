@@ -192,9 +192,9 @@ def system_acceleration(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_forces: jtp.Vector | None = None,
+    joint_forces: jtp.VectorLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
-):
+) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute the system acceleration in inertial-fixed representation.
 
@@ -206,8 +206,8 @@ def system_acceleration(
             The 6D forces to apply to the links expressed in the same representation of data.
 
     Returns:
-        A tuple containing the derivative of the base 6D velocity in inertial-fixed
-        representation and the derivative of the joint velocities.
+        A tuple containing the base 6D acceleration in inertial-fixed representation
+        and the joint accelerations.
     """
 
     # ====================

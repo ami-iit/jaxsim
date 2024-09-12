@@ -1932,6 +1932,9 @@ def step(
         ),
     )
 
+    tf_ns = t0_ns + jnp.array(dt * 1e9, dtype=t0_ns.dtype)
+    tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dytpe))
+
     exceptions.raise_if(
         condition=t0_ns + jnp.array(dt * 1e9).astype(t0_ns.dtype) < t0_ns,
         exception=OverflowError,
@@ -1942,7 +1945,7 @@ def step(
         # Store the new state of the model and the new time.
         data.replace(
             state=state_tf,
-            time_ns=t0_ns + jnp.array(dt * 1e9).astype(int),
+            time_ns=tf_ns,
         )
     )
 

@@ -107,16 +107,18 @@ class RelaxedRigidContactsParams(ContactsParams):
     @classmethod
     def build(
         cls,
-        time_constant: jtp.Float | None = None,
-        damping_coefficient: jtp.Float | None = None,
-        d_min: jtp.Float | None = None,
-        d_max: jtp.Float | None = None,
-        width: jtp.Float | None = None,
-        midpoint: jtp.Float | None = None,
-        power: jtp.Float | None = None,
-        stiffness: jtp.Float | None = None,
-        damping: jtp.Float | None = None,
-        mu: jtp.Float | None = None,
+        time_constant: jtp.FloatLike | None = None,
+        damping_coefficient: jtp.FloatLike | None = None,
+        d_min: jtp.FloatLike | None = None,
+        d_max: jtp.FloatLike | None = None,
+        width: jtp.FloatLike | None = None,
+        midpoint: jtp.FloatLike | None = None,
+        power: jtp.FloatLike | None = None,
+        stiffness: jtp.FloatLike | None = None,
+        damping: jtp.FloatLike | None = None,
+        mu: jtp.FloatLike | None = None,
+        max_iterations: jtp.IntLike | None = None,
+        tolerance: jtp.FloatLike | None = None,
     ) -> RelaxedRigidContactsParams:
         """Create a `RelaxedRigidContactsParams` instance"""
 
@@ -199,13 +201,13 @@ class RelaxedRigidContacts(ContactModel):
 
         with data.switch_velocity_representation(VelRepr.Mixed):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
-            J_WC = jnp.vstack(
+            Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, height: J * (height < 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3], δ
+                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
                 )
             )
             W_H_C = js.contact.transforms(model=model, data=data)
-            h = js.model.free_floating_bias_forces(model=model, data=data)
+            W_ν̇ = jnp.hstack(js.ode.system_acceleration(model=model, data=data))
             W_ν = data.generalized_velocity()
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(
@@ -221,8 +223,8 @@ class RelaxedRigidContacts(ContactModel):
             )
 
         M_inv = jnp.linalg.inv(M)
-        G = J_WC @ M_inv @ J_WC.T
-        CW_al_free_WC = J_WC @ M_inv @ (-h) + J̇_WC @ W_ν
+        G = Jl_WC @ M_inv @ Jl_WC.T
+        CW_al_free_WC = Jl_WC @ W_ν̇ + J̇_WC @ W_ν
 
         # Calculate quantities for the linear optimization problem.
         A = G + R

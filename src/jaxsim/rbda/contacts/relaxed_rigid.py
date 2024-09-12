@@ -124,9 +124,11 @@ class RelaxedRigidContactsParams(ContactsParams):
 
         return cls(
             **{
-                field: locals().get(field) or cls.__dataclass_fields__[field].default
-                for field in cls.__dataclass_fields__
-                if field != "__mutability__"
+                field: jnp.array(locals().get(field, default), dtype=default.dtype)
+                for field, default in map(
+                    lambda f: (f, cls.__dataclass_fields__[f].default),
+                    filter(lambda f: f != "__mutability__", cls.__dataclass_fields__),
+                )
             }
         )
 

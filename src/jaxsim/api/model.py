@@ -17,7 +17,6 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim import exceptions
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
@@ -1933,12 +1932,14 @@ def step(
     )
 
     tf_ns = t0_ns + jnp.array(dt * 1e9, dtype=t0_ns.dtype)
-    tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dytpe))
+    tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dtype))
 
-    exceptions.raise_if(
-        condition=t0_ns + jnp.array(dt * 1e9).astype(t0_ns.dtype) < t0_ns,
-        exception=OverflowError,
-        msg="The simulation time overflowed the maximum integer value. Consider using x64 by setting `JAX_ENABLE_X64=1`.",
+    jax.lax.cond(
+        pred=tf_ns >= t0_ns,
+        true_fun=lambda: jax.debug.print(
+            "The simulation time overflowed, resetting simulation time to 0."
+        ),
+        false_fun=lambda: None,
     )
 
     data_tf = (

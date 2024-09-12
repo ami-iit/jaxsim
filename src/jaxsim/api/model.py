@@ -1535,18 +1535,59 @@ def free_floating_mass_matrix(
             return M_body
 
         case VelRepr.Inertial:
-            B_X_W = Adjoint.from_transform(transform=data._base_transform, inverse=True)
+            B_X_W = Adjoint.from_transform(transform=data.base_transform, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
 
         case VelRepr.Mixed:
-            BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
+            BW_H_B = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
 
+        case _:
+            raise ValueError(data.velocity_representation)
+
+
+@jax.jit
+@js.common.named_scope
+def free_floating_mass_matrix_inverse(
+    model: JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    """
+    Compute the inverse of the free-floating mass matrix of the model
+    with the CRBA algorithm.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The inverse of the free-floating mass matrix of the model.
+    """
+    M_inv_body = jaxsim.rbda.mass_inverse(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_orientation,
+        joint_positions=data.joint_positions,
+    )
+
+    match data.velocity_representation:
+        case VelRepr.Body:
+            return M_inv_body
+        case VelRepr.Inertial:
+            B_X_W = Adjoint.from_transform(transform=data.base_transform)
+            invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+
+            return invT @ M_inv_body @ invT.T
+        case VelRepr.Mixed:
+            BW_H_B = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
+            B_X_BW = Adjoint.from_transform(transform=BW_H_B)
+            invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
+
+            return invT @ M_inv_body @ invT.T
         case _:
             raise ValueError(data.velocity_representation)
 

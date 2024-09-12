@@ -9,4 +9,5 @@ from .jacobian import (
     jacobian_full_doubly_left,
 )
 from .kinematic_constraints import compute_constraint_wrenches
+from .mass_inverse import mass_inverse
 from .rnea import rnea

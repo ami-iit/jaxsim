@@ -224,8 +224,7 @@ class RelaxedRigidContacts(ContactModel):
                 parameters=self.parameters,
             )
 
-        M_inv = jnp.linalg.inv(M)
-        G = Jl_WC @ M_inv @ Jl_WC.T
+        G = Jl_WC @ jnp.linalg.lstsq(M, Jl_WC.T)[0]
         CW_al_free_WC = Jl_WC @ W_ν̇ + J̇_WC @ W_ν
 
         # Calculate quantities for the linear optimization problem.

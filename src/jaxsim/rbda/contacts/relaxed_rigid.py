@@ -273,13 +273,13 @@ class RelaxedRigidContacts(ContactModel):
         Compute the contact jacobian and the reference acceleration.
 
         Args:
-            model (js.model.JaxSimModel): The jaxsim model.
-            penetration (jtp.Vector): The penetration of the collidable points.
-            velocity (jtp.Vector): The velocity of the collidable points.
-            parameters (RelaxedRigidContactsParams): The parameters of the relaxed rigid contacts model.
+            model: The jaxsim model.
+            penetration: The penetration of the collidable points.
+            velocity: The velocity of the collidable points.
+            parameters: The parameters of the relaxed rigid contacts model.
 
         Returns:
-            A tuple containing the reference acceleration and the regularization matrix.
+            A tuple containing the reference acceleration, the regularization matrix, the stiffness, and the damping.
         """
 
         Ω, ζ, ξ_min, ξ_max, width, mid, p, K, D, μ, *_ = jax_dataclasses.astuple(
@@ -298,8 +298,10 @@ class RelaxedRigidContacts(ContactModel):
                 velocity: velocity in constraint frame
 
             Returns:
-                impedance: constraint impedance
                 a_ref: offset acceleration in constraint frame
+                R: regularization matrix
+                K: computed stiffness
+                D: computed damping
             """
             position = jnp.zeros(shape=(3,)).at[2].set(penetration)
 

@@ -1931,11 +1931,22 @@ def step(
         ),
     )
 
+    tf_ns = t0_ns + jnp.array(dt * 1e9, dtype=t0_ns.dtype)
+    tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dtype))
+
+    jax.lax.cond(
+        pred=tf_ns >= t0_ns,
+        true_fun=lambda: jax.debug.print(
+            "The simulation time overflowed, resetting simulation time to 0."
+        ),
+        false_fun=lambda: None,
+    )
+
     data_tf = (
         # Store the new state of the model and the new time.
         data.replace(
             state=state_tf,
-            time_ns=t0_ns + jnp.array(dt * 1e9).astype(jnp.uint64),
+            time_ns=tf_ns,
         )
     )
 

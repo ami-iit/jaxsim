@@ -39,7 +39,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     contacts_params: jaxsim.rbda.ContactsParams = dataclasses.field(repr=False)
 
     time_ns: jtp.Int = dataclasses.field(
-        default_factory=lambda: jnp.array(0, dtype=jnp.uint64)
+        default_factory=lambda: jnp.array(
+            0, dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32
+        ),
     )
 
     def __hash__(self) -> int:
@@ -172,9 +174,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         time_ns = (
-            jnp.array(time * 1e9, dtype=jnp.uint64)
+            jnp.array(
+                time * 1e9,
+                dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32,
+            )
             if time is not None
-            else jnp.array(0, dtype=jnp.uint64)
+            else jnp.array(
+                0, dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32
+            )
         )
 
         if isinstance(model.contact_model, SoftContacts):

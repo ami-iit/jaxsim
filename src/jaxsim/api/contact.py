@@ -211,6 +211,7 @@ def collidable_point_dynamics(
                 velocity=W_ṗ_Ci,
                 model=model,
                 data=data,
+                link_forces=link_forces,
             )
 
             aux_data = dict()

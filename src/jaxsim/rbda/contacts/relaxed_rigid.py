@@ -188,7 +188,21 @@ class RelaxedRigidContacts(ContactModel):
         velocity: jtp.Vector,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
+        link_forces: jtp.MatrixLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+
+        link_forces = (
+            link_forces
+            if link_forces is not None
+            else jnp.zeros((model.number_of_links(), 6))
+        )
+
+        references = js.references.JaxSimModelReferences.build(
+            model=model,
+            data=data,
+            velocity_representation=data.velocity_representation,
+            link_forces=link_forces,
+        )
 
         def _detect_contact(x: jtp.Array, y: jtp.Array, z: jtp.Array) -> jtp.Array:
             x, y, z = jax.tree_map(jnp.squeeze, (x, y, z))
@@ -201,7 +215,10 @@ class RelaxedRigidContacts(ContactModel):
         # Compute the activation state of the collidable points
         δ = jax.vmap(_detect_contact)(*position.T)
 
-        with data.switch_velocity_representation(VelRepr.Mixed):
+        with (
+            references.switch_velocity_representation(VelRepr.Mixed),
+            data.switch_velocity_representation(VelRepr.Mixed),
+        ):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, height: J * (height < 0))(
@@ -209,7 +226,13 @@ class RelaxedRigidContacts(ContactModel):
                 )
             )
             W_H_C = js.contact.transforms(model=model, data=data)
-            W_ν̇ = jnp.hstack(js.ode.system_acceleration(model=model, data=data))
+            W_ν̇ = jnp.hstack(
+                js.ode.system_acceleration(
+                    model=model,
+                    data=data,
+                    link_forces=references.link_forces(model=model, data=data),
+                )
+            )
             W_ν = data.generalized_velocity()
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(

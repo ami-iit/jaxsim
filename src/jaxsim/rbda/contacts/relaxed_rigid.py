@@ -226,14 +226,14 @@ class RelaxedRigidContacts(ContactModel):
                 )
             )
             W_H_C = js.contact.transforms(model=model, data=data)
-            W_ν̇ = jnp.hstack(
+            BW_ν̇_free = jnp.hstack(
                 js.ode.system_acceleration(
                     model=model,
                     data=data,
                     link_forces=references.link_forces(model=model, data=data),
                 )
             )
-            W_ν = data.generalized_velocity()
+            BW_ν = data.generalized_velocity()
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
@@ -248,7 +248,7 @@ class RelaxedRigidContacts(ContactModel):
             )
 
         G = Jl_WC @ jnp.linalg.lstsq(M, Jl_WC.T)[0]
-        CW_al_free_WC = Jl_WC @ W_ν̇ + J̇_WC @ W_ν
+        CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
 
         # Calculate quantities for the linear optimization problem.
         A = G + R

@@ -179,11 +179,11 @@ def system_velocity_dynamics(
         # Get the link forces in inertial representation
         f_L_total = references.link_forces(model=model, data=data)
 
-        W_v̇_WB, s̈ = system_acceleration(
+        v̇_WB, s̈ = system_acceleration(
             model=model, data=data, joint_forces=joint_forces, link_forces=f_L_total
         )
 
-    return W_v̇_WB, s̈, aux_data
+    return v̇_WB, s̈, aux_data
 
 
 def system_acceleration(
@@ -270,15 +270,15 @@ def system_acceleration(
     )
 
     # - Joint accelerations: s̈ ∈ ℝⁿ
-    # - Base acceleration: W_v̇_WB = (W_p̈_B, W_ω̇_B) ∈ ℝ⁶
-    W_v̇_WB, s̈ = js.model.forward_dynamics_aba(
+    # - Base acceleration: v̇_WB ∈ ℝ⁶
+    v̇_WB, s̈ = js.model.forward_dynamics_aba(
         model=model,
         data=data,
         joint_forces=references.joint_force_references(model=model),
         link_forces=references.link_forces(model=model, data=data),
     )
 
-    return W_v̇_WB, s̈
+    return v̇_WB, s̈
 
 
 @jax.jit

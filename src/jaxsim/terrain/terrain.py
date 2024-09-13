@@ -46,65 +46,81 @@ class Terrain(abc.ABC):
 @jax_dataclasses.pytree_dataclass
 class FlatTerrain(Terrain):
 
-    z: float = dataclasses.field(default=0.0, kw_only=True)
+    _height: float = dataclasses.field(default=0.0, kw_only=True)
 
     @staticmethod
     def build(height: jtp.FloatLike) -> FlatTerrain:
 
-        return FlatTerrain(z=float(height))
+        return FlatTerrain(_height=float(height))
 
     def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
 
-        return jnp.array(self.z, dtype=float)
+        return jnp.array(self._height, dtype=float)
+
+    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+
+        return jnp.array([0.0, 0.0, 1.0], dtype=float)
 
     def __hash__(self) -> int:
 
-        return hash(self.z)
+        return hash(self._height)
 
     def __eq__(self, other: FlatTerrain) -> bool:
 
         if not isinstance(other, FlatTerrain):
             return False
 
-        return self.z == other.z
+        return self._height == other._height
 
 
 @jax_dataclasses.pytree_dataclass
 class PlaneTerrain(FlatTerrain):
 
-    plane_normal: tuple[float, float, float] = jax_dataclasses.field(
+    _normal: tuple[float, float, float] = jax_dataclasses.field(
         default=(0.0, 0.0, 1.0), kw_only=True
     )
 
     @staticmethod
-    def build(
-        plane_normal: jtp.VectorLike, plane_height_over_origin: jtp.FloatLike = 0.0
-    ) -> PlaneTerrain:
+    def build(height: jtp.FloatLike = 0.0, *, normal: jtp.VectorLike) -> PlaneTerrain:
         """
         Create a PlaneTerrain instance with a specified plane normal vector.
 
         Args:
-            plane_normal: The normal vector of the terrain plane.
-            plane_height_over_origin: The height of the plane over the origin.
+            normal: The normal vector of the terrain plane.
+            height: The height of the plane over the origin.
 
         Returns:
             PlaneTerrain: A PlaneTerrain instance.
         """
 
-        plane_normal = jnp.array(plane_normal, dtype=float)
-        plane_height_over_origin = jnp.array(plane_height_over_origin, dtype=float)
+        normal = jnp.array(normal, dtype=float)
+        height = jnp.array(height, dtype=float)
 
-        if plane_normal.shape != (3,):
+        if normal.shape != (3,):
             msg = "Expected a 3D vector for the plane normal, got '{}'."
-            raise ValueError(msg.format(plane_normal.shape))
+            raise ValueError(msg.format(normal.shape))
 
         # Make sure that the plane normal is a unit vector.
-        plane_normal = plane_normal / jnp.linalg.norm(plane_normal)
+        normal = normal / jnp.linalg.norm(normal)
 
         return PlaneTerrain(
-            z=float(plane_height_over_origin),
-            plane_normal=tuple(plane_normal.tolist()),
+            _height=height.item(),
+            _normal=tuple(normal.tolist()),
         )
+
+    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+        """
+        Compute the normal vector of the terrain at a specific (x, y) location.
+
+        Args:
+            x: The x-coordinate of the location.
+            y: The y-coordinate of the location.
+
+        Returns:
+            The normal vector of the terrain surface at the specified location.
+        """
+
+        return jnp.array(self._normal, dtype=float)
 
     def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
         """
@@ -123,10 +139,10 @@ class PlaneTerrain(FlatTerrain):
         # The height over the origin: -D/C
 
         # Get the plane equation coefficients from the terrain normal.
-        A, B, C = self.plane_normal
+        A, B, C = self._normal
 
         # Compute the final coefficient D considering the terrain height.
-        D = -C * self.z
+        D = -C * self._height
 
         # Invert the plane equation to get the height at the given (x, y) coordinates.
         return jnp.array(-(A * x + B * y + D) / C).astype(float)
@@ -137,9 +153,9 @@ class PlaneTerrain(FlatTerrain):
 
         return hash(
             (
-                hash(self.z),
+                hash(self._height),
                 HashedNumpyArray.hash_of_array(
-                    array=jnp.array(self.plane_normal, dtype=float)
+                    array=jnp.array(self._normal, dtype=float)
                 ),
             )
         )
@@ -150,10 +166,10 @@ class PlaneTerrain(FlatTerrain):
             return False
 
         if not (
-            np.allclose(self.z, other.z)
+            np.allclose(self._height, other._height)
             and np.allclose(
-                np.array(self.plane_normal, dtype=float),
-                np.array(other.plane_normal, dtype=float),
+                np.array(self._normal, dtype=float),
+                np.array(other._normal, dtype=float),
             )
         ):
             return False

@@ -131,7 +131,8 @@ def collidable_point_dynamics(
     Returns:
         The 6D force applied to each collidable point and additional data based on the contact model configured:
         - Soft: the material deformation rate.
-        - Rigid: nothing.
+        - Rigid: no additional data.
+        - QuasiRigid: no additional data.
 
     Note:
         The material deformation rate is always returned in the mixed frame
@@ -144,6 +145,10 @@ def collidable_point_dynamics(
     W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
 
     # Import privately the contacts classes.
+    from jaxsim.rbda.contacts.relaxed_rigid import (
+        RelaxedRigidContacts,
+        RelaxedRigidContactsState,
+    )
     from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
     from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 
@@ -181,6 +186,27 @@ def collidable_point_dynamics(
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
             W_f_Ci, _ = rigid_contacts.compute_contact_forces(
+                position=W_p_Ci,
+                velocity=W_ṗ_Ci,
+                model=model,
+                data=data,
+                link_forces=link_forces,
+            )
+
+            aux_data = dict()
+
+        case RelaxedRigidContacts():
+            assert isinstance(model.contact_model, RelaxedRigidContacts)
+            assert isinstance(data.state.contact, RelaxedRigidContactsState)
+
+            # Build the contact model.
+            relaxed_rigid_contacts = RelaxedRigidContacts(
+                parameters=data.contacts_params, terrain=model.terrain
+            )
+
+            # Compute the 6D force expressed in the inertial frame and applied to each
+            # collidable point.
+            W_f_Ci, _ = relaxed_rigid_contacts.compute_contact_forces(
                 position=W_p_Ci,
                 velocity=W_ṗ_Ci,
                 model=model,

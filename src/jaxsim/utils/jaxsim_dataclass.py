@@ -135,9 +135,10 @@ class JaxsimDataclass(abc.ABC):
         """
 
         return tuple(
-            leaf.shape if hasattr(leaf, "shape") else None
-            for leaf in jax.tree_util.tree_leaves(tree)
-            if hasattr(leaf, "shape")
+            map(
+                lambda leaf: getattr(leaf, "shape", None),
+                jax.tree_util.tree_leaves(tree),
+            )
         )
 
     @staticmethod
@@ -154,9 +155,10 @@ class JaxsimDataclass(abc.ABC):
         """
 
         return tuple(
-            leaf.dtype if hasattr(leaf, "dtype") else None
-            for leaf in jax.tree_util.tree_leaves(tree)
-            if hasattr(leaf, "dtype")
+            map(
+                lambda leaf: getattr(leaf, "dtype", None),
+                jax.tree_util.tree_leaves(tree),
+            )
         )
 
     @staticmethod
@@ -172,9 +174,10 @@ class JaxsimDataclass(abc.ABC):
         """
 
         return tuple(
-            leaf.weak_type if hasattr(leaf, "weak_type") else False
-            for leaf in jax.tree_util.tree_leaves(tree)
-            if hasattr(leaf, "weak_type")
+            map(
+                lambda leaf: getattr(leaf, "weak_type", None),
+                jax.tree_util.tree_leaves(tree),
+            )
         )
 
     @staticmethod

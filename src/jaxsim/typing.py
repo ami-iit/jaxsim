@@ -16,7 +16,7 @@ Int = Scalar
 Bool = Scalar
 Float = Scalar
 
-PyTree = (
+PyTree: object = (
     dict[Hashable, TypeVar("PyTree")]
     | list[TypeVar("PyTree")]
     | tuple[TypeVar("PyTree")]

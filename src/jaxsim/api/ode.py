@@ -175,17 +175,15 @@ def system_velocity_dynamics(
             forces=W_f_Li_terrain,
             additive=True,
         )
-    # Get the link forces in the data representation
-    with references.switch_velocity_representation(data.velocity_representation):
+
+        # Get the link forces in inertial representation
         f_L_total = references.link_forces(model=model, data=data)
 
-    # The following method always returns the inertial-fixed acceleration, and expects
-    # the link_forces expressed in the inertial frame.
-    W_v̇_WB, s̈ = system_acceleration(
-        model=model, data=data, joint_forces=joint_forces, link_forces=f_L_total
-    )
+        v̇_WB, s̈ = system_acceleration(
+            model=model, data=data, joint_forces=joint_forces, link_forces=f_L_total
+        )
 
-    return W_v̇_WB, s̈, aux_data
+    return v̇_WB, s̈, aux_data
 
 
 def system_acceleration(
@@ -196,7 +194,7 @@ def system_acceleration(
     link_forces: jtp.MatrixLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
-    Compute the system acceleration in inertial-fixed representation.
+    Compute the system acceleration in the active representation.
 
     Args:
         model: The model to consider.
@@ -206,7 +204,7 @@ def system_acceleration(
             The 6D forces to apply to the links expressed in the same representation of data.
 
     Returns:
-        A tuple containing the base 6D acceleration in inertial-fixed representation
+        A tuple containing the base 6D acceleration in in the active representation
         and the joint accelerations.
     """
 
@@ -272,18 +270,15 @@ def system_acceleration(
     )
 
     # - Joint accelerations: s̈ ∈ ℝⁿ
-    # - Base inertial-fixed acceleration: W_v̇_WB = (W_p̈_B, W_ω̇_B) ∈ ℝ⁶
-    with (
-        data.switch_velocity_representation(velocity_representation=VelRepr.Inertial),
-        references.switch_velocity_representation(VelRepr.Inertial),
-    ):
-        W_v̇_WB, s̈ = js.model.forward_dynamics_aba(
-            model=model,
-            data=data,
-            joint_forces=references.joint_force_references(),
-            link_forces=references.link_forces(),
-        )
-    return W_v̇_WB, s̈
+    # - Base acceleration: v̇_WB ∈ ℝ⁶
+    v̇_WB, s̈ = js.model.forward_dynamics_aba(
+        model=model,
+        data=data,
+        joint_forces=references.joint_force_references(model=model),
+        link_forces=references.link_forces(model=model, data=data),
+    )
+
+    return v̇_WB, s̈
 
 
 @jax.jit
@@ -353,7 +348,7 @@ def system_dynamics(
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
-
+    from jaxsim.rbda.contacts.relaxed_rigid import RelaxedRigidContacts
     from jaxsim.rbda.contacts.rigid import RigidContacts
     from jaxsim.rbda.contacts.soft import SoftContacts
 
@@ -371,7 +366,7 @@ def system_dynamics(
         case SoftContacts():
             ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
 
-        case RigidContacts():
+        case RigidContacts() | RelaxedRigidContacts():
             pass
 
         case _:

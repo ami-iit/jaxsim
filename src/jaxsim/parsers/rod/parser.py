@@ -232,15 +232,19 @@ def extract_model_data(
             pose=j.pose.transform() if j.pose is not None else np.eye(4),
             initial_position=0.0,
             position_limit=(
-                (
-                    float(j.axis.limit.lower)
-                    if j.axis is not None and j.axis.limit is not None
-                    else np.finfo(float).min
+                float(
+                    j.axis.limit.lower
+                    if j.axis is not None
+                    and j.axis.limit is not None
+                    and j.axis.limit.lower is not None
+                    else jnp.finfo(float).min
                 ),
-                (
-                    float(j.axis.limit.upper)
-                    if j.axis is not None and j.axis.limit is not None
-                    else np.finfo(float).max
+                float(
+                    j.axis.limit.upper
+                    if j.axis is not None
+                    and j.axis.limit is not None
+                    and j.axis.limit.upper is not None
+                    else jnp.finfo(float).max
                 ),
             ),
             friction_static=(
@@ -273,7 +277,7 @@ def extract_model_data(
             ),
         )
         for j in sdf_model.joints()
-        if j.type in {"revolute", "prismatic", "fixed"}
+        if j.type in {"revolute", "continuous", "prismatic", "fixed"}
         and j.parent != "world"
         and j.child in links_dict.keys()
     ]

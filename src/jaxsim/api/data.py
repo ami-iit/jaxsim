@@ -7,9 +7,9 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
-import jaxlie
 
 import jaxsim.api as js
+import jaxsim.math
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.rbda.contacts.soft import SoftContacts
@@ -195,10 +195,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         else:
             contacts_params = model.contact_model.parameters
 
-        W_H_B = jaxlie.SE3.from_rotation_and_translation(
-            translation=base_position,
-            rotation=jaxlie.SO3(wxyz=base_quaternion),
-        ).as_matrix()
+        W_H_B = jaxsim.math.Transform.from_quaternion_and_translation(
+            translation=base_position, quaternion=base_quaternion
+        )
 
         v_WB = JaxSimModelData.other_representation_to_inertial(
             array=jnp.hstack([base_linear_velocity, base_angular_velocity]),
@@ -384,7 +383,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             on_false=W_Q_B / jnp.linalg.norm(W_Q_B),
         )
 
-        return (W_Q_B if not dcm else jaxlie.SO3(wxyz=W_Q_B).as_matrix()).astype(float)
+        return (W_Q_B if not dcm else jaxsim.math.Quaternion.to_dcm(W_Q_B)).astype(
+            float
+        )
 
     @jax.jit
     def base_transform(self) -> jtp.Matrix:

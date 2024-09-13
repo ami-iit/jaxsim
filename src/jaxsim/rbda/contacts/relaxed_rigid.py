@@ -76,7 +76,7 @@ class RelaxedRigidContactsParams(ContactsParams):
         default_factory=lambda: jnp.array(50, dtype=int)
     )
 
-    # Solver Tolerance
+    # Solver tolerance
     tolerance: jtp.Float = dataclasses.field(
         default_factory=lambda: jnp.array(1e-6, dtype=float)
     )
@@ -172,7 +172,7 @@ class RelaxedRigidContactsState(ContactsState):
 
 @jax_dataclasses.pytree_dataclass
 class RelaxedRigidContacts(ContactModel):
-    """Rigid contacts model."""
+    """Relaxed rigid contacts model."""
 
     parameters: RelaxedRigidContactsParams = dataclasses.field(
         default_factory=RelaxedRigidContactsParams

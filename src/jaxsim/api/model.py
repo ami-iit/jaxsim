@@ -1935,7 +1935,7 @@ def step(
     tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dtype))
 
     jax.lax.cond(
-        pred=tf_ns >= t0_ns,
+        pred=tf_ns < t0_ns,
         true_fun=lambda: jax.debug.print(
             "The simulation time overflowed, resetting simulation time to 0."
         ),

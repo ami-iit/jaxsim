@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 import jax
 import jax.numpy as jnp
+import jax.scipy.spatial.transform
 import jax_dataclasses
 
 import jaxsim.api as js
@@ -747,6 +748,11 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = ((-1, -1, 0.5), 1.0),
+    base_rpy_bounds: tuple[
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+        jtp.FloatLike | Sequence[jtp.FloatLike],
+    ] = (-jnp.pi, jnp.pi),
+    base_rpy_seq: str = "XYZ",
     joint_pos_bounds: (
         tuple[
             jtp.FloatLike | Sequence[jtp.FloatLike],
@@ -779,6 +785,10 @@ def random_model_data(
         key: The random key.
         velocity_representation: The velocity representation to use.
         base_pos_bounds: The bounds for the base position.
+        base_rpy_bounds:
+            The bounds for the euler angles used to build the base orientation.
+        base_rpy_seq:
+            The sequence of axes for rotation (using `Rotation` from scipy).
         joint_pos_bounds:
             The bounds for the joint positions (reading the joint limits if None).
         base_vel_lin_bounds: The bounds for the base linear velocity.
@@ -795,6 +805,8 @@ def random_model_data(
 
     p_min = jnp.array(base_pos_bounds[0], dtype=float)
     p_max = jnp.array(base_pos_bounds[1], dtype=float)
+    rpy_min = jnp.array(base_rpy_bounds[0], dtype=float)
+    rpy_max = jnp.array(base_rpy_bounds[1], dtype=float)
     v_min = jnp.array(base_vel_lin_bounds[0], dtype=float)
     v_max = jnp.array(base_vel_lin_bounds[1], dtype=float)
     ω_min = jnp.array(base_vel_ang_bounds[0], dtype=float)
@@ -820,9 +832,14 @@ def random_model_data(
             key=k1, shape=(3,), minval=p_min, maxval=p_max
         )
 
-        physics_model_state.base_quaternion = jaxlie.SO3.from_rpy_radians(
-            *jax.random.uniform(key=k2, shape=(3,), minval=0, maxval=2 * jnp.pi)
-        ).wxyz
+        physics_model_state.base_quaternion = jaxsim.math.Quaternion.to_wxyz(
+            xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
+                seq=base_rpy_seq,
+                angles=jax.random.uniform(
+                    key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
+                ),
+            ).as_quat()
+        )
 
         if model.number_of_joints() > 0:
 

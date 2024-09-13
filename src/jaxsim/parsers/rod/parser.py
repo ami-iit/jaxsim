@@ -223,7 +223,7 @@ def extract_model_data(
             child=links_dict[j.child],
             jtype=utils.joint_to_joint_type(joint=j),
             axis=(
-                np.array(j.axis.xyz.xyz)
+                np.array(j.axis.xyz.xyz, dtype=float)
                 if j.axis is not None
                 and j.axis.xyz is not None
                 and j.axis.xyz.xyz is not None
@@ -232,39 +232,43 @@ def extract_model_data(
             pose=j.pose.transform() if j.pose is not None else np.eye(4),
             initial_position=0.0,
             position_limit=(
-                (
-                    float(j.axis.limit.lower)
-                    if j.axis is not None and j.axis.limit is not None
-                    else np.finfo(float).min
+                float(
+                    j.axis.limit.lower
+                    if j.axis is not None
+                    and j.axis.limit is not None
+                    and j.axis.limit.lower is not None
+                    else jnp.finfo(float).min
                 ),
-                (
-                    float(j.axis.limit.upper)
-                    if j.axis is not None and j.axis.limit is not None
-                    else np.finfo(float).max
+                float(
+                    j.axis.limit.upper
+                    if j.axis is not None
+                    and j.axis.limit is not None
+                    and j.axis.limit.upper is not None
+                    else jnp.finfo(float).max
                 ),
             ),
-            friction_static=(
+            friction_static=float(
                 j.axis.dynamics.friction
                 if j.axis is not None
                 and j.axis.dynamics is not None
                 and j.axis.dynamics.friction is not None
                 else 0.0
             ),
-            friction_viscous=(
+            friction_viscous=float(
                 j.axis.dynamics.damping
                 if j.axis is not None
                 and j.axis.dynamics is not None
                 and j.axis.dynamics.damping is not None
                 else 0.0
             ),
-            position_limit_damper=(
+            position_limit_damper=float(
                 j.axis.limit.dissipation
                 if j.axis is not None
                 and j.axis.limit is not None
                 and j.axis.limit.dissipation is not None
                 else 0.0
             ),
-            position_limit_spring=(
+            position_limit_spring=float(
                 j.axis.limit.stiffness
                 if j.axis is not None
                 and j.axis.limit is not None
@@ -273,7 +277,7 @@ def extract_model_data(
             ),
         )
         for j in sdf_model.joints()
-        if j.type in {"revolute", "prismatic", "fixed"}
+        if j.type in {"revolute", "continuous", "prismatic", "fixed"}
         and j.parent != "world"
         and j.child in links_dict.keys()
     ]

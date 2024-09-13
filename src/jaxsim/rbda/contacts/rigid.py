@@ -9,7 +9,6 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim import math
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain import FlatTerrain, Terrain
 
@@ -272,9 +271,17 @@ class RigidContacts(ContactModel):
             link_forces=link_forces,
         )
 
-        with references.switch_velocity_representation(VelRepr.Mixed):
-            BW_ν̇_free = RigidContacts._compute_mixed_nu_dot_free(
-                model, data, references=references
+        with (
+            references.switch_velocity_representation(VelRepr.Mixed),
+            data.switch_velocity_representation(VelRepr.Mixed),
+        ):
+            BW_ν̇_free = jnp.hstack(
+                js.ode.system_acceleration(
+                    model=model,
+                    data=data,
+                    joint_forces=references.joint_force_references(model=model),
+                    link_forces=references.link_forces(model=model, data=data),
+                )
             )
 
         free_contact_acc = RigidContacts._linear_acceleration_of_collidable_points(
@@ -379,43 +386,6 @@ class RigidContacts(ContactModel):
     def _compute_ineq_bounds(n_collidable_points: jtp.FloatLike) -> jtp.Vector:
         n_constraints = 6 * n_collidable_points
         return jnp.zeros(shape=(n_constraints,))
-
-    @staticmethod
-    def _compute_mixed_nu_dot_free(
-        model: js.model.JaxSimModel,
-        data: js.data.JaxSimModelData,
-        references: js.references.JaxSimModelReferences | None = None,
-    ) -> jtp.Array:
-        references = (
-            references
-            if references is not None
-            else js.references.JaxSimModelReferences.zero(model=model, data=data)
-        )
-
-        with (
-            data.switch_velocity_representation(VelRepr.Mixed),
-            references.switch_velocity_representation(VelRepr.Mixed),
-        ):
-            BW_v_WB = data.base_velocity()
-            W_ṗ_B, W_ω_WB = jnp.split(BW_v_WB, 2)
-            W_v̇_WB, s̈ = js.ode.system_acceleration(
-                model=model,
-                data=data,
-                joint_forces=references.joint_force_references(model=model),
-                link_forces=references.link_forces(model=model, data=data),
-            )
-
-        # Convert the inertial-fixed base acceleration to a mixed base acceleration.
-        W_H_B = data.base_transform()
-        W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
-        BW_X_W = math.Adjoint.from_transform(W_H_BW, inverse=True)
-        term1 = BW_X_W @ W_v̇_WB
-        term2 = jnp.zeros(6).at[0:3].set(jnp.cross(W_ṗ_B, W_ω_WB))
-        BW_v̇_WB = term1 - term2
-
-        BW_ν̇ = jnp.hstack([BW_v̇_WB, s̈])
-
-        return BW_ν̇
 
     @staticmethod
     def _linear_acceleration_of_collidable_points(

@@ -744,6 +744,13 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = ((-1, -1, 0.5), 1.0),
+    joint_pos_bounds: (
+        tuple[
+            jtp.FloatLike | Sequence[jtp.FloatLike],
+            jtp.FloatLike | Sequence[jtp.FloatLike],
+        ]
+        | None
+    ) = None,
     base_vel_lin_bounds: tuple[
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
@@ -769,6 +776,8 @@ def random_model_data(
         key: The random key.
         velocity_representation: The velocity representation to use.
         base_pos_bounds: The bounds for the base position.
+        joint_pos_bounds:
+            The bounds for the joint positions (reading the joint limits if None).
         base_vel_lin_bounds: The bounds for the base linear velocity.
         base_vel_ang_bounds: The bounds for the base angular velocity.
         joint_vel_bounds: The bounds for the joint velocities.
@@ -813,8 +822,19 @@ def random_model_data(
         ).wxyz
 
         if model.number_of_joints() > 0:
-            physics_model_state.joint_positions = js.joint.random_joint_positions(
-                model=model, key=k3
+
+            s_min, s_max = (
+                jnp.array(joint_pos_bounds, dtype=float)
+                if joint_pos_bounds is not None
+                else (None, None)
+            )
+
+            physics_model_state.joint_positions = (
+                js.joint.random_joint_positions(model=model, key=k3)
+                if (s_min is None or s_max is None)
+                else jax.random.uniform(
+                    key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
+                )
             )
 
             physics_model_state.joint_velocities = jax.random.uniform(

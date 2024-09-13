@@ -739,6 +739,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
 
+@functools.partial(jax.jit, static_argnames=["velocity_representation", "base_rpy_seq"])
 def random_model_data(
     model: js.model.JaxSimModel,
     *,

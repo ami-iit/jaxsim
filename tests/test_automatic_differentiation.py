@@ -8,6 +8,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
+from jaxsim.rbda.contacts.relaxed_rigid import RelaxedRigidContacts
 from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsParams
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
@@ -317,6 +318,64 @@ def test_ad_soft_contacts(
     check_grads(
         f=close_over_inputs_and_parameters,
         args=(p, v, m, parameters),
+        order=AD_ORDER,
+        modes=["rev", "fwd"],
+        eps=ε,
+        # On GPU, the tolerance needs to be increased.
+        rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
+    )
+
+
+def test_ad_relaxed_rigid_contacts(
+    jaxsim_models_types: js.model.JaxSimModel,
+    prng_key: jax.Array,
+):
+
+    model = jaxsim_models_types
+
+    _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
+
+    cp_shape = jnp.array(model.kin_dyn_parameters.contact_parameters.point).shape
+
+    p = jax.random.uniform(
+        subkey1,
+        shape=(cp_shape),
+        minval=-1,
+    )
+    v = jax.random.uniform(
+        subkey2,
+        shape=(cp_shape),
+        minval=-1,
+    )
+
+    data, references = get_random_data_and_references(
+        model=model, velocity_representation=VelRepr.Inertial, key=subkey3
+    )
+    f = references.link_forces(model=model)
+
+    # ====
+    # Test
+    # ====
+
+    # Get a closure exposing only the parameters to be differentiated.
+    def close_over_inputs_and_parameters(
+        p: jtp.VectorLike,
+        v: jtp.VectorLike,
+        f: jtp.VectorLike,
+    ) -> tuple[jtp.Vector]:
+        W_f_Ci, _ = RelaxedRigidContacts().compute_contact_forces(
+            position=p,
+            velocity=v,
+            model=model,
+            data=data,
+            link_forces=f,
+        )
+        return W_f_Ci
+
+    # Check derivatives against finite differences.
+    check_grads(
+        f=close_over_inputs_and_parameters,
+        args=(p, v, f),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

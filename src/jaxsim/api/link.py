@@ -154,7 +154,7 @@ def spatial_inertia(
         idx=link_index,
     )
 
-    link_parameters = jax.tree_util.tree_map(
+    link_parameters = jax.tree.map(
         lambda l: l[link_index], model.kin_dyn_parameters.link_parameters
     )
 

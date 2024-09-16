@@ -87,13 +87,13 @@ def estimate_step_size(
 
     # Compute the scaling factors of the initial state and its derivative.
     compute_scale = lambda x: atol + jnp.abs(x) * rtol
-    scale0 = jax.tree_util.tree_map(compute_scale, x0)
-    scale1 = jax.tree_util.tree_map(compute_scale, ẋ0)
+    scale0 = jax.tree.map(compute_scale, x0)
+    scale1 = jax.tree.map(compute_scale, ẋ0)
 
     # Scale the initial state and its derivative.
     scale_pytree = lambda x, scale: jnp.abs(x) / scale
-    x0_scaled = jax.tree_util.tree_map(scale_pytree, x0, scale0)
-    ẋ0_scaled = jax.tree_util.tree_map(scale_pytree, ẋ0, scale1)
+    x0_scaled = jax.tree.map(scale_pytree, x0, scale0)
+    ẋ0_scaled = jax.tree.map(scale_pytree, ẋ0, scale1)
 
     # Get the maximum of the scaled pytrees.
     d0 = jnp.linalg.norm(flatten(x0_scaled), ord=jnp.inf)
@@ -103,16 +103,16 @@ def estimate_step_size(
     h0 = jnp.where(jnp.minimum(d0, d1) <= 1e-5, 1e-6, 0.01 * d0 / d1)
 
     # Compute the next state (explicit Euler step) and its derivative.
-    x1 = jax.tree_util.tree_map(lambda x0, ẋ0: x0 + h0 * ẋ0, x0, ẋ0)
+    x1 = jax.tree.map(lambda x0, ẋ0: x0 + h0 * ẋ0, x0, ẋ0)
     ẋ1 = f(x1, t0 + h0)[0]
 
     # Compute the scaling factor of the state derivatives.
     compute_scale_2 = lambda ẋ0, ẋ1: atol + jnp.maximum(jnp.abs(ẋ0), jnp.abs(ẋ1)) * rtol
-    scale2 = jax.tree_util.tree_map(compute_scale_2, ẋ0, ẋ1)
+    scale2 = jax.tree.map(compute_scale_2, ẋ0, ẋ1)
 
     # Scale the difference of the state derivatives.
     scale_ẋ_difference = lambda ẋ0, ẋ1, scale: jnp.abs((ẋ0 - ẋ1) / scale)
-    ẋ_difference_scaled = jax.tree_util.tree_map(scale_ẋ_difference, ẋ0, ẋ1, scale2)
+    ẋ_difference_scaled = jax.tree.map(scale_ẋ_difference, ẋ0, ẋ1, scale2)
 
     # Get the maximum of the scaled derivatives difference.
     d2 = jnp.linalg.norm(flatten(ẋ_difference_scaled), ord=jnp.inf) / h0
@@ -151,11 +151,11 @@ def compute_pytree_scale(
     """
 
     # Consider a zero second pytree, if not given.
-    x2 = jax.tree_util.tree_map(lambda l: jnp.zeros_like(l), x1) if x2 is None else x2
+    x2 = jax.tree.map(lambda l: jnp.zeros_like(l), x1) if x2 is None else x2
 
     # Compute the scaling factors of the initial state and its derivative.
     compute_scale = lambda l1, l2: atol + jnp.maximum(jnp.abs(l1), jnp.abs(l2)) * rtol
-    scale = jax.tree_util.tree_map(compute_scale, x1, x2)
+    scale = jax.tree.map(compute_scale, x1, x2)
 
     return scale
 
@@ -198,14 +198,14 @@ def local_error_estimation(
 
     # Consider a zero estimated final state, if not given.
     xf_estimate = (
-        jax.tree_util.tree_map(lambda l: jnp.zeros_like(l), xf)
+        jax.tree.map(lambda l: jnp.zeros_like(l), xf)
         if xf_estimate is None
         else xf_estimate
     )
 
     # Estimate the error.
     estimate_error = lambda l, l̂, sc: jnp.abs(l - l̂) / sc
-    error_estimate = jax.tree_util.tree_map(estimate_error, xf, xf_estimate, scale)
+    error_estimate = jax.tree.map(estimate_error, xf, xf_estimate, scale)
 
     # Return the highest element of the error estimate.
     return jnp.linalg.norm(flatten(error_estimate), ord=norm_ord)
@@ -359,10 +359,8 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                 params_next = integrator.params
 
             # Extract the high-order solution xf and the low-order estimate x̂f.
-            xf = jax.tree_util.tree_map(lambda l: l[self.row_index_of_solution], z)
-            x̂f = jax.tree_util.tree_map(
-                lambda l: l[self.row_index_of_solution_estimate], z
-            )
+            xf = jax.tree.map(lambda l: l[self.row_index_of_solution], z)
+            x̂f = jax.tree.map(lambda l: l[self.row_index_of_solution_estimate], z)
 
             # Calculate the local integration error.
             local_error = local_error_estimation(

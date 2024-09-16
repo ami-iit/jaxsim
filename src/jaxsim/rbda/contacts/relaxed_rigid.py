@@ -230,7 +230,7 @@ class RelaxedRigidContacts(ContactModel):
         )
 
         def _detect_contact(x: jtp.Array, y: jtp.Array, z: jtp.Array) -> jtp.Array:
-            x, y, z = jax.tree_map(jnp.squeeze, (x, y, z))
+            x, y, z = jax.tree.map(jnp.squeeze, (x, y, z))
 
             n̂ = self.terrain.normal(x=x, y=y).squeeze()
             h = jnp.array([0, 0, z - model.terrain.height(x=x, y=y)])

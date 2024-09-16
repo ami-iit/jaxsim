@@ -173,9 +173,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
         # Make sure that all leafs of the dictionary are JAX arrays.
         # Also, since these are dummy parameters, set them all to zero.
-        params_after_init = jax.tree_util.tree_map(
-            lambda l: jnp.zeros_like(l), integrator.params
-        )
+        params_after_init = jax.tree.map(lambda l: jnp.zeros_like(l), integrator.params)
 
         # Mark the next step as first step after initialization.
         params_after_init = params_after_init | {
@@ -290,7 +288,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         z, aux_dict = self._compute_next_state(x0=x0, t0=t0, dt=dt, **kwargs)
 
         # The next state is the batch element located at the configured index of solution.
-        next_state = jax.tree_util.tree_map(lambda l: l[self.row_index_of_solution], z)
+        next_state = jax.tree.map(lambda l: l[self.row_index_of_solution], z)
 
         return next_state, aux_dict
 
@@ -327,7 +325,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         """
 
         op = lambda x0_leaf, k_leaf: x0_leaf + dt * k_leaf
-        return jax.tree_util.tree_map(op, x0, k)
+        return jax.tree.map(op, x0, k)
 
     @classmethod
     def post_process_state(
@@ -374,7 +372,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
 
         # Initialize the carry of the for loop with the stacked kᵢ vectors.
-        carry0 = jax.tree_util.tree_map(
+        carry0 = jax.tree.map(
             lambda l: jnp.repeat(jnp.zeros_like(l)[jnp.newaxis, ...], c.size, axis=0),
             x0,
         )
@@ -398,7 +396,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
                 # Compute ∑ⱼ aᵢⱼ kⱼ.
                 op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
-                sum_ak = jax.tree_util.tree_map(op_sum_ak, K)
+                sum_ak = jax.tree.map(op_sum_ak, K)
 
                 # Compute the next state for the kᵢ evaluation.
                 # Note that this is not a Δt integration since aᵢⱼ could be fractional.
@@ -419,7 +417,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
             # Store the kᵢ derivative in K.
             op = lambda l_k, l_ki: l_k.at[i].set(l_ki)
-            K = jax.tree_util.tree_map(op, K, ki)
+            K = jax.tree.map(op, K, ki)
 
             carry = K
             return carry, aux_dict
@@ -433,14 +431,12 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Update the FSAL property for the next iteration.
         if self.has_fsal:
-            self.params["dxdt0"] = jax.tree_util.tree_map(
-                lambda l: l[self.index_of_fsal], K
-            )
+            self.params["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
 
         # Compute the output state.
         # Note that z contains as many new states as the rows of `b.T`.
         op = lambda x0, k: x0 + Δt * jnp.einsum("zs,s...->z...", b.T, k)
-        z = jax.tree_util.tree_map(op, x0, K)
+        z = jax.tree.map(op, x0, K)
 
         # Transform the final state of the integration.
         # This allows to inject custom logic, if needed.

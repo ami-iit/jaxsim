@@ -298,7 +298,7 @@ class JaxsimDataclass(abc.ABC):
         """
 
         # Make a copy calling tree_map.
-        obj = jax.tree_util.tree_map(lambda leaf: leaf, self)
+        obj = jax.tree.map(lambda leaf: leaf, self)
 
         # Make sure that the copied object and all the copied leaves have the same
         # mutability of the original object.

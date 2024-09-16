@@ -98,9 +98,7 @@ class KynDynParameters(JaxsimDataclass):
         ]
 
         # Create a vectorized object of link parameters.
-        link_parameters = jax.tree_util.tree_map(
-            lambda *l: jnp.stack(l), *link_parameters_list
-        )
+        link_parameters = jax.tree.map(lambda *l: jnp.stack(l), *link_parameters_list)
 
         # =================
         # Joints properties
@@ -114,7 +112,7 @@ class KynDynParameters(JaxsimDataclass):
 
         # Create a vectorized object of joint parameters.
         joint_parameters = (
-            jax.tree_util.tree_map(lambda *l: jnp.stack(l), *joint_parameters_list)
+            jax.tree.map(lambda *l: jnp.stack(l), *joint_parameters_list)
             if len(ordered_joints) > 0
             else JointParameters(
                 index=jnp.array([], dtype=int),

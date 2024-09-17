@@ -202,7 +202,7 @@ class RelaxedRigidContacts(ContactModel):
             link_forces:
                 Optional `(n_links, 6)` matrix of external forces acting on the links,
                 expressed in the same representation of data.
-            joint_force_reference:
+            joint_force_references:
                 Optional `(n_joints,)` vector of joint forces.
 
         Returns:
@@ -226,6 +226,7 @@ class RelaxedRigidContacts(ContactModel):
             data=data,
             velocity_representation=data.velocity_representation,
             link_forces=link_forces,
+            joint_force_references=joint_force_references,
         )
 
         def _detect_contact(x: jtp.Array, y: jtp.Array, z: jtp.Array) -> jtp.Array:

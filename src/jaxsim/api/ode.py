@@ -132,8 +132,15 @@ def system_velocity_dynamics(
     # with the terrain.
     W_f_Li_terrain = jnp.zeros_like(O_f_L).astype(float)
 
+    # Initialize a dictionary of auxiliary data.
+    # This dictionary is used to store additional data computed by the contact model.
     aux_data = {}
+
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+
+        # Note: the following code should be kept in sync with the function
+        # `jaxsim.api.model.link_contact_forces`. We cannot merge them since
+        # here we need to get also aux_data.
 
         # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
         # along with contact-specific auxiliary states.

@@ -1747,14 +1747,18 @@ def link_contact_forces(
         data: The data of the considered model.
 
     Returns:
-        A (nL, 6) array containing the stacked 6D contact forces of the links,
+        A `(nL, 6)` array containing the stacked 6D contact forces of the links,
         expressed in the frame corresponding to the active representation.
     """
+
+    # Note: the following code should be kept in sync with the function
+    # `jaxsim.api.ode.system_velocity_dynamics`. We cannot merge them since
+    # there we need to get also aux_data.
 
     # Compute the 6D forces applied to each collidable point expressed in the
     # inertial frame.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_f_Ci = js.contact.collidable_point_forces(model=model, data=data)
+        W_f_C = js.contact.collidable_point_forces(model=model, data=data)
 
     # Construct the vector defining the parent link index of each collidable point.
     # We use this vector to sum the 6D forces of all collidable points rigidly
@@ -1763,29 +1767,28 @@ def link_contact_forces(
         model.kin_dyn_parameters.contact_parameters.body, dtype=int
     )
 
+    # Create the mask that associate each collidable point to their parent link.
+    # We use this mask to sum the collidable points to the right link.
+    mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
+        model.number_of_links()
+    )
+
     # Sum the forces of all collidable points rigidly attached to a body.
-    # Since the contact forces W_f_Ci are expressed in the world frame,
+    # Since the contact forces W_f_C are expressed in the world frame,
     # we don't need any coordinate transformation.
-    W_f_Li = jax.vmap(
-        lambda nc: (
-            jnp.vstack(
-                jnp.equal(parent_link_index_of_collidable_points, nc).astype(int)
-            )
-            * W_f_Ci
-        ).sum(axis=0)
-    )(jnp.arange(model.number_of_links()))
+    W_f_L = mask.T @ W_f_C
 
-    # Convert the 6D forces to the active representation.
-    f_Li = jax.vmap(
-        lambda W_f_L: data.inertial_to_other_representation(
-            array=W_f_L,
-            other_representation=data.velocity_representation,
-            transform=data.base_transform(),
-            is_force=True,
-        )
-    )(W_f_Li)
+    # Create a references object to store the link forces.
+    references = js.references.JaxSimModelReferences.build(
+        model=model, link_forces=W_f_L, velocity_representation=VelRepr.Inertial
+    )
 
-    return f_Li
+    # Use the references object to convert the link forces to the velocity
+    # representation of data.
+    with references.switch_velocity_representation(data.velocity_representation):
+        f_L = references.link_forces(model=model, data=data)
+
+    return f_L
 
 
 # ======

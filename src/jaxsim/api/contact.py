@@ -194,7 +194,7 @@ def collidable_point_dynamics(
                 model=model,
                 data=data,
                 link_forces=link_forces,
-                joint_force_reference=jacobian_derivative,
+                joint_force_references=joint_force_references,
             )
 
             aux_data = dict()

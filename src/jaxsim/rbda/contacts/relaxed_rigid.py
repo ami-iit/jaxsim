@@ -189,12 +189,19 @@ class RelaxedRigidContacts(ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         link_forces: jtp.MatrixLike | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
 
         link_forces = (
             link_forces
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
+        )
+
+        joint_force_references = (
+            joint_force_references
+            if joint_force_references is not None
+            else jnp.zeros((model.number_of_joints(),))
         )
 
         references = js.references.JaxSimModelReferences.build(

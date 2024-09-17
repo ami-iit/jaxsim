@@ -411,3 +411,13 @@ def jaxsim_model_box_32bit(set_jax_32bit, request) -> js.model.JaxSimModel:
     """
 
     return get_jaxsim_model_fixture(model_name="box", request=request)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_assertrepr_compare(op, left, right):
+    if ~jax.config.read("jax_enable_x64") and (
+        {"gpu", "METAL"} & {d.platform for d in jax.devices()}
+    ):
+        if op == "==":
+            return [f"{left} == {right} with tolerance 1e-5"]
+    return None

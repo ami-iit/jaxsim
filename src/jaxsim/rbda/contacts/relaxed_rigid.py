@@ -191,6 +191,23 @@ class RelaxedRigidContacts(ContactModel):
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+        """
+        Compute the contact forces.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The linear velocity of the collidable point.
+            model: The `JaxSimModel` instance.
+            data: The `JaxSimModelData` instance.
+            link_forces:
+                Optional `(n_links, 6)` matrix of external forces acting on the links,
+                expressed in the same representation of data.
+            joint_force_reference:
+                Optional `(n_joints,)` vector of joint forces.
+
+        Returns:
+            A tuple containing the contact forces.
+        """
 
         link_forces = (
             link_forces

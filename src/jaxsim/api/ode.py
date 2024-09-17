@@ -120,7 +120,7 @@ def system_velocity_dynamics(
     references = js.references.JaxSimModelReferences.build(
         model=model,
         link_forces=O_f_L,
-        joint_forces=joint_forces,
+        joint_force_references=joint_forces,
         data=data,
         velocity_representation=data.velocity_representation,
     )
@@ -150,7 +150,7 @@ def system_velocity_dynamics(
                 model=model,
                 data=data,
                 link_forces=references.link_forces(model=model, data=data),
-                joint_forces=references.joint_force_references(model=model),
+                joint_force_references=references.joint_force_references(model=model),
             )
 
         # Construct the vector defining the parent link index of each collidable point.

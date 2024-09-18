@@ -372,11 +372,9 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     """
 
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = jax.vmap(
-        lambda parent_link_idx: js.link.transform(
-            model=model, data=data, link_index=parent_link_idx
-        )
-    )(jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int))
+    W_H_L = js.model.forward_kinematics(model=model, data=data)[
+        jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int)
+    ]
 
     # Build the link-to-point transform from the displacement between the link frame L
     # and the implicit contact frame C.

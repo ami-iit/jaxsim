@@ -218,7 +218,7 @@ class RelaxedRigidContacts(ContactModel):
         joint_force_references = (
             joint_force_references
             if joint_force_references is not None
-            else jnp.zeros((model.number_of_joints(),))
+            else jnp.zeros(model.number_of_joints())
         )
 
         references = js.references.JaxSimModelReferences.build(

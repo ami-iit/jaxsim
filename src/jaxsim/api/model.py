@@ -395,11 +395,7 @@ def total_mass(model: JaxSimModel) -> jtp.Float:
         The total mass of the model.
     """
 
-    return (
-        js.link.mass(model=model, link_index=jnp.arange(model.number_of_links()))
-        .sum()
-        .astype(float)
-    )
+    return model.kin_dyn_parameters.link_parameters.mass.sum().astype(float)
 
 
 @jax.jit

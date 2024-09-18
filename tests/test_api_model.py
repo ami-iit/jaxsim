@@ -407,7 +407,7 @@ def test_coriolis_matrix(
     # =====
 
     I_ν = data.generalized_velocity()
-    C = js.model.free_floating_coriolis_matrix(model=model, data=data)
+    C = js.model.free_floating_coriolis_matrix(model=model, data=data, prefer_rbd=False)
 
     h = js.model.free_floating_bias_forces(model=model, data=data)
     g = js.model.free_floating_gravity_forces(model=model, data=data)
@@ -476,6 +476,15 @@ def test_coriolis_matrix(
 
     # Ensure that (Ṁ - 2C) is skew symmetric.
     assert Ṁ - C - C.T == pytest.approx(0)
+
+    M = js.model.free_floating_mass_matrix(model=model, data=data)
+
+    M_rbd, _, C_rbd = js.model.free_floating_coriolis_matrix(
+        model=model, data=data, prefer_rbd=True
+    )
+
+    assert C == pytest.approx(C_rbd)
+    assert M == pytest.approx(M_rbd)
 
 
 def test_model_fd_id_consistency(

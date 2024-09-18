@@ -939,9 +939,9 @@ def free_floating_mass_matrix(
             raise ValueError(data.velocity_representation)
 
 
-@jax.jit
+@functools.partial(jax.jit, static_argnames=["prefer_rbd"])
 def free_floating_coriolis_matrix(
-    model: JaxSimModel, data: js.data.JaxSimModelData
+    model: JaxSimModel, data: js.data.JaxSimModelData, prefer_rbd: bool = True
 ) -> jtp.Matrix:
     """
     Compute the free-floating Coriolis matrix of the model.
@@ -949,6 +949,9 @@ def free_floating_coriolis_matrix(
     Args:
         model: The model to consider.
         data: The data of the considered model.
+        prefer_rbd:
+            Whether to prefer the RBD algorithm over the computation that uses
+            the Jacobians.
 
     Returns:
         The free-floating Coriolis matrix of the model.
@@ -958,52 +961,76 @@ def free_floating_coriolis_matrix(
         does not exploit any iterative algorithm. Therefore, the computation of
         the Coriolis matrix may be much slower than other quantities.
     """
+    if prefer_rbd:
+        # Extract the link and joint serializations.
+        joint_names = model.joint_names()
 
-    # We perform all the calculation in body-fixed.
-    # The Coriolis matrix computed in this representation is converted later
-    # to the active representation stored in data.
-    with data.switch_velocity_representation(VelRepr.Body):
+        # Extract the state in inertial-fixed representation.
+        with data.switch_velocity_representation(VelRepr.Inertial):
+            W_p_B = data.base_position()
+            W_v_WB = data.base_velocity()
+            W_Q_B = data.base_orientation(dcm=False)
+            s = data.joint_positions(model=model, joint_names=joint_names)
+            ṡ = data.joint_velocities(model=model, joint_names=joint_names)
 
-        B_ν = data.generalized_velocity()
+        M_B, Ṁ_B, C_B = jaxsim.rbda.coriolis(  # noqa: F841
+            model=model,
+            base_position=W_p_B,
+            base_quaternion=W_Q_B,
+            joint_positions=s,
+            base_linear_velocity=W_v_WB[0:3],
+            base_angular_velocity=W_v_WB[3:6],
+            joint_velocities=ṡ,
+            standard_gravity=data.standard_gravity(),
+        )
 
-        # Doubly-left free-floating Jacobian.
-        L_J_WL_B = generalized_free_floating_jacobian(model=model, data=data)
-
-        # Doubly-left free-floating Jacobian derivative.
-        L_J̇_WL_B = jax.vmap(
-            lambda link_index: js.link.jacobian_derivative(
-                model=model, data=data, link_index=link_index
-            )
-        )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
-
-    L_M_L = link_spatial_inertia_matrices(model=model)
-
-    # Body-fixed link velocities.
-    # Note: we could have called link.velocity() instead of computing it ourselves,
-    # but since we need the link Jacobians later, we can save a double calculation.
-    L_v_WL = jax.vmap(lambda J: J @ B_ν)(L_J_WL_B)
-
-    # Compute the contribution of each link to the Coriolis matrix.
-    def compute_link_contribution(M, v, J, J̇) -> jtp.Array:
-
-        return J.T @ ((Cross.vx_star(v) @ M + M @ Cross.vx(v)) @ J + M @ J̇)
-
-    C_B_links = jax.vmap(compute_link_contribution)(
-        L_M_L,
-        L_v_WL,
-        L_J_WL_B,
-        L_J̇_WL_B,
-    )
-
-    # We need to adjust the Coriolis matrix for fixed-base models.
-    # In this case, the base link does not contribute to the matrix, and we need to zero
-    # the off-diagonal terms mapping joint quantities onto the base configuration.
-    if model.floating_base():
-        C_B = C_B_links.sum(axis=0)
     else:
-        C_B = C_B_links[1:].sum(axis=0)
-        C_B = C_B.at[0:6, 6:].set(0.0)
-        C_B = C_B.at[6:, 0:6].set(0.0)
+
+        # We perform all the calculation in body-fixed.
+        # The Coriolis matrix computed in this representation is converted later
+        # to the active representation stored in data.
+        with data.switch_velocity_representation(VelRepr.Body):
+
+            B_ν = data.generalized_velocity()
+
+            # Doubly-left free-floating Jacobian.
+            L_J_WL_B = generalized_free_floating_jacobian(model=model, data=data)
+
+            # Doubly-left free-floating Jacobian derivative.
+            L_J̇_WL_B = jax.vmap(
+                lambda link_index: js.link.jacobian_derivative(
+                    model=model, data=data, link_index=link_index
+                )
+            )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+
+        L_M_L = link_spatial_inertia_matrices(model=model)
+
+        # Body-fixed link velocities.
+        # Note: we could have called link.velocity() instead of computing it ourselves,
+        # but since we need the link Jacobians later, we can save a double calculation.
+        L_v_WL = jax.vmap(lambda J: J @ B_ν)(L_J_WL_B)
+
+        # Compute the contribution of each link to the Coriolis matrix.
+        def compute_link_contribution(M, v, J, J̇) -> jtp.Array:
+
+            return J.T @ ((Cross.vx_star(v) @ M + M @ Cross.vx(v)) @ J + M @ J̇)
+
+        C_B_links = jax.vmap(compute_link_contribution)(
+            L_M_L,
+            L_v_WL,
+            L_J_WL_B,
+            L_J̇_WL_B,
+        )
+
+        # We need to adjust the Coriolis matrix for fixed-base models.
+        # In this case, the base link does not contribute to the matrix, and we need to zero
+        # the off-diagonal terms mapping joint quantities onto the base configuration.
+        if model.floating_base():
+            C_B = C_B_links.sum(axis=0)
+        else:
+            C_B = C_B_links[1:].sum(axis=0)
+            C_B = C_B.at[0:6, 6:].set(0.0)
+            C_B = C_B.at[6:, 0:6].set(0.0)
 
     # Adjust the representation of the Coriolis matrix.
     # Refer to https://github.com/traversaro/traversaro-phd-thesis, Section 3.6.

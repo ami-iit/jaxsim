@@ -263,7 +263,7 @@ def test_ad_jacobian(
     # ====
 
     # Get the link indices.
-    link_indices = js.link.names_to_idxs(model=model, link_names=model.link_names())
+    link_indices = jnp.arange(model.number_of_links())
 
     # Get a closure exposing only the parameters to be differentiated.
     # We differentiate the jacobian of the last link, likely among those

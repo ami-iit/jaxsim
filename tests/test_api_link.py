@@ -74,7 +74,7 @@ def test_link_inertial_properties(
 
     for link_name, link_idx in zip(
         model.link_names(),
-        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
         strict=True,
     ):
         if link_name == model.base_link():
@@ -164,7 +164,7 @@ def test_link_jacobians(
 
     for link_name, link_idx in zip(
         model.link_names(),
-        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
         strict=True,
     ):
         v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
@@ -185,7 +185,7 @@ def test_link_jacobians(
 
         for link_name, link_idx in zip(
             model.link_names(),
-            js.link.names_to_idxs(model=model, link_names=model.link_names()),
+            jnp.arange(model.number_of_links()),
             strict=True,
         ):
             v_WL_idt = kin_dyn_other_repr.frame_velocity(frame_name=link_name)
@@ -220,7 +220,7 @@ def test_link_bias_acceleration(
 
     for name, index in zip(
         model.link_names(),
-        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
         strict=True,
     ):
         Jν_idt = kin_dyn.frame_bias_acc(frame_name=name)

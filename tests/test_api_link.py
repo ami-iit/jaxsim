@@ -240,11 +240,9 @@ def test_link_bias_acceleration(
 
             W_H_L = js.model.forward_kinematics(model=model, data=data)
 
-            W_a_bias_WL = jax.vmap(
-                lambda index: js.link.bias_acceleration(
-                    model=model, data=data, link_index=index
-                )
-            )(jnp.arange(model.number_of_links()))
+            W_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)[
+                jnp.arange(model.number_of_links())
+            ]
 
             with data.switch_velocity_representation(VelRepr.Body):
 
@@ -269,11 +267,9 @@ def test_link_bias_acceleration(
 
             W_H_L = js.model.forward_kinematics(model=model, data=data)
 
-            L_a_bias_WL = jax.vmap(
-                lambda index: js.link.bias_acceleration(
-                    model=model, data=data, link_index=index
-                )
-            )(jnp.arange(model.number_of_links()))
+            L_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)[
+                jnp.arange(model.number_of_links())
+            ]
 
             with data.switch_velocity_representation(VelRepr.Inertial):
 
@@ -283,11 +279,9 @@ def test_link_bias_acceleration(
                     )
                 )(W_H_L)
 
-                W_a_bias_WL = jax.vmap(
-                    lambda index: js.link.bias_acceleration(
-                        model=model, data=data, link_index=index
-                    )
-                )(jnp.arange(model.number_of_links()))
+                W_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)[
+                    jnp.arange(model.number_of_links())
+                ]
 
                 L_a_bias_WL_converted = jax.vmap(
                     lambda L_X_W, W_a_bias_WL: L_X_W @ W_a_bias_WL

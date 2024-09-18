@@ -425,9 +425,9 @@ def jacobian(
     # Compute the contact Jacobian.
     # In inertial-fixed output representation, the Jacobian of the parent link is also
     # the Jacobian of the frame C implicitly associated with the collidable point.
-    W_J_WC = jax.vmap(lambda parent_link_idx: W_J_WL[parent_link_idx])(
+    W_J_WC = W_J_WL[
         jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int)
-    )
+    ]
 
     # Adjust the output representation.
     match output_vel_repr:

@@ -131,7 +131,6 @@ def mass_inverse(
         shape=(
             model.number_of_joints() + 6 * model.floating_base(),
             model.number_of_joints() + 6 * model.floating_base(),
-            1,
         )
     )
 
@@ -141,9 +140,9 @@ def mass_inverse(
 
     F = jnp.zeros(
         shape=(
-            model.number_of_links(),
+            model.number_of_joints(),
             6,
-            model.number_of_links(),
+            model.number_of_joints() + 6 * model.floating_base(),
         )
     )
 
@@ -154,7 +153,8 @@ def mass_inverse(
 
         (U, d, M_inv, MA, F) = carry
 
-        ν = jnp.where(νb[i], size=model.number_of_links())[0]
+        # ν = jnp.where(νb[i], size=model.number_of_links())[0]
+        ii = i - 1
 
         U_i = MA[i] @ S[i]
         U = U.at[i].set(U_i)
@@ -162,11 +162,10 @@ def mass_inverse(
         d_i = S[i].T @ U[i]
         d = d.at[i].set(d_i.squeeze())
 
-        M_inv_i = 1 / d[i]
-        M_inv = M_inv.at[i, i].set(M_inv_i)
+        M_inv_νν = -S[i].T.squeeze() @ F[i].squeeze() / d[i].T
 
-        M_inv_iν = M_inv[i, ν[i]] - S[i].T @ F[i, :, ν[i]].squeeze() / d[i].T
-        M_inv = M_inv.at[i, ν[i]].set(M_inv_iν)
+        M_inv = M_inv.at[ii, ii].set(M_inv[i, i] + 1 / d[i].squeeze())
+        M_inv = M_inv.at[ii].set(M_inv_νν.T)
 
         # Propagate them to the parent, handling the base link.
         def propagate(
@@ -175,14 +174,11 @@ def mass_inverse(
             MA, F = MA_F
 
             # Compute the articulated-body inertia and bias force of this link.
-            Ma_i = MA[i] - U[i] / d[i] @ U[i].T
-            Fa_i = F[i, :, ν[i]] + U[i] @ M_inv[i, ν[i]]
+            Ma = MA[i] - U[i].squeeze() / d[i].squeeze() @ U[i].T.squeeze()
+            Fa = F[i] + U[i] @ jnp.atleast_2d(M_inv[ii])
 
-            Fa_λi = F[λ[i], :, ν[i]] + i_X_λi[i].T @ Fa_i
-            F = F.at[λ[i], :, ν[i]].set(Fa_λi)
-
-            MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma_i @ i_X_λi[i]
-            MA = MA.at[λ[i]].set(MA_λi)
+            F = F.at[λ[i]].set(F[λ[i]] + i_X_λi[i].T @ Fa)
+            MA = MA.at[λ[i]].set(MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i])
 
             return MA, F
 
@@ -195,49 +191,33 @@ def mass_inverse(
 
         return (U, d, M_inv, MA, F), None
 
-    with jax.disable_jit(True):
-        (U, d, M_inv, MA, F), _ = (
-            jax.lax.scan(
-                f=loop_body_pass2,
-                init=pass_2_carry,
-                xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
-            )
-            if model.number_of_links() > 1
-            else [(U, d, M_inv, MA, F), None]
+    (U, d, M_inv, MA, F), _ = (
+        jax.lax.scan(
+            f=loop_body_pass2,
+            init=pass_2_carry,
+            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
         )
+        if model.number_of_links() > 1
+        else [(U, d, M_inv, MA, F), None]
+    )
 
     # ======
     # Pass 3
     # ======
 
-    P = jnp.zeros(
-        shape=(
-            model.number_of_joints(),
-            model.number_of_joints(),
-            6,
-            model.number_of_joints() + 6 * model.floating_base(),
-        )
-    )
+    P = jnp.zeros_like(F)
 
     Pass3Carry = tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix]
     pass_3_carry = (U, M_inv, P)
 
     def loop_body_pass3(carry: Pass3Carry, i: jtp.Int) -> tuple[Pass3Carry, None]:
 
+        ii = i - 1
         U, M_inv, P = carry
 
         mask = jnp.arange(P.shape[-1]) >= i
-        mask_M = jnp.atleast_2d(mask).T
 
         def propagate_M_inv(M_inv: jtp.Matrix) -> jtp.Matrix:
-
-            M_inv = M_inv.at[i].set(
-                jnp.where(
-                    mask_M,
-                    M_inv[i] - (U[i].T @ i_X_λi[i].T @ P[λ[i], i]).T / d[i],
-                    M_inv[i],
-                )
-            )
 
             return M_inv
 
@@ -248,22 +228,30 @@ def mass_inverse(
             operand=M_inv,
         )
 
-        P_ii = jnp.where(mask, S[i] @ M_inv[i].T, P[i, i])
-        P = P.at[i].set(P_ii)
+        P_i = jnp.where(mask, S[i] @ jnp.atleast_2d(M_inv[ii]), P[i])
+        P = P.at[i].set(P_i)
 
-        def propagate_P(P: jtp.Vector) -> jtp.Vector:
+        def propagate_M_P(M_inv_P: tuple[jtp.Matrix, jtp.Array]) -> jtp.Vector:
+            M_inv, P = M_inv_P
 
-            P = P.at[i, i].set(
-                jnp.where(mask, P[i, i] + i_X_λi[i].T @ P[λ[i], i], P[i, i])
+            M_inv = M_inv.at[ii].set(
+                jnp.where(
+                    mask,
+                    M_inv[ii]
+                    - (U[i].T.squeeze() @ i_X_λi[i].T @ P[λ[i]]).T / d[i].squeeze(),
+                    M_inv[ii],
+                )
             )
 
-            return P
+            P = P.at[i].set(jnp.where(mask, P[i] + i_X_λi[i].T @ P[λ[i]], P[i]))
 
-        P = jax.lax.cond(
+            return M_inv, P
+
+        M_inv, P = jax.lax.cond(
             pred=jnp.logical_or(λ[i] != 0, model.floating_base()),
-            true_fun=propagate_P,
-            false_fun=lambda P: P,
-            operand=P,
+            true_fun=propagate_M_P,
+            false_fun=lambda M_inv_P: (M_inv, P),
+            operand=(M_inv, P),
         )
 
         return (U, M_inv, P), None

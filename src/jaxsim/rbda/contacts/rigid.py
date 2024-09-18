@@ -213,6 +213,7 @@ class RigidContacts(ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         link_forces: jtp.MatrixLike | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
         regularization_term: jtp.FloatLike = 1e-6,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
@@ -226,6 +227,8 @@ class RigidContacts(ContactModel):
             link_forces:
                 Optional `(n_links, 6)` matrix of external forces acting on the links,
                 expressed in the same representation of data.
+            joint_force_references:
+                Optional `(n_joints,)` vector of joint forces.
             regularization_term:
                 The regularization term to add to the diagonal of the Delassus
                 matrix for better numerical conditioning.
@@ -241,6 +244,12 @@ class RigidContacts(ContactModel):
             link_forces
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
+        )
+
+        joint_force_references = (
+            joint_force_references
+            if joint_force_references is not None
+            else jnp.zeros((model.number_of_joints(),))
         )
 
         # Compute kin-dyn quantities used in the contact model
@@ -269,6 +278,7 @@ class RigidContacts(ContactModel):
             data=data,
             velocity_representation=data.velocity_representation,
             link_forces=link_forces,
+            joint_force_references=joint_force_references,
         )
 
         with (

@@ -189,7 +189,25 @@ class RelaxedRigidContacts(ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         link_forces: jtp.MatrixLike | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+        """
+        Compute the contact forces.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The linear velocity of the collidable point.
+            model: The `JaxSimModel` instance.
+            data: The `JaxSimModelData` instance.
+            link_forces:
+                Optional `(n_links, 6)` matrix of external forces acting on the links,
+                expressed in the same representation of data.
+            joint_force_references:
+                Optional `(n_joints,)` vector of joint forces.
+
+        Returns:
+            A tuple containing the contact forces.
+        """
 
         link_forces = (
             link_forces
@@ -197,11 +215,18 @@ class RelaxedRigidContacts(ContactModel):
             else jnp.zeros((model.number_of_links(), 6))
         )
 
+        joint_force_references = (
+            joint_force_references
+            if joint_force_references is not None
+            else jnp.zeros(model.number_of_joints())
+        )
+
         references = js.references.JaxSimModelReferences.build(
             model=model,
             data=data,
             velocity_representation=data.velocity_representation,
             link_forces=link_forces,
+            joint_force_references=joint_force_references,
         )
 
         def _detect_contact(x: jtp.Array, y: jtp.Array, z: jtp.Array) -> jtp.Array:

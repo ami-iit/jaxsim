@@ -74,7 +74,7 @@ def test_link_inertial_properties(
 
     for link_name, link_idx in zip(
         model.link_names(),
-        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
         strict=True,
     ):
         if link_name == model.base_link():
@@ -164,7 +164,7 @@ def test_link_jacobians(
 
     for link_name, link_idx in zip(
         model.link_names(),
-        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
         strict=True,
     ):
         v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
@@ -185,7 +185,7 @@ def test_link_jacobians(
 
         for link_name, link_idx in zip(
             model.link_names(),
-            js.link.names_to_idxs(model=model, link_names=model.link_names()),
+            jnp.arange(model.number_of_links()),
             strict=True,
         ):
             v_WL_idt = kin_dyn_other_repr.frame_velocity(frame_name=link_name)
@@ -220,7 +220,7 @@ def test_link_bias_acceleration(
 
     for name, index in zip(
         model.link_names(),
-        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
         strict=True,
     ):
         Jν_idt = kin_dyn.frame_bias_acc(frame_name=name)
@@ -240,11 +240,7 @@ def test_link_bias_acceleration(
 
             W_H_L = js.model.forward_kinematics(model=model, data=data)
 
-            W_a_bias_WL = jax.vmap(
-                lambda index: js.link.bias_acceleration(
-                    model=model, data=data, link_index=index
-                )
-            )(jnp.arange(model.number_of_links()))
+            W_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
             with data.switch_velocity_representation(VelRepr.Body):
 
@@ -252,11 +248,7 @@ def test_link_bias_acceleration(
                     lambda W_H_L: jaxsim.math.Adjoint.from_transform(transform=W_H_L)
                 )(W_H_L)
 
-                L_a_bias_WL = jax.vmap(
-                    lambda index: js.link.bias_acceleration(
-                        model=model, data=data, link_index=index
-                    )
-                )(jnp.arange(model.number_of_links()))
+                L_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
                 W_a_bias_WL_converted = jax.vmap(
                     lambda W_X_L, L_a_bias_WL: W_X_L @ L_a_bias_WL
@@ -269,11 +261,7 @@ def test_link_bias_acceleration(
 
             W_H_L = js.model.forward_kinematics(model=model, data=data)
 
-            L_a_bias_WL = jax.vmap(
-                lambda index: js.link.bias_acceleration(
-                    model=model, data=data, link_index=index
-                )
-            )(jnp.arange(model.number_of_links()))
+            L_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
             with data.switch_velocity_representation(VelRepr.Inertial):
 
@@ -283,11 +271,7 @@ def test_link_bias_acceleration(
                     )
                 )(W_H_L)
 
-                W_a_bias_WL = jax.vmap(
-                    lambda index: js.link.bias_acceleration(
-                        model=model, data=data, link_index=index
-                    )
-                )(jnp.arange(model.number_of_links()))
+                W_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
                 L_a_bias_WL_converted = jax.vmap(
                     lambda L_X_W, W_a_bias_WL: L_X_W @ W_a_bias_WL
@@ -323,14 +307,10 @@ def test_link_jacobian_derivative(
         lambda link_index: js.link.jacobian_derivative(
             model=model, data=data, link_index=link_index
         )
-    )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+    )(jnp.arange(model.number_of_links()))
 
     # Compute the product J̇ν.
-    O_a_bias_WL = jax.vmap(
-        lambda link_index: js.link.bias_acceleration(
-            model=model, data=data, link_index=link_index
-        )
-    )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+    O_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
     # Compare the two computations.
     assert jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν) == pytest.approx(

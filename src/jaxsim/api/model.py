@@ -395,13 +395,7 @@ def total_mass(model: JaxSimModel) -> jtp.Float:
         The total mass of the model.
     """
 
-    return (
-        jax.vmap(lambda idx: js.link.mass(model=model, link_index=idx))(
-            jnp.arange(model.number_of_links())
-        )
-        .sum()
-        .astype(float)
-    )
+    return model.kin_dyn_parameters.link_parameters.mass.sum().astype(float)
 
 
 @jax.jit
@@ -974,7 +968,7 @@ def free_floating_coriolis_matrix(
             lambda link_index: js.link.jacobian_derivative(
                 model=model, data=data, link_index=link_index
             )
-        )(js.link.names_to_idxs(model=model, link_names=model.link_names()))
+        )(jnp.arange(model.number_of_links()))
 
     L_M_L = link_spatial_inertia_matrices(model=model)
 

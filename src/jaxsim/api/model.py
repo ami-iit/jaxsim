@@ -396,9 +396,7 @@ def total_mass(model: JaxSimModel) -> jtp.Float:
     """
 
     return (
-        jax.vmap(lambda idx: js.link.mass(model=model, link_index=idx))(
-            jnp.arange(model.number_of_links())
-        )
+        js.link.mass(model=model, link_index=jnp.arange(model.number_of_links()))
         .sum()
         .astype(float)
     )

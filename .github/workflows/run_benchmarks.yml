@@ -1,0 +1,80 @@
+name: Run performance benchmarks
+on:
+  pull_request:
+    types:
+      - labeled
+      - synchronize
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  deployments: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    if: contains(github.event.label.name, 'benchmark') || github.event_name == 'workflow_dispatch'
+    name: Run pytest-benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pixi environment
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.29.0
+          cache: true
+          auth-host: prefix.dev
+          auth-token: ${{ secrets.PREFIX_DEV_TOKEN }}
+
+      - name: Run benchmarks using pixi
+        run: pixi run benchmarks --env test-cpu
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Python Benchmark with pytest-benchmark
+          tool: 'pytest'
+          output-file-path: tests/output.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: '200%'
+          comment-on-alert: true
+          fail-on-alert: true
+
+      - name: Convert JSON to Markdown Table
+        id: convert_json
+        run: |
+          python3 - <<EOF
+          import json
+
+          # Load the JSON data
+          with open('tests/output.json', 'r') as file:
+              data = json.load(file)
+
+          # Extract keys and rows
+          keys = data[0].keys() if len(data) > 0 else []
+          rows = [[str(item[key]) for key in keys] for item in data]
+
+          # Create the Markdown table
+          table_header = '| ' + ' | '.join(keys) + ' |'
+          table_divider = '| ' + ' | '.join(['---'] * len(keys)) + ' |'
+          table_rows = ['| ' + ' | '.join(row) + ' |' for row in rows]
+          markdown_table = '\n'.join([table_header, table_divider] + table_rows)
+
+          # Save Markdown table as an output variable
+          print(f"::set-output name=markdown_table::{markdown_table}")
+          EOF
+
+      - name: Update PR Description with Benchmark Results
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the current PR description
+          PR_BODY=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.number }} --jq .body)
+
+          # Append the benchmark results to the description
+          UPDATED_BODY="$PR_BODY\n\n## Benchmark Results\n${{ steps.convert_json.outputs.markdown_table }}"
+
+          # Update the PR description
+          gh api -X PATCH repos/${{ github.repository }}/pulls/${{ github.event.number }} -f body="$UPDATED_BODY"

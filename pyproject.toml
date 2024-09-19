@@ -64,6 +64,7 @@ style = [
 testing = [
     "idyntree >= 12.2.1",
     "pytest >=6.0",
+    "pytest-benchmark",
     "pytest-icdiff",
     "robot-descriptions",
 ]
@@ -199,6 +200,7 @@ typing_extensions = "*"
 examples = { cmd = "jupyter notebook ./examples" }
 pipcheck = "pip check"
 test = { cmd = "pytest", depends_on = ["pipcheck"] }
+benchmark = { cmd = "pytest --benchmark-only --benchmark-json=output.json"}
 
 [tool.pixi.feature.test.dependencies]
 black = "24.*"
@@ -207,6 +209,7 @@ isort = "*"
 pip = "*"
 pre-commit = "*"
 pytest = "*"
+pytest-benchmark = "*"
 pytest-icdiff = "*"
 robot_descriptions = "*"
 

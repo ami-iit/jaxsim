@@ -106,8 +106,8 @@ class JaxSimModel(JaxsimDataclass):
             terrain:
                 The optional terrain to consider.
             is_urdf:
-                Whether the model description is a URDF or an SDF. This is
-                automatically inferred if the model description is a path to a file.
+                The optional flag to force the model description to be parsed as a
+                URDF or a SDF. This is otherwise automatically inferred.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
 
@@ -120,7 +120,7 @@ class JaxSimModel(JaxsimDataclass):
         # Parse the input resource (either a path to file or a string with the URDF/SDF)
         # and build the -intermediate- model description.
         intermediate_description = jaxsim.parsers.rod.build_model_description(
-            model_description=model_description, is_urdf=is_urdf
+            model_description=model_description
         )
 
         # Lump links together if not all joints are considered.

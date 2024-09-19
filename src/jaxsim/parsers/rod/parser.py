@@ -41,30 +41,37 @@ def extract_model_data(
     Extract data from an SDF/URDF resource useful to build a JaxSim model.
 
     Args:
-        model_description: A path to an SDF/URDF file, a string containing its content,
-          or a pre-parsed/pre-built rod model.
+        model_description:
+            A path to an SDF/URDF file, a string containing its content, or
+            a pre-parsed/pre-built rod model.
         model_name: The name of the model to extract from the SDF resource.
-        is_urdf: Whether the SDF resource is a URDF file. Needed only if model_description
-            is a URDF string.
+        is_urdf:
+            Whether to force parsing the resource as a URDF file. Automatically
+            detected if not provided.
 
     Returns:
         The extracted model data.
     """
 
-    if isinstance(model_description, rod.Model):
-        sdf_model = model_description
-    else:
-        # Parse the SDF resource.
-        sdf_element = rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
+    match model_description:
+        case rod.Model():
+            sdf_model = model_description
+        case rod.Sdf(None):
+            sdf_model = model_description.model
+        case str() | pathlib.Path():
+            # Parse the SDF resource.
+            sdf_element = rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
 
-        if len(sdf_element.models()) == 0:
-            raise RuntimeError("Failed to find any model in SDF resource")
+            if len(sdf_element.models()) == 0:
+                raise RuntimeError("Failed to find any model in SDF resource")
 
-        # Assume the SDF resource has only one model, or the desired model name is given.
-        sdf_models = {m.name: m for m in sdf_element.models()}
-        sdf_model = (
-            sdf_element.models()[0] if len(sdf_models) == 1 else sdf_models[model_name]
-        )
+            # Assume the SDF resource has only one model, or the desired model name is given.
+            sdf_models = {m.name: m for m in sdf_element.models()}
+            sdf_model = (
+                sdf_element.models()[0]
+                if len(sdf_models) == 1
+                else sdf_models[model_name]
+            )
 
     # Log model name.
     logging.debug(msg=f"Found model '{sdf_model.name}' in SDF resource")
@@ -344,7 +351,7 @@ def extract_model_data(
 
 def build_model_description(
     model_description: pathlib.Path | str | rod.Model,
-    is_urdf: bool | None = False,
+    is_urdf: bool | None = None,
 ) -> descriptions.ModelDescription:
     """
     Builds a model description from an SDF/URDF resource.
@@ -352,8 +359,9 @@ def build_model_description(
     Args:
         model_description: A path to an SDF/URDF file, a string containing its content,
           or a pre-parsed/pre-built rod model.
-        is_urdf: Whether the SDF resource is a URDF file. Needed only if model_description
-            is a URDF string.
+        is_urdf: Whether the force parsing the resource as a URDF file. Automatically
+            detected if not provided.
+
     Returns:
         The parsed model description.
     """

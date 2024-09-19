@@ -85,7 +85,7 @@ def test_contact_jacobian_derivative(
     W_p_Ci = model.kin_dyn_parameters.contact_parameters.point
 
     # Load the model in ROD.
-    rod_model = rod.Sdf.load(sdf=model.built_from, is_urdf=True).model
+    rod_model = rod.Sdf.load(sdf=model.built_from).model
 
     # Add dummy frames on the contact points.
     for idx, (link_name, W_p_C) in enumerate(

@@ -145,7 +145,10 @@ def system_velocity_dynamics(
 
         # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
         # along with contact-specific auxiliary states.
-        with data.switch_velocity_representation(VelRepr.Inertial):
+        with (
+            data.switch_velocity_representation(VelRepr.Inertial),
+            references.switch_velocity_representation(VelRepr.Inertial),
+        ):
             W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
                 model=model,
                 data=data,

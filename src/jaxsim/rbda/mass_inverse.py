@@ -77,33 +77,9 @@ def mass_inverse(
     # Pass 1
     # ======
 
-    Pass1Carry = tuple[jtp.Matrix, jtp.Matrix]
-    pass_1_carry: Pass1Carry = (MA, i_X_0)
-
     # Propagate kinematics and initialize AB inertia and AB bias forces.
-    def loop_body_pass1(carry: Pass1Carry, i: jtp.Int) -> tuple[Pass1Carry, None]:
-
-        MA, i_X_0 = carry
-
-        # Initialize the articulated-body inertia.
-        MA_i = jnp.array(M[i])
-        MA = MA.at[i].set(MA_i)
-
-        # Compute the link-to-base transform.
-        i_Xi_0 = i_X_λi[i] @ i_X_0[λ[i]]
-        i_X_0 = i_X_0.at[i].set(i_Xi_0)
-
-        return (MA, i_X_0), None
-
-    (MA, i_X_0), _ = (
-        jax.lax.scan(
-            f=loop_body_pass1,
-            init=pass_1_carry,
-            xs=jnp.arange(start=1, stop=model.number_of_links()),
-        )
-        if model.number_of_links() > 1
-        else [(MA, i_X_0), None]
-    )
+    MA = jnp.array(M)
+    i_X_0 = jax.vmap(lambda i_X_λi, i_X_0: i_X_λi @ i_X_0)(i_X_λi[1:], i_X_0[1:])
 
     # ======
     # Pass 2
@@ -144,10 +120,14 @@ def mass_inverse(
         d_i = S[i].T @ U[i]
         d = d.at[i].set(d_i.squeeze())
 
-        M_inv_ii = -S[i].T @ F[i] / d[i]
+        M_inv_i = -S[i].T @ F[ii] / d[i]
+        M_inv = M_inv.at[i].set(M_inv_i.squeeze())
 
-        M_inv = M_inv.at[ii].set(M_inv_ii.squeeze())
         M_inv = M_inv.at[ii, ii].set(M_inv[i, i] + 1 / d[i].squeeze())
+
+        # Compute the articulated-body inertia and bias force of this link.
+        Ma = MA[i] - U[i] / d[i] @ U[i].T
+        Fa = F[i] + U[i] * M_inv[ii, ii]
 
         # Propagate them to the parent, handling the base link.
         def propagate(
@@ -155,12 +135,11 @@ def mass_inverse(
         ) -> tuple[jtp.Matrix, jtp.Matrix]:
             MA, F = MA_F
 
-            # Compute the articulated-body inertia and bias force of this link.
-            Fa = F[i] + U[i] @ M_inv[ii][jnp.newaxis, :]
-            Ma = MA[i] - U[i] / d[i] @ U[i].T
+            Ma_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
+            MA = MA.at[λ[i]].set(Ma_λi)
 
-            F = F.at[λ[i]].set(F[λ[i]] + i_X_λi[i].T @ Fa)
-            MA = MA.at[λ[i]].set(MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i])
+            Fa_λi = F[λ[i]] + i_X_λi[i].T @ Fa
+            F = F.at[λ[i]].set(Fa_λi)
 
             return MA, F
 
@@ -198,16 +177,16 @@ def mass_inverse(
         ii = i - 1
         U, M_inv, P = carry
 
-        P_i = S[i] @ jnp.atleast_2d(M_inv[ii])
+        Ma_inv = i_X_λi[i].T @ P[λ[i]]
+
+        P_i = S[i] @ M_inv[ii, jnp.newaxis]
         P = P.at[i].set(P_i)
 
         def propagate_M_P(M_inv_P: tuple[jtp.Matrix, jtp.Array]) -> jtp.Vector:
             M_inv, P = M_inv_P
 
-            M_inv = M_inv.at[ii].set(
-                M_inv[ii]
-                - (U[i].T.squeeze() @ i_X_λi[i].T @ P[λ[i]]).T / d[i].squeeze(),
-            )
+            M_inv_i = M_inv[ii] - U[i].T @ Ma_inv / d[i]
+            M_inv = M_inv.at[ii].set(M_inv_i.squeeze())
 
             P = P.at[i].set(i_X_λi[i].T @ P[λ[i]])
 

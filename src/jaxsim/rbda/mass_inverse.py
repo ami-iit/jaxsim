@@ -47,27 +47,11 @@ def mass_inverse(
     # Note: λ(0) must not be used, it's initialized to -1.
     λ = model.kin_dyn_parameters.parent_array
 
-    # Build the ν(i) array, containing all the bodies in the subtree supported
-    # by joint i. Similarly to κ(i), we compute the boolean version νb(i), so that
-    # it can be stored in a matrix.
-    νb = jnp.zeros(shape=(λ.size, λ.size), dtype=bool)
-
-    for i in reversed(range(len(λ))):
-
-        νb = νb.at[i, i].set(True)
-        j = λ[i]
-
-        while j > -1:
-            νb = νb.at[j, i].set(True)
-            j = λ[j]
-
     # Compute the base transform.
     W_H_B = jaxlie.SE3.from_rotation_and_translation(
         rotation=jaxlie.SO3(wxyz=W_Q_B),
         translation=W_p_B,
     )
-
-    νb = jnp.array(νb)
 
     # Compute the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
@@ -151,10 +135,8 @@ def mass_inverse(
 
     def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> tuple[Pass2Carry, None]:
 
-        (U, d, M_inv, MA, F) = carry
-
-        # ν = jnp.where(νb[i], size=model.number_of_links())[0]
         ii = i - 1
+        (U, d, M_inv, MA, F) = carry
 
         U_i = MA[i] @ S[i]
         U = U.at[i].set(U_i)
@@ -162,10 +144,10 @@ def mass_inverse(
         d_i = S[i].T @ U[i]
         d = d.at[i].set(d_i.squeeze())
 
-        M_inv_νν = -S[i].T.squeeze() @ F[i].squeeze() / d[i].T
+        M_inv_ii = -S[i].T @ F[i] / d[i]
 
+        M_inv = M_inv.at[ii].set(M_inv_ii.squeeze())
         M_inv = M_inv.at[ii, ii].set(M_inv[i, i] + 1 / d[i].squeeze())
-        M_inv = M_inv.at[ii].set(M_inv_νν.T)
 
         # Propagate them to the parent, handling the base link.
         def propagate(
@@ -174,8 +156,8 @@ def mass_inverse(
             MA, F = MA_F
 
             # Compute the articulated-body inertia and bias force of this link.
-            Ma = MA[i] - U[i].squeeze() / d[i].squeeze() @ U[i].T.squeeze()
-            Fa = F[i] + U[i] @ jnp.atleast_2d(M_inv[ii])
+            Fa = F[i] + U[i] @ M_inv[ii][jnp.newaxis, :]
+            Ma = MA[i] - U[i] / d[i] @ U[i].T
 
             F = F.at[λ[i]].set(F[λ[i]] + i_X_λi[i].T @ Fa)
             MA = MA.at[λ[i]].set(MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i])
@@ -191,15 +173,16 @@ def mass_inverse(
 
         return (U, d, M_inv, MA, F), None
 
-    (U, d, M_inv, MA, F), _ = (
-        jax.lax.scan(
-            f=loop_body_pass2,
-            init=pass_2_carry,
-            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
+    with jax.disable_jit(True):
+        (U, d, M_inv, MA, F), _ = (
+            jax.lax.scan(
+                f=loop_body_pass2,
+                init=pass_2_carry,
+                xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
+            )
+            if model.number_of_links() > 1
+            else [(U, d, M_inv, MA, F), None]
         )
-        if model.number_of_links() > 1
-        else [(U, d, M_inv, MA, F), None]
-    )
 
     # ======
     # Pass 3
@@ -215,35 +198,18 @@ def mass_inverse(
         ii = i - 1
         U, M_inv, P = carry
 
-        mask = jnp.arange(P.shape[-1]) >= i
-
-        def propagate_M_inv(M_inv: jtp.Matrix) -> jtp.Matrix:
-
-            return M_inv
-
-        M_inv = jax.lax.cond(
-            pred=jnp.logical_or(λ[i] != 0, model.floating_base()),
-            true_fun=propagate_M_inv,
-            false_fun=lambda M_inv: M_inv,
-            operand=M_inv,
-        )
-
-        P_i = jnp.where(mask, S[i] @ jnp.atleast_2d(M_inv[ii]), P[i])
+        P_i = S[i] @ jnp.atleast_2d(M_inv[ii])
         P = P.at[i].set(P_i)
 
         def propagate_M_P(M_inv_P: tuple[jtp.Matrix, jtp.Array]) -> jtp.Vector:
             M_inv, P = M_inv_P
 
             M_inv = M_inv.at[ii].set(
-                jnp.where(
-                    mask,
-                    M_inv[ii]
-                    - (U[i].T.squeeze() @ i_X_λi[i].T @ P[λ[i]]).T / d[i].squeeze(),
-                    M_inv[ii],
-                )
+                M_inv[ii]
+                - (U[i].T.squeeze() @ i_X_λi[i].T @ P[λ[i]]).T / d[i].squeeze(),
             )
 
-            P = P.at[i].set(jnp.where(mask, P[i] + i_X_λi[i].T @ P[λ[i]], P[i]))
+            P = P.at[i].set(i_X_λi[i].T @ P[λ[i]])
 
             return M_inv, P
 
@@ -270,5 +236,9 @@ def mass_inverse(
     # ==============
     # Adjust outputs
     # ==============
+    M_inv = M_inv.squeeze()
 
-    return M_inv.squeeze()
+    # Mirror the upper triangle to the lower triangle.
+    M_inv = jnp.triu(M_inv) + jnp.triu(M_inv, k=1).T
+
+    return M_inv

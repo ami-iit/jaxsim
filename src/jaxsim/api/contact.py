@@ -93,7 +93,10 @@ def collidable_point_velocities(
 
 @jax.jit
 def collidable_point_forces(
-    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    link_forces: jtp.MatrixLike | None = None,
+    joint_force_references: jtp.VectorLike | None = None,
 ) -> jtp.Matrix:
     """
     Compute the 6D forces applied to each collidable point.
@@ -101,13 +104,23 @@ def collidable_point_forces(
     Args:
         model: The model to consider.
         data: The data of the considered model.
+        link_forces:
+            The 6D external forces to apply to the links expressed in the same
+            representation of data.
+        joint_force_references:
+            The joint force references to apply to the joints.
 
     Returns:
         The 6D forces applied to each collidable point expressed in the frame
         corresponding to the active representation.
     """
 
-    f_Ci, _ = collidable_point_dynamics(model=model, data=data)
+    f_Ci, _ = collidable_point_dynamics(
+        model=model,
+        data=data,
+        link_forces=link_forces,
+        joint_force_references=joint_force_references,
+    )
 
     return f_Ci
 

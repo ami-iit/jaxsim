@@ -208,6 +208,7 @@ def collidable_point_dynamics(
                 data=data,
                 link_forces=link_forces,
                 joint_force_references=joint_force_references,
+                solver_tol=1e-3,
             )
 
             aux_data = dict()

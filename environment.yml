@@ -8,10 +8,10 @@ dependencies:
   - python >= 3.12.0
   - coloredlogs
   - jax >= 0.4.26
-  - jaxopt >= 0.8.0
   - jaxlib >= 0.4.26
   - jaxlie >= 1.3.0
   - jax-dataclasses >= 1.4.0
+  - optax >= 0.2.3
   - pptree
   - qpax
   - rod >= 0.3.3

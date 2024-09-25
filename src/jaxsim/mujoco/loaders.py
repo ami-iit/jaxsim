@@ -25,7 +25,7 @@ def load_rod_model(
 
     Args:
         model_description: The URDF/SDF file or ROD model to load.
-        is_urdf: Whether the model description is a URDF file.
+        is_urdf: Whether to force parsing the model description as a URDF file.
         model_name: The name of the model to load from the resource.
 
     Returns:

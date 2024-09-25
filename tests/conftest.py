@@ -83,24 +83,9 @@ def build_jaxsim_model(
         A JaxSim model built from the provided description.
     """
 
-    is_urdf = None
-
-    # If the provided description is a string, automatically detect if it
-    # contains the content of a URDF or SDF file.
-    if isinstance(model_description, str):
-        if "<robot" in model_description:
-            is_urdf = True
-
-        elif "<sdf>" in model_description:
-            is_urdf = False
-
-        else:
-            is_urdf = None
-
     # Build the JaxSim model.
     model = js.model.JaxSimModel.build_from_model_description(
         model_description=model_description,
-        is_urdf=is_urdf,
     )
 
     return model

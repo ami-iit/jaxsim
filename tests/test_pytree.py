@@ -14,14 +14,12 @@ def test_call_jit_compiled_function_passing_different_objects(
 
     # Create a first model from the URDF.
     model1 = js.model.JaxSimModel.build_from_model_description(
-        model_description=ergocub_model_description_path,
-        is_urdf=True,
+        model_description=ergocub_model_description_path
     )
 
     # Create a second model from the URDF.
     model2 = js.model.JaxSimModel.build_from_model_description(
-        model_description=ergocub_model_description_path,
-        is_urdf=True,
+        model_description=ergocub_model_description_path
     )
 
     # The objects should be different, but the comparison should return True.

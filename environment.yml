@@ -14,7 +14,7 @@ dependencies:
   - jax-dataclasses >= 1.4.0
   - pptree
   - qpax
-  - rod >= 0.3.0
+  - rod >= 0.3.3
   - typing_extensions # python<3.12
   # ====================================
   # Optional dependencies from setup.cfg

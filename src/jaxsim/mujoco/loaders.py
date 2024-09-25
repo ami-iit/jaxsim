@@ -558,6 +558,7 @@ class UrdfToMjcf:
         # Get the ROD model.
         rod_model = load_rod_model(
             model_description=urdf,
+            is_urdf=True,
             model_name=model_name,
         )
 
@@ -604,6 +605,7 @@ class SdfToMjcf:
         # Get the ROD model.
         rod_model = load_rod_model(
             model_description=sdf,
+            is_urdf=False,
             model_name=model_name,
         )
 

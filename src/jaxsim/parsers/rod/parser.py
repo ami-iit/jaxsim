@@ -33,7 +33,7 @@ class SDFData(NamedTuple):
 
 
 def extract_model_data(
-    model_description: pathlib.Path | str | rod.Model,
+    model_description: pathlib.Path | str | rod.Model | rod.Sdf,
     model_name: str | None = None,
     is_urdf: bool | None = None,
 ) -> SDFData:
@@ -56,13 +56,13 @@ def extract_model_data(
     match model_description:
         case rod.Model():
             sdf_model = model_description
-        case rod.Sdf(None):
-            sdf_model = model_description.model
-        case str() | pathlib.Path():
-            # Parse the SDF resource.
-            sdf_element = rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
-
-            if len(sdf_element.models()) == 0:
+        case rod.Sdf() | str() | pathlib.Path():
+            sdf_element = (
+                model_description
+                if isinstance(model_description, rod.Sdf)
+                else rod.Sdf.load(sdf=model_description, is_urdf=is_urdf)
+            )
+            if not sdf_element.models():
                 raise RuntimeError("Failed to find any model in SDF resource")
 
             # Assume the SDF resource has only one model, or the desired model name is given.

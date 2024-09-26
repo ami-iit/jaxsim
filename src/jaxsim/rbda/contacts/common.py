@@ -1,21 +1,26 @@
 from __future__ import annotations
 
 import abc
-from typing import Any
+from typing import Any, Type
 
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
 
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
-class ContactsState(abc.ABC):
+
+class ContactsState(JaxsimDataclass):
     """
     Abstract class storing the state of the contacts model.
     """
 
     @classmethod
     @abc.abstractmethod
-    def build(cls, **kwargs) -> ContactsState:
+    def build(cls: Type[Self], **kwargs) -> Self:
         """
         Build the contact state object.
 
@@ -26,7 +31,7 @@ class ContactsState(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def zero(cls, **kwargs) -> ContactsState:
+    def zero(cls: Type[Self], **kwargs) -> Self:
         """
         Build a zero contact state.
 
@@ -36,7 +41,7 @@ class ContactsState(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def valid(self, **kwargs) -> bool:
+    def valid(self, **kwargs) -> jtp.BoolLike:
         """
         Check if the contacts state is valid.
         """
@@ -50,18 +55,20 @@ class ContactsParams(JaxsimDataclass):
 
     @classmethod
     @abc.abstractmethod
-    def build(cls) -> ContactsParams:
+    def build(cls: Type[Self], **kwargs) -> Self:
         """
         Create a `ContactsParams` instance with specified parameters.
+
         Returns:
             The `ContactsParams` instance.
         """
         pass
 
     @abc.abstractmethod
-    def valid(self, *args, **kwargs) -> bool:
+    def valid(self, **kwargs) -> jtp.BoolLike:
         """
         Check if the parameters are valid.
+
         Returns:
             True if the parameters are valid, False otherwise.
         """
@@ -83,8 +90,8 @@ class ContactModel(JaxsimDataclass):
     @abc.abstractmethod
     def compute_contact_forces(
         self,
-        position: jtp.Vector,
-        velocity: jtp.Vector,
+        position: jtp.VectorLike,
+        velocity: jtp.VectorLike,
         **kwargs,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """

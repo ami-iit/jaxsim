@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from typing import Any, Type
 
 import jax
 import jax.numpy as jnp
@@ -13,6 +13,11 @@ from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain import FlatTerrain, Terrain
 
 from .common import ContactModel, ContactsParams, ContactsState
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 @jax_dataclasses.pytree_dataclass
@@ -50,19 +55,22 @@ class RigidContactsParams(ContactsParams):
 
     @classmethod
     def build(
-        cls,
+        cls: Type[Self],
+        *,
         mu: jtp.FloatLike | None = None,
         K: jtp.FloatLike | None = None,
         D: jtp.FloatLike | None = None,
-    ) -> RigidContactsParams:
+    ) -> Self:
         """Create a `RigidContactParams` instance"""
+
         return RigidContactsParams(
             mu=mu or cls.__dataclass_fields__["mu"].default,
             K=K or cls.__dataclass_fields__["K"].default,
             D=D or cls.__dataclass_fields__["D"].default,
         )
 
-    def valid(self) -> bool:
+    def valid(self) -> jtp.BoolLike:
+
         return bool(
             jnp.all(self.mu >= 0.0)
             and jnp.all(self.K >= 0.0)
@@ -77,18 +85,19 @@ class RigidContactsState(ContactsState):
     def __eq__(self, other: RigidContactsState) -> bool:
         return hash(self) == hash(other)
 
-    @staticmethod
-    def build(**kwargs) -> RigidContactsState:
+    @classmethod
+    def build(cls: Type[Self]) -> Self:
         """Create a `RigidContactsState` instance"""
 
         return RigidContactsState()
 
-    @staticmethod
-    def zero(**kwargs) -> RigidContactsState:
+    @classmethod
+    def zero(cls: Type[Self]) -> Self:
         """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
+
         return RigidContactsState.build()
 
-    def valid(self, **kwargs) -> bool:
+    def valid(self) -> jtp.BoolLike:
         return True
 
 
@@ -117,7 +126,8 @@ class RigidContacts(ContactModel):
             terrain_height: The height of the terrain at the collidable point position.
 
         Returns:
-            A tuple containing the activation state of the collidable points and the contact penetration depth h.
+            A tuple containing the activation state of the collidable points
+            and the contact penetration depth h.
         """
 
         # TODO: reduce code duplication with js.contact.in_contact
@@ -154,8 +164,8 @@ class RigidContacts(ContactModel):
 
         Args:
             inactive_collidable_points: The activation state of the collidable points.
-            M: The mass matrix of the system.
-            J_WC: The Jacobian matrix of the collidable points.
+            M: The mass matrix of the system (in mixed representation).
+            J_WC: The Jacobian matrix of the collidable points (in mixed representation).
             data: The `JaxSimModelData` instance.
         """
 
@@ -206,10 +216,12 @@ class RigidContacts(ContactModel):
 
         return BW_ν_post_impact
 
+    @jax.jit
     def compute_contact_forces(
         self,
-        position: jtp.Vector,
-        velocity: jtp.Vector,
+        position: jtp.VectorLike,
+        velocity: jtp.VectorLike,
+        *,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         link_forces: jtp.MatrixLike | None = None,

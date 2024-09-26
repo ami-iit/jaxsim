@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Type
 
 import jax
 import jax.numpy as jnp
@@ -68,7 +67,7 @@ class SoftContactsParams(ContactsParams):
 
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         K: jtp.FloatLike = 1e6,
         D: jtp.FloatLike = 2_000,
@@ -104,7 +103,7 @@ class SoftContactsParams(ContactsParams):
 
     @classmethod
     def build_default_from_jaxsim_model(
-        cls: Type[Self],
+        cls: type[Self],
         model: js.model.JaxSimModel,
         *,
         standard_gravity: jtp.FloatLike = StandardGravity,
@@ -386,7 +385,7 @@ class SoftContactsState(ContactsState):
 
     @classmethod
     def build_from_jaxsim_model(
-        cls: Type[Self],
+        cls: type[Self],
         model: js.model.JaxSimModel | None = None,
         tangential_deformation: jtp.MatrixLike | None = None,
     ) -> Self:
@@ -414,7 +413,7 @@ class SoftContactsState(ContactsState):
 
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         tangential_deformation: jtp.MatrixLike | None = None,
         number_of_collidable_points: int | None = None,
@@ -452,7 +451,7 @@ class SoftContactsState(ContactsState):
         return cls(tangential_deformation=tangential_deformation)
 
     @classmethod
-    def zero(cls: Type[Self], *, model: js.model.JaxSimModel) -> Self:
+    def zero(cls: type[Self], *, model: js.model.JaxSimModel) -> Self:
         """
         Build a zero `SoftContactsState` from a `JaxSimModel`.
 

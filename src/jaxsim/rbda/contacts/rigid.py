@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Type
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -55,7 +55,7 @@ class RigidContactsParams(ContactsParams):
 
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         mu: jtp.FloatLike | None = None,
         K: jtp.FloatLike | None = None,
@@ -86,13 +86,13 @@ class RigidContactsState(ContactsState):
         return hash(self) == hash(other)
 
     @classmethod
-    def build(cls: Type[Self]) -> Self:
+    def build(cls: type[Self]) -> Self:
         """Create a `RigidContactsState` instance"""
 
         return RigidContactsState()
 
     @classmethod
-    def zero(cls: Type[Self]) -> Self:
+    def zero(cls: type[Self]) -> Self:
         """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
 
         return RigidContactsState.build()

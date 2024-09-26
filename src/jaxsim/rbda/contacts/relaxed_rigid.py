@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Type
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -111,7 +111,7 @@ class RelaxedRigidContactsParams(ContactsParams):
 
     @classmethod
     def build(
-        cls: Type[Self],
+        cls: type[Self],
         *,
         time_constant: jtp.FloatLike | None = None,
         damping_coefficient: jtp.FloatLike | None = None,
@@ -163,13 +163,13 @@ class RelaxedRigidContactsState(ContactsState):
         return hash(self) == hash(other)
 
     @classmethod
-    def build(cls: Type[Self]) -> Self:
+    def build(cls: type[Self]) -> Self:
         """Create a `RelaxedRigidContactsState` instance"""
 
         return RelaxedRigidContactsState()
 
     @classmethod
-    def zero(cls: Type[Self], *, model: js.model.JaxSimModel) -> Self:
+    def zero(cls: type[Self], *, model: js.model.JaxSimModel) -> Self:
         """Build a zero `RelaxedRigidContactsState` instance from a `JaxSimModel`."""
 
         return RelaxedRigidContactsState.build()

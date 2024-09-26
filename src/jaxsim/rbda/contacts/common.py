@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Type
+from typing import Any
 
 import jaxsim.terrain
 import jaxsim.typing as jtp
@@ -20,7 +20,7 @@ class ContactsState(JaxsimDataclass):
 
     @classmethod
     @abc.abstractmethod
-    def build(cls: Type[Self], **kwargs) -> Self:
+    def build(cls: type[Self], **kwargs) -> Self:
         """
         Build the contact state object.
 
@@ -31,7 +31,7 @@ class ContactsState(JaxsimDataclass):
 
     @classmethod
     @abc.abstractmethod
-    def zero(cls: Type[Self], **kwargs) -> Self:
+    def zero(cls: type[Self], **kwargs) -> Self:
         """
         Build a zero contact state.
 
@@ -55,7 +55,7 @@ class ContactsParams(JaxsimDataclass):
 
     @classmethod
     @abc.abstractmethod
-    def build(cls: Type[Self], **kwargs) -> Self:
+    def build(cls: type[Self], **kwargs) -> Self:
         """
         Create a `ContactsParams` instance with specified parameters.
 

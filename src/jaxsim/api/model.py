@@ -36,7 +36,7 @@ class JaxSimModel(JaxsimDataclass):
         default=jaxsim.terrain.FlatTerrain(), repr=False
     )
 
-    contact_model: jaxsim.rbda.ContactModel | None = dataclasses.field(
+    contact_model: jaxsim.rbda.contacts.ContactModel | None = dataclasses.field(
         default=None, repr=False
     )
 
@@ -89,7 +89,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
-        contact_model: jaxsim.rbda.ContactModel | None = None,
+        contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -150,7 +150,7 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         terrain: jaxsim.terrain.Terrain | None = None,
-        contact_model: jaxsim.rbda.ContactModel | None = None,
+        contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -169,14 +169,15 @@ class JaxSimModel(JaxsimDataclass):
         Returns:
             The built Model object.
         """
-        from jaxsim.rbda.contacts.soft import SoftContacts
 
         # Set the model name (if not provided, use the one from the model description).
         model_name = model_name if model_name is not None else model_description.name
 
         # Set the terrain (if not provided, use the default flat terrain).
         terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
-        contact_model = contact_model or SoftContacts(terrain=terrain)
+        contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts(
+            terrain=terrain
+        )
 
         # Build the model.
         model = JaxSimModel(
@@ -1930,8 +1931,6 @@ def step(
         and the new state of the integrator.
     """
 
-    from jaxsim.rbda.contacts.rigid import RigidContacts
-
     # Extract the integrator kwargs.
     # The following logic allows using integrators having kwargs colliding with the
     # kwargs of this step function.
@@ -1992,12 +1991,16 @@ def step(
     # Post process the simulation state, if needed.
     match model.contact_model:
 
-        # Rigid contact models use an impact model that produces a discontinuous model velocity.
-        # Hence here we need to reset the velocity after each impact to guarantee that
+        # Rigid contact models use an impact model that produces discontinuous model velocities.
+        # Hence, here we need to reset the velocity after each impact to guarantee that
         # the linear velocity of the active collidable points is zero.
-        case RigidContacts():
-            # Raise runtime error for not supported case in which Rigid contacts and Baumgarte stabilization
-            # enabled are used with ForwardEuler integrator.
+        case jaxsim.rbda.contacts.RigidContacts():
+            assert isinstance(
+                data_tf.contacts_params, jaxsim.rbda.contacts.RigidContactsParams
+            )
+
+            # Raise runtime error for not supported case in which Rigid contacts and
+            # Baumgarte stabilization are enabled and used with ForwardEuler integrator.
             jaxsim.exceptions.raise_runtime_error_if(
                 condition=jnp.logical_and(
                     isinstance(
@@ -2013,23 +2016,38 @@ def step(
             )
 
             with data_tf.switch_velocity_representation(VelRepr.Mixed):
-                W_p_C = js.contact.collidable_point_positions(model, data_tf)
-                M = js.model.free_floating_mass_matrix(model, data_tf)
+
                 J_WC = js.contact.jacobian(model, data_tf)
+                M = js.model.free_floating_mass_matrix(model, data_tf)
+                W_p_C = js.contact.collidable_point_positions(model, data_tf)
+
+                # Compute the height of the terrain below each collidable point.
                 px, py, _ = W_p_C.T
                 terrain_height = jax.vmap(model.terrain.height)(px, py)
-                inactive_collidable_points, _ = RigidContacts.detect_contacts(
-                    W_p_C=W_p_C,
-                    terrain_height=terrain_height,
+
+                # Compute the contact state.
+                inactive_collidable_points, _ = (
+                    jaxsim.rbda.contacts.RigidContacts.detect_contacts(
+                        W_p_C=W_p_C,
+                        terrain_height=terrain_height,
+                    )
                 )
-                BW_nu_post_impact = RigidContacts.compute_impact_velocity(
-                    data=data_tf,
-                    inactive_collidable_points=inactive_collidable_points,
-                    M=M,
-                    J_WC=J_WC,
+
+                # Compute the impact velocity.
+                # It may be discontinuous in case new contacts are made.
+                BW_nu_post_impact = (
+                    jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
+                        data=data_tf,
+                        inactive_collidable_points=inactive_collidable_points,
+                        M=M,
+                        J_WC=J_WC,
+                    )
                 )
+
+                # Reset the generalized velocity.
                 data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
                 data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
+
             # Restore the input velocity representation.
             data_tf = data_tf.replace(
                 velocity_representation=data.velocity_representation, validate=False

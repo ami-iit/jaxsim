@@ -297,7 +297,7 @@ def estimate_good_soft_contacts_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> SoftContactsParams:
+) -> jaxsim.rbda.contacts.SoftContactsParams:
     """
     Estimate good soft contacts parameters for the given model.
 
@@ -321,14 +321,13 @@ def estimate_good_soft_contacts_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
-    from jaxsim.rbda.contacts.soft import SoftContactsParams
 
     def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
         """"""
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
-            contacts_params=SoftContactsParams(),
+            contacts_params=jaxsim.rbda.contacts.SoftContactsParams(),
         )
 
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
@@ -347,16 +346,26 @@ def estimate_good_soft_contacts_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    sc_parameters = SoftContactsParams.build_default_from_jaxsim_model(
-        model=model,
-        standard_gravity=standard_gravity,
-        static_friction_coefficient=static_friction_coefficient,
-        max_penetration=max_δ,
-        number_of_active_collidable_points_steady_state=nc,
-        damping_ratio=damping_ratio,
-    )
+    match model.contact_model:
 
-    return sc_parameters
+        case jaxsim.rbda.contacts.SoftContacts():
+            assert isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts)
+
+            parameters = (
+                jaxsim.rbda.contacts.SoftContactsParams.build_default_from_jaxsim_model(
+                    model=model,
+                    standard_gravity=standard_gravity,
+                    static_friction_coefficient=static_friction_coefficient,
+                    max_penetration=max_δ,
+                    number_of_active_collidable_points_steady_state=nc,
+                    damping_ratio=damping_ratio,
+                )
+            )
+
+        case _:
+            parameters = model.contact_model.parameters
+
+    return parameters
 
 
 @jax.jit

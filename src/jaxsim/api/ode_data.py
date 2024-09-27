@@ -5,13 +5,15 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.rbda import ContactsState
-from jaxsim.rbda.contacts.relaxed_rigid import (
+from jaxsim.rbda.contacts import (
+    ContactsState,
     RelaxedRigidContacts,
     RelaxedRigidContactsState,
+    RigidContacts,
+    RigidContactsState,
+    SoftContacts,
+    SoftContactsState,
 )
-from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
-from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 from jaxsim.utils import JaxsimDataclass
 
 # =============================================================================
@@ -165,8 +167,11 @@ class ODEState(JaxsimDataclass):
 
         # Get the contact model from the `JaxSimModel`.
         match model.contact_model:
+
             case SoftContacts():
+
                 tangential_deformation = kwargs.get("tangential_deformation", None)
+
                 contact = SoftContactsState.build_from_jaxsim_model(
                     model=model,
                     **(
@@ -182,7 +187,7 @@ class ODEState(JaxsimDataclass):
                 contact = RelaxedRigidContactsState.build()
 
             case _:
-                raise ValueError("Unable to determine contact state class prefix.")
+                raise ValueError("Unsupported contact model.")
 
         return ODEState.build(
             model=model,

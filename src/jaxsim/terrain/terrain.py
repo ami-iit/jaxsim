@@ -155,7 +155,7 @@ class PlaneTerrain(FlatTerrain):
             (
                 hash(self._height),
                 HashedNumpyArray.hash_of_array(
-                    array=jnp.array(self._normal, dtype=float)
+                    array=np.array(self._normal, dtype=float)
                 ),
             )
         )

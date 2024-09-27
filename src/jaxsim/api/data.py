@@ -185,20 +185,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             )
         )
 
-        contacts_params = (
-            contacts_params
-            if contacts_params is not None
-            else (
-                model.contact_model.parameters
-                if not isinstance(
-                    model.contact_model, jaxsim.rbda.contacts.SoftContacts
-                )
-                else js.contact.estimate_good_soft_contacts_parameters(
-                    model=model, standard_gravity=standard_gravity
-                )
-            )
-        )
-
         W_H_B = jaxsim.math.Transform.from_quaternion_and_translation(
             translation=base_position, quaternion=base_quaternion
         )
@@ -227,6 +213,15 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         if not ode_state.valid(model=model):
             raise ValueError(ode_state)
+
+        if contacts_params is None:
+
+            if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
+                contacts_params = js.contact.estimate_good_soft_contacts_parameters(
+                    model=model, standard_gravity=standard_gravity
+                )
+            else:
+                contacts_params = model.contact_model.parameters
 
         return JaxSimModelData(
             time_ns=time_ns,

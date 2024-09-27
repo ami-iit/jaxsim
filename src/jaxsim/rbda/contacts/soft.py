@@ -178,7 +178,7 @@ class SoftContactsParams(ContactsParams):
         return jnp.hstack(
             [
                 self.K >= 0.0,
-                self.D >= 0,
+                self.D >= 0.0,
                 self.mu >= 0.0,
                 self.p >= 0.0,
                 self.q >= 0.0,
@@ -310,10 +310,7 @@ class SoftContacts(ContactModel):
         contact_status += (δ <= 0).astype(int)
 
         # Select the right material deformation rate depending on the contact status.
-        ṁ = jax.lax.switch(
-            index=contact_status,
-            branches=(lambda: ṁ_slipping, lambda: ṁ_sticking, lambda: ṁ_no_contact),
-        )
+        ṁ = jax.lax.select_n(contact_status, ṁ_slipping, ṁ_sticking, ṁ_no_contact)
 
         # ==========================================
         # Compute and return the final contact force

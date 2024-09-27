@@ -166,13 +166,13 @@ class RelaxedRigidContactsState(ContactsState):
     def build(cls: type[Self]) -> Self:
         """Create a `RelaxedRigidContactsState` instance"""
 
-        return RelaxedRigidContactsState()
+        return cls()
 
     @classmethod
-    def zero(cls: type[Self], *, model: js.model.JaxSimModel) -> Self:
+    def zero(cls: type[Self]) -> Self:
         """Build a zero `RelaxedRigidContactsState` instance from a `JaxSimModel`."""
 
-        return RelaxedRigidContactsState.build()
+        return cls.build()
 
     def valid(self, *, model: js.model.JaxSimModel) -> jtp.BoolLike:
         return True

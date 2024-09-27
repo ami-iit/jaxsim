@@ -63,7 +63,7 @@ class RigidContactsParams(ContactsParams):
     ) -> Self:
         """Create a `RigidContactParams` instance"""
 
-        return RigidContactsParams(
+        return cls(
             mu=mu or cls.__dataclass_fields__["mu"].default,
             K=K or cls.__dataclass_fields__["K"].default,
             D=D or cls.__dataclass_fields__["D"].default,
@@ -89,13 +89,13 @@ class RigidContactsState(ContactsState):
     def build(cls: type[Self]) -> Self:
         """Create a `RigidContactsState` instance"""
 
-        return RigidContactsState()
+        return cls()
 
     @classmethod
     def zero(cls: type[Self]) -> Self:
         """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
 
-        return RigidContactsState.build()
+        return cls.build()
 
     def valid(self) -> jtp.BoolLike:
         return True

@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 from typing import Any
 
+import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
@@ -90,20 +91,20 @@ class ContactModel(JaxsimDataclass):
     @abc.abstractmethod
     def compute_contact_forces(
         self,
-        position: jtp.VectorLike,
-        velocity: jtp.VectorLike,
+        model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData,
         **kwargs,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
         Compute the contact forces.
 
         Args:
-            position: The position of the collidable point w.r.t. the world frame.
-            velocity:
-                The linear velocity of the collidable point (linear component of the mixed 6D velocity).
+            model: The model to consider.
+            data: The data of the considered model.
 
         Returns:
             A tuple containing as first element the computed 6D contact force applied to the contact point and expressed in the world frame,
             and as second element a tuple of optional additional information.
         """
+
         pass

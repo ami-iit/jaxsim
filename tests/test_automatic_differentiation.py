@@ -8,7 +8,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
-from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsParams
+from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams, SoftContactsState
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
@@ -308,9 +308,15 @@ def test_ad_soft_contacts(
         m: jtp.VectorLike,
         params: SoftContactsParams,
     ) -> tuple[jtp.Vector, jtp.Vector]:
-        W_f_Ci, (CW_ṁ,) = SoftContacts(parameters=params).compute_contact_forces(
-            position=p, velocity=v, tangential_deformation=m
+
+        W_f_Ci, CW_ṁ = SoftContacts.compute_contact_force(
+            position=p,
+            velocity=v,
+            tangential_deformation=m,
+            parameters=params,
+            terrain=model.terrain,
         )
+
         return W_f_Ci, CW_ṁ
 
     # Check derivatives against finite differences.
@@ -336,6 +342,9 @@ def test_ad_integration(
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
+
+    # Make sure that the active contact model is SoctContacts.
+    assert isinstance(data.state.contact, SoftContactsState)
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()

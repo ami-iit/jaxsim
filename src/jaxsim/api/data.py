@@ -13,7 +13,7 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.rbda.contacts.soft import SoftContacts
+from jaxsim.rbda.contacts import SoftContacts
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
@@ -37,7 +37,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     gravity: jtp.Array
 
-    contacts_params: jaxsim.rbda.ContactsParams = dataclasses.field(repr=False)
+    contacts_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(repr=False)
 
     time_ns: jtp.Int = dataclasses.field(
         default_factory=lambda: jnp.array(
@@ -114,8 +114,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         joint_velocities: jtp.Vector | None = None,
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-        contact: jaxsim.rbda.ContactsState | None = None,
-        contacts_params: jaxsim.rbda.ContactsParams | None = None,
+        contact: jaxsim.rbda.contacts.ContactsState | None = None,
+        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
     ) -> JaxSimModelData:
@@ -185,17 +185,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             )
         )
 
-        if isinstance(model.contact_model, SoftContacts):
-            contacts_params = (
-                contacts_params
-                if contacts_params is not None
-                else js.contact.estimate_good_soft_contacts_parameters(
-                    model=model, standard_gravity=standard_gravity
-                )
-            )
-        else:
-            contacts_params = model.contact_model.parameters
-
         W_H_B = jaxsim.math.Transform.from_quaternion_and_translation(
             translation=base_position, quaternion=base_quaternion
         )
@@ -224,6 +213,15 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         if not ode_state.valid(model=model):
             raise ValueError(ode_state)
+
+        if contacts_params is None:
+
+            if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
+                contacts_params = js.contact.estimate_good_soft_contacts_parameters(
+                    model=model, standard_gravity=standard_gravity
+                )
+            else:
+                contacts_params = model.contact_model.parameters
 
         return JaxSimModelData(
             time_ns=time_ns,

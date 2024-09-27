@@ -193,11 +193,9 @@ class RelaxedRigidContacts(ContactModel):
     @jax.jit
     def compute_contact_forces(
         self,
-        position: jtp.VectorLike,
-        velocity: jtp.VectorLike,
-        *,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
+        *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
@@ -205,10 +203,8 @@ class RelaxedRigidContacts(ContactModel):
         Compute the contact forces.
 
         Args:
-            position: The position of the collidable point.
-            velocity: The linear velocity of the collidable point.
-            model: The `JaxSimModel` instance.
-            data: The `JaxSimModelData` instance.
+            model: The model to consider.
+            data: The data of the considered model.
             link_forces:
                 Optional `(n_links, 6)` matrix of external forces acting on the links,
                 expressed in the same representation of data.
@@ -218,6 +214,11 @@ class RelaxedRigidContacts(ContactModel):
         Returns:
             A tuple containing the contact forces.
         """
+
+        # Initialize the model and data this contact model is operating on.
+        # This will raise an exception if either the contact model or the
+        # contact parameters are not compatible.
+        model, data = self.initialize_model_and_data(model=model, data=data)
 
         link_forces = (
             link_forces
@@ -246,6 +247,12 @@ class RelaxedRigidContacts(ContactModel):
             h = jnp.array([0, 0, z - model.terrain.height(x=x, y=y)])
 
             return jnp.dot(h, n̂)
+
+        # Compute the position and linear velocities (mixed representation) of
+        # all collidable points belonging to the robot.
+        position, velocity = js.contact.collidable_point_kinematics(
+            model=model, data=data
+        )
 
         # Compute the activation state of the collidable points
         δ = jax.vmap(_detect_contact)(*position.T)

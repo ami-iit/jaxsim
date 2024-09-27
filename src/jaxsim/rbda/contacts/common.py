@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 from typing import Any
 
+import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
@@ -90,20 +91,48 @@ class ContactModel(JaxsimDataclass):
     @abc.abstractmethod
     def compute_contact_forces(
         self,
-        position: jtp.VectorLike,
-        velocity: jtp.VectorLike,
+        model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData,
         **kwargs,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
         Compute the contact forces.
 
         Args:
-            position: The position of the collidable point w.r.t. the world frame.
-            velocity:
-                The linear velocity of the collidable point (linear component of the mixed 6D velocity).
+            model: The model to consider.
+            data: The data of the considered model.
 
         Returns:
             A tuple containing as first element the computed 6D contact force applied to the contact point and expressed in the world frame,
             and as second element a tuple of optional additional information.
         """
+
         pass
+
+    def initialize_model_and_data(
+        self,
+        model: js.model.JaxSimModel,
+        data: js.data.JaxSimModelData,
+        validate: bool = True,
+    ) -> tuple[js.model.JaxSimModel, js.data.JaxSimModelData]:
+        """
+        Helper function to initialize the active model and data objects.
+
+        Args:
+            model: The robot model considered by the contact model.
+            data: The data of the considered robot model.
+            validate:
+                Whether to validate if the model and data objects have been
+                initialized with the current contact model.
+
+        Returns:
+            The initialized model and data objects.
+        """
+
+        with model.editable(validate=validate) as model_out:
+            model_out.contact_model = self
+
+        with data.editable(validate=validate) as data_out:
+            data_out.contacts_params = data.contacts_params
+
+        return model_out, data_out

@@ -97,7 +97,7 @@ class RigidContactsState(ContactsState):
 
         return cls.build()
 
-    def valid(self) -> jtp.BoolLike:
+    def valid(self, **kwargs) -> jtp.BoolLike:
         return True
 
 

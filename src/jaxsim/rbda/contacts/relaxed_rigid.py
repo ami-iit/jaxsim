@@ -174,7 +174,7 @@ class RelaxedRigidContactsState(ContactsState):
 
         return cls.build()
 
-    def valid(self, *, model: js.model.JaxSimModel) -> jtp.BoolLike:
+    def valid(self, **kwargs) -> jtp.BoolLike:
         return True
 
 

@@ -219,11 +219,9 @@ class RigidContacts(ContactModel):
     @jax.jit
     def compute_contact_forces(
         self,
-        position: jtp.VectorLike,
-        velocity: jtp.VectorLike,
-        *,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
+        *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
         regularization_term: jtp.FloatLike = 1e-6,
@@ -233,10 +231,8 @@ class RigidContacts(ContactModel):
         Compute the contact forces.
 
         Args:
-            position: The position of the collidable point.
-            velocity: The linear velocity of the collidable point.
-            model: The `JaxSimModel` instance.
-            data: The `JaxSimModelData` instance.
+            model: The model to consider.
+            data: The data of the considered model.
             link_forces:
                 Optional `(n_links, 6)` matrix of external forces acting on the links,
                 expressed in the same representation of data.
@@ -245,6 +241,7 @@ class RigidContacts(ContactModel):
             regularization_term:
                 The regularization term to add to the diagonal of the Delassus
                 matrix for better numerical conditioning.
+            solver_tol: The convergence tolerance to consider in the QP solver.
 
         Returns:
             A tuple containing the contact forces.
@@ -272,6 +269,12 @@ class RigidContacts(ContactModel):
             W_H_C = js.contact.transforms(model=model, data=data)
             J̇_WC_BW = js.contact.jacobian_derivative(model=model, data=data)
             BW_ν = data.generalized_velocity()
+
+        # Compute the position and linear velocities (mixed representation) of
+        # all collidable points belonging to the robot.
+        position, velocity = js.contact.collidable_point_kinematics(
+            model=model, data=data
+        )
 
         terrain_height = jax.vmap(self.terrain.height)(position[:, 0], position[:, 1])
         n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]

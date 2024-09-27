@@ -9,7 +9,6 @@ import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Cross, Transform
-from jaxsim.rbda.contacts.soft import SoftContactsParams
 
 from .common import VelRepr
 
@@ -157,12 +156,14 @@ def collidable_point_dynamics(
     """
 
     # Import privately the contacts classes.
-    from jaxsim.rbda.contacts.relaxed_rigid import (
+    from jaxsim.rbda.contacts import (
         RelaxedRigidContacts,
         RelaxedRigidContactsState,
+        RigidContacts,
+        RigidContactsState,
+        SoftContacts,
+        SoftContactsState,
     )
-    from jaxsim.rbda.contacts.rigid import RigidContacts, RigidContactsState
-    from jaxsim.rbda.contacts.soft import SoftContacts, SoftContactsState
 
     # Build the soft contact model.
     match model.contact_model:
@@ -171,14 +172,11 @@ def collidable_point_dynamics(
             assert isinstance(model.contact_model, SoftContacts)
             assert isinstance(data.state.contact, SoftContactsState)
 
-            # Update the parameters of the default contact model.
-            soft_contacts = model.contact_model.replace(parameters=data.contacts_params)
-
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point, and the corresponding material deformation rate.
             # Note that the material deformation rate is always returned in the mixed frame
             # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
-            W_f_Ci, (CW_ṁ,) = soft_contacts.compute_contact_forces(
+            W_f_Ci, (CW_ṁ,) = model.contact_model.compute_contact_forces(
                 model=model, data=data
             )
 
@@ -191,14 +189,9 @@ def collidable_point_dynamics(
             assert isinstance(model.contact_model, RigidContacts)
             assert isinstance(data.state.contact, RigidContactsState)
 
-            # Update the parameters of the default contact model.
-            rigid_contacts = model.contact_model.replace(
-                parameters=data.contacts_params
-            )
-
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
-            W_f_Ci, _ = rigid_contacts.compute_contact_forces(
+            W_f_Ci, _ = model.contact_model.compute_contact_forces(
                 model=model,
                 data=data,
                 link_forces=link_forces,
@@ -212,14 +205,9 @@ def collidable_point_dynamics(
             assert isinstance(model.contact_model, RelaxedRigidContacts)
             assert isinstance(data.state.contact, RelaxedRigidContactsState)
 
-            # Update the parameters of the default contact model.
-            relaxed_rigid_contacts = model.contact_model.replace(
-                parameters=data.contacts_params
-            )
-
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
-            W_f_Ci, _ = relaxed_rigid_contacts.compute_contact_forces(
+            W_f_Ci, _ = model.contact_model.compute_contact_forces(
                 model=model,
                 data=data,
                 link_forces=link_forces,

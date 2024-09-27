@@ -247,6 +247,11 @@ class RigidContacts(ContactModel):
             A tuple containing the contact forces.
         """
 
+        # Initialize the model and data this contact model is operating on.
+        # This will raise an exception if either the contact model or the
+        # contact parameters are not compatible.
+        model, data = self.initialize_model_and_data(model=model, data=data)
+
         # Import qpax just in this method
         import qpax
 

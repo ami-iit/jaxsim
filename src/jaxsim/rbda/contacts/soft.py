@@ -370,6 +370,11 @@ class SoftContacts(ContactModel):
         data: js.data.JaxSimModelData,
     ) -> tuple[jtp.Vector, tuple[jtp.Vector]]:
 
+        # Initialize the model and data this contact model is operating on.
+        # This will raise an exception if either the contact model or the
+        # contact parameters are not compatible.
+        model, data = self.initialize_model_and_data(model=model, data=data)
+
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
         W_p_C, W_ṗ_C = js.contact.collidable_point_kinematics(model=model, data=data)

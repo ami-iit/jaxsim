@@ -156,10 +156,6 @@ def collidable_point_dynamics(
         Instead, the 6D forces are returned in the active representation.
     """
 
-    # Compute the position and linear velocities (mixed representation) of
-    # all collidable points belonging to the robot.
-    W_p_Ci, W_ṗ_Ci = js.contact.collidable_point_kinematics(model=model, data=data)
-
     # Import privately the contacts classes.
     from jaxsim.rbda.contacts.relaxed_rigid import (
         RelaxedRigidContacts,
@@ -172,40 +168,37 @@ def collidable_point_dynamics(
     match model.contact_model:
 
         case SoftContacts():
-
             assert isinstance(model.contact_model, SoftContacts)
             assert isinstance(data.state.contact, SoftContactsState)
 
-            # Build the contact model.
-            soft_contacts = SoftContacts(
-                parameters=data.contacts_params, terrain=model.terrain
-            )
+            # Update the parameters of the default contact model.
+            soft_contacts = model.contact_model.replace(parameters=data.contacts_params)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point, and the corresponding material deformation rate.
             # Note that the material deformation rate is always returned in the mixed frame
             # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
-            W_f_Ci, (CW_ṁ,) = jax.vmap(soft_contacts.compute_contact_forces)(
-                position=W_p_Ci,
-                velocity=W_ṗ_Ci,
-                tangential_deformation=data.state.contact.tangential_deformation,
+            W_f_Ci, (CW_ṁ,) = soft_contacts.compute_contact_forces(
+                model=model, data=data
             )
+
+            # Create the dictionary of auxiliary data.
+            # This contact model considers the material deformation as additional state
+            # of the ODE system. We need to pass its dynamics to the integrator.
             aux_data = dict(m_dot=CW_ṁ)
 
         case RigidContacts():
             assert isinstance(model.contact_model, RigidContacts)
             assert isinstance(data.state.contact, RigidContactsState)
 
-            # Build the contact model.
-            rigid_contacts = RigidContacts(
-                parameters=data.contacts_params, terrain=model.terrain
+            # Update the parameters of the default contact model.
+            rigid_contacts = model.contact_model.replace(
+                parameters=data.contacts_params
             )
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
             W_f_Ci, _ = rigid_contacts.compute_contact_forces(
-                position=W_p_Ci,
-                velocity=W_ṗ_Ci,
                 model=model,
                 data=data,
                 link_forces=link_forces,
@@ -219,16 +212,14 @@ def collidable_point_dynamics(
             assert isinstance(model.contact_model, RelaxedRigidContacts)
             assert isinstance(data.state.contact, RelaxedRigidContactsState)
 
-            # Build the contact model.
-            relaxed_rigid_contacts = RelaxedRigidContacts(
-                parameters=data.contacts_params, terrain=model.terrain
+            # Update the parameters of the default contact model.
+            relaxed_rigid_contacts = model.contact_model.replace(
+                parameters=data.contacts_params
             )
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
             W_f_Ci, _ = relaxed_rigid_contacts.compute_contact_forces(
-                position=W_p_Ci,
-                velocity=W_ṗ_Ci,
                 model=model,
                 data=data,
                 link_forces=link_forces,

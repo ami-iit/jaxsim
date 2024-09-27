@@ -16,6 +16,11 @@ from jaxsim.terrain.terrain import FlatTerrain, Terrain
 
 from .common import ContactModel, ContactsParams, ContactsState
 
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
 
 @jax_dataclasses.pytree_dataclass
 class RelaxedRigidContactsParams(ContactsParams):
@@ -106,7 +111,8 @@ class RelaxedRigidContactsParams(ContactsParams):
 
     @classmethod
     def build(
-        cls,
+        cls: type[Self],
+        *,
         time_constant: jtp.FloatLike | None = None,
         damping_coefficient: jtp.FloatLike | None = None,
         d_min: jtp.FloatLike | None = None,
@@ -119,7 +125,7 @@ class RelaxedRigidContactsParams(ContactsParams):
         mu: jtp.FloatLike | None = None,
         max_iterations: jtp.IntLike | None = None,
         tolerance: jtp.FloatLike | None = None,
-    ) -> RelaxedRigidContactsParams:
+    ) -> Self:
         """Create a `RelaxedRigidContactsParams` instance"""
 
         return cls(
@@ -132,7 +138,8 @@ class RelaxedRigidContactsParams(ContactsParams):
             }
         )
 
-    def valid(self) -> bool:
+    def valid(self) -> jtp.BoolLike:
+
         return bool(
             jnp.all(self.time_constant >= 0.0)
             and jnp.all(self.damping_coefficient > 0.0)
@@ -155,18 +162,19 @@ class RelaxedRigidContactsState(ContactsState):
     def __eq__(self, other: RelaxedRigidContactsState) -> bool:
         return hash(self) == hash(other)
 
-    @staticmethod
-    def build() -> RelaxedRigidContactsState:
+    @classmethod
+    def build(cls: type[Self]) -> Self:
         """Create a `RelaxedRigidContactsState` instance"""
 
-        return RelaxedRigidContactsState()
+        return cls()
 
-    @staticmethod
-    def zero(model: js.model.JaxSimModel) -> RelaxedRigidContactsState:
+    @classmethod
+    def zero(cls: type[Self]) -> Self:
         """Build a zero `RelaxedRigidContactsState` instance from a `JaxSimModel`."""
-        return RelaxedRigidContactsState.build()
 
-    def valid(self, model: js.model.JaxSimModel) -> bool:
+        return cls.build()
+
+    def valid(self, *, model: js.model.JaxSimModel) -> jtp.BoolLike:
         return True
 
 
@@ -182,10 +190,12 @@ class RelaxedRigidContacts(ContactModel):
         default_factory=FlatTerrain
     )
 
+    @jax.jit
     def compute_contact_forces(
         self,
-        position: jtp.Vector,
-        velocity: jtp.Vector,
+        position: jtp.VectorLike,
+        velocity: jtp.VectorLike,
+        *,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         link_forces: jtp.MatrixLike | None = None,

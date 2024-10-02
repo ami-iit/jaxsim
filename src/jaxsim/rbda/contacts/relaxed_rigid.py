@@ -273,6 +273,7 @@ class RelaxedRigidContacts(ContactModel):
                     model=model,
                     data=data,
                     link_forces=references.link_forces(model=model, data=data),
+                    joint_forces=references.joint_force_references(model=model),
                 )
             )
             BW_ν = data.generalized_velocity()

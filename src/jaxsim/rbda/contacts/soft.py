@@ -435,8 +435,7 @@ class SoftContacts(ContactModel):
         W_p_C, W_ṗ_C = js.contact.collidable_point_kinematics(model=model, data=data)
 
         # Extract the material deformation corresponding to the collidable points.
-        assert isinstance(data.state.contact, SoftContactsState)
-        m = data.state.contact.tangential_deformation
+        m = data.state.extended["tangential_deformation"]
 
         # Compute the contact forces for all collidable points.
         # Since we treat them as independent, we can vmap the computation.

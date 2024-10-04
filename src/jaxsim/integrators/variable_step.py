@@ -262,7 +262,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             **kwargs,
         )
 
-    def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
+    def __call__(
+        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+    ) -> tuple[NextState, dict[str, Any]]:
 
         # This method is called differently in three stages:
         #
@@ -294,14 +296,17 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         # In Stage 3, dt0 is taken from the previous step. If the integrator supports
         # FSAL, dxdt0 is taken from the previous step. Otherwise, it is computed by
         # evaluating the dynamics.
-        self.params["dt0"], self.params["dxdt0"] = jax.lax.cond(
+        self.params["dt0"], self.params["dxdt0"], aux_dict = jax.lax.cond(
             pred=jnp.logical_or("dt0" not in self.params, integrator_first_step),
-            true_fun=lambda params: estimate_step_size(
-                x0=x0, t0=t0, f=f, order=p, atol=self.atol, rtol=self.rtol
+            true_fun=lambda params: (
+                *estimate_step_size(
+                    x0=x0, t0=t0, f=f, order=p, atol=self.atol, rtol=self.rtol
+                ),
+                self.params.get("dxdt0", f(x0, t0))[1],
             ),
             false_fun=lambda params: (
                 params.get("dt0", jnp.array(0).astype(float)),
-                self.params.get("dxdt0", f(x0, t0)[0]),
+                *self.params.get("dxdt0", f(x0, t0)),
             ),
             operand=self.params,
         )
@@ -355,7 +360,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             # The output z contains multiple solutions (depending on the rows of b.T).
             with self.editable(validate=True) as integrator:
                 integrator.params = params
-                z = integrator._compute_next_state(x0=x0, t0=t0, dt=Δt0, **kwargs)
+                z, _ = integrator._compute_next_state(x0=x0, t0=t0, dt=Δt0, **kwargs)
                 params_next = integrator.params
 
             # Extract the high-order solution xf and the low-order estimate x̂f.
@@ -481,7 +486,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         with self.mutable_context(mutability=Mutability.MUTABLE):
             self.params = params_tf
 
-        return xf
+        return xf, aux_dict
 
     @property
     def order_of_solution(self) -> int:

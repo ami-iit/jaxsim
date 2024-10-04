@@ -1934,7 +1934,7 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    integrator: jaxsim.integrators.Integrator,
+    integrator: jaxsim.integrators.Integrator | None = None,
     t0: jtp.FloatLike = 0.0,
     dt: jtp.FloatLike | None = None,
     integrator_state: dict[str, Any] | None = None,
@@ -1975,8 +1975,9 @@ def step(
     integrator_kwargs = kwargs.pop("integrator_kwargs", {})
     integrator_kwargs = kwargs | integrator_kwargs
 
-    # Initialize the integrator state.
-    integrator_state_t0 = integrator_state if integrator_state is not None else dict()
+    # Extract the integrator and integrator state.
+    integrator = integrator or model._integrator
+    integrator_state_t0 = integrator_state or dict()
 
     # Initialize the time-related variables.
     state_t0 = data.state
@@ -2078,7 +2079,7 @@ def step(
             jaxsim.exceptions.raise_runtime_error_if(
                 condition=jnp.logical_and(
                     isinstance(
-                        integrator,
+                        model._integrator,
                         jaxsim.integrators.fixed_step.ForwardEuler
                         | jaxsim.integrators.fixed_step.ForwardEulerSO3,
                     ),

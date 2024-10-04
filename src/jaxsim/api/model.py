@@ -1934,8 +1934,6 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    dt: jtp.FloatLike,
-    integrator: jaxsim.integrators.Integrator,
     integrator_state: dict[str, Any] | None = None,
     joint_forces: jtp.VectorLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
@@ -1947,8 +1945,6 @@ def step(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        dt: The time step to consider.
-        integrator: The integrator to use.
         integrator_state: The state of the integrator.
         joint_forces: The joint forces to consider.
         link_forces:
@@ -1976,10 +1972,10 @@ def step(
     integrator_state_x0 = integrator_state
 
     # Step the dynamics forward.
-    state_tf, integrator_state_tf = integrator.step(
+    state_tf, integrator_state_tf = model._integrator.step(
         x0=state_t0,
         t0=jnp.array(t0_ns / 1e9).astype(float),
-        dt=dt,
+        dt=model.dt,
         params=integrator_state_x0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
@@ -1999,7 +1995,7 @@ def step(
         ),
     )
 
-    tf_ns = t0_ns + jnp.array(dt * 1e9, dtype=t0_ns.dtype)
+    tf_ns = t0_ns + jnp.array(model.dt * 1e9, dtype=t0_ns.dtype)
     tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dtype))
 
     jax.lax.cond(
@@ -2034,7 +2030,7 @@ def step(
             jaxsim.exceptions.raise_runtime_error_if(
                 condition=jnp.logical_and(
                     isinstance(
-                        integrator,
+                        model._integrator,
                         jaxsim.integrators.fixed_step.ForwardEuler
                         | jaxsim.integrators.fixed_step.ForwardEulerSO3,
                     ),

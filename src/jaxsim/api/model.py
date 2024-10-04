@@ -97,8 +97,9 @@ class JaxSimModel(JaxsimDataclass):
     # Initialization and state
     # ========================
 
-    @staticmethod
+    @classmethod
     def build_from_model_description(
+        cls,
         model_description: str | pathlib.Path | rod.Model,
         model_name: str | None = None,
         *,
@@ -155,7 +156,7 @@ class JaxSimModel(JaxsimDataclass):
             )
 
         # Build the model.
-        model = JaxSimModel.build(
+        model = cls.build(
             model_description=intermediate_description,
             model_name=model_name,
             time_step=time_step,
@@ -170,8 +171,9 @@ class JaxSimModel(JaxsimDataclass):
 
         return model
 
-    @staticmethod
+    @classmethod
     def build(
+        cls,
         model_description: ModelDescription,
         model_name: str | None = None,
         *,
@@ -223,11 +225,10 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts.build(
             terrain=terrain, parameters=None
         )
-        dt = dt or JaxSimModel.__dataclass_fields__["dt"].default
         integrator = integrator or jaxsim.integrators.fixed_step.Heun2SO3
 
         # Build the model.
-        model = JaxSimModel(
+        model = cls(
             model_name=model_name,
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description

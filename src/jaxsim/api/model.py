@@ -32,6 +32,8 @@ class JaxSimModel(JaxsimDataclass):
 
     model_name: Static[str]
 
+    dt: Static[float] = dataclasses.field(default=0.001, repr=False)
+
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default=jaxsim.terrain.FlatTerrain(), repr=False
     )
@@ -45,6 +47,10 @@ class JaxSimModel(JaxsimDataclass):
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
+        default=None, repr=False
+    )
+
+    _integrator: Static[jaxsim.integrators.Integrator] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -88,6 +94,8 @@ class JaxSimModel(JaxsimDataclass):
         model_description: str | pathlib.Path | rod.Model,
         model_name: str | None = None,
         *,
+        dt: jtp.Float | None = None,
+        integrator: jaxsim.integrators.Integrator | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -103,6 +111,10 @@ class JaxSimModel(JaxsimDataclass):
             model_name:
                 The optional name of the model that overrides the one in
                 the description.
+            dt:
+                The optional integration time step to consider.
+            integrator:
+                The optional integrator class to use.
             terrain:
                 The optional terrain to consider.
             is_urdf:
@@ -134,6 +146,8 @@ class JaxSimModel(JaxsimDataclass):
         model = JaxSimModel.build(
             model_description=intermediate_description,
             model_name=model_name,
+            dt=dt,
+            integrator=integrator,
             terrain=terrain,
             contact_model=contact_model,
         )
@@ -149,6 +163,8 @@ class JaxSimModel(JaxsimDataclass):
         model_description: ModelDescription,
         model_name: str | None = None,
         *,
+        dt: jtp.Float | None = None,
+        integrator: jaxsim.integrators.Integrator | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
@@ -161,6 +177,10 @@ class JaxSimModel(JaxsimDataclass):
                 of the model.
             model_name:
                 The optional name of the model overriding the physics model name.
+            dt:
+                The optional integration time step to consider.
+            integrator:
+                The optional integrator class to use.
             terrain:
                 The optional terrain to consider.
             contact_model:
@@ -178,6 +198,8 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts(
             terrain=terrain
         )
+        dt = dt or JaxSimModel.__dataclass_fields__["dt"].default
+        integrator = integrator or jaxsim.integrators.fixed_step.Heun2SO3
 
         # Build the model.
         model = JaxSimModel(
@@ -186,6 +208,12 @@ class JaxSimModel(JaxsimDataclass):
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
+            _integrator=integrator.build(
+                dynamics=js.ode.wrap_system_dynamics_for_integration(
+                    system_dynamics=js.ode.system_dynamics
+                )
+            ),
+            dt=dt,
             terrain=terrain,
             contact_model=contact_model,
         )

@@ -62,17 +62,10 @@ def test_box_with_external_forces(
             additive=False,
         )
 
-    # Create the integrator.
-    integrator = jaxsim.integrators.fixed_step.RungeKutta4SO3.build(
-        dynamics=js.ode.wrap_system_dynamics_for_integration(
-            model=model, data=data0, system_dynamics=js.ode.system_dynamics
-        )
-    )
-
     # Initialize the integrator.
     tf = 0.5
     T_ns = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
-    integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=model.time_step)
+    state_aux_dict = None
 
     # Copy the initial data...
     data = data0.copy()
@@ -80,11 +73,10 @@ def test_box_with_external_forces(
     # ... and step the simulation.
     for _ in T_ns:
 
-        data, integrator_state = js.model.step(
+        data, state_aux_dict = js.model.step(
             model=model,
             data=data,
-            integrator=integrator,
-            integrator_state=integrator_state,
+            integrator_state=state_aux_dict,
             link_forces=references.link_forces(model=model, data=data),
         )
 
@@ -148,36 +140,27 @@ def test_box_with_zero_gravity(
             additive=False,
         )
 
-    # Create the integrator.
-    integrator = jaxsim.integrators.fixed_step.RungeKutta4SO3.build(
-        dynamics=js.ode.wrap_system_dynamics_for_integration(
-            model=model, data=data0, system_dynamics=js.ode.system_dynamics
-        )
-    )
-
-    # Initialize the integrator.
-    tf, dt = 1.0, 0.010
-    T_ns = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
-    integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=dt)
+    tf = 0.01
+    T = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
 
     # Copy the initial data...
     data = data0.copy()
 
+    state_aux_dict = None
+
     # ... and step the simulation.
-    for _ in T_ns:
+    for _ in T:
 
         with (
             data.switch_velocity_representation(velocity_representation),
             references.switch_velocity_representation(velocity_representation),
         ):
 
-            data, integrator_state = js.model.step(
+            data, state_aux_dict = js.model.step(
                 model=model,
                 data=data,
-                dt=dt,
-                integrator=integrator,
-                integrator_state=integrator_state,
                 link_forces=references.link_forces(model=model, data=data),
+                integrator_state=state_aux_dict,
             )
 
     # Check that the box moved as expected.
@@ -209,7 +192,7 @@ def run_simulation(
         )
 
         # Initialize the integrator state.
-        integrator_state_t0 = integrator.init(x0=data_t0.state, t0=0.0, dt=dt)
+        integrator_state_t0 = {}
 
         return integrator, integrator_state_t0
 

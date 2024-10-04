@@ -2015,7 +2015,7 @@ def step(
         x0=state_t0,
         t0=t0,
         dt=dt,
-        params=integrator_state_x0,
+        state_aux_dict=integrator_state_t0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
         # by the pair (joint_force_references, link_forces).

@@ -24,9 +24,6 @@ class SystemDynamicsFromModelAndData(Protocol):
 
 
 def wrap_system_dynamics_for_integration(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    *,
     system_dynamics: SystemDynamicsFromModelAndData,
     **kwargs,
 ) -> jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]:
@@ -35,30 +32,18 @@ def wrap_system_dynamics_for_integration(
     for integration with `jaxsim.integrators`.
 
     Args:
-        model: The model to consider.
-        data: The data of the considered model.
         system_dynamics: The system dynamics to wrap.
         **kwargs: Additional kwargs to close over the system dynamics.
 
     Returns:
-        The system dynamics closed over the model, the data, and the additional kwargs.
+        The system dynamics closed over the provided kwargs, including the data and model.
     """
-
-    # We allow to close `system_dynamics` over additional kwargs.
-    kwargs_closed = kwargs.copy()
-
-    # Create a local copy of model and data.
-    # The wrapped dynamics will hold a reference of this object.
-    model_closed = model.copy()
-    data_closed = data.copy().replace(
-        state=js.ode_data.ODEState.zero(model=model_closed, data=data)
-    )
 
     def f(x: ODEState, t: Time, **kwargs_f) -> tuple[ODEState, dict[str, Any]]:
 
         # Allow caller to override the closed data and model objects.
-        data_f = kwargs_f.pop("data", data_closed)
-        model_f = kwargs_f.pop("model", model_closed)
+        data_f = kwargs_f.pop("data")
+        model_f = kwargs_f.pop("model")
 
         # Update the state and time stored inside data.
         with data_f.editable(validate=True) as data_rw:
@@ -69,7 +54,7 @@ def wrap_system_dynamics_for_integration(
         return system_dynamics(
             model=model_f,
             data=data_rw,
-            **(kwargs_closed | kwargs_f),
+            **(kwargs | kwargs_f),
         )
 
     f: jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]

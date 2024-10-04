@@ -2008,12 +2008,14 @@ def step(
     # Rename the integrator state.
     integrator_state_t0 = integrator_state
 
+    integrator = integrator or model._integrator
+
     # Step the dynamics forward.
     state_tf, integrator_state_tf = integrator.step(
         x0=state_t0,
         t0=t0,
         dt=dt,
-        params=integrator_state_t0,
+        params=integrator_state_x0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
         # by the pair (joint_force_references, link_forces).
@@ -2051,7 +2053,7 @@ def step(
             jaxsim.exceptions.raise_runtime_error_if(
                 condition=jnp.logical_and(
                     isinstance(
-                        integrator,
+                        model._integrator,
                         jaxsim.integrators.fixed_step.ForwardEuler
                         | jaxsim.integrators.fixed_step.ForwardEulerSO3,
                     ),

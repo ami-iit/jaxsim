@@ -242,26 +242,6 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     # Maximum number of rejected steps when the Δt needs to be reduced.
     max_step_rejections: Static[jtp.IntLike] = MAX_STEP_REJECTIONS_DEFAULT
 
-    def init(
-        self,
-        x0: State,
-        t0: Time,
-        dt: TimeStep | None = None,
-        *,
-        include_dynamics_aux_dict: bool = False,
-        **kwargs,
-    ) -> dict[str, Any]:
-
-        # In these type of integrators, it's not relevant picking a meaningful dt.
-        # We just need to execute __call__ once to initialize the dictionary of params.
-        return super().init(
-            x0=x0,
-            t0=t0,
-            dt=0.001,
-            include_dynamics_aux_dict=include_dynamics_aux_dict,
-            **kwargs,
-        )
-
     def __call__(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:

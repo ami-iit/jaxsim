@@ -25,7 +25,7 @@ class SystemDynamicsFromModelAndData(Protocol):
 
 def wrap_system_dynamics_for_integration(
     system_dynamics: SystemDynamicsFromModelAndData,
-    **kwargs,
+    **kwargs: dict[str, Any],
 ) -> jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]:
     """
     Wrap generic system dynamics operating on `JaxSimModel` and `JaxSimModelData`

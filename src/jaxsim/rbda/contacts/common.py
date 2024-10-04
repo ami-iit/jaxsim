@@ -14,41 +14,6 @@ except ImportError:
     from typing_extensions import Self
 
 
-class ContactsState(JaxsimDataclass):
-    """
-    Abstract class storing the state of the contacts model.
-    """
-
-    @classmethod
-    @abc.abstractmethod
-    def build(cls: type[Self], **kwargs) -> Self:
-        """
-        Build the contact state object.
-
-        Returns:
-            The contact state object.
-        """
-        pass
-
-    @classmethod
-    @abc.abstractmethod
-    def zero(cls: type[Self], **kwargs) -> Self:
-        """
-        Build a zero contact state.
-
-        Returns:
-            The zero contact state.
-        """
-        pass
-
-    @abc.abstractmethod
-    def valid(self, **kwargs) -> jtp.BoolLike:
-        """
-        Check if the contacts state is valid.
-        """
-        pass
-
-
 class ContactsParams(JaxsimDataclass):
     """
     Abstract class representing the parameters of a contact model.
@@ -108,6 +73,27 @@ class ContactModel(JaxsimDataclass):
         """
 
         pass
+
+    @classmethod
+    def zero_state_variables(cls, model: js.model.JaxSimModel) -> dict[str, jtp.Array]:
+        """
+        Build zero state variables of the contact model.
+
+        Args:
+            model: The robot model considered by the contact model.
+
+        Note:
+            There are contact models that require to extend the state vector of the
+            integrated ODE system with additional variables. Our integrators are
+            capable of operating on a generic state, as long as it is a PyTree.
+            This method builds the zero state variables of the contact model as a
+            dictionary of JAX arrays.
+
+        Returns:
+            A dictionary storing the zero state variables of the contact model.
+        """
+
+        return {}
 
     def initialize_model_and_data(
         self,

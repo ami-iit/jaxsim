@@ -416,7 +416,7 @@ def test_ad_integration(
             data=data_x0,
             integrator=integrator,
             integrator_state=integrator_state,
-            joint_forces=τ,
+            joint_force_references=τ,
             link_forces=W_f_L,
         )
 

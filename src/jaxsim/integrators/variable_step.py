@@ -248,9 +248,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
         # This method is called differently in three stages:
         #
-        # 1. During initialization, to allocate a dummy params dictionary.
-        # 2. During the first step, to compute the initial valid params dictionary.
-        # 3. After the first step, to compute the next state and the next valid params.
+        # 1. During initialization, to allocate a dummy auxiliary state dictionary.
+        # 2. During the first step, to compute the initial valid auxiliary state dictionary.
+        # 3. After the first step, to compute the next state and the next valid state_aux_dict.
         #
         # Stage 1 produces a zero-filled dummy dictionary.
         # Stage 2 receives a dummy dictionary and produces valid parameters that can be
@@ -258,8 +258,12 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         # Stage 3 corresponds to any consecutive step after the first one. It can re-use
         # data (like for FSAL) from previous steps.
         #
-        integrator_init = self.params.get(self.InitializingKey, jnp.array(False))
-        integrator_first_step = self.params.get(self.AfterInitKey, jnp.array(False))
+        integrator_init = self.state_aux_dict.get(
+            self.InitializingKey, jnp.array(False)
+        )
+        integrator_first_step = self.state_aux_dict.get(
+            self.AfterInitKey, jnp.array(False)
+        )
 
         # Close f over optional kwargs.
         f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
@@ -276,30 +280,31 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         # In Stage 3, dt0 is taken from the previous step. If the integrator supports
         # FSAL, dxdt0 is taken from the previous step. Otherwise, it is computed by
         # evaluating the dynamics.
-        self.params["dt0"], self.params["dxdt0"], aux_dict = jax.lax.cond(
-            pred=jnp.logical_or("dt0" not in self.params, integrator_first_step),
-            true_fun=lambda params: (
-                *estimate_step_size(
+        self.state_aux_dict["dt0"], self.state_aux_dict["dxdt0"], aux_dict = (
+            jax.lax.cond(
+                pred=jnp.logical_or(
+                    "dt0" not in self.state_aux_dict, integrator_first_step
+                ),
+                true_fun=lambda aux: estimate_step_size(
                     x0=x0, t0=t0, f=f, order=p, atol=self.atol, rtol=self.rtol
                 ),
-                self.params.get("dxdt0", f(x0, t0))[1],
-            ),
-            false_fun=lambda params: (
-                params.get("dt0", jnp.array(0).astype(float)),
-                *self.params.get("dxdt0", f(x0, t0)),
-            ),
-            operand=self.params,
+                false_fun=lambda state_aux_dict: (
+                    state_aux_dict.get("dt0", jnp.array(0).astype(float)),
+                    self.state_aux_dict.get("dxdt0", f(x0, t0)[0]),
+                ),
+                operand=self.state_aux_dict,
+            )
         )
 
         # If the integrator does not support FSAL, it is useless to store dxdt0.
         if not self.has_fsal:
-            _ = self.params.pop("dxdt0")
+            _ = self.state_aux_dict.pop("dxdt0")
 
         # Clip the estimated initial step size to the given bounds, if necessary.
-        self.params["dt0"] = jnp.clip(
-            self.params["dt0"],
-            jnp.minimum(self.dt_min, self.params["dt0"]),
-            jnp.minimum(self.dt_max, self.params["dt0"]),
+        self.state_aux_dict["dt0"] = jnp.clip(
+            self.state_aux_dict["dt0"],
+            jnp.minimum(self.dt_min, self.state_aux_dict["dt0"]),
+            jnp.minimum(self.dt_max, self.state_aux_dict["dt0"]),
         )
 
         # =========================================================
@@ -311,7 +316,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         carry0: Carry = (
             x0,
             jnp.array(t0).astype(float),
-            self.params,
+            self.state_aux_dict,
             jnp.array(0, dtype=int),
             jnp.array(False).astype(bool),
         )
@@ -327,21 +332,21 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         def while_loop_body(carry: Carry) -> Carry:
 
             # Unpack the carry.
-            x0, t0, params, discarded_steps, _ = carry
+            x0, t0, state_aux_dict, discarded_steps, _ = carry
 
             # Take care of the final adaptive step.
             # We want the final Δt to let us reach tf exactly.
             # Then we can exit the while loop.
-            Δt0 = params["dt0"]
+            Δt0 = state_aux_dict["dt0"]
             Δt0 = jnp.where(t0 + Δt0 < tf, Δt0, tf - t0)
             break_loop = jnp.where(t0 + Δt0 < tf, False, True)
 
             # Run the underlying explicit RK integrator.
             # The output z contains multiple solutions (depending on the rows of b.T).
             with self.editable(validate=True) as integrator:
-                integrator.params = params
-                z, _ = integrator._compute_next_state(x0=x0, t0=t0, dt=Δt0, **kwargs)
-                params_next = integrator.params
+                integrator.state_aux_dict = state_aux_dict
+                z = integrator._compute_next_state(x0=x0, t0=t0, dt=Δt0, **kwargs)
+                state_aux_dict_next = integrator.state_aux_dict
 
             # Extract the high-order solution xf and the low-order estimate x̂f.
             xf = jax.tree.map(lambda l: l[self.row_index_of_solution], z)
@@ -374,11 +379,11 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             def accept_step():
                 # Use Δt_next in the next while loop.
                 # If it is the last one, and Δt0 was clipped, return the initial Δt0.
-                params_next_accepted = params_next | dict(
+                state_aux_dict_next_accepted = state_aux_dict_next | dict(
                     dt0=jnp.clip(
                         jax.lax.select(
                             pred=break_loop,
-                            on_true=params["dt0"],
+                            on_true=state_aux_dict["dt0"],
                             on_false=Δt_next,
                         ),
                         self.dt_min,
@@ -399,16 +404,16 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                     x0_next,
                     t0_next,
                     break_loop_next,
-                    params_next_accepted,
+                    state_aux_dict_next_accepted,
                     jnp.array(0, dtype=int),
                 )
 
             def reject_step():
-                # Get back the original params.
-                params_next_rejected = params
+                # Get back the original state_aux_dict.
+                state_aux_dict_next_rejected = state_aux_dict
 
                 # This time, with a reduced Δt.
-                params_next_rejected["dt0"] = jnp.clip(
+                state_aux_dict_next_rejected["dt0"] = jnp.clip(
                     Δt_next, self.dt_min, self.dt_max
                 )
 
@@ -416,7 +421,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                     x0,
                     t0,
                     False,
-                    params_next_rejected,
+                    state_aux_dict_next_rejected,
                     discarded_steps + 1,
                 )
 
@@ -425,7 +430,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                 x0_next,
                 t0_next,
                 break_loop,
-                params_next,
+                state_aux_dict_next,
                 discarded_steps,
             ) = jax.lax.cond(
                 pred=jnp.array(
@@ -443,7 +448,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             return (
                 x0_next,
                 t0_next,
-                params_next,
+                state_aux_dict_next,
                 discarded_steps,
                 break_loop,
             )
@@ -452,7 +457,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         (
             xf,
             tf,
-            params_tf,
+            state_aux_dict_tf,
             _,
             _,
         ) = jax.lax.while_loop(
@@ -464,7 +469,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         # Store the parameters.
         # They will be returned to the caller in a functional way in the step method.
         with self.mutable_context(mutability=Mutability.MUTABLE):
-            self.params = params_tf
+            self.state_aux_dict = state_aux_dict_tf
 
         return xf, aux_dict
 

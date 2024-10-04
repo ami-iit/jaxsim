@@ -58,7 +58,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         repr=False, hash=False, compare=False, kw_only=True
     )
 
-    params: dict[str, Any] = dataclasses.field(
+    state_aux_dict: dict[str, Any] = dataclasses.field(
         default_factory=dict, repr=False, hash=False, compare=False, kw_only=True
     )
 
@@ -88,7 +88,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         t0: Time,
         dt: TimeStep,
         *,
-        params: dict[str, Any],
+        state_aux_dict: dict[str, Any],
         **kwargs,
     ) -> tuple[State, dict[str, Any]]:
         """
@@ -98,7 +98,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             x0: The initial state of the system.
             t0: The initial time of the system.
             dt: The time step of the integration.
-            params: The auxiliary dictionary of the integrator.
+            state_aux_dict: The state auxiliary dictionary of the integrator.
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -106,16 +106,14 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         """
 
         with self.editable(validate=False) as integrator:
-            integrator.params = params
+            integrator.state_aux_dict = state_aux_dict
 
         with integrator.mutable_context(mutability=Mutability.MUTABLE):
             xf, aux_dict = integrator(x0, t0, dt, **kwargs)
 
         return (
             xf,
-            integrator.params
-            | {Integrator.AfterInitKey: jnp.array(False).astype(bool)}
-            | aux_dict,
+            state_aux_dict | aux_dict,
         )
 
     @abc.abstractmethod
@@ -312,7 +310,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         )
 
         # Apply FSAL property by passing ẋ0 = f(x0, t0) from the previous iteration.
-        get_ẋ0_and_aux_dict = lambda: self.params.get("dxdt0", f(x0, t0))
+        get_ẋ0_and_aux_dict = lambda: self.state_aux_dict.get("dxdt0", f(x0, t0))
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
         # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
@@ -365,7 +363,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Update the FSAL property for the next iteration.
         if self.has_fsal:
-            self.params["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
+            self.state_aux_dict["dxdt0"] = jax.tree.map(
+                lambda l: l[self.index_of_fsal], K
+            )
 
         # Compute the output state.
         # Note that z contains as many new states as the rows of `b.T`.

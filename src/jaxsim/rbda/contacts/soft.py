@@ -13,7 +13,7 @@ import jaxsim.typing as jtp
 from jaxsim.math import StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
 
-from .common import ContactModel, ContactsParams, ContactsState
+from .common import ContactModel, ContactsParams
 
 try:
     from typing import Self
@@ -198,6 +198,20 @@ class SoftContacts(ContactModel):
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
         default_factory=FlatTerrain
     )
+
+    @classmethod
+    def zero_state_variables(cls, model: js.model.JaxSimModel) -> dict[str, jtp.Array]:
+        """
+        Build zero state variables of the contact model.
+        """
+
+        # Initialize the material deformation to zero.
+        tangential_deformation = jnp.zeros(
+            shape=(len(model.kin_dyn_parameters.contact_parameters.body), 3),
+            dtype=float,
+        )
+
+        return {"tangential_deformation": tangential_deformation}
 
     @staticmethod
     @functools.partial(jax.jit, static_argnames=("terrain",))
@@ -423,131 +437,3 @@ class SoftContacts(ContactModel):
         δ̇ = jnp.where(δ > 0, δ̇, 0.0)
 
         return δ, δ̇, n̂
-
-
-@jax_dataclasses.pytree_dataclass
-class SoftContactsState(ContactsState):
-    """
-    Class storing the state of the soft contacts model.
-
-    Attributes:
-        tangential_deformation:
-            The matrix of 3D tangential material deformations corresponding to
-            each collidable point.
-    """
-
-    tangential_deformation: jtp.Matrix
-
-    def __hash__(self) -> int:
-
-        return hash(
-            tuple(jnp.atleast_1d(self.tangential_deformation.flatten()).tolist())
-        )
-
-    def __eq__(self: Self, other: Self) -> bool:
-
-        if not isinstance(other, type(self)):
-            return False
-
-        return hash(self) == hash(other)
-
-    @classmethod
-    def build_from_jaxsim_model(
-        cls: type[Self],
-        model: js.model.JaxSimModel | None = None,
-        tangential_deformation: jtp.MatrixLike | None = None,
-    ) -> Self:
-        """
-        Build a `SoftContactsState` from a `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` associated with the soft contacts state.
-            tangential_deformation: The matrix of 3D tangential material deformations.
-
-        Returns:
-            The `SoftContactsState` built from the `JaxSimModel`.
-
-        Note:
-            If any of the state components are not provided, they are built from the
-            `JaxSimModel` and initialized to zero.
-        """
-
-        return cls.build(
-            tangential_deformation=tangential_deformation,
-            number_of_collidable_points=len(
-                model.kin_dyn_parameters.contact_parameters.body
-            ),
-        )
-
-    @classmethod
-    def build(
-        cls: type[Self],
-        *,
-        tangential_deformation: jtp.MatrixLike | None = None,
-        number_of_collidable_points: int | None = None,
-    ) -> Self:
-        """
-        Create a `SoftContactsState`.
-
-        Args:
-            tangential_deformation:
-                The matrix of 3D tangential material deformations corresponding to
-                each collidable point.
-            number_of_collidable_points: The number of collidable points.
-
-        Returns:
-            A `SoftContactsState` instance.
-        """
-
-        tangential_deformation = (
-            jnp.atleast_2d(tangential_deformation)
-            if tangential_deformation is not None
-            else jnp.zeros(shape=(number_of_collidable_points, 3))
-        ).astype(float)
-
-        if tangential_deformation.shape[1] != 3:
-            raise RuntimeError("The tangential deformation matrix must have 3 columns.")
-
-        if (
-            number_of_collidable_points is not None
-            and tangential_deformation.shape[0] != number_of_collidable_points
-        ):
-            msg = "The number of collidable points must match the number of rows "
-            msg += "in the tangential deformation matrix."
-            raise RuntimeError(msg)
-
-        return cls(tangential_deformation=tangential_deformation)
-
-    @classmethod
-    def zero(cls: type[Self], *, model: js.model.JaxSimModel) -> Self:
-        """
-        Build a zero `SoftContactsState` from a `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` associated with the soft contacts state.
-
-        Returns:
-            A zero `SoftContactsState` instance.
-        """
-
-        return cls.build_from_jaxsim_model(model=model)
-
-    def valid(self, *, model: js.model.JaxSimModel) -> jtp.BoolLike:
-        """
-        Check if the `SoftContactsState` is valid for a given `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` to validate the `SoftContactsState` against.
-
-        Returns:
-            `True` if the soft contacts state is valid for the given `JaxSimModel`,
-            `False` otherwise.
-        """
-
-        shape = self.tangential_deformation.shape
-        expected = (len(model.kin_dyn_parameters.contact_parameters.body), 3)
-
-        if shape != expected:
-            return False
-
-        return True

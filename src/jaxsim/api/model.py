@@ -89,8 +89,9 @@ class JaxSimModel(JaxsimDataclass):
     # Initialization and state
     # ========================
 
-    @staticmethod
+    @classmethod
     def build_from_model_description(
+        cls,
         model_description: str | pathlib.Path | rod.Model,
         model_name: str | None = None,
         *,
@@ -143,7 +144,7 @@ class JaxSimModel(JaxsimDataclass):
             )
 
         # Build the model.
-        model = JaxSimModel.build(
+        model = cls.build(
             model_description=intermediate_description,
             model_name=model_name,
             dt=dt,
@@ -158,8 +159,9 @@ class JaxSimModel(JaxsimDataclass):
 
         return model
 
-    @staticmethod
+    @classmethod
     def build(
+        cls,
         model_description: ModelDescription,
         model_name: str | None = None,
         *,
@@ -194,15 +196,15 @@ class JaxSimModel(JaxsimDataclass):
         model_name = model_name if model_name is not None else model_description.name
 
         # Set the terrain (if not provided, use the default flat terrain).
-        terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
+        terrain = terrain or cls.__dataclass_fields__["terrain"].default
         contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts(
             terrain=terrain
         )
-        dt = dt or JaxSimModel.__dataclass_fields__["dt"].default
+        dt = dt or cls.__dataclass_fields__["dt"].default
         integrator = integrator or jaxsim.integrators.fixed_step.Heun2SO3
 
         # Build the model.
-        model = JaxSimModel(
+        model = cls(
             model_name=model_name,
             _description=wrappers.HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(

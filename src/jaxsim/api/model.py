@@ -33,7 +33,7 @@ class JaxSimModel(JaxsimDataclass):
     model_name: Static[str]
 
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
-        default=jaxsim.terrain.FlatTerrain(), repr=False
+        default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
     contact_model: jaxsim.rbda.contacts.ContactModel | None = dataclasses.field(
@@ -101,13 +101,14 @@ class JaxSimModel(JaxsimDataclass):
                 A path to an SDF/URDF file, a string containing
                 its content, or a pre-parsed/pre-built rod model.
             model_name:
-                The optional name of the model that overrides the one in
-                the description.
-            terrain:
-                The optional terrain to consider.
+                The name of the model. If not specified, it is read from the description.
+            terrain: The terrain to consider (the default is a flat infinite plane).
+            contact_model:
+                The contact model to consider.
+                If not specified, a soft contacts model is used.
             is_urdf:
-                The optional flag to force the model description to be parsed as a
-                URDF or a SDF. This is otherwise automatically inferred.
+                The optional flag to force the model description to be parsed as a URDF.
+                This is usually automatically inferred.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
 
@@ -120,7 +121,7 @@ class JaxSimModel(JaxsimDataclass):
         # Parse the input resource (either a path to file or a string with the URDF/SDF)
         # and build the -intermediate- model description.
         intermediate_description = jaxsim.parsers.rod.build_model_description(
-            model_description=model_description
+            model_description=model_description, is_urdf=is_urdf
         )
 
         # Lump links together if not all joints are considered.
@@ -160,11 +161,11 @@ class JaxSimModel(JaxsimDataclass):
                 The intermediate model description defining the kinematics and dynamics
                 of the model.
             model_name:
-                The optional name of the model overriding the physics model name.
-            terrain:
-                The optional terrain to consider.
+                The name of the model. If not specified, it is read from the description.
+            terrain: The terrain to consider (the default is a flat infinite plane).
             contact_model:
-                The optional contact model to consider. If None, the soft contact model is used.
+                The contact model to consider.
+                If not specified, a soft contacts model is used.
 
         Returns:
             The built Model object.
@@ -173,21 +174,31 @@ class JaxSimModel(JaxsimDataclass):
         # Set the model name (if not provided, use the one from the model description).
         model_name = model_name if model_name is not None else model_description.name
 
-        # Set the terrain (if not provided, use the default flat terrain).
-        terrain = terrain or JaxSimModel.__dataclass_fields__["terrain"].default
-        contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts(
-            terrain=terrain
+        # Consider the default terrain (a flat infinite plane) if not specified.
+        terrain = (
+            terrain or JaxSimModel.__dataclass_fields__["terrain"].default_factory()
+        )
+
+        # Create the default contact model.
+        # It will be populated with an initial estimation of good parameters.
+        # While these might not be the best, they are a good starting point.
+        contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts.build(
+            terrain=terrain, parameters=None
         )
 
         # Build the model.
         model = JaxSimModel(
             model_name=model_name,
-            _description=wrappers.HashlessObject(obj=model_description),
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
             terrain=terrain,
             contact_model=contact_model,
+            # The following is wrapped as hashless since it's a static argument, and we
+            # don't want to trigger recompilation if it changes. All relevant parameters
+            # needed to compute kinematics and dynamics quantities are stored in the
+            # kin_dyn_parameters attribute.
+            _description=wrappers.HashlessObject(obj=model_description),
         )
 
         return model

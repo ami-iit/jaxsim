@@ -13,7 +13,6 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.rbda.contacts import SoftContacts
 from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
@@ -107,17 +106,17 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     @staticmethod
     def build(
         model: js.model.JaxSimModel,
-        base_position: jtp.Vector | None = None,
-        base_quaternion: jtp.Vector | None = None,
-        joint_positions: jtp.Vector | None = None,
-        base_linear_velocity: jtp.Vector | None = None,
-        base_angular_velocity: jtp.Vector | None = None,
-        joint_velocities: jtp.Vector | None = None,
+        base_position: jtp.VectorLike | None = None,
+        base_quaternion: jtp.VectorLike | None = None,
+        joint_positions: jtp.VectorLike | None = None,
+        base_linear_velocity: jtp.VectorLike | None = None,
+        base_angular_velocity: jtp.VectorLike | None = None,
+        joint_velocities: jtp.VectorLike | None = None,
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-        contact: jaxsim.rbda.contacts.ContactsState | None = None,
         contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
         time: jtp.FloatLike | None = None,
+        extended_ode_state: dict[str, jtp.PyTree] | None = None,
     ) -> JaxSimModelData:
         """
         Create a `JaxSimModelData` object with the given state.
@@ -133,56 +132,73 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
             standard_gravity: The standard gravity constant.
-            contact: The state of the soft contacts.
             contacts_params: The parameters of the soft contacts.
             velocity_representation: The velocity representation to use.
             time: The time at which the state is created.
+            extended_ode_state:
+                Additional user-defined state variables that are not part of the
+                standard `ODEState` object. Useful to extend the system dynamics
+                considered by default in JaxSim.
 
         Returns:
-            A `JaxSimModelData` object with the given state.
+            A `JaxSimModelData` initialized with the given state.
         """
 
         base_position = jnp.array(
-            base_position if base_position is not None else jnp.zeros(3)
+            base_position if base_position is not None else jnp.zeros(3),
+            dtype=float,
         ).squeeze()
 
         base_quaternion = jnp.array(
-            base_quaternion
-            if base_quaternion is not None
-            else jnp.array([1.0, 0, 0, 0])
+            (
+                base_quaternion
+                if base_quaternion is not None
+                else jnp.array([1.0, 0, 0, 0])
+            ),
+            dtype=float,
         ).squeeze()
 
         base_linear_velocity = jnp.array(
-            base_linear_velocity if base_linear_velocity is not None else jnp.zeros(3)
+            base_linear_velocity if base_linear_velocity is not None else jnp.zeros(3),
+            dtype=float,
         ).squeeze()
 
         base_angular_velocity = jnp.array(
-            base_angular_velocity if base_angular_velocity is not None else jnp.zeros(3)
+            (
+                base_angular_velocity
+                if base_angular_velocity is not None
+                else jnp.zeros(3)
+            ),
+            dtype=float,
         ).squeeze()
 
-        gravity = jnp.zeros(3).at[2].set(-standard_gravity)
+        gravity = jnp.zeros(3, dtype=float).at[2].set(-standard_gravity)
 
         joint_positions = jnp.atleast_1d(
-            joint_positions.squeeze()
-            if joint_positions is not None
-            else jnp.zeros(model.dofs())
+            jnp.array(
+                (
+                    joint_positions
+                    if joint_positions is not None
+                    else jnp.zeros(model.dofs())
+                ),
+                dtype=float,
+            ).squeeze()
         )
 
         joint_velocities = jnp.atleast_1d(
-            joint_velocities.squeeze()
-            if joint_velocities is not None
-            else jnp.zeros(model.dofs())
+            jnp.array(
+                (
+                    joint_velocities
+                    if joint_velocities is not None
+                    else jnp.zeros(model.dofs())
+                ),
+                dtype=float,
+            ).squeeze()
         )
 
-        time_ns = (
-            jnp.array(
-                time * 1e9,
-                dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32,
-            )
-            if time is not None
-            else jnp.array(
-                0, dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32
-            )
+        time_ns = jnp.array(
+            time * 1e9 if time is not None else 0.0,
+            dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32,
         )
 
         W_H_B = jaxsim.math.Transform.from_quaternion_and_translation(
@@ -194,21 +210,22 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             other_representation=velocity_representation,
             transform=W_H_B,
             is_force=False,
-        )
+        ).astype(float)
 
         ode_state = ODEState.build_from_jaxsim_model(
             model=model,
-            base_position=base_position.astype(float),
-            base_quaternion=base_quaternion.astype(float),
-            joint_positions=joint_positions.astype(float),
-            base_linear_velocity=v_WB[0:3].astype(float),
-            base_angular_velocity=v_WB[3:6].astype(float),
-            joint_velocities=joint_velocities.astype(float),
-            tangential_deformation=(
-                contact.tangential_deformation
-                if contact is not None and isinstance(model.contact_model, SoftContacts)
-                else None
-            ),
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            base_linear_velocity=v_WB[0:3],
+            base_angular_velocity=v_WB[3:6],
+            joint_velocities=joint_velocities,
+            # Unpack all the additional ODE states. If the contact model requires an
+            # additional state that is not explicitly passed to this builder, ODEState
+            # automatically populates that state with zeroed variables.
+            # This is not true for any other custom state that the user might want to
+            # pass to the integrator.
+            **(extended_ode_state if extended_ode_state else {}),
         )
 
         if not ode_state.valid(model=model):
@@ -220,13 +237,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 contacts_params = js.contact.estimate_good_soft_contacts_parameters(
                     model=model, standard_gravity=standard_gravity
                 )
+
             else:
                 contacts_params = model.contact_model.parameters
 
         return JaxSimModelData(
             time_ns=time_ns,
             state=ode_state,
-            gravity=gravity.astype(float),
+            gravity=gravity,
             contacts_params=contacts_params,
             velocity_representation=velocity_representation,
         )

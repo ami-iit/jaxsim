@@ -172,7 +172,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             dtype=float,
         ).squeeze()
 
-        gravity = jnp.zeros(3, dtype=float).at[2].set(-standard_gravity)
+        gravity = jnp.zeros(3).at[2].set(-standard_gravity)
 
         joint_positions = jnp.atleast_1d(
             jnp.array(

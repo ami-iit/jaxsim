@@ -88,7 +88,7 @@ class RigidContacts(ContactModel):
     )
 
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain
+        default_factory=FlatTerrain.build
     )
 
     @classmethod

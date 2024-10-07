@@ -8,6 +8,7 @@ import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim.integrators import Time
 from jaxsim.math import Quaternion
+from jaxsim.rbda import contacts
 
 from .common import VelRepr
 from .ode_data import ODEState
@@ -371,8 +372,6 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
-    from jaxsim.rbda.contacts import RelaxedRigidContacts, RigidContacts, SoftContacts
-
     # Compute the accelerations and the material deformation rate.
     W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
         model=model,
@@ -387,10 +386,18 @@ def system_dynamics(
 
     match model.contact_model:
 
-        case SoftContacts():
+        case contacts.SoftContacts():
             extended_ode_state["tangential_deformation"] = aux_dict["m_dot"]
 
-        case RigidContacts() | RelaxedRigidContacts():
+        case contacts.ViscoElasticContacts():
+
+            extended_ode_state["contacts_state"] = {
+                "tangential_deformation": jnp.zeros_like(
+                    data.state.extended["tangential_deformation"]
+                )
+            }
+
+        case contacts.RigidContacts() | contacts.RelaxedRigidContacts():
             pass
 
         case _:

@@ -53,6 +53,27 @@ class ContactModel(JaxsimDataclass):
     parameters: ContactsParams
     terrain: jaxsim.terrain.Terrain
 
+    @classmethod
+    @abc.abstractmethod
+    def build(
+        cls: type[Self],
+        parameters: ContactsParams,
+        terrain: jaxsim.terrain.Terrain,
+        **kwargs,
+    ) -> Self:
+        """
+        Create a `ContactModel` instance with specified parameters.
+
+        Args:
+            parameters: The parameters of the contact model.
+            terrain: The considered terrain.
+
+        Returns:
+            The `ContactModel` instance.
+        """
+
+        pass
+
     @abc.abstractmethod
     def compute_contact_forces(
         self,

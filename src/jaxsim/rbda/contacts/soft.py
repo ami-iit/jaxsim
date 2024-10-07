@@ -10,6 +10,7 @@ import jax_dataclasses
 import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.math import StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
 
@@ -192,12 +193,52 @@ class SoftContacts(ContactModel):
     """Soft contacts model."""
 
     parameters: SoftContactsParams = dataclasses.field(
-        default_factory=SoftContactsParams
+        default_factory=SoftContactsParams.build
     )
 
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain
+        default_factory=FlatTerrain.build
     )
+
+    @classmethod
+    def build(
+        cls: type[Self],
+        parameters: SoftContactsParams | None = None,
+        terrain: Terrain | None = None,
+        model: js.model.JaxSimModel | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Create a `SoftContacts` instance with specified parameters.
+
+        Args:
+            parameters: The parameters of the soft contacts model.
+            terrain: The considered terrain.
+            model:
+                The robot model considered by the contact model.
+                If passed, it is used to estimate good default parameters.
+
+        Returns:
+            The `SoftContacts` instance.
+        """
+
+        if len(kwargs) != 0:
+            logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
+
+        # Build the contact parameters if not provided. Use the model to estimate
+        # good default parameters, if passed. Users can later override these default
+        # parameters with their own values -- possibly tuned better.
+        if parameters is None:
+            parameters = (
+                SoftContactsParams.build_default_from_jaxsim_model(model=model)
+                if model is not None
+                else cls.__dataclass_fields__["parameters"].default_factory()
+            )
+
+        return SoftContacts(
+            parameters=parameters,
+            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+        )
 
     @classmethod
     def zero_state_variables(cls, model: js.model.JaxSimModel) -> dict[str, jtp.Array]:

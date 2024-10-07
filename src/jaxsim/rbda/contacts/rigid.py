@@ -9,6 +9,7 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain import FlatTerrain, Terrain
 
@@ -89,6 +90,34 @@ class RigidContacts(ContactModel):
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
         default_factory=FlatTerrain
     )
+
+    @classmethod
+    def build(
+        cls: type[Self],
+        parameters: RigidContactsParams | None = None,
+        terrain: Terrain | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Create a `RigidContacts` instance with specified parameters.
+
+        Args:
+            parameters: The parameters of the rigid contacts model.
+            terrain: The considered terrain.
+
+        Returns:
+            The `RigidContacts` instance.
+        """
+
+        if len(kwargs) != 0:
+            logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
+
+        return cls(
+            parameters=(
+                parameters or cls.__dataclass_fields__["parameters"].default_factory()
+            ),
+            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+        )
 
     @staticmethod
     def detect_contacts(

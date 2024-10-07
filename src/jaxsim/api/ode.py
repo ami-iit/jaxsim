@@ -370,9 +370,8 @@ def system_dynamics(
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
-    from jaxsim.rbda.contacts.relaxed_rigid import RelaxedRigidContacts
-    from jaxsim.rbda.contacts.rigid import RigidContacts
-    from jaxsim.rbda.contacts.soft import SoftContacts
+
+    from jaxsim.rbda.contacts import RelaxedRigidContacts, RigidContacts, SoftContacts
 
     # Compute the accelerations and the material deformation rate.
     W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
@@ -382,17 +381,20 @@ def system_dynamics(
         link_forces=link_forces,
     )
 
-    ode_state_kwargs = {}
+    # Initialize the dictionary storing the derivative of the additional state variables
+    # that extend the state vector of the integrated ODE system.
+    extended_ode_state = {}
 
     match model.contact_model:
+
         case SoftContacts():
-            ode_state_kwargs["tangential_deformation"] = aux_dict["m_dot"]
+            extended_ode_state["tangential_deformation"] = aux_dict["m_dot"]
 
         case RigidContacts() | RelaxedRigidContacts():
             pass
 
         case _:
-            raise ValueError("Unable to determine contact state class prefix.")
+            raise ValueError(f"Invalid contact model {model.contact_model}")
 
     # Extract the velocities.
     W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
@@ -412,7 +414,7 @@ def system_dynamics(
         base_linear_velocity=W_v̇_WB[0:3],
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
-        **ode_state_kwargs,
+        **extended_ode_state,
     )
 
     return ode_state_derivative, aux_dict

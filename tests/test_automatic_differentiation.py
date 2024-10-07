@@ -8,7 +8,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
-from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams, SoftContactsState
+from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
@@ -343,16 +343,13 @@ def test_ad_integration(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
     )
 
-    # Make sure that the active contact model is SoctContacts.
-    assert isinstance(data.state.contact, SoftContactsState)
-
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
-    m = data.state.contact.tangential_deformation
+    m = data.state.extended["tangential_deformation"]
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -406,7 +403,7 @@ def test_ad_integration(
                     base_angular_velocity=W_v_WB[3:6],
                     joint_velocities=ṡ,
                 ),
-                contact=js.ode_data.SoftContactsState.build(tangential_deformation=m),
+                extended_state={"tangential_deformation": m},
             ),
         )
 
@@ -425,7 +422,7 @@ def test_ad_integration(
         xf_s = data_xf.joint_positions(model=model)
         xf_W_v_WB = data_xf.base_velocity()
         xf_ṡ = data_xf.joint_velocities(model=model)
-        xf_m = data_xf.state.contact.tangential_deformation
+        xf_m = data_xf.state.extended["tangential_deformation"]
 
         return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ, xf_m
 

@@ -49,7 +49,7 @@ class FlatTerrain(Terrain):
     _height: float = dataclasses.field(default=0.0, kw_only=True)
 
     @staticmethod
-    def build(height: jtp.FloatLike) -> FlatTerrain:
+    def build(height: jtp.FloatLike = 0.0) -> FlatTerrain:
 
         return FlatTerrain(_height=float(height))
 

@@ -144,7 +144,8 @@ def collidable_point_dynamics(
             The joint force references to apply to the joints.
 
     Returns:
-        The 6D force applied to each collidable point and additional data based on the contact model configured:
+        The 6D force applied to each collidable point and additional data based
+        on the contact model configured:
         - Soft: the material deformation rate.
         - Rigid: no additional data.
         - QuasiRigid: no additional data.
@@ -156,21 +157,13 @@ def collidable_point_dynamics(
     """
 
     # Import privately the contacts classes.
-    from jaxsim.rbda.contacts import (
-        RelaxedRigidContacts,
-        RelaxedRigidContactsState,
-        RigidContacts,
-        RigidContactsState,
-        SoftContacts,
-        SoftContactsState,
-    )
+    from jaxsim.rbda.contacts import RelaxedRigidContacts, RigidContacts, SoftContacts
 
     # Build the soft contact model.
     match model.contact_model:
 
         case SoftContacts():
             assert isinstance(model.contact_model, SoftContacts)
-            assert isinstance(data.state.contact, SoftContactsState)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point, and the corresponding material deformation rate.
@@ -187,7 +180,6 @@ def collidable_point_dynamics(
 
         case RigidContacts():
             assert isinstance(model.contact_model, RigidContacts)
-            assert isinstance(data.state.contact, RigidContactsState)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
@@ -203,7 +195,6 @@ def collidable_point_dynamics(
 
         case RelaxedRigidContacts():
             assert isinstance(model.contact_model, RelaxedRigidContacts)
-            assert isinstance(data.state.contact, RelaxedRigidContactsState)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.

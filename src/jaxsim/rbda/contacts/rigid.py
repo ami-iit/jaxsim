@@ -9,10 +9,11 @@ import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain import FlatTerrain, Terrain
 
-from .common import ContactModel, ContactsParams, ContactsState
+from .common import ContactModel, ContactsParams
 
 try:
     from typing import Self
@@ -79,29 +80,6 @@ class RigidContactsParams(ContactsParams):
 
 
 @jax_dataclasses.pytree_dataclass
-class RigidContactsState(ContactsState):
-    """Class storing the state of the rigid contacts model."""
-
-    def __eq__(self, other: RigidContactsState) -> bool:
-        return hash(self) == hash(other)
-
-    @classmethod
-    def build(cls: type[Self]) -> Self:
-        """Create a `RigidContactsState` instance"""
-
-        return cls()
-
-    @classmethod
-    def zero(cls: type[Self], **kwargs) -> Self:
-        """Build a zero `RigidContactsState` instance from a `JaxSimModel`."""
-
-        return cls.build()
-
-    def valid(self, **kwargs) -> jtp.BoolLike:
-        return True
-
-
-@jax_dataclasses.pytree_dataclass
 class RigidContacts(ContactModel):
     """Rigid contacts model."""
 
@@ -110,8 +88,36 @@ class RigidContacts(ContactModel):
     )
 
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain
+        default_factory=FlatTerrain.build
     )
+
+    @classmethod
+    def build(
+        cls: type[Self],
+        parameters: RigidContactsParams | None = None,
+        terrain: Terrain | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Create a `RigidContacts` instance with specified parameters.
+
+        Args:
+            parameters: The parameters of the rigid contacts model.
+            terrain: The considered terrain.
+
+        Returns:
+            The `RigidContacts` instance.
+        """
+
+        if len(kwargs) != 0:
+            logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
+
+        return cls(
+            parameters=(
+                parameters or cls.__dataclass_fields__["parameters"].default_factory()
+            ),
+            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+        )
 
     @staticmethod
     def detect_contacts(

@@ -11,11 +11,12 @@ import optax
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.api.common import VelRepr
 from jaxsim.math import Adjoint
 from jaxsim.terrain.terrain import FlatTerrain, Terrain
 
-from .common import ContactModel, ContactsParams, ContactsState
+from .common import ContactModel, ContactsParams
 
 try:
     from typing import Self
@@ -157,39 +158,44 @@ class RelaxedRigidContactsParams(ContactsParams):
 
 
 @jax_dataclasses.pytree_dataclass
-class RelaxedRigidContactsState(ContactsState):
-    """Class storing the state of the relaxed rigid contacts model."""
-
-    def __eq__(self, other: RelaxedRigidContactsState) -> bool:
-        return hash(self) == hash(other)
-
-    @classmethod
-    def build(cls: type[Self]) -> Self:
-        """Create a `RelaxedRigidContactsState` instance"""
-
-        return cls()
-
-    @classmethod
-    def zero(cls: type[Self], **kwargs) -> Self:
-        """Build a zero `RelaxedRigidContactsState` instance from a `JaxSimModel`."""
-
-        return cls.build()
-
-    def valid(self, **kwargs) -> jtp.BoolLike:
-        return True
-
-
-@jax_dataclasses.pytree_dataclass
 class RelaxedRigidContacts(ContactModel):
     """Relaxed rigid contacts model."""
 
     parameters: RelaxedRigidContactsParams = dataclasses.field(
-        default_factory=RelaxedRigidContactsParams
+        default_factory=RelaxedRigidContactsParams.build
     )
 
     terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain
+        default_factory=FlatTerrain.build
     )
+
+    @classmethod
+    def build(
+        cls: type[Self],
+        parameters: RelaxedRigidContactsParams | None = None,
+        terrain: Terrain | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Create a `RelaxedRigidContacts` instance with specified parameters.
+
+        Args:
+            parameters: The parameters of the rigid contacts model.
+            terrain: The considered terrain.
+
+        Returns:
+            The `RelaxedRigidContacts` instance.
+        """
+
+        if len(kwargs) != 0:
+            logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
+
+        return cls(
+            parameters=(
+                parameters or cls.__dataclass_fields__["parameters"].default_factory()
+            ),
+            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+        )
 
     @jax.jit
     def compute_contact_forces(

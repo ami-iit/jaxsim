@@ -17,6 +17,12 @@ except ImportError:
 class ContactsParams(JaxsimDataclass):
     """
     Abstract class representing the parameters of a contact model.
+
+    Note:
+        This class is supposed to store only the tunable parameters of the contact
+        model, i.e. all those parameters that can be changed during runtime.
+        If the contact model has also static parameters, they should be stored
+        in the corresponding `ContactModel` class.
     """
 
     @classmethod
@@ -47,7 +53,7 @@ class ContactModel(JaxsimDataclass):
 
     Attributes:
         parameters: The parameters of the contact model.
-        terrain: The terrain model.
+        terrain: The considered terrain.
     """
 
     parameters: ContactsParams
@@ -85,7 +91,7 @@ class ContactModel(JaxsimDataclass):
         Compute the contact forces.
 
         Args:
-            model: The model to consider.
+            model: The robot model considered by the contact model.
             data: The data of the considered model.
 
         Returns:

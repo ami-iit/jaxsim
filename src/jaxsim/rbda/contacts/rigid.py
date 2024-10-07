@@ -91,11 +91,35 @@ class RigidContacts(ContactModel):
         default_factory=FlatTerrain.build
     )
 
+    regularization_delassus: jax_dataclasses.Static[float] = dataclasses.field(
+        default=1e-6, kw_only=True
+    )
+
+    _solver_options_keys: jax_dataclasses.Static[tuple[str, ...]] = dataclasses.field(
+        default=("solver_tol",), kw_only=True
+    )
+    _solver_options_values: jax_dataclasses.Static[tuple[Any, ...]] = dataclasses.field(
+        default=(1e-3,), kw_only=True
+    )
+
+    @property
+    def solver_options(self) -> dict[str, Any]:
+
+        return dict(
+            zip(
+                self._solver_options_keys,
+                self._solver_options_values,
+                strict=True,
+            )
+        )
+
     @classmethod
     def build(
         cls: type[Self],
         parameters: RigidContactsParams | None = None,
         terrain: Terrain | None = None,
+        regularization_delassus: jtp.FloatLike | None = None,
+        solver_options: dict[str, Any] | None = None,
         **kwargs,
     ) -> Self:
         """
@@ -104,6 +128,9 @@ class RigidContacts(ContactModel):
         Args:
             parameters: The parameters of the rigid contacts model.
             terrain: The considered terrain.
+            regularization_delassus:
+                The regularization term to add to the diagonal of the Delassus matrix.
+            solver_options: The options to pass to the QP solver.
 
         Returns:
             The `RigidContacts` instance.
@@ -112,11 +139,35 @@ class RigidContacts(ContactModel):
         if len(kwargs) != 0:
             logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
 
+        # Get the default solver options.
+        default_solver_options = dict(
+            zip(cls._solver_options_keys, cls._solver_options_values, strict=True)
+        )
+
+        # Create the solver options to set by combining the default solver options
+        # with the user-provided solver options.
+        solver_options = default_solver_options | (solver_options or {})
+
+        # Make sure that the solver options are hashable.
+        # We need to check this because the solver options are static.
+        try:
+            hash(tuple(solver_options.values()))
+        except TypeError as exc:
+            raise ValueError(
+                "The values of the solver options must be hashable."
+            ) from exc
+
         return cls(
             parameters=(
                 parameters or cls.__dataclass_fields__["parameters"].default_factory()
             ),
             terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+            regularization_delassus=float(
+                regularization_delassus
+                or cls.__dataclass_fields__["regularization_delassus"].default
+            ),
+            _solver_options_keys=tuple(solver_options.keys()),
+            _solver_options_values=tuple(solver_options.values()),
         )
 
     @staticmethod
@@ -230,8 +281,6 @@ class RigidContacts(ContactModel):
         *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-        regularization_term: jtp.FloatLike = 1e-6,
-        solver_tol: jtp.FloatLike = 1e-3,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
         """
         Compute the contact forces.
@@ -244,10 +293,6 @@ class RigidContacts(ContactModel):
                 expressed in the same representation of data.
             joint_force_references:
                 Optional `(n_joints,)` vector of joint forces.
-            regularization_term:
-                The regularization term to add to the diagonal of the Delassus
-                matrix for better numerical conditioning.
-            solver_tol: The convergence tolerance to consider in the QP solver.
 
         Returns:
             A tuple containing the contact forces.
@@ -296,10 +341,11 @@ class RigidContacts(ContactModel):
             terrain_height=terrain_height,
         )
 
+        # Compute the Delassus matrix.
         delassus_matrix = RigidContacts._delassus_matrix(M=M, J_WC=J_WC)
 
-        # Add regularization for better numerical conditioning
-        delassus_matrix = delassus_matrix + regularization_term * jnp.eye(
+        # Add regularization for better numerical conditioning.
+        delassus_matrix = delassus_matrix + self.regularization_delassus * jnp.eye(
             delassus_matrix.shape[0]
         )
 
@@ -359,7 +405,7 @@ class RigidContacts(ContactModel):
 
         # Solve the optimization problem
         solution, *_ = qpax.solve_qp(
-            Q=Q, q=q, A=A, b=b, G=G, h=h_bounds, solver_tol=solver_tol
+            Q=Q, q=q, A=A, b=b, G=G, h=h_bounds, **self.solver_options
         )
 
         f_C_lin = solution.reshape(-1, 3)

@@ -12,8 +12,7 @@ import optax
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.api.common import VelRepr
-from jaxsim.math import Adjoint
+from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain.terrain import FlatTerrain, Terrain
 
 from .common import ContactModel, ContactsParams
@@ -118,11 +117,12 @@ class RelaxedRigidContactsParams(ContactsParams):
 
         return cls(
             **{
-                field: jnp.array(locals().get(field, default), dtype=default.dtype)
-                for field, default in map(
-                    lambda f: (f, cls.__dataclass_fields__[f].default),
-                    filter(lambda f: f != "__mutability__", cls.__dataclass_fields__),
+                field_name: jnp.array(
+                    locals().get(field_name) or field.default_factory(),
+                    dtype=field.default_factory().dtype,
                 )
+                for field_name, field in cls.__dataclass_fields__.items()
+                if field_name != "__mutability__"
             }
         )
 
@@ -251,17 +251,17 @@ class RelaxedRigidContacts(ContactModel):
         # contact parameters are not compatible.
         model, data = self.initialize_model_and_data(model=model, data=data)
 
-        link_forces = (
-            link_forces
+        link_forces = jnp.atleast_2d(
+            jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
-        )
+        ).astype(float)
 
-        joint_force_references = (
-            joint_force_references
+        joint_force_references = jnp.atleast_1d(
+            jnp.array(joint_force_references, dtype=float).squeeze()
             if joint_force_references is not None
             else jnp.zeros(model.number_of_joints())
-        )
+        ).astype(float)
 
         references = js.references.JaxSimModelReferences.build(
             model=model,
@@ -271,7 +271,8 @@ class RelaxedRigidContacts(ContactModel):
             joint_force_references=joint_force_references,
         )
 
-        def _detect_contact(x: jtp.Array, y: jtp.Array, z: jtp.Array) -> jtp.Array:
+        def detect_contact(x: jtp.Float, y: jtp.Float, z: jtp.Float) -> jtp.Float:
+
             x, y, z = jax.tree.map(jnp.squeeze, (x, y, z))
 
             n̂ = self.terrain.normal(x=x, y=y).squeeze()
@@ -285,20 +286,20 @@ class RelaxedRigidContacts(ContactModel):
             model=model, data=data
         )
 
-        # Compute the activation state of the collidable points
-        δ = jax.vmap(_detect_contact)(*position.T)
+        # Compute the activation state of the collidable points.
+        δ = jax.vmap(detect_contact)(*position.T)
+
+        # Compute the transforms of the implicit frames corresponding to the
+        # collidable points.
+        W_H_C = js.contact.transforms(model=model, data=data)
 
         with (
             references.switch_velocity_representation(VelRepr.Mixed),
             data.switch_velocity_representation(VelRepr.Mixed),
         ):
-            M = js.model.free_floating_mass_matrix(model=model, data=data)
-            Jl_WC = jnp.vstack(
-                jax.vmap(lambda J, height: J * (height < 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
-                )
-            )
-            W_H_C = js.contact.transforms(model=model, data=data)
+
+            BW_ν = data.generalized_velocity()
+
             BW_ν̇_free = jnp.hstack(
                 js.ode.system_acceleration(
                     model=model,
@@ -309,19 +310,28 @@ class RelaxedRigidContacts(ContactModel):
                     ),
                 )
             )
-            BW_ν = data.generalized_velocity()
+
+            M = js.model.free_floating_mass_matrix(model=model, data=data)
+
+            Jl_WC = jnp.vstack(
+                jax.vmap(lambda J, height: J * (height < 0))(
+                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
+                )
+            )
+
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
 
-            a_ref, R, K, D = self._regularizers(
-                model=model,
-                penetration=δ,
-                velocity=velocity,
-                parameters=self.parameters,
-            )
+        # Compute the regularization terms.
+        a_ref, R, K, D = self._regularizers(
+            model=model,
+            penetration=δ,
+            velocity=velocity,
+            parameters=self.parameters,
+        )
 
         G = Jl_WC @ jnp.linalg.lstsq(M, Jl_WC.T)[0]
         CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
@@ -330,26 +340,40 @@ class RelaxedRigidContacts(ContactModel):
         A = G + R
         b = CW_al_free_WC - a_ref
 
+        # Create the objective function to minimize as a lambda computing the cost
+        # from the optimized variables x.
         objective = lambda x, A, b: jnp.sum(jnp.square(A @ x + b))
+
+        # ========================================
+        # Helper function to run the L-BFGS solver
+        # ========================================
 
         def run_optimization(
             init_params: jtp.Array,
             fun: Callable,
-            opt: optax.GradientTransformation,
-            maxiter: jtp.Int,
-            tol: jtp.Float,
-            **kwargs,
-        ):
+            opt: optax.GradientTransformationExtraArgs,
+            maxiter: int,
+            tol: float,
+        ) -> tuple[jtp.Array, jtp.Array]:
+
+            # Get the function to compute the loss and the gradient w.r.t. its inputs.
             value_and_grad_fn = optax.value_and_grad_from_state(fun)
 
-            def step(carry):
+            # Initialize the carry of the following loop.
+            OptimizationCarry: tuple[jtp.Array, jtp.Array]
+            init_carry: OptimizationCarry = (init_params, opt.init(params=init_params))
+
+            def step(carry: OptimizationCarry) -> OptimizationCarry:
+
                 params, state = carry
+
                 value, grad = value_and_grad_fn(
                     params,
                     state=state,
                     A=A,
                     b=b,
                 )
+
                 updates, state = opt.update(
                     updates=grad,
                     state=state,
@@ -360,22 +384,32 @@ class RelaxedRigidContacts(ContactModel):
                     A=A,
                     b=b,
                 )
+
                 params = optax.apply_updates(params, updates)
+
                 return params, state
 
-            def continuing_criterion(carry):
+            def continuing_criterion(carry: OptimizationCarry) -> jtp.Bool:
+
                 _, state = carry
+
                 iter_num = optax.tree_utils.tree_get(state, "count")
                 grad = optax.tree_utils.tree_get(state, "grad")
                 err = optax.tree_utils.tree_l2_norm(grad)
+
                 return (iter_num == 0) | ((iter_num < maxiter) & (err >= tol))
 
-            init_carry = (init_params, opt.init(init_params))
             final_params, final_state = jax.lax.while_loop(
                 continuing_criterion, step, init_carry
             )
+
             return final_params, final_state
 
+        # ======================================
+        # Compute the contact forces with L-BFGS
+        # ======================================
+
+        # Initialize the optimized forces with a linear Hunt/Crossley model.
         init_params = (
             K[:, jnp.newaxis] * jnp.zeros_like(position).at[:, 2].set(δ)
             + D[:, jnp.newaxis] * velocity
@@ -390,26 +424,28 @@ class RelaxedRigidContacts(ContactModel):
         maxiter = solver_options.pop("maxiter")
 
         # Compute the 3D linear force in C[W] frame.
-        CW_f_Ci, _ = run_optimization(
+        solution, _ = run_optimization(
             init_params=init_params,
-            A=A,
-            b=b,
-            maxiter=maxiter,
-            opt=optax.lbfgs(**solver_options),
             fun=objective,
+            opt=optax.lbfgs(**solver_options),
             tol=tol,
+            maxiter=maxiter,
         )
 
-        CW_f_Ci = CW_f_Ci.reshape((-1, 3))
+        # Reshape the optimized solution to be a matrix of 3D contact forces.
+        CW_fl_C = solution.reshape(-1, 3)
 
-        def mixed_to_inertial(W_H_C: jax.Array, CW_fl: jax.Array) -> jax.Array:
-            W_Xf_CW = Adjoint.from_transform(
-                W_H_C.at[0:3, 0:3].set(jnp.eye(3)),
-                inverse=True,
-            ).T
-            return W_Xf_CW @ jnp.hstack([CW_fl, jnp.zeros(3)])
-
-        W_f_C = jax.vmap(mixed_to_inertial)(W_H_C, CW_f_Ci)
+        # Convert the contact forces from mixed to inertial-fixed representation.
+        W_f_C = jax.vmap(
+            lambda CW_fl_C, W_H_C: (
+                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
+                    transform=W_H_C,
+                    other_representation=VelRepr.Mixed,
+                    is_force=True,
+                )
+            ),
+        )(CW_fl_C, W_H_C)
 
         return W_f_C, (None,)
 
@@ -430,17 +466,34 @@ class RelaxedRigidContacts(ContactModel):
             parameters: The parameters of the relaxed rigid contacts model.
 
         Returns:
-            A tuple containing the reference acceleration, the regularization matrix, the stiffness, and the damping.
+            A tuple containing the reference acceleration, the regularization matrix,
+            the stiffness, and the damping.
         """
 
-        Ω, ζ, ξ_min, ξ_max, width, mid, p, K, D, μ, *_ = jax_dataclasses.astuple(
-            parameters
+        # Extract the parameters of the contact model.
+        Ω, ζ, ξ_min, ξ_max, width, mid, p, K, D, μ = (
+            getattr(parameters, field)
+            for field in (
+                "time_constant",
+                "damping_coefficient",
+                "d_min",
+                "d_max",
+                "width",
+                "midpoint",
+                "power",
+                "stiffness",
+                "damping",
+                "mu",
+            )
         )
 
-        def _imp_aref(
-            penetration: jtp.Array,
-            velocity: jtp.Array,
-        ) -> tuple[jtp.Array, jtp.Array]:
+        # Compute the 6D inertia matrices of all links.
+        M_L = js.model.link_spatial_inertia_matrices(model=model)
+
+        def imp_aref(
+            penetration: jtp.Float,
+            velocity: jtp.Vector,
+        ) -> tuple[jtp.Float, jtp.Vector, jtp.Float, jtp.Float]:
             """
             Calculates impedance and offset acceleration in constraint frame.
 
@@ -449,12 +502,13 @@ class RelaxedRigidContacts(ContactModel):
                 velocity: velocity in constraint frame
 
             Returns:
+                ξ: computed impedance
                 a_ref: offset acceleration in constraint frame
-                R: regularization matrix
                 K: computed stiffness
                 D: computed damping
             """
-            position = jnp.zeros(shape=(3,)).at[2].set(penetration)
+
+            position = jnp.zeros(3).at[2].set(penetration)
 
             imp_x = jnp.abs(position) / width
             imp_a = (1.0 / jnp.power(mid, p - 1)) * jnp.power(imp_x, p)
@@ -463,45 +517,47 @@ class RelaxedRigidContacts(ContactModel):
 
             imp_y = jnp.where(imp_x < mid, imp_a, imp_b)
 
-            imp = jnp.clip(ξ_min + imp_y * (ξ_max - ξ_min), ξ_min, ξ_max)
-            imp = jnp.atleast_1d(jnp.where(imp_x > 1.0, ξ_max, imp))
+            # Compute the impedance.
+            ξ = jnp.clip(ξ_min + imp_y * (ξ_max - ξ_min), ξ_min, ξ_max)
+            ξ = jnp.atleast_1d(jnp.where(imp_x > 1.0, ξ_max, ξ))
 
-            # When passing negative values, K and D represent a spring and damper, respectively.
+            # If negative, K and D represent spring and damper parameters.
+            # If positive, user values are ignored, and they are computed dynamically.
             K_f = jnp.where(K < 0, -K / ξ_max**2, 1 / (ξ_max * Ω * ζ) ** 2)
             D_f = jnp.where(D < 0, -D / ξ_max, 2 / (ξ_max * Ω))
 
-            a_ref = -jnp.atleast_1d(D_f * velocity + K_f * imp * position)
+            # Compute the reference acceleration.
+            a_ref = -jnp.atleast_1d(D_f * velocity + K_f * ξ * position)
 
-            return imp, a_ref, jnp.atleast_1d(K_f), jnp.atleast_1d(D_f)
+            return ξ, a_ref, jnp.atleast_1d(K_f), jnp.atleast_1d(D_f)
 
-        def _compute_row(
+        def compute_row(
             *,
-            link_idx: jtp.Float,
-            penetration: jtp.Array,
-            velocity: jtp.Array,
+            link_idx: jtp.Int,
+            penetration: jtp.Float,
+            velocity: jtp.Vector,
         ) -> tuple[jtp.Array, jtp.Array]:
 
             # Compute the reference acceleration.
-            ξ, a_ref, K, D = _imp_aref(
+            ξ, a_ref, K, D = imp_aref(
                 penetration=penetration,
                 velocity=velocity,
             )
 
-            # Compute the regularization terms.
+            # Compute the regularization term.
             R = (
                 (2 * μ**2 * (1 - ξ) / (ξ + 1e-12))
                 * (1 + μ**2)
                 @ jnp.linalg.inv(M_L[link_idx, :3, :3])
             )
 
+            # Return the computed values, setting them to zero in case of no contact.
             return jax.tree.map(lambda x: x * (penetration < 0), (a_ref, R, K, D))
-
-        M_L = js.model.link_spatial_inertia_matrices(model=model)
 
         a_ref, R, K, D = jax.tree.map(
             jnp.concatenate,
-            (
-                *jax.vmap(_compute_row)(
+            tree=(
+                *jax.vmap(compute_row)(
                     link_idx=jnp.array(
                         model.kin_dyn_parameters.contact_parameters.body
                     ),
@@ -510,4 +566,5 @@ class RelaxedRigidContacts(ContactModel):
                 ),
             ),
         )
+
         return a_ref, jnp.diag(R), K, D

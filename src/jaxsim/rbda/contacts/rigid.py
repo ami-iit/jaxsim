@@ -313,8 +313,10 @@ class RigidContacts(ContactModel):
                 js.ode.system_acceleration(
                     model=model,
                     data=data,
-                    joint_forces=references.joint_force_references(model=model),
                     link_forces=references.link_forces(model=model, data=data),
+                    joint_force_references=references.joint_force_references(
+                        model=model
+                    ),
                 )
             )
 

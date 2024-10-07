@@ -1907,8 +1907,8 @@ def step(
     dt: jtp.FloatLike,
     integrator: jaxsim.integrators.Integrator,
     integrator_state: dict[str, Any] | None = None,
-    joint_forces: jtp.VectorLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
+    joint_force_references: jtp.VectorLike | None = None,
     **kwargs,
 ) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
     """
@@ -1920,10 +1920,10 @@ def step(
         dt: The time step to consider.
         integrator: The integrator to use.
         integrator_state: The state of the integrator.
-        joint_forces: The joint forces to consider.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
+        joint_force_references: The joint force references to consider.
         kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
@@ -1953,7 +1953,7 @@ def step(
         params=integrator_state_x0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
-        # by the pair (joint_forces, link_forces).
+        # by the pair (joint_force_references, link_forces).
         # Note that the wrapper of the system dynamics will override (state_x0, t0)
         # inside the passed data even if it is not strictly needed. This logic is
         # necessary to re-use the jit-compiled step function of compatible pytrees
@@ -1962,7 +1962,7 @@ def step(
             dict(
                 model=model,
                 data=data,
-                joint_forces=joint_forces,
+                joint_force_references=joint_force_references,
                 link_forces=link_forces,
             )
             | integrator_kwargs

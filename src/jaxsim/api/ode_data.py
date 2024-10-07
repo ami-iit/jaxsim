@@ -38,16 +38,16 @@ class ODEInput(JaxsimDataclass):
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
-        joint_forces: jtp.VectorLike | None = None,
         link_forces: jtp.MatrixLike | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
     ) -> ODEInput:
         """
         Build an `ODEInput` from a `JaxSimModel`.
 
         Args:
             model: The `JaxSimModel` associated with the ODE input.
-            joint_forces: The vector of joint forces.
             link_forces: The matrix of external forces applied to the links.
+            joint_force_references: The vector of joint force references.
 
         Returns:
             The `ODEInput` built from the `JaxSimModel`.
@@ -60,8 +60,8 @@ class ODEInput(JaxsimDataclass):
         return ODEInput.build(
             physics_model_input=PhysicsModelInput.build_from_jaxsim_model(
                 model=model,
-                joint_forces=joint_forces,
                 link_forces=link_forces,
+                joint_force_references=joint_force_references,
             ),
             model=model,
         )
@@ -526,16 +526,16 @@ class PhysicsModelInput(JaxsimDataclass):
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,
-        joint_forces: jtp.VectorLike | None = None,
         link_forces: jtp.MatrixLike | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
     ) -> PhysicsModelInput:
         """
         Build a `PhysicsModelInput` from a `JaxSimModel`.
 
         Args:
             model: The `JaxSimModel` associated with the input.
-            joint_forces: The vector of joint forces.
             link_forces: The matrix of external forces applied to the links.
+            joint_force_references: The vector of joint force references.
 
         Returns:
             A `PhysicsModelInput` instance.
@@ -546,7 +546,7 @@ class PhysicsModelInput(JaxsimDataclass):
         """
 
         return PhysicsModelInput.build(
-            joint_forces=joint_forces,
+            joint_force_references=joint_force_references,
             link_forces=link_forces,
             number_of_dofs=model.dofs(),
             number_of_links=model.number_of_links(),
@@ -554,8 +554,8 @@ class PhysicsModelInput(JaxsimDataclass):
 
     @staticmethod
     def build(
-        joint_forces: jtp.VectorLike | None = None,
         link_forces: jtp.MatrixLike | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
         number_of_dofs: jtp.Int | None = None,
         number_of_links: jtp.Int | None = None,
     ) -> PhysicsModelInput:
@@ -563,8 +563,8 @@ class PhysicsModelInput(JaxsimDataclass):
         Build a `PhysicsModelInput`.
 
         Args:
-            joint_forces: The vector of joint forces.
             link_forces: The matrix of external forces applied to the links.
+            joint_force_references: The vector of joint force references.
             number_of_dofs: The number of degrees of freedom of the model.
             number_of_links: The number of links of the model.
 
@@ -572,19 +572,21 @@ class PhysicsModelInput(JaxsimDataclass):
             A `PhysicsModelInput` instance.
         """
 
-        joint_forces = (
-            joint_forces if joint_forces is not None else jnp.zeros(number_of_dofs)
-        )
+        joint_force_references = jnp.atleast_1d(
+            jnp.array(joint_force_references, dtype=float).squeeze()
+            if joint_force_references is not None
+            else jnp.zeros(number_of_dofs)
+        ).astype(float)
 
-        link_forces = (
-            link_forces
+        link_forces = jnp.atleast_2d(
+            jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
             else jnp.zeros(shape=(number_of_links, 6))
-        )
+        ).astype(float)
 
         return PhysicsModelInput(
-            tau=jnp.array(joint_forces, dtype=float),
-            f_ext=jnp.array(link_forces, dtype=float),
+            tau=joint_force_references,
+            f_ext=link_forces,
         )
 
     @staticmethod

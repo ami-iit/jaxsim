@@ -86,8 +86,8 @@ def system_velocity_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_forces: jtp.Vector | None = None,
     link_forces: jtp.Vector | None = None,
+    joint_force_references: jtp.Vector | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector, dict[str, Any]]:
     """
     Compute the dynamics of the system velocity.
@@ -95,10 +95,10 @@ def system_velocity_dynamics(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        joint_forces: The joint force references to apply.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
+        joint_force_references: The joint force references to apply.
 
     Returns:
         A tuple containing the derivative of the base 6D velocity in inertial-fixed
@@ -120,7 +120,7 @@ def system_velocity_dynamics(
     references = js.references.JaxSimModelReferences.build(
         model=model,
         link_forces=O_f_L,
-        joint_force_references=joint_forces,
+        joint_force_references=joint_force_references,
         data=data,
         velocity_representation=data.velocity_representation,
     )
@@ -192,7 +192,10 @@ def system_velocity_dynamics(
         f_L_total = references.link_forces(model=model, data=data)
 
         v̇_WB, s̈ = system_acceleration(
-            model=model, data=data, joint_forces=joint_forces, link_forces=f_L_total
+            model=model,
+            data=data,
+            joint_force_references=joint_force_references,
+            link_forces=f_L_total,
         )
 
     return v̇_WB, s̈, aux_data
@@ -202,8 +205,8 @@ def system_acceleration(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_forces: jtp.VectorLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
+    joint_force_references: jtp.VectorLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute the system acceleration in the active representation.
@@ -211,12 +214,13 @@ def system_acceleration(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        joint_forces: The joint forces to apply.
         link_forces:
-            The 6D forces to apply to the links expressed in the same representation of data.
+            The 6D forces to apply to the links expressed in the same
+            velocity representation of data.
+        joint_force_references: The joint force references to apply.
 
     Returns:
-        A tuple containing the base 6D acceleration in in the active representation
+        A tuple containing the base 6D acceleration in the active representation
         and the joint accelerations.
     """
 
@@ -232,9 +236,9 @@ def system_acceleration(
     ).astype(float)
 
     # Build joint torques if not provided.
-    τ = (
-        jnp.atleast_1d(joint_forces.squeeze())
-        if joint_forces is not None
+    τ_references = (
+        jnp.atleast_1d(joint_force_references.squeeze())
+        if joint_force_references is not None
         else jnp.zeros_like(data.joint_positions())
     ).astype(float)
 
@@ -243,15 +247,16 @@ def system_acceleration(
     # ====================
 
     # TODO: enforce joint limits
-    τ_position_limit = jnp.zeros_like(τ).astype(float)
+    τ_position_limit = jnp.zeros_like(τ_references).astype(float)
 
     # ====================
     # Joint friction model
     # ====================
 
-    τ_friction = jnp.zeros_like(τ).astype(float)
+    τ_friction = jnp.zeros_like(τ_references).astype(float)
 
     if model.dofs() > 0:
+
         # Static and viscous joint friction parameters
         kc = jnp.array(
             model.kin_dyn_parameters.joint_parameters.friction_static
@@ -271,22 +276,27 @@ def system_acceleration(
     # ========================
 
     # Compute the total joint forces.
-    τ_total = τ + τ_friction + τ_position_limit
+    τ_total = τ_references + τ_friction + τ_position_limit
 
+    # Store the link forces in a references object.
     references = js.references.JaxSimModelReferences.build(
         model=model,
         data=data,
         velocity_representation=data.velocity_representation,
-        joint_force_references=τ_total,
         link_forces=f_L,
     )
 
+    # Compute forward dynamics.
+    #
     # - Joint accelerations: s̈ ∈ ℝⁿ
     # - Base acceleration: v̇_WB ∈ ℝ⁶
+    #
+    # Note that ABA returns the base acceleration in the velocity representation
+    # stored in the `data` object.
     v̇_WB, s̈ = js.model.forward_dynamics_aba(
         model=model,
         data=data,
-        joint_forces=references.joint_force_references(model=model),
+        joint_forces=τ_total,
         link_forces=references.link_forces(model=model, data=data),
     )
 
@@ -337,8 +347,8 @@ def system_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    joint_forces: jtp.Vector | None = None,
     link_forces: jtp.Vector | None = None,
+    joint_force_references: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
 ) -> tuple[ODEState, dict[str, Any]]:
     """
@@ -347,10 +357,10 @@ def system_dynamics(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        joint_forces: The joint forces to apply.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
+        joint_force_references: The joint force references to apply.
         baumgarte_quaternion_regularization:
             The Baumgarte regularization coefficient used to adjust the norm of the
             quaternion (only used in integrators not operating on the SO(3) manifold).
@@ -368,7 +378,7 @@ def system_dynamics(
     W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
         model=model,
         data=data,
-        joint_forces=joint_forces,
+        joint_force_references=joint_force_references,
         link_forces=link_forces,
     )
 

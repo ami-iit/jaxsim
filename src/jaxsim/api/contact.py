@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
+import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
@@ -208,11 +209,22 @@ def collidable_point_dynamics(
         case contacts.ViscoElasticContacts():
             assert isinstance(model.contact_model, contacts.ViscoElasticContacts)
 
+            # It is not yet clear how to pass the time step to this stage.
+            # A possibility is to restrict the integrator to only forward Euler
+            # and store the Δt inside the model.
+            module = jaxsim.rbda.contacts.visco_elastic.step.__module__
+            name = jaxsim.rbda.contacts.visco_elastic.step.__name__
+            msg = "You need to use the custom '{}.{}' function with this contact model."
+            jaxsim.exceptions.raise_runtime_error_if(
+                condition=True, msg=msg.format(module, name)
+            )
+
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
             W_f_Ci, (W_f̿_Ci, m_tf) = model.contact_model.compute_contact_forces(
                 model=model,
                 data=data,
+                dt=None,  # TODO
                 link_forces=link_forces,
                 joint_force_references=joint_force_references,
             )

@@ -55,8 +55,8 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     @staticmethod
     def build(
         model: js.model.JaxSimModel,
-        joint_force_references: jtp.Vector | None = None,
-        link_forces: jtp.Matrix | None = None,
+        joint_force_references: jtp.VectorLike | None = None,
+        link_forces: jtp.MatrixLike | None = None,
         data: js.data.JaxSimModelData | None = None,
         velocity_representation: VelRepr | None = None,
     ) -> JaxSimModelReferences:
@@ -78,14 +78,14 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # Create or adjust joint force references.
         joint_force_references = jnp.atleast_1d(
-            joint_force_references.squeeze()
+            jnp.array(joint_force_references, dtype=float).squeeze()
             if joint_force_references is not None
             else jnp.zeros(model.dofs())
         ).astype(float)
 
         # Create or adjust link forces.
         f_L = jnp.atleast_2d(
-            link_forces.squeeze()
+            jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
         ).astype(float)
@@ -299,9 +299,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             A new `JaxSimModelReferences` object with the given joint force references.
         """
 
-        forces = jnp.array(forces)
+        forces = jnp.atleast_1d(jnp.array(forces, dtype=float).squeeze())
 
-        def replace(forces: jtp.VectorLike) -> JaxSimModelReferences:
+        def replace(forces: jtp.Vector) -> JaxSimModelReferences:
             return self.replace(
                 validate=True,
                 input=self.input.replace(

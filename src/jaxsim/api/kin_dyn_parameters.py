@@ -797,7 +797,7 @@ class ContactParameters(JaxsimDataclass):
         cp = ContactParameters(
             point=points,
             body=link_index_of_points,
-            enabled=tuple(jnp.ones(len(link_index_of_points), dtype=bool).tolist()),
+            enabled=tuple(True for _ in link_index_of_points),
         )
 
         assert cp.point.shape[1] == 3, cp.point.shape[1]

@@ -233,7 +233,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         if contacts_params is None:
 
-            if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
+            if isinstance(
+                model.contact_model,
+                jaxsim.rbda.contacts.SoftContacts
+                | jaxsim.rbda.contacts.ViscoElasticContacts,
+            ):
                 contacts_params = js.contact.estimate_good_soft_contacts_parameters(
                     model=model, standard_gravity=standard_gravity
                 )

@@ -6,9 +6,12 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
+import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform
+from jaxsim.rbda import contacts
 
 from .common import VelRepr
 
@@ -156,14 +159,11 @@ def collidable_point_dynamics(
         Instead, the 6D forces are returned in the active representation.
     """
 
-    # Import privately the contacts classes.
-    from jaxsim.rbda.contacts import RelaxedRigidContacts, RigidContacts, SoftContacts
-
     # Build the soft contact model.
     match model.contact_model:
 
-        case SoftContacts():
-            assert isinstance(model.contact_model, SoftContacts)
+        case contacts.SoftContacts():
+            assert isinstance(model.contact_model, contacts.SoftContacts)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point, and the corresponding material deformation rate.
@@ -178,8 +178,8 @@ def collidable_point_dynamics(
             # of the ODE system. We need to pass its dynamics to the integrator.
             aux_data = dict(m_dot=CW_ṁ)
 
-        case RigidContacts():
-            assert isinstance(model.contact_model, RigidContacts)
+        case contacts.RigidContacts():
+            assert isinstance(model.contact_model, contacts.RigidContacts)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
@@ -192,8 +192,8 @@ def collidable_point_dynamics(
 
             aux_data = dict()
 
-        case RelaxedRigidContacts():
-            assert isinstance(model.contact_model, RelaxedRigidContacts)
+        case contacts.RelaxedRigidContacts():
+            assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)
 
             # Compute the 6D force expressed in the inertial frame and applied to each
             # collidable point.
@@ -205,6 +205,31 @@ def collidable_point_dynamics(
             )
 
             aux_data = dict()
+
+        case contacts.ViscoElasticContacts():
+            assert isinstance(model.contact_model, contacts.ViscoElasticContacts)
+
+            # It is not yet clear how to pass the time step to this stage.
+            # A possibility is to restrict the integrator to only forward Euler
+            # and store the Δt inside the model.
+            module = jaxsim.rbda.contacts.visco_elastic.step.__module__
+            name = jaxsim.rbda.contacts.visco_elastic.step.__name__
+            msg = "You need to use the custom '{}.{}' function with this contact model."
+            jaxsim.exceptions.raise_runtime_error_if(
+                condition=True, msg=msg.format(module, name)
+            )
+
+            # Compute the 6D force expressed in the inertial frame and applied to each
+            # collidable point.
+            W_f_Ci, (W_f̿_Ci, m_tf) = model.contact_model.compute_contact_forces(
+                model=model,
+                data=data,
+                dt=None,  # TODO
+                link_forces=link_forces,
+                joint_force_references=joint_force_references,
+            )
+
+            aux_data = dict(W_f_avg2_C=W_f̿_Ci, m_tf=m_tf)
 
         case _:
             raise ValueError(f"Invalid contact model {model.contact_model}")
@@ -278,7 +303,6 @@ def in_contact(
     return links_in_contact
 
 
-@jax.jit
 def estimate_good_soft_contacts_parameters(
     model: js.model.JaxSimModel,
     *,
@@ -287,9 +311,15 @@ def estimate_good_soft_contacts_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-) -> jaxsim.rbda.contacts.SoftContactsParams:
+    **kwargs,
+) -> (
+    jaxsim.rbda.contacts.RelaxedRigidContactsParams
+    | jaxsim.rbda.contacts.RigidContactsParams
+    | jaxsim.rbda.contacts.SoftContactsParams
+    | jaxsim.rbda.contacts.ViscoElasticContactsParams
+):
     """
-    Estimate good soft contacts parameters for the given model.
+    Estimate good parameters for soft-like contact models.
 
     Args:
         model: The model to consider.
@@ -313,7 +343,10 @@ def estimate_good_soft_contacts_parameters(
     """
 
     def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
-        """"""
+        """
+        Displacement between the CoM and the lowest collidable point using zero
+        joint positions.
+        """
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
@@ -338,21 +371,39 @@ def estimate_good_soft_contacts_parameters(
 
     match model.contact_model:
 
-        case jaxsim.rbda.contacts.SoftContacts():
-            assert isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts)
+        case contacts.SoftContacts():
+            assert isinstance(model.contact_model, contacts.SoftContacts)
+
+            parameters = contacts.SoftContactsParams.build_default_from_jaxsim_model(
+                model=model,
+                standard_gravity=standard_gravity,
+                static_friction_coefficient=static_friction_coefficient,
+                max_penetration=max_δ,
+                number_of_active_collidable_points_steady_state=nc,
+                damping_ratio=damping_ratio,
+                p=model.contact_model.parameters.p,
+                q=model.contact_model.parameters.q,
+            )
+
+        case contacts.ViscoElasticContacts():
+            assert isinstance(model.contact_model, contacts.ViscoElasticContacts)
 
             parameters = (
-                jaxsim.rbda.contacts.SoftContactsParams.build_default_from_jaxsim_model(
+                contacts.ViscoElasticContactsParams.build_default_from_jaxsim_model(
                     model=model,
                     standard_gravity=standard_gravity,
                     static_friction_coefficient=static_friction_coefficient,
                     max_penetration=max_δ,
                     number_of_active_collidable_points_steady_state=nc,
                     damping_ratio=damping_ratio,
+                    p=model.contact_model.parameters.p,
+                    q=model.contact_model.parameters.q,
+                    **kwargs,
                 )
             )
 
         case _:
+            logging.warning("The active contact model is not soft-like, no-op.")
             parameters = model.contact_model.parameters
 
     return parameters

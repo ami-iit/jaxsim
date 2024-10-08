@@ -5,6 +5,8 @@ import dataclasses
 import jax.lax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
+import numpy.typing as npt
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
@@ -753,6 +755,13 @@ class ContactParameters(JaxsimDataclass):
 
     point: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.array([]))
 
+    enabled: Static[tuple[bool, ...]] = dataclasses.field(default_factory=tuple)
+
+    @property
+    def indices_of_enabled_collidable_points(self) -> npt.NDArray:
+
+        return np.where(np.array(self.enabled))[0]
+
     @staticmethod
     def build_from(model_description: ModelDescription) -> ContactParameters:
         """
@@ -785,7 +794,11 @@ class ContactParameters(JaxsimDataclass):
         )
 
         # Build the ContactParameters object.
-        cp = ContactParameters(point=points, body=link_index_of_points)
+        cp = ContactParameters(
+            point=points,
+            body=link_index_of_points,
+            enabled=tuple(True for _ in link_index_of_points),
+        )
 
         assert cp.point.shape[1] == 3, cp.point.shape[1]
         assert cp.point.shape[0] == len(cp.body), cp.point.shape[0]

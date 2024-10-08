@@ -161,7 +161,9 @@ class SoftContactsParams(common.ContactsParams):
         f_average = m * g / number_of_active_collidable_points_steady_state
 
         # Compute the stiffness to get the desired steady-state penetration.
-        K = f_average / jnp.power(δ_max, 3 / 2)
+        # Note that this is dependent on the non-linear exponent used in
+        # the damping term of the Hunt/Crossley model.
+        K = f_average / jnp.power(δ_max, 1 + p)
 
         # Compute the damping using the damping ratio.
         critical_damping = 2 * jnp.sqrt(K * m)

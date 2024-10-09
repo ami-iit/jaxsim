@@ -263,6 +263,7 @@ class RigidContacts(ContactModel):
         # This will raise an exception if either the contact model or the
         # contact parameters are not compatible.
         model, data = self.initialize_model_and_data(model=model, data=data)
+        assert isinstance(data.contacts_params, RigidContactsParams)
 
         # Import qpax privately just in this method.
         import qpax
@@ -303,7 +304,7 @@ class RigidContacts(ContactModel):
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.
         δ, δ_dot, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
-            position, velocity, self.terrain
+            position, velocity, model.terrain
         )
 
         # Build a references object to simplify converting link forces.
@@ -347,8 +348,8 @@ class RigidContacts(ContactModel):
             δ=δ,
             δ_dot=δ_dot,
             n=n̂,
-            K=self.parameters.K,
-            D=self.parameters.D,
+            K=data.contacts_params.K,
+            D=data.contacts_params.D,
         ).flatten()
 
         # Compute the Delassus matrix.
@@ -364,7 +365,7 @@ class RigidContacts(ContactModel):
 
         # Construct the inequality constraints.
         G = RigidContacts._compute_ineq_constraint_matrix(
-            inactive_collidable_points=(δ <= 0), mu=self.parameters.mu
+            inactive_collidable_points=(δ <= 0), mu=data.contacts_params.mu
         )
         h_bounds = RigidContacts._compute_ineq_bounds(
             n_collidable_points=n_collidable_points

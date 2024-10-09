@@ -250,6 +250,7 @@ class RelaxedRigidContacts(ContactModel):
         # This will raise an exception if either the contact model or the
         # contact parameters are not compatible.
         model, data = self.initialize_model_and_data(model=model, data=data)
+        assert isinstance(data.contacts_params, RelaxedRigidContactsParams)
 
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()
@@ -275,7 +276,7 @@ class RelaxedRigidContacts(ContactModel):
 
             x, y, z = jax.tree.map(jnp.squeeze, (x, y, z))
 
-            n̂ = self.terrain.normal(x=x, y=y).squeeze()
+            n̂ = model.terrain.normal(x=x, y=y).squeeze()
             h = jnp.array([0, 0, z - model.terrain.height(x=x, y=y)])
 
             return jnp.dot(h, n̂)
@@ -330,7 +331,7 @@ class RelaxedRigidContacts(ContactModel):
             model=model,
             penetration=δ,
             velocity=velocity,
-            parameters=self.parameters,
+            parameters=data.contacts_params,
         )
 
         G = Jl_WC @ jnp.linalg.lstsq(M, Jl_WC.T)[0]

@@ -444,8 +444,8 @@ class SoftContacts(common.ContactModel):
                 position=p,
                 velocity=v,
                 tangential_deformation=m,
-                parameters=self.parameters,
-                terrain=self.terrain,
+                parameters=data.contacts_params,
+                terrain=model.terrain,
             )
         )(W_p_C, W_ṗ_C, m)
 

@@ -195,7 +195,7 @@ class ViscoElasticContacts(common.ContactModel):
         default_factory=FlatTerrain
     )
 
-    max_squarings: jax_dataclasses.Static[int] = 25
+    max_squarings: jax_dataclasses.Static[int] = dataclasses.field(default=25)
 
     @classmethod
     def build(
@@ -239,7 +239,7 @@ class ViscoElasticContacts(common.ContactModel):
             parameters=parameters,
             terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
             max_squarings=int(
-                max_squarings or cls.__dataclass_fields__["max_squarings"].default()
+                max_squarings or cls.__dataclass_fields__["max_squarings"].default
             ),
         )
 

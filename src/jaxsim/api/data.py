@@ -34,7 +34,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     state: ODEState
 
-    gravity: jtp.Array
+    gravity: jtp.Vector
 
     contacts_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(repr=False)
 

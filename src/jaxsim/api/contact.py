@@ -312,12 +312,7 @@ def estimate_good_soft_contacts_parameters(
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
     **kwargs,
-) -> (
-    jaxsim.rbda.contacts.RelaxedRigidContactsParams
-    | jaxsim.rbda.contacts.RigidContactsParams
-    | jaxsim.rbda.contacts.SoftContactsParams
-    | jaxsim.rbda.contacts.ViscoElasticContactsParams
-):
+) -> jaxsim.rbda.contacts.ContactParamsTypes:
     """
     Estimate good parameters for soft-like contact models.
 

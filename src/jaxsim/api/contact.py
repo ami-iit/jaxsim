@@ -35,11 +35,10 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    from jaxsim.rbda import collidable_points
-
     # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_Ci, W_ṗ_Ci = collidable_points.collidable_points_pos_vel(
+
+        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
             model=model,
             base_position=data.base_position(),
             base_quaternion=data.base_orientation(dcm=False),

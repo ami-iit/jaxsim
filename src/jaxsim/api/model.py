@@ -40,6 +40,8 @@ class JaxSimModel(JaxsimDataclass):
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
+    # Note that this is the default contact model.
+    # Its parameters, if any, are then overridden from those stored in JaxSimModelData.
     contact_model: jaxsim.rbda.contacts.ContactModel | None = dataclasses.field(
         default=None, repr=False
     )

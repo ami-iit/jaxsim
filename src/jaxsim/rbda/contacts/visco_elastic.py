@@ -266,7 +266,7 @@ class ViscoElasticContacts(common.ContactModel):
         dt: jtp.FloatLike | None = None,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-    ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+    ) -> tuple[jtp.Matrix, tuple[jtp.Matrix, jtp.Matrix]]:
         """
         Compute the contact forces.
 

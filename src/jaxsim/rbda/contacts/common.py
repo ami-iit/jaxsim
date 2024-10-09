@@ -131,7 +131,7 @@ class ContactModel(JaxsimDataclass):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         **kwargs,
-    ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+    ) -> tuple[jtp.Matrix, tuple[Any, ...]]:
         """
         Compute the contact forces.
 
@@ -140,8 +140,9 @@ class ContactModel(JaxsimDataclass):
             data: The data of the considered model.
 
         Returns:
-            A tuple containing as first element the computed 6D contact force applied to the contact point and expressed in the world frame,
-            and as second element a tuple of optional additional information.
+            A tuple containing as first element the computed 6D contact force applied to
+            the contact points and expressed in the world frame, and as second element
+            a tuple of optional additional information.
         """
 
         pass

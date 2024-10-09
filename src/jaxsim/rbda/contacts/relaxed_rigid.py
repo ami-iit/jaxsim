@@ -238,7 +238,7 @@ class RelaxedRigidContacts(common.ContactModel):
         *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-    ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+    ) -> tuple[jtp.Matrix, tuple]:
         """
         Compute the contact forces.
 
@@ -252,7 +252,7 @@ class RelaxedRigidContacts(common.ContactModel):
                 Optional `(n_joints,)` vector of joint forces.
 
         Returns:
-            A tuple containing the contact forces.
+            A tuple containing as first element the computed contact forces.
         """
 
         # Initialize the model and data this contact model is operating on.

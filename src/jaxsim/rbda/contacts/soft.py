@@ -423,7 +423,18 @@ class SoftContacts(common.ContactModel):
         self,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
-    ) -> tuple[jtp.Vector, tuple[jtp.Vector]]:
+    ) -> tuple[jtp.Matrix, tuple[jtp.Matrix]]:
+        """
+        Compute the contact forces.
+
+        Args:
+            model: The model to consider.
+            data: The data of the considered model.
+
+        Returns:
+            A tuple containing as first element the computed contact forces, and as
+            second element the derivative of the material deformation.
+        """
 
         # Initialize the model and data this contact model is operating on.
         # This will raise an exception if either the contact model or the

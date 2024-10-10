@@ -14,7 +14,7 @@ from jaxsim import logging
 from jaxsim.math import StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
 
-from .common import ContactModel, ContactsParams
+from . import common
 
 try:
     from typing import Self
@@ -23,7 +23,7 @@ except ImportError:
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContactsParams(ContactsParams):
+class SoftContactsParams(common.ContactsParams):
     """Parameters of the soft contacts model."""
 
     K: jtp.Float = dataclasses.field(
@@ -189,7 +189,7 @@ class SoftContactsParams(ContactsParams):
 
 
 @jax_dataclasses.pytree_dataclass
-class SoftContacts(ContactModel):
+class SoftContacts(common.ContactModel):
     """Soft contacts model."""
 
     parameters: SoftContactsParams = dataclasses.field(
@@ -277,9 +277,7 @@ class SoftContacts(ContactModel):
         μ = mu
 
         # Compute the penetration depth, its rate, and the considered terrain normal.
-        δ, δ̇, n̂ = SoftContacts.compute_penetration_data(
-            p=W_p_C, v=W_ṗ_C, terrain=terrain
-        )
+        δ, δ̇, n̂ = common.compute_penetration_data(p=W_p_C, v=W_ṗ_C, terrain=terrain)
 
         # There are few operations like computing the norm of a vector with zero length
         # or computing the square root of zero that are problematic in an AD context.
@@ -450,30 +448,3 @@ class SoftContacts(ContactModel):
         )(W_p_C, W_ṗ_C, m)
 
         return W_f, (ṁ,)
-
-    @staticmethod
-    @jax.jit
-    def compute_penetration_data(
-        p: jtp.VectorLike,
-        v: jtp.VectorLike,
-        terrain: jaxsim.terrain.Terrain,
-    ) -> tuple[jtp.Float, jtp.Float, jtp.Vector]:
-
-        # Pre-process the position and the linear velocity of the collidable point.
-        W_ṗ_C = jnp.array(v).squeeze()
-        px, py, pz = jnp.array(p).squeeze()
-
-        # Compute the terrain normal and the contact depth.
-        n̂ = terrain.normal(x=px, y=py).squeeze()
-        h = jnp.array([0, 0, terrain.height(x=px, y=py) - pz])
-
-        # Compute the penetration depth normal to the terrain.
-        δ = jnp.maximum(0.0, jnp.dot(h, n̂))
-
-        # Compute the penetration normal velocity.
-        δ̇ = -jnp.dot(W_ṗ_C, n̂)
-
-        # Enforce the penetration rate to be zero when the penetration depth is zero.
-        δ̇ = jnp.where(δ > 0, δ̇, 0.0)
-
-        return δ, δ̇, n̂

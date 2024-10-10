@@ -98,6 +98,7 @@ def collidable_point_forces(
     data: js.data.JaxSimModelData,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
+    **kwargs,
 ) -> jtp.Matrix:
     """
     Compute the 6D forces applied to each collidable point.
@@ -110,6 +111,7 @@ def collidable_point_forces(
             representation of data.
         joint_force_references:
             The joint force references to apply to the joints.
+        kwargs: Additional keyword arguments to pass to the active contact model.
 
     Returns:
         The 6D forces applied to each collidable point expressed in the frame
@@ -121,6 +123,7 @@ def collidable_point_forces(
         data=data,
         link_forces=link_forces,
         joint_force_references=joint_force_references,
+        **kwargs,
     )
 
     return f_Ci
@@ -132,6 +135,7 @@ def collidable_point_dynamics(
     data: js.data.JaxSimModelData,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
+    **kwargs,
 ) -> tuple[jtp.Matrix, dict[str, jtp.Array]]:
     r"""
     Compute the 6D force applied to each collidable point.
@@ -144,6 +148,7 @@ def collidable_point_dynamics(
             representation of data.
         joint_force_references:
             The joint force references to apply to the joints.
+        kwargs: Additional keyword arguments to pass to the active contact model.
 
     Returns:
         The 6D force applied to each collidable point and additional data based
@@ -169,7 +174,7 @@ def collidable_point_dynamics(
             # Note that the material deformation rate is always returned in the mixed frame
             # C[W] = (W_p_C, [W]). This is convenient for integration purpose.
             W_f_Ci, (CW_ṁ,) = model.contact_model.compute_contact_forces(
-                model=model, data=data
+                model=model, data=data, **kwargs
             )
 
             # Create the dictionary of auxiliary data.
@@ -187,6 +192,7 @@ def collidable_point_dynamics(
                 data=data,
                 link_forces=link_forces,
                 joint_force_references=joint_force_references,
+                **kwargs,
             )
 
             aux_data = dict()
@@ -201,6 +207,7 @@ def collidable_point_dynamics(
                 data=data,
                 link_forces=link_forces,
                 joint_force_references=joint_force_references,
+                **kwargs,
             )
 
             aux_data = dict()
@@ -226,6 +233,7 @@ def collidable_point_dynamics(
                 dt=None,  # TODO
                 link_forces=link_forces,
                 joint_force_references=joint_force_references,
+                **kwargs,
             )
 
             aux_data = dict(W_f_avg2_C=W_f̿_Ci, m_tf=m_tf)

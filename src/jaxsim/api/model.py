@@ -1772,6 +1772,7 @@ def link_contact_forces(
     data: js.data.JaxSimModelData,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
+    **kwargs,
 ) -> jtp.Matrix:
     """
     Compute the 6D contact forces of all links of the model.
@@ -1784,6 +1785,7 @@ def link_contact_forces(
             representation of data.
         joint_force_references:
             The joint force references to apply to the joints.
+        kwargs: Additional keyword arguments to pass to the active contact model..
 
     Returns:
         A `(nL, 6)` array containing the stacked 6D contact forces of the links,
@@ -1831,6 +1833,7 @@ def link_contact_forces(
             data=data,
             link_forces=input_references.link_forces(),
             joint_force_references=input_references.joint_force_references(),
+            **kwargs,
         )
 
     # Construct the vector defining the parent link index of each collidable point.

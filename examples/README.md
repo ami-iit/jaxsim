@@ -10,6 +10,9 @@ This folder includes a Jupyter Notebook demonstrating the practical usage of JAX
 - [Parallel_computing](./Parallel_computing.ipynb) <a target="_blank" href="https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/Parallel_computing.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> - An example demonstrating how to simulate vectorized models in parallel using JAXsim.
 
+- [Rigid_body_dynamics](./Rigid_body_dynamics.ipynb) <a target="_blank" href="https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/Rigid_body_dynamics.ipynb">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> - An example demonstrating the use of JAXsim as a multibody dynamics library.
+
 > [!TIP]
 > Stay tuned for more examples!
 

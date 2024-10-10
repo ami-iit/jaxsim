@@ -263,7 +263,7 @@ class ViscoElasticContacts(common.ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         *,
-        dt: jtp.FloatLike,
+        dt: jtp.FloatLike | None = None,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
@@ -273,7 +273,7 @@ class ViscoElasticContacts(common.ContactModel):
         Args:
             model: The robot model considered by the contact model.
             data: The data of the considered model.
-            dt: The integration time step.
+            dt: The time step to consider. If not specified, it is read from the model.
             link_forces:
                 The 6D forces to apply to the links expressed in the frame corresponding
                 to the velocity representation of `data`.
@@ -305,13 +305,16 @@ class ViscoElasticContacts(common.ContactModel):
             model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
         )
 
+        # Initialize the time step.
+        dt = dt if dt is not None else model.time_step
+
         # Compute the average contact linear forces in mixed representation by
         # integrating the contact dynamics in the continuous time domain.
         CW_f̅l, CW_fl̿, m_tf = (
             ViscoElasticContacts._compute_contact_forces_with_exponential_integration(
                 model=model,
                 data=data,
-                dt=dt,
+                dt=jnp.array(dt).astype(float),
                 joint_force_references=joint_force_references,
                 link_forces=link_forces,
                 indices_of_enabled_collidable_points=indices_of_enabled_collidable_points,
@@ -946,7 +949,7 @@ def step(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    dt: jtp.FloatLike,
+    dt: jtp.FloatLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
 ) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:

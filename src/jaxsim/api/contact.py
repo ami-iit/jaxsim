@@ -9,6 +9,7 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform
 from jaxsim.rbda import contacts
 
@@ -301,6 +302,15 @@ def in_contact(
     return links_in_contact
 
 
+def estimate_good_soft_contacts_parameters(
+    *args, **kwargs
+) -> jaxsim.rbda.contacts.ContactParamsTypes:
+
+    msg = "This method is deprecated, please use `{}`."
+    logging.warning(msg.format(estimate_good_contact_parameters.__name__))
+    return estimate_good_contact_parameters(*args, **kwargs)
+
+
 def estimate_good_contact_parameters(
     model: js.model.JaxSimModel,
     *,
@@ -330,7 +340,7 @@ def estimate_good_contact_parameters(
             the parameters class.
 
     Returns:
-        The estimated good soft contacts parameters.
+        The estimated good contacts parameters.
 
     Note:
         This is primarily a convenience function for soft-like contact models.
@@ -338,51 +348,6 @@ def estimate_good_contact_parameters(
 
     Note:
         This method provides a good set of contacts parameters.
-        The user is encouraged to fine-tune the parameters based on the
-        specific application.
-    """
-
-    return estimate_good_soft_contacts_parameters(
-        model=model,
-        standard_gravity=standard_gravity,
-        static_friction_coefficient=static_friction_coefficient,
-        number_of_active_collidable_points_steady_state=number_of_active_collidable_points_steady_state,
-        damping_ratio=damping_ratio,
-        max_penetration=max_penetration,
-        **kwargs,
-    )
-
-
-def estimate_good_soft_contacts_parameters(
-    model: js.model.JaxSimModel,
-    *,
-    standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-    static_friction_coefficient: jtp.FloatLike = 0.5,
-    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
-    damping_ratio: jtp.FloatLike = 1.0,
-    max_penetration: jtp.FloatLike | None = None,
-    **kwargs,
-) -> jaxsim.rbda.contacts.ContactParamsTypes:
-    """
-    Estimate good parameters for soft-like contact models.
-
-    Args:
-        model: The model to consider.
-        standard_gravity: The standard gravity constant.
-        static_friction_coefficient: The static friction coefficient.
-        number_of_active_collidable_points_steady_state:
-            The number of active collidable points in steady state supporting
-            the weight of the robot.
-        damping_ratio: The damping ratio.
-        max_penetration:
-            The maximum penetration allowed in steady state when the robot is
-            supported by the configured number of active collidable points.
-
-    Returns:
-        The estimated good soft contacts parameters.
-
-    Note:
-        This method provides a good starting point for the soft contacts parameters.
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """

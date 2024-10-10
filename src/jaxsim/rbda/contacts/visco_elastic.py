@@ -956,7 +956,7 @@ def step(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        dt: The time step to consider.
+        dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
@@ -970,11 +970,14 @@ def step(
     assert isinstance(model.contact_model, ViscoElasticContacts)
     assert isinstance(data.contacts_params, ViscoElasticContactsParams)
 
+    # Initialize the time step.
+    dt = dt if dt is not None else model.time_step
+
     # Compute the contact forces with the exponential integrator.
     W_f̅_C, (W_f̿_C, m_tf) = model.contact_model.compute_contact_forces(
         model=model,
         data=data,
-        dt=dt,
+        dt=jnp.array(dt).astype(float),
         link_forces=link_forces,
         joint_force_references=joint_force_references,
     )

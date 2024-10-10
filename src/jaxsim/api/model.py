@@ -32,6 +32,10 @@ class JaxSimModel(JaxsimDataclass):
 
     model_name: Static[str]
 
+    time_step: jaxsim.integrators.TimeStep = dataclasses.field(
+        default_factory=lambda: jnp.array(0.001, dtype=float),
+    )
+
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
@@ -64,6 +68,9 @@ class JaxSimModel(JaxsimDataclass):
         if self.model_name != other.model_name:
             return False
 
+        if self.time_step != other.time_step:
+            return False
+
         if self.kin_dyn_parameters != other.kin_dyn_parameters:
             return False
 
@@ -74,6 +81,7 @@ class JaxSimModel(JaxsimDataclass):
         return hash(
             (
                 hash(self.model_name),
+                hash(float(self.time_step)),
                 hash(self.kin_dyn_parameters),
                 hash(self.contact_model),
             )
@@ -88,6 +96,7 @@ class JaxSimModel(JaxsimDataclass):
         model_description: str | pathlib.Path | rod.Model,
         model_name: str | None = None,
         *,
+        time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -102,6 +111,9 @@ class JaxSimModel(JaxsimDataclass):
                 its content, or a pre-parsed/pre-built rod model.
             model_name:
                 The name of the model. If not specified, it is read from the description.
+            time_step:
+                The default time step to consider for the simulation. It can be
+                manually overridden in the function that steps the simulation.
             terrain: The terrain to consider (the default is a flat infinite plane).
             contact_model:
                 The contact model to consider.
@@ -135,6 +147,7 @@ class JaxSimModel(JaxsimDataclass):
         model = JaxSimModel.build(
             model_description=intermediate_description,
             model_name=model_name,
+            time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
         )
@@ -150,6 +163,7 @@ class JaxSimModel(JaxsimDataclass):
         model_description: ModelDescription,
         model_name: str | None = None,
         *,
+        time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
@@ -162,6 +176,9 @@ class JaxSimModel(JaxsimDataclass):
                 of the model.
             model_name:
                 The name of the model. If not specified, it is read from the description.
+            time_step:
+                The default time step to consider for the simulation. It can be
+                manually overridden in the function that steps the simulation.
             terrain: The terrain to consider (the default is a flat infinite plane).
             contact_model:
                 The contact model to consider.
@@ -179,6 +196,11 @@ class JaxSimModel(JaxsimDataclass):
             terrain or JaxSimModel.__dataclass_fields__["terrain"].default_factory()
         )
 
+        # Consider the default time step if not specified.
+        time_step = (
+            time_step or JaxSimModel.__dataclass_fields__["time_step"].default_factory()
+        )
+
         # Create the default contact model.
         # It will be populated with an initial estimation of good parameters.
         # While these might not be the best, they are a good starting point.
@@ -192,6 +214,7 @@ class JaxSimModel(JaxsimDataclass):
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
             ),
+            time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
             # The following is wrapped as hashless since it's a static argument, and we
@@ -1915,8 +1938,8 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    dt: jtp.FloatLike,
     integrator: jaxsim.integrators.Integrator,
+    dt: jtp.FloatLike | None = None,
     integrator_state: dict[str, Any] | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
@@ -1928,9 +1951,9 @@ def step(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        dt: The time step to consider.
         integrator: The integrator to use.
         integrator_state: The state of the integrator.
+        dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
@@ -1951,17 +1974,20 @@ def step(
 
     integrator_state = integrator_state if integrator_state is not None else dict()
 
-    # Extract the initial resources.
+    # Initialize the time-related variables.
     t0_ns = data.time_ns
     state_t0 = data.state
-    integrator_state_x0 = integrator_state
+    dt = dt if dt is not None else model.time_step
+
+    # Rename the integrator state.
+    integrator_state_t0 = integrator_state
 
     # Step the dynamics forward.
     state_tf, integrator_state_tf = integrator.step(
         x0=state_t0,
-        t0=jnp.array(t0_ns / 1e9).astype(float),
-        dt=dt,
-        params=integrator_state_x0,
+        t0=jnp.array(t0_ns / 1e9, dtype=float),
+        dt=jnp.array(dt).astype(float),
+        params=integrator_state_t0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
         # by the pair (joint_force_references, link_forces).
@@ -1980,6 +2006,7 @@ def step(
         ),
     )
 
+    # Compute the final time, addressing possible overflow (specific to 32bit).
     tf_ns = t0_ns + jnp.array(dt * 1e9, dtype=t0_ns.dtype)
     tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dtype))
 
@@ -1991,13 +2018,8 @@ def step(
         false_fun=lambda: None,
     )
 
-    data_tf = (
-        # Store the new state of the model and the new time.
-        data.replace(
-            state=state_tf,
-            time_ns=tf_ns,
-        )
-    )
+    # Store the new state of the model and the new time.
+    data_tf = data.replace(state=state_tf, time_ns=tf_ns)
 
     # Post process the simulation state, if needed.
     match model.contact_model:

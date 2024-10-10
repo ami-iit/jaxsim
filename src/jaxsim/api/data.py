@@ -224,7 +224,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 jaxsim.rbda.contacts.SoftContacts
                 | jaxsim.rbda.contacts.ViscoElasticContacts,
             ):
-                contacts_params = js.contact.estimate_good_soft_contacts_parameters(
+
+                contacts_params = js.contact.estimate_good_contact_parameters(
                     model=model, standard_gravity=standard_gravity
                 )
 

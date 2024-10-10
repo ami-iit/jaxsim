@@ -9,7 +9,6 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform
 from jaxsim.rbda import contacts
 
@@ -303,6 +302,58 @@ def in_contact(
     return links_in_contact
 
 
+def estimate_good_contact_parameters(
+    model: js.model.JaxSimModel,
+    *,
+    standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
+    static_friction_coefficient: jtp.FloatLike = 0.5,
+    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+    damping_ratio: jtp.FloatLike = 1.0,
+    max_penetration: jtp.FloatLike | None = None,
+    **kwargs,
+) -> jaxsim.rbda.contacts.ContactParamsTypes:
+    """
+    Estimate good contact parameters.
+
+    Args:
+        model: The model to consider.
+        standard_gravity: The standard gravity constant.
+        static_friction_coefficient: The static friction coefficient.
+        number_of_active_collidable_points_steady_state:
+            The number of active collidable points in steady state supporting
+            the weight of the robot.
+        damping_ratio: The damping ratio.
+        max_penetration:
+            The maximum penetration allowed in steady state when the robot is
+            supported by the configured number of active collidable points.
+        kwargs:
+            Additional model-specific parameters passed to the builder method of
+            the parameters class.
+
+    Returns:
+        The estimated good soft contacts parameters.
+
+    Note:
+        This is primarily a convenience function for soft-like contact models.
+        However, it provides with some good default parameters also for the other ones.
+
+    Note:
+        This method provides a good set of contacts parameters.
+        The user is encouraged to fine-tune the parameters based on the
+        specific application.
+    """
+
+    return estimate_good_soft_contacts_parameters(
+        model=model,
+        standard_gravity=standard_gravity,
+        static_friction_coefficient=static_friction_coefficient,
+        number_of_active_collidable_points_steady_state=number_of_active_collidable_points_steady_state,
+        damping_ratio=damping_ratio,
+        max_penetration=max_penetration,
+        **kwargs,
+    )
+
+
 def estimate_good_soft_contacts_parameters(
     model: js.model.JaxSimModel,
     *,
@@ -359,6 +410,7 @@ def estimate_good_soft_contacts_parameters(
     max_δ = (
         max_penetration
         if max_penetration is not None
+        # Consider as default a 0.5% of the model height.
         else 0.005 * estimate_model_height(model=model)
     )
 
@@ -376,8 +428,11 @@ def estimate_good_soft_contacts_parameters(
                 max_penetration=max_δ,
                 number_of_active_collidable_points_steady_state=nc,
                 damping_ratio=damping_ratio,
-                p=model.contact_model.parameters.p,
-                q=model.contact_model.parameters.q,
+                **dict(
+                    p=model.contact_model.parameters.p,
+                    q=model.contact_model.parameters.q,
+                )
+                | kwargs,
             )
 
         case contacts.ViscoElasticContacts():
@@ -391,15 +446,40 @@ def estimate_good_soft_contacts_parameters(
                     max_penetration=max_δ,
                     number_of_active_collidable_points_steady_state=nc,
                     damping_ratio=damping_ratio,
-                    p=model.contact_model.parameters.p,
-                    q=model.contact_model.parameters.q,
-                    **kwargs,
+                    **dict(
+                        p=model.contact_model.parameters.p,
+                        q=model.contact_model.parameters.q,
+                    )
+                    | kwargs,
                 )
             )
 
+        case contacts.RigidContacts():
+            assert isinstance(model.contact_model, contacts.RigidContacts)
+
+            # Disable Baumgarte stabilization by default since it does not play
+            # well with the forward Euler integrator.
+            K = kwargs.get("K", 0.0)
+
+            parameters = contacts.RigidContactsParams.build(
+                mu=static_friction_coefficient,
+                **dict(
+                    K=K,
+                    D=2 * jnp.sqrt(K),
+                )
+                | kwargs,
+            )
+
+        case contacts.RelaxedRigidContacts():
+            assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)
+
+            parameters = contacts.RelaxedRigidContactsParams.build(
+                mu=static_friction_coefficient,
+                **kwargs,
+            )
+
         case _:
-            logging.warning("The active contact model is not soft-like, no-op.")
-            parameters = model.contact_model.parameters
+            raise ValueError(f"Invalid contact model: {model.contact_model}")
 
     return parameters
 

@@ -41,6 +41,20 @@ Example Notebooks
       <div class="sphx-glr-thumbnail-title">JaxSim for developing closed-loop robot controllers</div>
     </div>
 
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="Rigid Body Dynamics">
+
+.. only:: html
+
+    :doc:`_collections/examples/Rigid_body_dynamics`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">Rigid Body Dynamics</div>
+    </div>
+
 .. raw:: html
 
     </div>

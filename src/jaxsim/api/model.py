@@ -2044,24 +2044,18 @@ def step(
                 M = js.model.free_floating_mass_matrix(model, data_tf)
                 W_p_C = js.contact.collidable_point_positions(model, data_tf)
 
-                # Compute the height of the terrain below each collidable point.
-                px, py, _ = W_p_C.T
-                terrain_height = jax.vmap(model.terrain.height)(px, py)
-
-                # Compute the contact state.
-                inactive_collidable_points, _ = (
-                    jaxsim.rbda.contacts.RigidContacts.detect_contacts(
-                        W_p_C=W_p_C,
-                        terrain_height=terrain_height,
-                    )
-                )
+                # Compute the penetration depth of the collidable points.
+                δ, *_ = jax.vmap(
+                    jaxsim.rbda.contacts.common.compute_penetration_data,
+                    in_axes=(0, 0, None),
+                )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
 
                 # Compute the impact velocity.
                 # It may be discontinuous in case new contacts are made.
                 BW_nu_post_impact = (
                     jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
                         data=data_tf,
-                        inactive_collidable_points=inactive_collidable_points,
+                        inactive_collidable_points=(δ <= 0),
                         M=M,
                         J_WC=J_WC,
                     )

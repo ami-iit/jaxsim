@@ -13,6 +13,7 @@ from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain import FlatTerrain, Terrain
 
+from . import common
 from .common import ContactModel, ContactsParams
 
 try:
@@ -171,46 +172,6 @@ class RigidContacts(ContactModel):
         )
 
     @staticmethod
-    def detect_contacts(
-        W_p_C: jtp.ArrayLike,
-        terrain_height: jtp.ArrayLike,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
-        """
-        Detect contacts between the collidable points and the terrain.
-
-        Args:
-            W_p_C: The position of the collidable points.
-            terrain_height: The height of the terrain at the collidable point position.
-
-        Returns:
-            A tuple containing the activation state of the collidable points
-            and the contact penetration depth h.
-        """
-
-        # TODO: reduce code duplication with js.contact.in_contact
-        def detect_contact(
-            W_p_C: jtp.ArrayLike,
-            terrain_height: jtp.FloatLike,
-        ) -> tuple[jtp.Bool, jtp.Float]:
-            """
-            Detect contacts between the collidable points and the terrain.
-            """
-
-            # Unpack the position of the collidable point.
-            _, _, pz = W_p_C.squeeze()
-
-            inactive = pz > terrain_height
-
-            # Compute contact penetration depth
-            h = jnp.maximum(0.0, terrain_height - pz)
-
-            return inactive, h
-
-        inactive_collidable_points, h = jax.vmap(detect_contact)(W_p_C, terrain_height)
-
-        return inactive_collidable_points, h
-
-    @staticmethod
     def compute_impact_velocity(
         inactive_collidable_points: jtp.ArrayLike,
         M: jtp.MatrixLike,
@@ -332,13 +293,13 @@ class RigidContacts(ContactModel):
             model=model, data=data
         )
 
-        terrain_height = jax.vmap(self.terrain.height)(position[:, 0], position[:, 1])
-        n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]
+        # Get the number of collidable points.
+        n_collidable_points = len(model.kin_dyn_parameters.contact_parameters.body)
 
-        # Compute the activation state of the collidable points
-        inactive_collidable_points, h = RigidContacts.detect_contacts(
-            W_p_C=position,
-            terrain_height=terrain_height,
+        # Compute the penetration depth and velocity of the collidable points.
+        # Note that this function considers the penetration in the normal direction.
+        δ, δ_dot, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
+            position, velocity, self.terrain
         )
 
         # Compute the Delassus matrix.
@@ -379,12 +340,12 @@ class RigidContacts(ContactModel):
             CW_J_dot_WC_BW=J̇_WC_BW,
         ).flatten()
 
-        # Compute stabilization term
-        ḣ = velocity[:, 2].squeeze()
+        # Compute stabilization term.
         baumgarte_term = RigidContacts._compute_baumgarte_stabilization_term(
-            inactive_collidable_points=inactive_collidable_points,
-            h=h,
-            ḣ=ḣ,
+            inactive_collidable_points=(δ <= 0),
+            δ=δ,
+            δ_dot=δ_dot,
+            n=n̂,
             K=self.parameters.K,
             D=self.parameters.D,
         ).flatten()
@@ -395,7 +356,7 @@ class RigidContacts(ContactModel):
         Q = delassus_matrix
         q = free_contact_acc
         G = RigidContacts._compute_ineq_constraint_matrix(
-            inactive_collidable_points=inactive_collidable_points, mu=self.parameters.mu
+            inactive_collidable_points=(δ <= 0), mu=self.parameters.mu
         )
         h_bounds = RigidContacts._compute_ineq_bounds(
             n_collidable_points=n_collidable_points
@@ -497,33 +458,35 @@ class RigidContacts(ContactModel):
     @staticmethod
     def _compute_baumgarte_stabilization_term(
         inactive_collidable_points: jtp.ArrayLike,
-        h: jtp.ArrayLike,
-        ḣ: jtp.ArrayLike,
+        δ: jtp.ArrayLike,
+        δ_dot: jtp.ArrayLike,
+        n: jtp.ArrayLike,
         K: jtp.FloatLike,
         D: jtp.FloatLike,
     ) -> jtp.Array:
+
         def baumgarte_stabilization(
             inactive: jtp.BoolLike,
-            h: jtp.FloatLike,
-            ḣ: jtp.FloatLike,
+            δ: jtp.FloatLike,
+            δ_dot: jtp.FloatLike,
+            n: jtp.ArrayLike,
             k_baumgarte: jtp.FloatLike,
             d_baumgarte: jtp.FloatLike,
         ) -> jtp.Array:
+
             baumgarte_term = jax.lax.cond(
                 inactive,
-                lambda h, ḣ, K, D: jnp.zeros(shape=(3,)),
-                lambda h, ḣ, K, D: jnp.zeros(shape=(3,)).at[2].set(K * h + D * ḣ),
-                *(
-                    h,
-                    ḣ,
-                    k_baumgarte,
-                    d_baumgarte,
-                ),
+                lambda δ, δ_dot, n, K, D: jnp.zeros(3),
+                # This is equivalent to: K*(pT - p)⋅n̂ + D*(0 - v)⋅n̂,
+                # where pT is the point on the terrain surface vertical to p.
+                lambda δ, δ_dot, n, K, D: (K * δ + D * δ_dot) * n,
+                *(δ, δ_dot, n, k_baumgarte, d_baumgarte),
             )
+
             return baumgarte_term
 
         baumgarte_term = jax.vmap(
-            baumgarte_stabilization, in_axes=(0, 0, 0, None, None)
-        )(inactive_collidable_points, h, ḣ, K, D)
+            baumgarte_stabilization, in_axes=(0, 0, 0, 0, None, None)
+        )(inactive_collidable_points, δ, δ_dot, n, K, D)
 
         return baumgarte_term

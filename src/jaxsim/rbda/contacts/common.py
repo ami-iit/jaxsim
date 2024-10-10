@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import abc
+import functools
 from typing import Any
+
+import jax
+import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.terrain
@@ -12,6 +16,47 @@ try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
+
+
+@functools.partial(jax.jit, static_argnames=("terrain",))
+def compute_penetration_data(
+    p: jtp.VectorLike,
+    v: jtp.VectorLike,
+    terrain: jaxsim.terrain.Terrain,
+) -> tuple[jtp.Float, jtp.Float, jtp.Vector]:
+    """
+    Compute the penetration data (depth, rate, and terrain normal) of a collidable point.
+
+    Args:
+        p: The position of the collidable point.
+        v:
+            The linear velocity of the point (linear component of the mixed 6D velocity
+            of the implicit frame `C = (W_p_C, [W])` associated to the point).
+        terrain: The considered terrain.
+
+    Returns:
+        A tuple containing the penetration depth, the penetration velocity,
+        and the considered terrain normal.
+    """
+
+    # Pre-process the position and the linear velocity of the collidable point.
+    W_ṗ_C = jnp.array(v).squeeze()
+    px, py, pz = jnp.array(p).squeeze()
+
+    # Compute the terrain normal and the contact depth.
+    n̂ = terrain.normal(x=px, y=py).squeeze()
+    h = jnp.array([0, 0, terrain.height(x=px, y=py) - pz])
+
+    # Compute the penetration depth normal to the terrain.
+    δ = jnp.maximum(0.0, jnp.dot(h, n̂))
+
+    # Compute the penetration normal velocity.
+    δ_dot = -jnp.dot(W_ṗ_C, n̂)
+
+    # Enforce the penetration rate to be zero when the penetration depth is zero.
+    δ_dot = jnp.where(δ > 0, δ_dot, 0.0)
+
+    return δ, δ_dot, n̂
 
 
 class ContactsParams(JaxsimDataclass):

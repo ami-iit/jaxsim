@@ -1939,6 +1939,7 @@ def step(
     data: js.data.JaxSimModelData,
     *,
     integrator: jaxsim.integrators.Integrator,
+    t0: jtp.FloatLike = 0.0,
     dt: jtp.FloatLike | None = None,
     integrator_state: dict[str, Any] | None = None,
     link_forces: jtp.MatrixLike | None = None,
@@ -1953,6 +1954,7 @@ def step(
         data: The data of the considered model.
         integrator: The integrator to use.
         integrator_state: The state of the integrator.
+        t0: The initial time to consider. Only relevant for time-dependent dynamics.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
@@ -1975,9 +1977,9 @@ def step(
     integrator_state = integrator_state if integrator_state is not None else dict()
 
     # Initialize the time-related variables.
-    t0_ns = data.time_ns
     state_t0 = data.state
-    dt = dt if dt is not None else model.time_step
+    t0 = jnp.array(t0, dtype=float)
+    dt = jnp.array(dt if dt is not None else model.time_step).astype(float)
 
     # Rename the integrator state.
     integrator_state_t0 = integrator_state
@@ -1985,8 +1987,8 @@ def step(
     # Step the dynamics forward.
     state_tf, integrator_state_tf = integrator.step(
         x0=state_t0,
-        t0=jnp.array(t0_ns / 1e9, dtype=float),
-        dt=jnp.array(dt).astype(float),
+        t0=t0,
+        dt=dt,
         params=integrator_state_t0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
@@ -2006,20 +2008,8 @@ def step(
         ),
     )
 
-    # Compute the final time, addressing possible overflow (specific to 32bit).
-    tf_ns = t0_ns + jnp.array(dt * 1e9, dtype=t0_ns.dtype)
-    tf_ns = jnp.where(tf_ns >= t0_ns, tf_ns, jnp.array(0, dtype=t0_ns.dtype))
-
-    jax.lax.cond(
-        pred=tf_ns < t0_ns,
-        true_fun=lambda: jax.debug.print(
-            "The simulation time overflowed, resetting simulation time to 0."
-        ),
-        false_fun=lambda: None,
-    )
-
-    # Store the new state of the model and the new time.
-    data_tf = data.replace(state=state_tf, time_ns=tf_ns)
+    # Store the new state of the model.
+    data_tf = data.replace(state=state_tf)
 
     # Post process the simulation state, if needed.
     match model.contact_model:
@@ -2086,7 +2076,4 @@ def step(
                 velocity_representation=data.velocity_representation, validate=False
             )
 
-    return (
-        data_tf,
-        integrator_state_tf,
-    )
+    return data_tf, integrator_state_tf

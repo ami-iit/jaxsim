@@ -8,18 +8,34 @@ def _jnp_options() -> None:
 
     import jax
 
-    # Enable by default 64bit precision in JAX.
-    if os.environ.get("JAX_ENABLE_X64", "1") != "0":
+    # Check if running on TPU
+    is_tpu = jax.devices()[0].platform == "tpu"
 
+    # Determine if 64-bit precision is requested
+    use_x64 = os.environ.get("JAX_ENABLE_X64", "1") != "0"
+
+    # Raise an error if 64-bit precision is not allowed on TPU
+    if is_tpu and use_x64:
+        msg = "64-bit precision is not allowed on TPU. Enforcing 32bit precision."
+        logging.error(msg)
+
+    # Enable 64-bit precision in JAX
+    elif not is_tpu and use_x64:
         logging.info("Enabling JAX to use 64bit precision")
         jax.config.update("jax_enable_x64", True)
 
         import jax.numpy as jnp
         import numpy as np
 
+        # Verify 64-bit precision is correctly set
         if jnp.empty(0, dtype=float).dtype != jnp.empty(0, dtype=np.float64).dtype:
             logging.warning("Failed to enable 64bit precision in JAX")
 
+    # Enforce 32-bit precision on TPU
+    elif is_tpu:
+        logging.warning("JAX is running on TPU; 32bit precision is enforced.")
+
+    # Warn about experimental use of 32-bit precision
     else:
         logging.warning(
             "Using 32bit precision in JaxSim is still experimental, please avoid to use variable step integrators."

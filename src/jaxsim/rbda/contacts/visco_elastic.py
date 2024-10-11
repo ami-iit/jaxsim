@@ -928,7 +928,6 @@ class ViscoElasticContacts(common.ContactModel):
         # Create the data at the final time.
         with data.editable(validate=True) as data_tf:
             data_tf: js.data.JaxSimModelData
-            data_tf.time_ns = data.time_ns + (dt * 1e9).astype(data.time_ns.dtype)
 
         data_tf = data_tf.reset_joint_positions(q_plus[7:])
         data_tf = data_tf.reset_base_position(q_plus[0:3])

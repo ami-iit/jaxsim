@@ -926,13 +926,10 @@ class ViscoElasticContacts(common.ContactModel):
         )
 
         # Create the data at the final time.
-        with data.editable(validate=True) as data_tf:
-            data_tf: js.data.JaxSimModelData
-
+        data_tf = data.copy()
         data_tf = data_tf.reset_joint_positions(q_plus[7:])
         data_tf = data_tf.reset_base_position(q_plus[0:3])
         data_tf = data_tf.reset_base_quaternion(q_plus[3:7])
-
         data_tf = data_tf.reset_joint_velocities(W_ν_plus[6:])
         data_tf = data_tf.reset_base_velocity(
             W_ν_plus[0:6], velocity_representation=jaxsim.VelRepr.Inertial

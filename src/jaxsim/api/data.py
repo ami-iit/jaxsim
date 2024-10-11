@@ -38,12 +38,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     contacts_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(repr=False)
 
-    time_ns: jtp.Int = dataclasses.field(
-        default_factory=lambda: jnp.array(
-            0, dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32
-        ),
-    )
-
     def __hash__(self) -> int:
 
         from jaxsim.utils.wrappers import HashedNumpyArray
@@ -52,7 +46,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             (
                 hash(self.state),
                 HashedNumpyArray.hash_of_array(self.gravity),
-                HashedNumpyArray.hash_of_array(self.time_ns),
                 hash(self.contacts_params),
             )
         )
@@ -115,7 +108,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
         contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
-        time: jtp.FloatLike | None = None,
         extended_ode_state: dict[str, jtp.PyTree] | None = None,
     ) -> JaxSimModelData:
         """
@@ -134,7 +126,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             standard_gravity: The standard gravity constant.
             contacts_params: The parameters of the soft contacts.
             velocity_representation: The velocity representation to use.
-            time: The time at which the state is created.
             extended_ode_state:
                 Additional user-defined state variables that are not part of the
                 standard `ODEState` object. Useful to extend the system dynamics
@@ -196,11 +187,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ).squeeze()
         )
 
-        time_ns = jnp.array(
-            time * 1e9 if time is not None else 0.0,
-            dtype=jnp.uint64 if jax.config.read("jax_enable_x64") else jnp.uint32,
-        )
-
         W_H_B = jaxsim.math.Transform.from_quaternion_and_translation(
             translation=base_position, quaternion=base_quaternion
         )
@@ -246,7 +232,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 contacts_params = model.contact_model.parameters
 
         return JaxSimModelData(
-            time_ns=time_ns,
             state=ode_state,
             gravity=gravity,
             contacts_params=contacts_params,
@@ -256,16 +241,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     # ==================
     # Extract quantities
     # ==================
-
-    def time(self) -> jtp.Float:
-        """
-        Get the simulated time.
-
-        Returns:
-            The simulated time in seconds.
-        """
-
-        return self.time_ns.astype(float) / 1e9
 
     def standard_gravity(self) -> jtp.Float:
         """

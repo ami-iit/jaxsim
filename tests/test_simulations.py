@@ -70,14 +70,14 @@ def test_box_with_external_forces(
     # Initialize the integrator.
     tf = 0.5
     dt = 0.001
-    T = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
+    T_ns = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
     integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=dt)
 
     # Copy the initial data...
     data = data0.copy()
 
     # ... and step the simulation.
-    for t_ns in T:
+    for _ in T_ns:
 
         data, integrator_state = js.model.step(
             model=model,
@@ -89,7 +89,6 @@ def test_box_with_external_forces(
         )
 
     # Check that the box didn't move.
-    assert data.time() == t_ns / 1e9 + dt
     assert data.base_position() == pytest.approx(data0.base_position())
     assert data.base_orientation() == pytest.approx(data0.base_orientation())
 
@@ -158,16 +157,14 @@ def test_box_with_zero_gravity(
 
     # Initialize the integrator.
     tf, dt = 1.0, 0.010
-    T = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
+    T_ns = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
     integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=dt)
 
     # Copy the initial data...
     data = data0.copy()
 
     # ... and step the simulation.
-    for t_ns in T:
-
-        assert data.time() == t_ns / 1e9
+    for _ in T_ns:
 
         with (
             data.switch_velocity_representation(velocity_representation),
@@ -182,9 +179,6 @@ def test_box_with_zero_gravity(
                 integrator_state=integrator_state,
                 link_forces=references.link_forces(model=model, data=data),
             )
-
-    # Check the final simulation time.
-    assert data.time() == T[-1] / 1e9 + dt
 
     # Check that the box moved as expected.
     assert data.base_position() == pytest.approx(

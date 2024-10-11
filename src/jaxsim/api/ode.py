@@ -63,7 +63,6 @@ def wrap_system_dynamics_for_integration(
         # Update the state and time stored inside data.
         with data_f.editable(validate=True) as data_rw:
             data_rw.state = x
-            data_rw.time_ns = jnp.array(t * 1e9).astype(data_rw.time_ns.dtype)
 
         # Evaluate the system dynamics, allowing to override the kwargs originally
         # passed when the closure was created.

@@ -263,7 +263,7 @@ class ViscoElasticContacts(common.ContactModel):
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         *,
-        dt: jtp.FloatLike,
+        dt: jtp.FloatLike | None = None,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
     ) -> tuple[jtp.Vector, tuple[Any, ...]]:
@@ -273,7 +273,7 @@ class ViscoElasticContacts(common.ContactModel):
         Args:
             model: The robot model considered by the contact model.
             data: The data of the considered model.
-            dt: The integration time step.
+            dt: The time step to consider. If not specified, it is read from the model.
             link_forces:
                 The 6D forces to apply to the links expressed in the frame corresponding
                 to the velocity representation of `data`.
@@ -305,13 +305,16 @@ class ViscoElasticContacts(common.ContactModel):
             model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
         )
 
+        # Initialize the time step.
+        dt = dt if dt is not None else model.time_step
+
         # Compute the average contact linear forces in mixed representation by
         # integrating the contact dynamics in the continuous time domain.
         CW_f̅l, CW_fl̿, m_tf = (
             ViscoElasticContacts._compute_contact_forces_with_exponential_integration(
                 model=model,
                 data=data,
-                dt=dt,
+                dt=jnp.array(dt).astype(float),
                 joint_force_references=joint_force_references,
                 link_forces=link_forces,
                 indices_of_enabled_collidable_points=indices_of_enabled_collidable_points,
@@ -923,14 +926,10 @@ class ViscoElasticContacts(common.ContactModel):
         )
 
         # Create the data at the final time.
-        with data.editable(validate=True) as data_tf:
-            data_tf: js.data.JaxSimModelData
-            data_tf.time_ns = data.time_ns + (dt * 1e9).astype(data.time_ns.dtype)
-
+        data_tf = data.copy()
         data_tf = data_tf.reset_joint_positions(q_plus[7:])
         data_tf = data_tf.reset_base_position(q_plus[0:3])
         data_tf = data_tf.reset_base_quaternion(q_plus[3:7])
-
         data_tf = data_tf.reset_joint_velocities(W_ν_plus[6:])
         data_tf = data_tf.reset_base_velocity(
             W_ν_plus[0:6], velocity_representation=jaxsim.VelRepr.Inertial
@@ -946,7 +945,7 @@ def step(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    dt: jtp.FloatLike,
+    dt: jtp.FloatLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
 ) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
@@ -956,7 +955,7 @@ def step(
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        dt: The time step to consider.
+        dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
@@ -970,11 +969,14 @@ def step(
     assert isinstance(model.contact_model, ViscoElasticContacts)
     assert isinstance(data.contacts_params, ViscoElasticContactsParams)
 
+    # Initialize the time step.
+    dt = dt if dt is not None else model.time_step
+
     # Compute the contact forces with the exponential integrator.
     W_f̅_C, (W_f̿_C, m_tf) = model.contact_model.compute_contact_forces(
         model=model,
         data=data,
-        dt=dt,
+        dt=jnp.array(dt).astype(float),
         link_forces=link_forces,
         joint_force_references=joint_force_references,
     )

@@ -17,6 +17,10 @@ def raise_if(
             format string (fmt), whose fields are filled with the args and kwargs.
     """
 
+    # Disable host callback if running on TPU.
+    if jax.devices()[0].platform == "tpu":
+        return
+
     # Check early that the format string is well-formed.
     try:
         _ = msg.format(*args, **kwargs)

@@ -646,7 +646,7 @@ class MujocoCamera:
     def build(cls, **kwargs) -> MujocoCamera:
 
         if not all(isinstance(value, str) for value in kwargs.values()):
-            raise ValueError("Values must be strings")
+            raise ValueError(f"Values must be strings: {kwargs}")
 
         return cls(**kwargs)
 

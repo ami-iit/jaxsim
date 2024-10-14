@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 import pathlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import mujoco as mj
@@ -315,7 +315,7 @@ class MujocoModelHelper:
         self.data.qpos[sl] = position
 
     def set_joint_positions(
-        self, joint_names: list[str], positions: npt.NDArray | list[npt.NDArray]
+        self, joint_names: Sequence[str], positions: npt.NDArray | list[npt.NDArray]
     ) -> None:
         """Set the positions of multiple joints."""
 

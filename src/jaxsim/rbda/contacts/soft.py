@@ -423,7 +423,7 @@ class SoftContacts(common.ContactModel):
         self,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
-    ) -> tuple[jtp.Matrix, tuple[jtp.Matrix]]:
+    ) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
         """
         Compute the contact forces.
 
@@ -433,7 +433,7 @@ class SoftContacts(common.ContactModel):
 
         Returns:
             A tuple containing as first element the computed contact forces, and as
-            second element the derivative of the material deformation.
+            second element a dictionary with derivative of the material deformation.
         """
 
         # Initialize the model and data this contact model is operating on.
@@ -460,4 +460,4 @@ class SoftContacts(common.ContactModel):
             )
         )(W_p_C, W_ṗ_C, m)
 
-        return W_f, (ṁ,)
+        return W_f, dict(m_dot=ṁ)

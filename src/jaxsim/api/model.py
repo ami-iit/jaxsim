@@ -1770,6 +1770,7 @@ def link_bias_accelerations(
 def link_contact_forces(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
+    *,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
     **kwargs,
@@ -1822,47 +1823,15 @@ def link_contact_forces(
         joint_force_references=joint_force_references,
     )
 
-    # Compute the 6D forces applied to each collidable point expressed in the
-    # inertial frame.
-    with (
-        data.switch_velocity_representation(VelRepr.Inertial),
-        input_references.switch_velocity_representation(VelRepr.Inertial),
-    ):
-        W_f_C = js.contact.collidable_point_forces(
-            model=model,
-            data=data,
-            link_forces=input_references.link_forces(),
-            joint_force_references=input_references.joint_force_references(),
-            **kwargs,
-        )
-
-    # Construct the vector defining the parent link index of each collidable point.
-    # We use this vector to sum the 6D forces of all collidable points rigidly
-    # attached to the same link.
-    parent_link_index_of_collidable_points = jnp.array(
-        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    # Compute the 6D forces applied to the links equivalent to the forces applied
+    # to the frames associated to the collidable points.
+    f_L, _ = model.contact_model.compute_link_contact_forces(
+        model=model,
+        data=data,
+        link_forces=input_references.link_forces(model=model, data=data),
+        joint_force_references=input_references.joint_force_references(),
+        **kwargs,
     )
-
-    # Create the mask that associate each collidable point to their parent link.
-    # We use this mask to sum the collidable points to the right link.
-    mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
-        model.number_of_links()
-    )
-
-    # Sum the forces of all collidable points rigidly attached to a body.
-    # Since the contact forces W_f_C are expressed in the world frame,
-    # we don't need any coordinate transformation.
-    W_f_L = mask.T @ W_f_C
-
-    # Create a references object to store the link forces.
-    references = js.references.JaxSimModelReferences.build(
-        model=model, link_forces=W_f_L, velocity_representation=VelRepr.Inertial
-    )
-
-    # Use the references object to convert the link forces to the velocity
-    # representation of data.
-    with references.switch_velocity_representation(data.velocity_representation):
-        f_L = references.link_forces(model=model, data=data)
 
     return f_L
 
@@ -1970,6 +1939,11 @@ def step(
     Returns:
         A tuple containing the new data of the model
         and the new state of the integrator.
+
+    Note:
+        In order to reduce the occurrences of frame conversions performed internally,
+        it is recommended to use inertial-fixed velocity representation. This can be
+        particularly useful for automatically differentiated logic.
     """
 
     # Extract the integrator kwargs.

@@ -242,7 +242,7 @@ class RigidContacts(ContactModel):
         *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-    ) -> tuple[jtp.Matrix, tuple]:
+    ) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
         """
         Compute the contact forces.
 
@@ -402,7 +402,7 @@ class RigidContacts(ContactModel):
             ),
         )(CW_fl_C, W_H_C)
 
-        return W_f_C, ()
+        return W_f_C, {}
 
     @staticmethod
     def _delassus_matrix(

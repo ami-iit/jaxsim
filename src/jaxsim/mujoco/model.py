@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 import pathlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import mujoco as mj
@@ -107,7 +107,8 @@ class MujocoModelHelper:
             size = [float(el) for el in hfield_element["@size"].split(" ")]
             size[0], size[1] = heightmap_radius_xy
             size[2] = 1.0
-            size[3] = max(0, -min(hfield))
+            # The following could be zero but Mujoco complains if it's exactly zero.
+            size[3] = max(0.000_001, -min(hfield))
 
             # Replace the 'size' attribute.
             hfields_dict[heightmap_name]["@size"] = " ".join(str(el) for el in size)
@@ -315,7 +316,7 @@ class MujocoModelHelper:
         self.data.qpos[sl] = position
 
     def set_joint_positions(
-        self, joint_names: list[str], positions: npt.NDArray | list[npt.NDArray]
+        self, joint_names: Sequence[str], positions: npt.NDArray | list[npt.NDArray]
     ) -> None:
         """Set the positions of multiple joints."""
 

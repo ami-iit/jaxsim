@@ -89,7 +89,7 @@ class MujocoVideoRecorder:
         if not exist_ok and path.is_file():
             raise FileExistsError(f"The file '{path}' already exists.")
 
-        media.write_video(path=path, images=self.frames, fps=self.fps)
+        media.write_video(path=path, images=np.array(self.frames), fps=self.fps)
 
     @staticmethod
     def compute_down_sampling(original_fps: int, target_min_fps: int) -> int:

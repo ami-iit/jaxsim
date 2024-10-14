@@ -107,7 +107,8 @@ class MujocoModelHelper:
             size = [float(el) for el in hfield_element["@size"].split(" ")]
             size[0], size[1] = heightmap_radius_xy
             size[2] = 1.0
-            size[3] = max(0, -min(hfield))
+            # The following could be zero but Mujoco complains if it's exactly zero.
+            size[3] = max(0.000_001, -min(hfield))
 
             # Replace the 'size' attribute.
             hfields_dict[heightmap_name]["@size"] = " ".join(str(el) for el in size)

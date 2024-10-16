@@ -5,21 +5,19 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"build": {
 		"context": "..",
-		"dockerfile": "Dockerfile",
+		"dockerfile": "Dockerfile"
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	"features": {
-		"ghcr.io/mamba-org/devcontainer-features/micromamba:1": {
-			"envFile": "/opt/environment.yml",
-		},
-	},
+	// "features": {
+	// 	"ghcr.io/rocker-org/devcontainer-features/miniforge:2": {}
+	// },
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "uname -a",
+	// "postCreateCommand": "conda env create -q -f /tmp/environment.yml && pip install -qe --no-deps .",
 
 	// Configure tool-specific properties.
 	// "customizations": {},
@@ -28,7 +26,21 @@
 	// "remoteUser": "root"
 
 	// VSCode extensions
-	"extensions": [
-		"ms-python.python",
-	],
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/workspaces/jaxsim/.pixi/envs/default/bin/python",
+				"python.terminal.activateEnvironment": true,
+				// "python.terminal.activateEnvInCurrentTerminal": true
+			},
+			"extensions": [
+				"ms-python.python",
+				"donjayamanne.python-extension-pack",
+				"ms-toolsai.jupyter",
+				"GitHub.codespaces",
+				"ms-azuretools.vscode-docker",
+                "charliermarsh.ruff"
+			]
+		}
+	}
 }

@@ -41,6 +41,20 @@ Example Notebooks
       <div class="sphx-glr-thumbnail-title">JaxSim for developing closed-loop robot controllers</div>
     </div>
 
+
+.. raw:: html
+
+    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim as a multibody dynamics library">
+
+.. only:: html
+
+    :doc:`_collections/examples/jaxsim_as_multibody_dynamics_library`
+
+.. raw:: html
+
+      <div class="sphx-glr-thumbnail-title">JaxSim as a multibody dynamics library</div>
+    </div>
+
 .. raw:: html
 
     </div>

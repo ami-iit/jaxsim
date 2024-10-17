@@ -1,40 +1,41 @@
-# JAXsim Notebook Examples
+# JaxSim Examples
 
-This folder includes a Jupyter Notebook demonstrating the practical usage of JAXsim for system simulations.
+This folder contains Jupyter notebooks that demonstrate the practical usage of JaxSim.
 
-### Examples
+## Featured examples
 
-- [PD_controller](./PD_controller.ipynb) <a target="_blank" href="https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/PD_controller.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> - A simple example demonstrating the use of JAXsim to simulate a PD controller with gravity compensation for a 2-DOF cartpole.
+| Notebook | Google Colab | Description |
+| :--- | :---: | :--- |
+| [`jaxsim_as_physics_engine.ipynb`](./jaxsim_as_physics_engine.ipynb) | [![Open In Colab][colab_badge]][ipynb_jaxsim_as_physics_engine] | An example demonstrating how to simulate vectorized models in parallel. |
+| [`jaxsim_for_robot_controllers.ipynb`](./jaxsim_for_robot_controllers.ipynb) | [![Open In Colab][colab_badge]][ipynb_jaxsim_closed_loop] | A basic example showing how to simulate a PD controller with gravity compensation for a 2-DOF cart-pole. |
 
-- [Parallel_computing](./Parallel_computing.ipynb) <a target="_blank" href="https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/Parallel_computing.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/> </a> - An example demonstrating how to simulate vectorized models in parallel using JAXsim.
+[colab_badge]: https://colab.research.google.com/assets/colab-badge.svg
+[ipynb_jaxsim_closed_loop]: https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/jaxsim_for_robot_controllers.ipynb
+[ipynb_jaxsim_as_physics_engine]: https://colab.research.google.com/github/ami-iit/jaxsim/blob/main/examples/jaxsim_as_physics_engine.ipynb
 
-> [!TIP]
-> Stay tuned for more examples!
+## How to run the examples
 
-## Running the Examples
+You can run the JaxSim examples with hardware acceleration in two ways.
 
-To execute these examples utilizing JAXsim with hardware acceleration, there are a couple of options available:
+### Option 1: Google Colab (recommended)
 
-### Option 1: Google Colab (Recommended)
+The easiest way is to use the provided Google Colab links to run the notebooks in a hosted environment
+with no setup required.
 
-The simplest way to run the examples is by accessing the provided Google Colab notebook link mentioned above. This will enable you to execute the examples in a hosted environment.
+### Option 2: Local execution with `pixi`
 
-### Option 2: Local Execution with `pixi`
+To run the examples locally, first install `pixi` following the [official documentation][pixi_installation]:
 
-For local execution, follow these steps:
-
-1. **Install `pixi`:**
-
-As per the [official documentation](https://pixi.sh/#installation):
+[pixi_installation]: https://pixi.sh/#installation
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash
 ```
 
-2. **Run the Example Notebook:**
+Then, from the repository's root directory, execute the example notebooks using:
 
-Use `pixi run examples` from the project source directory to execute the example notebook locally.
+```bash
+pixi run examples
+```
 
-This command will automatically handle the installation of necessary dependencies and execute the examples within a self-contained environment
+This command will automatically handle all necessary dependencies and run the examples in a self-contained environment.

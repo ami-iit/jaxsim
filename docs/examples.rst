@@ -16,29 +16,29 @@ Example Notebooks
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Parallel Simulation.">
+    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim as a hardware-accelerated parallel physics engine">
 
 .. only:: html
 
-    :doc:`_collections/examples/Parallel_computing`
+    :doc:`_collections/examples/jaxsim_as_physics_engine`
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Parallel Simulation</div>
+      <div class="sphx-glr-thumbnail-title">JaxSim as a hardware-accelerated parallel physics engine</div>
     </div>
 
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="PD Controller.">
+    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim for developing closed-loop robot controllers">
 
 .. only:: html
 
-    :doc:`_collections/examples/PD_controller`
+    :doc:`_collections/examples/jaxsim_for_robot_controllers`
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">PD Controller</div>
+      <div class="sphx-glr-thumbnail-title">JaxSim for developing closed-loop robot controllers</div>
     </div>
 
 .. raw:: html

@@ -359,24 +359,6 @@ def test_ad_integration(
     # Test
     # ====
 
-    import jaxsim.integrators
-
-    # Note that only fixes-step integrators support both FWD and RWD gradients.
-    # Select a second-order Heun scheme with quaternion integrated on SO(3).
-    # Note that it's always preferable using the SO(3) versions on AD applications so
-    # that the gradient of the integrated dynamics always considers unary quaternions.
-    integrator = jaxsim.integrators.fixed_step.Heun2SO3.build(
-        dynamics=js.ode.wrap_system_dynamics_for_integration(
-            model=model,
-            data=data,
-            system_dynamics=js.ode.system_dynamics,
-        ),
-    )
-
-    # Initialize the integrator.
-    t0, dt = 0.0, 0.001
-    integrator_state = integrator.init(x0=data.state, t0=t0, dt=dt)
-
     # Function exposing only the parameters to be differentiated.
     def step(
         W_p_B: jtp.Vector,
@@ -408,11 +390,8 @@ def test_ad_integration(
         )
 
         data_xf, _ = js.model.step(
-            dt=dt,
             model=model,
             data=data_x0,
-            integrator=integrator,
-            integrator_state=integrator_state,
             joint_force_references=τ,
             link_forces=W_f_L,
         )

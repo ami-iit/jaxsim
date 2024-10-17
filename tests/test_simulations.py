@@ -402,11 +402,11 @@ def test_simulation_with_relaxed_rigid_contacts(
         model=model,
         base_position=jnp.array([0.0, 0.0, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
-        # In order to achieve almost no penetration, we need to use a fairly large
-        # Baumgarte stabilization term.
+        # For this contact model, the following method is practically no-op.
+        # Let's leave it there for consistency and to make sure that nothing
+        # gets broken if it is updated in the future.
         contacts_params=js.contact.estimate_good_contact_parameters(
             model=model,
-            time_constant=0.001,
         ),
     )
     # ===========================================
@@ -415,7 +415,7 @@ def test_simulation_with_relaxed_rigid_contacts(
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
 
-    # With this contact model, we need to slightly adjust the tolerance on xy.
+    # With this contact model, we need to slightly increase the tolerances.
     assert data_tf.base_position()[0:2] == pytest.approx(
         data_t0.base_position()[0:2], abs=0.000_010
     )

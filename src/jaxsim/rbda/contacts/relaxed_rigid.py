@@ -265,13 +265,13 @@ class RelaxedRigidContacts(common.ContactModel):
             jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
-        ).astype(float)
+        )
 
         joint_force_references = jnp.atleast_1d(
             jnp.array(joint_force_references, dtype=float).squeeze()
             if joint_force_references is not None
             else jnp.zeros(model.number_of_joints())
-        ).astype(float)
+        )
 
         references = js.references.JaxSimModelReferences.build(
             model=model,

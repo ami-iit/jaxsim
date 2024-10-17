@@ -44,15 +44,15 @@ Example Notebooks
 
 .. raw:: html
 
-    <div class="sphx-glr-thumbcontainer" tooltip="Rigid Body Dynamics">
+    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim as a multibody dynamics library">
 
 .. only:: html
 
-    :doc:`_collections/examples/Rigid_body_dynamics`
+    :doc:`_collections/examples/jaxsim_as_multibody_dynamics_library`
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">Rigid Body Dynamics</div>
+      <div class="sphx-glr-thumbnail-title">JaxSim as a multibody dynamics library</div>
     </div>
 
 .. raw:: html

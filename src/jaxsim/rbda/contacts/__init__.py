@@ -4,3 +4,10 @@ from .relaxed_rigid import RelaxedRigidContacts, RelaxedRigidContactsParams
 from .rigid import RigidContacts, RigidContactsParams
 from .soft import SoftContacts, SoftContactsParams
 from .visco_elastic import ViscoElasticContacts, ViscoElasticContactsParams
+
+ContactParamsTypes = (
+    SoftContactsParams
+    | RigidContactsParams
+    | RelaxedRigidContactsParams
+    | ViscoElasticContactsParams
+)

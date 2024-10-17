@@ -36,11 +36,10 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    from jaxsim.rbda import collidable_points
-
     # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_Ci, W_ṗ_Ci = collidable_points.collidable_points_pos_vel(
+
+        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
             model=model,
             base_position=data.base_position(),
             base_quaternion=data.base_orientation(dcm=False),
@@ -304,6 +303,15 @@ def in_contact(
 
 
 def estimate_good_soft_contacts_parameters(
+    *args, **kwargs
+) -> jaxsim.rbda.contacts.ContactParamsTypes:
+
+    msg = "This method is deprecated, please use `{}`."
+    logging.warning(msg.format(estimate_good_contact_parameters.__name__))
+    return estimate_good_contact_parameters(*args, **kwargs)
+
+
+def estimate_good_contact_parameters(
     model: js.model.JaxSimModel,
     *,
     standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
@@ -312,14 +320,9 @@ def estimate_good_soft_contacts_parameters(
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
     **kwargs,
-) -> (
-    jaxsim.rbda.contacts.RelaxedRigidContactsParams
-    | jaxsim.rbda.contacts.RigidContactsParams
-    | jaxsim.rbda.contacts.SoftContactsParams
-    | jaxsim.rbda.contacts.ViscoElasticContactsParams
-):
+) -> jaxsim.rbda.contacts.ContactParamsTypes:
     """
-    Estimate good parameters for soft-like contact models.
+    Estimate good contact parameters.
 
     Args:
         model: The model to consider.
@@ -332,12 +335,19 @@ def estimate_good_soft_contacts_parameters(
         max_penetration:
             The maximum penetration allowed in steady state when the robot is
             supported by the configured number of active collidable points.
+        kwargs:
+            Additional model-specific parameters passed to the builder method of
+            the parameters class.
 
     Returns:
-        The estimated good soft contacts parameters.
+        The estimated good contacts parameters.
 
     Note:
-        This method provides a good starting point for the soft contacts parameters.
+        This is primarily a convenience function for soft-like contact models.
+        However, it provides with some good default parameters also for the other ones.
+
+    Note:
+        This method provides a good set of contacts parameters.
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
@@ -364,6 +374,7 @@ def estimate_good_soft_contacts_parameters(
     max_δ = (
         max_penetration
         if max_penetration is not None
+        # Consider as default a 0.5% of the model height.
         else 0.005 * estimate_model_height(model=model)
     )
 
@@ -381,8 +392,11 @@ def estimate_good_soft_contacts_parameters(
                 max_penetration=max_δ,
                 number_of_active_collidable_points_steady_state=nc,
                 damping_ratio=damping_ratio,
-                p=model.contact_model.parameters.p,
-                q=model.contact_model.parameters.q,
+                **dict(
+                    p=model.contact_model.parameters.p,
+                    q=model.contact_model.parameters.q,
+                )
+                | kwargs,
             )
 
         case contacts.ViscoElasticContacts():
@@ -396,15 +410,40 @@ def estimate_good_soft_contacts_parameters(
                     max_penetration=max_δ,
                     number_of_active_collidable_points_steady_state=nc,
                     damping_ratio=damping_ratio,
-                    p=model.contact_model.parameters.p,
-                    q=model.contact_model.parameters.q,
-                    **kwargs,
+                    **dict(
+                        p=model.contact_model.parameters.p,
+                        q=model.contact_model.parameters.q,
+                    )
+                    | kwargs,
                 )
             )
 
+        case contacts.RigidContacts():
+            assert isinstance(model.contact_model, contacts.RigidContacts)
+
+            # Disable Baumgarte stabilization by default since it does not play
+            # well with the forward Euler integrator.
+            K = kwargs.get("K", 0.0)
+
+            parameters = contacts.RigidContactsParams.build(
+                mu=static_friction_coefficient,
+                **dict(
+                    K=K,
+                    D=2 * jnp.sqrt(K),
+                )
+                | kwargs,
+            )
+
+        case contacts.RelaxedRigidContacts():
+            assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)
+
+            parameters = contacts.RelaxedRigidContactsParams.build(
+                mu=static_friction_coefficient,
+                **kwargs,
+            )
+
         case _:
-            logging.warning("The active contact model is not soft-like, no-op.")
-            parameters = model.contact_model.parameters
+            raise ValueError(f"Invalid contact model: {model.contact_model}")
 
     return parameters
 

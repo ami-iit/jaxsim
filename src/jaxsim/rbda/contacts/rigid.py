@@ -13,6 +13,7 @@ from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.terrain import FlatTerrain, Terrain
 
+from . import common
 from .common import ContactModel, ContactsParams
 
 try:
@@ -171,46 +172,6 @@ class RigidContacts(ContactModel):
         )
 
     @staticmethod
-    def detect_contacts(
-        W_p_C: jtp.ArrayLike,
-        terrain_height: jtp.ArrayLike,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
-        """
-        Detect contacts between the collidable points and the terrain.
-
-        Args:
-            W_p_C: The position of the collidable points.
-            terrain_height: The height of the terrain at the collidable point position.
-
-        Returns:
-            A tuple containing the activation state of the collidable points
-            and the contact penetration depth h.
-        """
-
-        # TODO: reduce code duplication with js.contact.in_contact
-        def detect_contact(
-            W_p_C: jtp.ArrayLike,
-            terrain_height: jtp.FloatLike,
-        ) -> tuple[jtp.Bool, jtp.Float]:
-            """
-            Detect contacts between the collidable points and the terrain.
-            """
-
-            # Unpack the position of the collidable point.
-            _, _, pz = W_p_C.squeeze()
-
-            inactive = pz > terrain_height
-
-            # Compute contact penetration depth
-            h = jnp.maximum(0.0, terrain_height - pz)
-
-            return inactive, h
-
-        inactive_collidable_points, h = jax.vmap(detect_contact)(W_p_C, terrain_height)
-
-        return inactive_collidable_points, h
-
-    @staticmethod
     def compute_impact_velocity(
         inactive_collidable_points: jtp.ArrayLike,
         M: jtp.MatrixLike,
@@ -281,7 +242,7 @@ class RigidContacts(ContactModel):
         *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-    ) -> tuple[jtp.Vector, tuple[Any, ...]]:
+    ) -> tuple[jtp.Matrix, tuple]:
         """
         Compute the contact forces.
 
@@ -295,36 +256,41 @@ class RigidContacts(ContactModel):
                 Optional `(n_joints,)` vector of joint forces.
 
         Returns:
-            A tuple containing the contact forces.
+            A tuple containing as first element the computed contact forces.
         """
 
         # Initialize the model and data this contact model is operating on.
         # This will raise an exception if either the contact model or the
         # contact parameters are not compatible.
         model, data = self.initialize_model_and_data(model=model, data=data)
+        assert isinstance(data.contacts_params, RigidContactsParams)
 
-        # Import qpax just in this method
+        # Import qpax privately just in this method.
         import qpax
 
-        link_forces = (
-            link_forces
+        link_forces = jnp.atleast_2d(
+            jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
             else jnp.zeros((model.number_of_links(), 6))
         )
 
-        joint_force_references = (
-            joint_force_references
+        joint_force_references = jnp.atleast_1d(
+            jnp.array(joint_force_references, dtype=float).squeeze()
             if joint_force_references is not None
             else jnp.zeros((model.number_of_joints(),))
         )
 
-        # Compute kin-dyn quantities used in the contact model
+        # Compute kin-dyn quantities used in the contact model.
         with data.switch_velocity_representation(VelRepr.Mixed):
-            M = js.model.free_floating_mass_matrix(model=model, data=data)
-            J_WC = js.contact.jacobian(model=model, data=data)
-            W_H_C = js.contact.transforms(model=model, data=data)
-            J̇_WC_BW = js.contact.jacobian_derivative(model=model, data=data)
+
             BW_ν = data.generalized_velocity()
+
+            M = js.model.free_floating_mass_matrix(model=model, data=data)
+
+            J_WC = js.contact.jacobian(model=model, data=data)
+            J̇_WC = js.contact.jacobian_derivative(model=model, data=data)
+
+            W_H_C = js.contact.transforms(model=model, data=data)
 
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
@@ -332,23 +298,16 @@ class RigidContacts(ContactModel):
             model=model, data=data
         )
 
-        terrain_height = jax.vmap(self.terrain.height)(position[:, 0], position[:, 1])
-        n_collidable_points = model.kin_dyn_parameters.contact_parameters.point.shape[0]
+        # Get the number of collidable points.
+        n_collidable_points = len(model.kin_dyn_parameters.contact_parameters.body)
 
-        # Compute the activation state of the collidable points
-        inactive_collidable_points, h = RigidContacts.detect_contacts(
-            W_p_C=position,
-            terrain_height=terrain_height,
+        # Compute the penetration depth and velocity of the collidable points.
+        # Note that this function considers the penetration in the normal direction.
+        δ, δ_dot, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
+            position, velocity, model.terrain
         )
 
-        # Compute the Delassus matrix.
-        delassus_matrix = RigidContacts._delassus_matrix(M=M, J_WC=J_WC)
-
-        # Add regularization for better numerical conditioning.
-        delassus_matrix = delassus_matrix + self.regularization_delassus * jnp.eye(
-            delassus_matrix.shape[0]
-        )
-
+        # Build a references object to simplify converting link forces.
         references = js.references.JaxSimModelReferences.build(
             model=model,
             data=data,
@@ -357,10 +316,12 @@ class RigidContacts(ContactModel):
             joint_force_references=joint_force_references,
         )
 
+        # Compute the generalized free acceleration.
         with (
             references.switch_velocity_representation(VelRepr.Mixed),
             data.switch_velocity_representation(VelRepr.Mixed),
         ):
+
             BW_ν̇_free = jnp.hstack(
                 js.ode.system_acceleration(
                     model=model,
@@ -372,64 +333,74 @@ class RigidContacts(ContactModel):
                 )
             )
 
+        # Compute the free linear acceleration of the collidable points.
+        # Since we use doubly-mixed jacobian, this corresponds to W_p̈_C.
         free_contact_acc = RigidContacts._linear_acceleration_of_collidable_points(
             BW_nu=BW_ν,
             BW_nu_dot=BW_ν̇_free,
             CW_J_WC_BW=J_WC,
-            CW_J_dot_WC_BW=J̇_WC_BW,
+            CW_J_dot_WC_BW=J̇_WC,
         ).flatten()
 
-        # Compute stabilization term
-        ḣ = velocity[:, 2].squeeze()
+        # Compute stabilization term.
         baumgarte_term = RigidContacts._compute_baumgarte_stabilization_term(
-            inactive_collidable_points=inactive_collidable_points,
-            h=h,
-            ḣ=ḣ,
-            K=self.parameters.K,
-            D=self.parameters.D,
+            inactive_collidable_points=(δ <= 0),
+            δ=δ,
+            δ_dot=δ_dot,
+            n=n̂,
+            K=data.contacts_params.K,
+            D=data.contacts_params.D,
         ).flatten()
 
-        free_contact_acc -= baumgarte_term
+        # Compute the Delassus matrix.
+        delassus_matrix = RigidContacts._delassus_matrix(M=M, J_WC=J_WC)
 
-        # Setup optimization problem
-        Q = delassus_matrix
-        q = free_contact_acc
+        # Initialize regularization term of the Delassus matrix for
+        # better numerical conditioning.
+        Iε = self.regularization_delassus * jnp.eye(delassus_matrix.shape[0])
+
+        # Construct the quadratic cost function.
+        Q = delassus_matrix + Iε
+        q = free_contact_acc - baumgarte_term
+
+        # Construct the inequality constraints.
         G = RigidContacts._compute_ineq_constraint_matrix(
-            inactive_collidable_points=inactive_collidable_points, mu=self.parameters.mu
+            inactive_collidable_points=(δ <= 0), mu=data.contacts_params.mu
         )
         h_bounds = RigidContacts._compute_ineq_bounds(
             n_collidable_points=n_collidable_points
         )
+
+        # Construct the equality constraints.
         A = jnp.zeros((0, 3 * n_collidable_points))
         b = jnp.zeros((0,))
 
-        # Solve the optimization problem
-        solution, *_ = qpax.solve_qp(
+        # Solve the following optimization problem with qpax:
+        #
+        # min_{x} 0.5 x⊤ Q x + q⊤ x
+        #
+        # s.t. A x = b
+        #      G x ≤ h
+        #
+        # TODO: add possibility to notify if the QP problem did not converge.
+        solution, _, _, _, converged, _ = qpax.solve_qp(  # noqa: F841
             Q=Q, q=q, A=A, b=b, G=G, h=h_bounds, **self.solver_options
         )
 
-        f_C_lin = solution.reshape(-1, 3)
+        # Reshape the optimized solution to be a matrix of 3D contact forces.
+        CW_fl_C = solution.reshape(-1, 3)
 
-        # Transform linear contact forces to 6D
-        CW_f_C = jnp.hstack(
-            (
-                f_C_lin,
-                jnp.zeros((f_C_lin.shape[0], 3)),
-            )
-        )
-
-        # Transform the contact forces to inertial-fixed representation
+        # Convert the contact forces from mixed to inertial-fixed representation.
         W_f_C = jax.vmap(
-            lambda CW_f_C, W_H_C: ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                array=CW_f_C,
-                transform=W_H_C,
-                other_representation=VelRepr.Mixed,
-                is_force=True,
+            lambda CW_fl_C, W_H_C: (
+                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
+                    transform=W_H_C,
+                    other_representation=VelRepr.Mixed,
+                    is_force=True,
+                )
             ),
-        )(
-            CW_f_C,
-            W_H_C,
-        )
+        )(CW_fl_C, W_H_C)
 
         return W_f_C, ()
 
@@ -438,6 +409,7 @@ class RigidContacts(ContactModel):
         M: jtp.MatrixLike,
         J_WC: jtp.MatrixLike,
     ) -> jtp.Matrix:
+
         sl = jnp.s_[:, 0:3, :]
         J_WC_lin = jnp.vstack(J_WC[sl])
 
@@ -448,6 +420,7 @@ class RigidContacts(ContactModel):
     def _compute_ineq_constraint_matrix(
         inactive_collidable_points: jtp.Vector, mu: jtp.FloatLike
     ) -> jtp.Matrix:
+
         def compute_G_single_point(mu: float, c: float) -> jtp.Matrix:
             """
             Compute the inequality constraint matrix for a single collidable point
@@ -475,6 +448,7 @@ class RigidContacts(ContactModel):
 
     @staticmethod
     def _compute_ineq_bounds(n_collidable_points: jtp.FloatLike) -> jtp.Vector:
+
         n_constraints = 6 * n_collidable_points
         return jnp.zeros(shape=(n_constraints,))
 
@@ -485,45 +459,50 @@ class RigidContacts(ContactModel):
         CW_J_WC_BW: jtp.MatrixLike,
         CW_J_dot_WC_BW: jtp.MatrixLike,
     ) -> jtp.Matrix:
-        CW_J̇_WC_BW = CW_J_dot_WC_BW
+
         BW_ν = BW_nu
         BW_ν̇ = BW_nu_dot
+        CW_J̇_WC_BW = CW_J_dot_WC_BW
 
+        # Compute the linear acceleration of the collidable points.
+        # Since we use doubly-mixed jacobians, this corresponds to W_p̈_C.
         CW_a_WC = jnp.vstack(CW_J̇_WC_BW) @ BW_ν + jnp.vstack(CW_J_WC_BW) @ BW_ν̇
-        CW_a_WC = CW_a_WC.reshape(-1, 6)
 
+        CW_a_WC = CW_a_WC.reshape(-1, 6)
         return CW_a_WC[:, 0:3].squeeze()
 
     @staticmethod
     def _compute_baumgarte_stabilization_term(
         inactive_collidable_points: jtp.ArrayLike,
-        h: jtp.ArrayLike,
-        ḣ: jtp.ArrayLike,
+        δ: jtp.ArrayLike,
+        δ_dot: jtp.ArrayLike,
+        n: jtp.ArrayLike,
         K: jtp.FloatLike,
         D: jtp.FloatLike,
     ) -> jtp.Array:
-        def baumgarte_stabilization(
+
+        def baumgarte_stabilization_of_single_point(
             inactive: jtp.BoolLike,
-            h: jtp.FloatLike,
-            ḣ: jtp.FloatLike,
+            δ: jtp.FloatLike,
+            δ_dot: jtp.FloatLike,
+            n: jtp.ArrayLike,
             k_baumgarte: jtp.FloatLike,
             d_baumgarte: jtp.FloatLike,
         ) -> jtp.Array:
+
             baumgarte_term = jax.lax.cond(
                 inactive,
-                lambda h, ḣ, K, D: jnp.zeros(shape=(3,)),
-                lambda h, ḣ, K, D: jnp.zeros(shape=(3,)).at[2].set(K * h + D * ḣ),
-                *(
-                    h,
-                    ḣ,
-                    k_baumgarte,
-                    d_baumgarte,
-                ),
+                lambda δ, δ_dot, n, K, D: jnp.zeros(3),
+                # This is equivalent to: K*(pT - p)⋅n̂ + D*(0 - v)⋅n̂,
+                # where pT is the point on the terrain surface vertical to p.
+                lambda δ, δ_dot, n, K, D: (K * δ + D * δ_dot) * n,
+                *(δ, δ_dot, n, k_baumgarte, d_baumgarte),
             )
+
             return baumgarte_term
 
         baumgarte_term = jax.vmap(
-            baumgarte_stabilization, in_axes=(0, 0, 0, None, None)
-        )(inactive_collidable_points, h, ḣ, K, D)
+            baumgarte_stabilization_of_single_point, in_axes=(0, 0, 0, 0, None, None)
+        )(inactive_collidable_points, δ, δ_dot, n, K, D)
 
         return baumgarte_term

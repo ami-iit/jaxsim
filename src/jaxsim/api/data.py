@@ -34,7 +34,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     state: ODEState
 
-    gravity: jtp.Array
+    gravity: jtp.Vector
 
     contacts_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(repr=False)
 
@@ -224,7 +224,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 jaxsim.rbda.contacts.SoftContacts
                 | jaxsim.rbda.contacts.ViscoElasticContacts,
             ):
-                contacts_params = js.contact.estimate_good_soft_contacts_parameters(
+
+                contacts_params = js.contact.estimate_good_contact_parameters(
                     model=model, standard_gravity=standard_gravity
                 )
 

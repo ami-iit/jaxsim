@@ -6,6 +6,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # Disable rebasing automatically existing pull requests.
+    rebase-strategy: "disabled"
     # Group updates to a single PR.
     groups:
       dependencies:

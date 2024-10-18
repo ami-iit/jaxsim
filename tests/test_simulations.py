@@ -71,9 +71,8 @@ def test_box_with_external_forces(
 
     # Initialize the integrator.
     tf = 0.5
-    dt = 0.001
-    T_ns = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
-    integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=dt)
+    T_ns = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
+    integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=model.time_step)
 
     # Copy the initial data...
     data = data0.copy()
@@ -84,7 +83,6 @@ def test_box_with_external_forces(
         data, integrator_state = js.model.step(
             model=model,
             data=data,
-            dt=dt,
             integrator=integrator,
             integrator_state=integrator_state,
             link_forces=references.link_forces(model=model, data=data),

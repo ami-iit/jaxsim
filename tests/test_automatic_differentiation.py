@@ -295,7 +295,7 @@ def test_ad_soft_contacts(
     m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
 
     # Get the soft contacts parameters.
-    parameters = js.contact.estimate_good_soft_contacts_parameters(model=model)
+    parameters = js.contact.estimate_good_contact_parameters(model=model)
 
     # ====
     # Test
@@ -374,8 +374,8 @@ def test_ad_integration(
     )
 
     # Initialize the integrator.
-    t0, dt = 0.0, 0.001
-    integrator_state = integrator.init(x0=data.state, t0=t0, dt=dt)
+    t0 = 0.0
+    integrator_state = integrator.init(x0=data.state, t0=t0, dt=model.time_step)
 
     # Function exposing only the parameters to be differentiated.
     def step(
@@ -408,7 +408,6 @@ def test_ad_integration(
         )
 
         data_xf, _ = js.model.step(
-            dt=dt,
             model=model,
             data=data_x0,
             integrator=integrator,

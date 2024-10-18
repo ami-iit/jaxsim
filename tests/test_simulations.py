@@ -62,6 +62,13 @@ def test_box_with_external_forces(
             additive=False,
         )
 
+    # Create the integrator.
+    integrator = jaxsim.integrators.fixed_step.RungeKutta4SO3.build(
+        dynamics=js.ode.wrap_system_dynamics_for_integration(
+            model=model, data=data0, system_dynamics=js.ode.system_dynamics
+        )
+    )
+
     # Initialize the integrator.
     tf = 0.5
     T_ns = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
@@ -76,6 +83,7 @@ def test_box_with_external_forces(
         data, state_aux_dict = js.model.step(
             model=model,
             data=data,
+            integrator=integrator,
             integrator_state=state_aux_dict,
             link_forces=references.link_forces(model=model, data=data),
         )

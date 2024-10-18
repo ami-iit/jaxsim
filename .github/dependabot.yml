@@ -1,0 +1,15 @@
+version: 2
+updates:
+
+  # Check for updates to GitHub Actions every month.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Disable rebasing automatically existing pull requests.
+    rebase-strategy: "disabled"
+    # Group updates to a single PR.
+    groups:
+      dependencies:
+        patterns:
+          - '*'

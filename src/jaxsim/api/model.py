@@ -54,7 +54,7 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    _integrator: Static[jaxsim.integrators.Integrator] | None = dataclasses.field(
+    _integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
         default=None, repr=False
     )
 

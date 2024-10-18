@@ -54,7 +54,7 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    _integrator: Static[jaxsim.integrators.Integrator] = dataclasses.field(
+    _integrator: Static[jaxsim.integrators.Integrator] | None = dataclasses.field(
         default=None, repr=False
     )
 
@@ -225,6 +225,8 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts.build(
             terrain=terrain, parameters=None
         )
+
+        # Consider the default integrator if not specified.
         integrator = integrator or jaxsim.integrators.fixed_step.Heun2SO3
 
         # Build the model.
@@ -1975,6 +1977,9 @@ def step(
     integrator_kwargs = kwargs.pop("integrator_kwargs", {})
     integrator_kwargs = kwargs | integrator_kwargs
 
+    # Create the dictionary to pass to the ODE system.
+    ode_dict = {"model": model, "data": data} if not integrator else {}
+
     # Extract the integrator and integrator state.
     integrator = integrator or model._integrator
     integrator_state_t0 = integrator_state or dict()
@@ -2053,6 +2058,7 @@ def step(
                 joint_force_references=τ_references,
             )
             | integrator_kwargs
+            | ode_dict
         ),
     )
 

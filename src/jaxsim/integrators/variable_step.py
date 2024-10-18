@@ -12,6 +12,7 @@ import jax.numpy as jnp
 import jax_dataclasses
 from jax_dataclasses import Static
 
+from jaxsim import logging
 from jaxsim import typing as jtp
 from jaxsim.utils import Mutability
 
@@ -241,6 +242,22 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     # Maximum number of rejected steps when the Δt needs to be reduced.
     max_step_rejections: Static[jtp.IntLike] = MAX_STEP_REJECTIONS_DEFAULT
+
+    def init(
+        self,
+        x0: State,
+        t0: Time,
+        dt: TimeStep,
+        *,
+        include_dynamics_aux_dict: bool = False,
+        **kwargs,
+    ) -> dict[str, Any]:
+
+        logging.warning(
+            "The 'init' method has been deprecated. There is no need to call it."
+        )
+
+        return {}
 
     def __call__(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs

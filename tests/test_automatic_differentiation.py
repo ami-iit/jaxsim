@@ -295,7 +295,7 @@ def test_ad_soft_contacts(
     m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
 
     # Get the soft contacts parameters.
-    parameters = js.contact.estimate_good_soft_contacts_parameters(model=model)
+    parameters = js.contact.estimate_good_contact_parameters(model=model)
 
     # ====
     # Test

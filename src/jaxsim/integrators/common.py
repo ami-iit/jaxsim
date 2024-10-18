@@ -10,7 +10,7 @@ from jax_dataclasses import Static
 import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
-from jaxsim import exceptions
+from jaxsim import exceptions, logging
 from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass, Mutability
 
 try:
@@ -119,6 +119,22 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
     @abc.abstractmethod
     def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
         pass
+
+    def init(
+        self,
+        x0: State,
+        t0: Time,
+        dt: TimeStep,
+        *,
+        include_dynamics_aux_dict: bool = False,
+        **kwargs,
+    ) -> dict[str, Any]:
+
+        logging.warning(
+            "The 'init' method has been deprecated. There is no need to call it."
+        )
+
+        return {}
 
 
 @jax_dataclasses.pytree_dataclass

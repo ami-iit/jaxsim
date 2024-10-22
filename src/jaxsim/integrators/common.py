@@ -85,7 +85,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         *,
         metadata: dict[str, Any] | None = None,
         **kwargs,
-    ) -> tuple[State, dict[str, Any]]:
+    ) -> tuple[NextState, dict[str, Any]]:
         """
         Perform a single integration step.
 
@@ -114,7 +114,9 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         )
 
     @abc.abstractmethod
-    def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
+    def __call__(
+        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+    ) -> tuple[NextState, dict[str, Any]]:
         pass
 
     def init(

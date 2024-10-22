@@ -466,6 +466,7 @@ def reduce(
     reduced_model = JaxSimModel.build(
         model_description=reduced_intermediate_description,
         model_name=model.name(),
+        time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
     )

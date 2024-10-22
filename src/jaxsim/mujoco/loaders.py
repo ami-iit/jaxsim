@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-import dataclasses
 import pathlib
 import tempfile
 import warnings
@@ -9,10 +6,14 @@ from typing import Any
 
 import mujoco as mj
 import numpy as np
-import numpy.typing as npt
 import rod.urdf.exporter
 from lxml import etree as ET
-from scipy.spatial.transform import Rotation
+
+from .utils import MujocoCamera
+
+MujocoCameraType = (
+    MujocoCamera | Sequence[MujocoCamera] | dict[str, str] | Sequence[dict[str, str]]
+)
 
 
 def load_rod_model(
@@ -167,12 +168,7 @@ class RodModelToMjcf:
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
         heightmap_samples_xy: tuple[int, int] = (101, 101),
-        cameras: (
-            MujocoCamera
-            | Sequence[MujocoCamera]
-            | dict[str, str]
-            | Sequence[dict[str, str]]
-        ) = (),
+        cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a ROD model to a Mujoco MJCF string.
@@ -533,12 +529,7 @@ class UrdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: (
-            MujocoCamera
-            | Sequence[MujocoCamera]
-            | dict[str, str]
-            | Sequence[dict[str, str]]
-        ) = (),
+        cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a URDF file to a Mujoco MJCF string.
@@ -580,12 +571,7 @@ class SdfToMjcf:
         model_name: str | None = None,
         plane_normal: tuple[float, float, float] = (0, 0, 1),
         heightmap: bool | None = None,
-        cameras: (
-            MujocoCamera
-            | Sequence[MujocoCamera]
-            | dict[str, str]
-            | Sequence[dict[str, str]]
-        ) = (),
+        cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
         Converts a SDF file to a Mujoco MJCF string.
@@ -617,118 +603,3 @@ class SdfToMjcf:
             heightmap=heightmap,
             cameras=cameras,
         )
-
-
-@dataclasses.dataclass
-class MujocoCamera:
-    """
-    Helper class storing parameters of a Mujoco camera.
-
-    Refer to the official documentation for more details:
-    https://mujoco.readthedocs.io/en/stable/XMLreference.html#body-camera
-    """
-
-    mode: str = "fixed"
-
-    target: str | None = None
-    fovy: str = "45"
-    pos: str = "0 0 0"
-
-    quat: str | None = None
-    axisangle: str | None = None
-    xyaxes: str | None = None
-    zaxis: str | None = None
-    euler: str | None = None
-
-    name: str | None = None
-
-    @classmethod
-    def build(cls, **kwargs) -> MujocoCamera:
-
-        if not all(isinstance(value, str) for value in kwargs.values()):
-            raise ValueError(f"Values must be strings: {kwargs}")
-
-        return cls(**kwargs)
-
-    @staticmethod
-    def build_from_target_view(
-        camera_name: str,
-        lookat: Sequence[float | int] | npt.NDArray = (0, 0, 0),
-        distance: float | int | npt.NDArray = 3,
-        azimut: float | int | npt.NDArray = 90,
-        elevation: float | int | npt.NDArray = -45,
-        fovy: float | int | npt.NDArray = 45,
-        degrees: bool = True,
-        **kwargs,
-    ) -> MujocoCamera:
-        """
-        Create a custom camera that looks at a target point.
-
-        Note:
-            The choice of the parameters is easier if we imagine to consider a target
-            frame `T` whose origin is located over the lookat point and having the same
-            orientation of the world frame `W`. We also introduce a camera frame `C`
-            whose origin is located over the lower-left corner of the image, and having
-            the x-axis pointing right and the y-axis pointing up in image coordinates.
-            The camera renders what it sees in the -z direction of frame `C`.
-
-        Args:
-            camera_name: The name of the camera.
-            lookat: The target point to look at (origin of `T`).
-            distance:
-                The distance from the target point (displacement between the origins
-                of `T` and `C`).
-            azimut:
-                The rotation around z of the camera. With an angle of 0, the camera
-                would loot at the target point towards the positive x-axis of `T`.
-            elevation:
-                The rotation around the x-axis of the camera frame `C`. Note that if
-                you want to lift the view angle, the elevation is negative.
-            fovy: The field of view of the camera.
-            degrees: Whether the angles are in degrees or radians.
-            **kwargs: Additional camera parameters.
-
-        Returns:
-            The custom camera.
-        """
-
-        # Start from a frame whose origin is located over the lookat point.
-        # We initialize a -90 degrees rotation around the z-axis because due to
-        # the default camera coordinate system (x pointing right, y pointing up).
-        W_H_C = np.eye(4)
-        W_H_C[0:3, 3] = np.array(lookat)
-        W_H_C[0:3, 0:3] = Rotation.from_euler(
-            seq="ZX", angles=[-90, 90], degrees=True
-        ).as_matrix()
-
-        # Process the azimut.
-        R_az = Rotation.from_euler(seq="Y", angles=azimut, degrees=degrees).as_matrix()
-        W_H_C[0:3, 0:3] = W_H_C[0:3, 0:3] @ R_az
-
-        # Process elevation.
-        R_el = Rotation.from_euler(
-            seq="X", angles=elevation, degrees=degrees
-        ).as_matrix()
-        W_H_C[0:3, 0:3] = W_H_C[0:3, 0:3] @ R_el
-
-        # Process distance.
-        tf_distance = np.eye(4)
-        tf_distance[2, 3] = distance
-        W_H_C = W_H_C @ tf_distance
-
-        # Extract the position and the quaternion.
-        p = W_H_C[0:3, 3]
-        Q = Rotation.from_matrix(W_H_C[0:3, 0:3]).as_quat(scalar_first=True)
-
-        return MujocoCamera.build(
-            name=camera_name,
-            mode="fixed",
-            fovy=f"{fovy if degrees else np.rad2deg(fovy)}",
-            pos=" ".join(p.astype(str).tolist()),
-            quat=" ".join(Q.astype(str).tolist()),
-            **kwargs,
-        )
-
-    def asdict(self) -> dict[str, str]:
-
-        return {k: v for k, v in dataclasses.asdict(self).items() if v is not None}

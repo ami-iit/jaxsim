@@ -1953,15 +1953,67 @@ def step(
     integrator_kwargs = kwargs.pop("integrator_kwargs", {})
     integrator_kwargs = kwargs | integrator_kwargs
 
-    integrator_state = integrator_state if integrator_state is not None else dict()
+    # Initialize the integrator state.
+    integrator_state_t0 = integrator_state if integrator_state is not None else dict()
 
     # Initialize the time-related variables.
     state_t0 = data.state
     t0 = jnp.array(t0, dtype=float)
     dt = jnp.array(dt if dt is not None else model.time_step).astype(float)
 
-    # Rename the integrator state.
-    integrator_state_t0 = integrator_state
+    # The visco-elastic contacts operate at best with their own integrator.
+    # They can be used with Euler-like integrators, paying the price of ignoring
+    # some of the benefits of continuous-time integration on the system position.
+    # Furthermore, the requirement to know the Δt used by the integrator is not
+    # compatible with high-order integrators, that use advanced RK stages to evaluate
+    # the dynamics at intermediate times.
+    module = jaxsim.rbda.contacts.visco_elastic.step.__module__
+    name = jaxsim.rbda.contacts.visco_elastic.step.__name__
+    msg = "You need to use the custom '{}.{}' function with this contact model."
+    jaxsim.exceptions.raise_runtime_error_if(
+        condition=jnp.logical_and(
+            isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts),
+            jnp.array(
+                [
+                    jnp.logical_not(jnp.allclose(dt, model.time_step)),
+                    jnp.logical_not(
+                        isinstance(
+                            integrator, jaxsim.integrators.fixed_step.ForwardEuler
+                        )
+                    ),
+                ]
+            ).any(),
+        ),
+        msg=msg.format(module, name),
+    )
+
+    # =================
+    # Phase 1: pre-step
+    # =================
+
+    # TODO: some contact models here may want to perform a dynamic filtering of
+    # the enabled collidable points.
+
+    # Build the references object.
+    # We assume that the link forces are expressed in the frame corresponding to the
+    # velocity representation of the data.
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        data=data,
+        velocity_representation=data.velocity_representation,
+        link_forces=link_forces,
+        joint_force_references=joint_force_references,
+    )
+
+    # =============
+    # Phase 2: step
+    # =============
+
+    # Prepare the references to pass.
+    with references.switch_velocity_representation(data.velocity_representation):
+
+        f_L = references.link_forces(model=model, data=data)
+        τ_references = references.joint_force_references(model=model)
 
     # Step the dynamics forward.
     state_tf, integrator_state_tf = integrator.step(
@@ -1971,7 +2023,7 @@ def step(
         params=integrator_state_t0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
-        # by the pair (joint_force_references, link_forces).
+        # by the pair (f_L, τ_references).
         # Note that the wrapper of the system dynamics will override (state_x0, t0)
         # inside the passed data even if it is not strictly needed. This logic is
         # necessary to re-use the jit-compiled step function of compatible pytrees
@@ -1980,8 +2032,8 @@ def step(
             dict(
                 model=model,
                 data=data,
-                joint_force_references=joint_force_references,
-                link_forces=link_forces,
+                link_forces=f_L,
+                joint_force_references=τ_references,
             )
             | integrator_kwargs
         ),
@@ -1989,6 +2041,10 @@ def step(
 
     # Store the new state of the model.
     data_tf = data.replace(state=state_tf)
+
+    # ==================
+    # Phase 3: post-step
+    # ==================
 
     # Post process the simulation state, if needed.
     match model.contact_model:
@@ -2017,17 +2073,18 @@ def step(
                 msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
             )
 
+            W_p_C = js.contact.collidable_point_positions(model, data_tf)
+
+            # Compute the penetration depth of the collidable points.
+            δ, *_ = jax.vmap(
+                jaxsim.rbda.contacts.common.compute_penetration_data,
+                in_axes=(0, 0, None),
+            )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
+
             with data_tf.switch_velocity_representation(VelRepr.Mixed):
 
                 J_WC = js.contact.jacobian(model, data_tf)
                 M = js.model.free_floating_mass_matrix(model, data_tf)
-                W_p_C = js.contact.collidable_point_positions(model, data_tf)
-
-                # Compute the penetration depth of the collidable points.
-                δ, *_ = jax.vmap(
-                    jaxsim.rbda.contacts.common.compute_penetration_data,
-                    in_axes=(0, 0, None),
-                )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
 
                 # Compute the impact velocity.
                 # It may be discontinuous in case new contacts are made.
@@ -2040,13 +2097,13 @@ def step(
                     )
                 )
 
-                # Reset the generalized velocity.
-                data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
-                data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
+            # Reset the generalized velocity.
+            data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
+            data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
 
-            # Restore the input velocity representation.
-            data_tf = data_tf.replace(
-                velocity_representation=data.velocity_representation, validate=False
-            )
+    # Restore the input velocity representation.
+    data_tf = data_tf.replace(
+        velocity_representation=data.velocity_representation, validate=False
+    )
 
     return data_tf, integrator_state_tf

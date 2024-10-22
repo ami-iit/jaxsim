@@ -383,11 +383,9 @@ def system_dynamics(
 
         case contacts.ViscoElasticContacts():
 
-            extended_ode_state["contacts_state"] = {
-                "tangential_deformation": jnp.zeros_like(
-                    data.state.extended["tangential_deformation"]
-                )
-            }
+            extended_ode_state["tangential_deformation"] = jnp.zeros_like(
+                data.state.extended["tangential_deformation"]
+            )
 
         case contacts.RigidContacts() | contacts.RelaxedRigidContacts():
             pass

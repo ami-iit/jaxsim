@@ -2274,16 +2274,12 @@ def step(
             # Raise runtime error for not supported case in which Rigid contacts and
             # Baumgarte stabilization are enabled and used with ForwardEuler integrator.
             jaxsim.exceptions.raise_runtime_error_if(
-                condition=jnp.logical_and(
-                    isinstance(
-                        integrator,
-                        jaxsim.integrators.fixed_step.ForwardEuler
-                        | jaxsim.integrators.fixed_step.ForwardEulerSO3,
-                    ),
-                    jnp.array(
-                        [data_tf.contacts_params.K, data_tf.contacts_params.D]
-                    ).any(),
-                ),
+                condition=isinstance(
+                    integrator,
+                    jaxsim.integrators.fixed_step.ForwardEuler
+                    | jaxsim.integrators.fixed_step.ForwardEulerSO3,
+                )
+                & ((data_tf.contacts_params.K > 0) | (data_tf.contacts_params.D > 0)),
                 msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
             )
 

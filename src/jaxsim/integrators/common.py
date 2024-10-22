@@ -507,7 +507,7 @@ class ExplicitRungeKuttaSO3Mixin:
 
         # We assume that the initial quaternion is already unary.
         exceptions.raise_runtime_error_if(
-            condition=jnp.logical_not(jnp.allclose(W_Q_B_t0.dot(W_Q_B_t0), 1.0)),
+            condition=~jnp.allclose(W_Q_B_t0.dot(W_Q_B_t0), 1.0),
             msg="The SO(3) integrator received a quaternion at t0 that is not unary.",
         )
 

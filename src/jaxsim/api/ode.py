@@ -24,19 +24,19 @@ class SystemDynamicsFromModelAndData(Protocol):
 
 
 def wrap_system_dynamics_for_integration(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
+    model: js.model.JaxSimModel | None = None,
+    data: js.data.JaxSimModelData | None = None,
     *,
     system_dynamics: SystemDynamicsFromModelAndData,
-    **kwargs,
+    **kwargs: dict[str, Any],
 ) -> jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]:
     """
     Wrap generic system dynamics operating on `JaxSimModel` and `JaxSimModelData`
     for integration with `jaxsim.integrators`.
 
     Args:
-        model: The model to consider.
-        data: The data of the considered model.
+        model: The optional model to consider.
+        data: The optional data of the considered model.
         system_dynamics: The system dynamics to wrap.
         **kwargs: Additional kwargs to close over the system dynamics.
 
@@ -47,10 +47,10 @@ def wrap_system_dynamics_for_integration(
     # We allow to close `system_dynamics` over additional kwargs.
     kwargs_closed = kwargs.copy()
 
-    # Create a local copy of model and data.
+    # Create a local copy of model and data if provided.
     # The wrapped dynamics will hold a reference of this object.
-    model_closed = model.copy()
-    data_closed = data.copy().replace(
+    model_closed = model and model.copy()
+    data_closed = data and data.copy().replace(
         state=js.ode_data.ODEState.zero(model=model_closed, data=data)
     )
 

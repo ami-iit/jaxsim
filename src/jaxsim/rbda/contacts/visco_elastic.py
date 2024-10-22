@@ -13,6 +13,7 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.typing as jtp
 from jaxsim import logging
+from jaxsim.api.common import ModelDataWithVelocityRepresentation
 from jaxsim.math import StandardGravity
 from jaxsim.terrain import FlatTerrain, Terrain
 
@@ -235,11 +236,17 @@ class ViscoElasticContacts(common.ContactModel):
                 else cls.__dataclass_fields__["parameters"].default_factory()
             )
 
-        return ViscoElasticContacts(
+        return cls(
             parameters=parameters,
-            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+            terrain=(
+                terrain
+                if terrain is not None
+                else cls.__dataclass_fields__["terrain"].default_factory()
+            ),
             max_squarings=int(
-                max_squarings or cls.__dataclass_fields__["max_squarings"].default
+                max_squarings
+                if max_squarings is not None
+                else cls.__dataclass_fields__["max_squarings"].default
             ),
         )
 
@@ -315,8 +322,8 @@ class ViscoElasticContacts(common.ContactModel):
                 model=model,
                 data=data,
                 dt=jnp.array(dt).astype(float),
-                joint_force_references=joint_force_references,
                 link_forces=link_forces,
+                joint_force_references=joint_force_references,
                 indices_of_enabled_collidable_points=indices_of_enabled_collidable_points,
                 max_squarings=self.max_squarings,
             )
@@ -334,11 +341,13 @@ class ViscoElasticContacts(common.ContactModel):
 
         # Vmapped transformation from mixed to inertial-fixed representation.
         compute_forces_inertial_fixed_vmap = jax.vmap(
-            lambda CW_fl_C, W_H_C: data.other_representation_to_inertial(
-                array=jnp.zeros(6).at[0:3].set(CW_fl_C),
-                other_representation=jaxsim.VelRepr.Mixed,
-                transform=W_H_C,
-                is_force=True,
+            lambda CW_fl_C, W_H_C: (
+                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
+                    other_representation=jaxsim.VelRepr.Mixed,
+                    transform=W_H_C,
+                    is_force=True,
+                )
             )
         )
 
@@ -407,8 +416,8 @@ class ViscoElasticContacts(common.ContactModel):
         A, b, A_sc, b_sc = ViscoElasticContacts._contact_points_dynamics(
             model=model,
             data=data,
-            joint_force_references=joint_force_references,
             link_forces=link_forces,
+            joint_force_references=joint_force_references,
             indices_of_enabled_collidable_points=indices,
             p_t0=p_t0,
             v_t0=v_t0,
@@ -657,8 +666,8 @@ class ViscoElasticContacts(common.ContactModel):
             BW_v̇_free_WB, s̈_free = js.ode.system_acceleration(
                 model=model,
                 data=data,
-                joint_force_references=references.joint_force_references(model=model),
                 link_forces=references.link_forces(model=model, data=data),
+                joint_force_references=references.joint_force_references(model=model),
             )
 
         # Pack the free system acceleration in mixed representation.
@@ -688,7 +697,20 @@ class ViscoElasticContacts(common.ContactModel):
         parameters: ViscoElasticContactsParams,
         terrain: Terrain,
     ) -> tuple[jtp.Matrix, jtp.Vector]:
-        """"""
+        """
+        Linearize the Hunt/Crossley contact model at the initial state.
+
+        Args:
+            position: The position of the contact point.
+            velocity: The velocity of the contact point.
+            tangential_deformation: The tangential deformation of the contact point.
+            parameters: The parameters of the contact model.
+            terrain: The considered terrain.
+
+        Returns:
+            A tuple containing the `A` matrix and the `b` vector of the linear system
+            corresponding to the contact dynamics linearized at the initial state.
+        """
 
         # Initialize the state at which the model is linearized.
         p0 = jnp.array(position, dtype=float).squeeze()
@@ -1008,11 +1030,13 @@ def step(
     # For integration purpose, we need the average of average forces expressed in
     # mixed representation.
     LW_f̿_L = jax.vmap(
-        lambda W_f_L, W_H_L: data.inertial_to_other_representation(
-            array=W_f_L,
-            other_representation=jaxsim.VelRepr.Mixed,
-            transform=W_H_L,
-            is_force=True,
+        lambda W_f_L, W_H_L: (
+            ModelDataWithVelocityRepresentation.inertial_to_other_representation(
+                array=W_f_L,
+                other_representation=jaxsim.VelRepr.Mixed,
+                transform=W_H_L,
+                is_force=True,
+            )
         )
     )(W_f̿_L, W_H_L)
 

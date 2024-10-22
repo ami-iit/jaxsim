@@ -237,9 +237,13 @@ class SoftContacts(common.ContactModel):
                 else cls.__dataclass_fields__["parameters"].default_factory()
             )
 
-        return SoftContacts(
+        return cls(
             parameters=parameters,
-            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+            terrain=(
+                terrain
+                if terrain is not None
+                else cls.__dataclass_fields__["terrain"].default_factory()
+            ),
         )
 
     @classmethod

@@ -66,9 +66,17 @@ class RigidContactsParams(ContactsParams):
         """Create a `RigidContactParams` instance"""
 
         return cls(
-            mu=mu or cls.__dataclass_fields__["mu"].default,
-            K=K or cls.__dataclass_fields__["K"].default,
-            D=D or cls.__dataclass_fields__["D"].default,
+            mu=jnp.array(
+                mu
+                if mu is not None
+                else cls.__dataclass_fields__["mu"].default_factory()
+            ).astype(float),
+            K=jnp.array(
+                K if K is not None else cls.__dataclass_fields__["K"].default_factory()
+            ).astype(float),
+            D=jnp.array(
+                D if D is not None else cls.__dataclass_fields__["D"].default_factory()
+            ).astype(float),
         )
 
     def valid(self) -> jtp.BoolLike:
@@ -147,7 +155,9 @@ class RigidContacts(ContactModel):
 
         # Create the solver options to set by combining the default solver options
         # with the user-provided solver options.
-        solver_options = default_solver_options | (solver_options or {})
+        solver_options = default_solver_options | (
+            solver_options if solver_options is not None else {}
+        )
 
         # Make sure that the solver options are hashable.
         # We need to check this because the solver options are static.
@@ -160,12 +170,19 @@ class RigidContacts(ContactModel):
 
         return cls(
             parameters=(
-                parameters or cls.__dataclass_fields__["parameters"].default_factory()
+                parameters
+                if parameters is not None
+                else cls.__dataclass_fields__["parameters"].default_factory()
             ),
-            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+            terrain=(
+                terrain
+                if terrain is not None
+                else cls.__dataclass_fields__["terrain"].default_factory()
+            ),
             regularization_delassus=float(
                 regularization_delassus
-                or cls.__dataclass_fields__["regularization_delassus"].default
+                if regularization_delassus is not None
+                else cls.__dataclass_fields__["regularization_delassus"].default
             ),
             _solver_options_keys=tuple(solver_options.keys()),
             _solver_options_values=tuple(solver_options.values()),

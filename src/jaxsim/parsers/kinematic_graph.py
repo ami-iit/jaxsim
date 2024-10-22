@@ -82,7 +82,7 @@ class KinematicGraph(Sequence[LinkDescription]):
         default_factory=list, hash=False, compare=False
     )
 
-    root_pose: RootPose = dataclasses.field(default_factory=lambda: RootPose())
+    root_pose: RootPose = dataclasses.field(default_factory=RootPose)
 
     # Private attribute storing optional additional info.
     _extra_info: dict[str, Any] = dataclasses.field(

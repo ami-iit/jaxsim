@@ -49,7 +49,7 @@ class CustomHashedObject(Generic[T]):
 
     obj: T
 
-    hash_function: Callable[[T], int] = dataclasses.field(default=lambda obj: hash(obj))
+    hash_function: Callable[[T], int] = hash
 
     def get(self: CustomHashedObject[T]) -> T:
         return self.obj

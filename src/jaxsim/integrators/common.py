@@ -173,7 +173,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
         # Make sure that all leafs of the dictionary are JAX arrays.
         # Also, since these are dummy parameters, set them all to zero.
-        params_after_init = jax.tree.map(lambda l: jnp.zeros_like(l), integrator.params)
+        params_after_init = jax.tree.map(jnp.zeros_like, integrator.params)
 
         # Mark the next step as first step after initialization.
         params_after_init = params_after_init | {

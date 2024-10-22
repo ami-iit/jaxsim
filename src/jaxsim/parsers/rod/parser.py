@@ -85,10 +85,7 @@ def extract_model_data(
 
     # Log type of base link.
     logging.debug(
-        msg="Model '{}' is {}".format(
-            sdf_model.name,
-            "fixed-base" if sdf_model.is_fixed_base() else "floating-base",
-        )
+        msg=f"Model '{sdf_model.name}' is {'fixed-base' if sdf_model.is_fixed_base() else 'floating-base'}"
     )
 
     # Log detected base link.

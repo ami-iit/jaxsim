@@ -42,5 +42,5 @@ def test_joint_index(
     with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
         _ = js.joint.idx_to_name(model=model, joint_index=-1)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(IndexError):
         _ = js.joint.idx_to_name(model=model, joint_index=model.number_of_joints())

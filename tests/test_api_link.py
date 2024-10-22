@@ -47,7 +47,7 @@ def test_link_index(
     with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
         _ = js.link.idx_to_name(model=model, link_index=-1)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(IndexError):
         _ = js.link.idx_to_name(model=model, link_index=model.number_of_links())
 
 

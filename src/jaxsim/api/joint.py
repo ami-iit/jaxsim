@@ -99,7 +99,11 @@ def idxs_to_names(
         The names of the joints.
     """
 
-    return tuple(idx_to_name(model=model, joint_index=idx) for idx in joint_indices)
+    return tuple(
+        jax.tree.map(
+            lambda idx: idx_to_name(model=model, joint_index=idx), joint_indices
+        )
+    )
 
 
 # ============

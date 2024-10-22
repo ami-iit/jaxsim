@@ -98,7 +98,9 @@ def idxs_to_names(
         The names of the links.
     """
 
-    return tuple(idx_to_name(model=model, link_index=idx) for idx in link_indices)
+    return tuple(
+        jax.tree.map(lambda idx: idx_to_name(model=model, link_index=idx), link_indices)
+    )
 
 
 # =========

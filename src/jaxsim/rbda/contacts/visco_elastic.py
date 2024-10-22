@@ -991,16 +991,31 @@ def step(
     assert isinstance(model.contact_model, ViscoElasticContacts)
     assert isinstance(data.contacts_params, ViscoElasticContactsParams)
 
+    # Compute the contact forces in inertial-fixed representation.
+    # TODO: understand what's wrong in other representations.
+    data_inertial_fixed = data.replace(
+        velocity_representation=jaxsim.VelRepr.Inertial, validate=False
+    )
+
+    # Create the references object.
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        data=data,
+        link_forces=link_forces,
+        joint_force_references=joint_force_references,
+        velocity_representation=data.velocity_representation,
+    )
+
     # Initialize the time step.
     dt = dt if dt is not None else model.time_step
 
     # Compute the contact forces with the exponential integrator.
     W_f̅_C, aux_data = model.contact_model.compute_contact_forces(
         model=model,
-        data=data,
+        data=data_inertial_fixed,
         dt=jnp.array(dt).astype(float),
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
+        link_forces=references.link_forces(model=model, data=data),
+        joint_force_references=references.joint_force_references(model=model),
     )
 
     # Extract the final material deformation and the average of average forces
@@ -1016,7 +1031,7 @@ def step(
     # to the same link.
     W_f̅_L, W_f̿_L = jax.vmap(
         lambda W_f_C: model.contact_model.link_forces_from_contact_forces(
-            model=model, data=data, contact_forces=W_f_C
+            model=model, data=data_inertial_fixed, contact_forces=W_f_C
         )
     )(jnp.stack([W_f̅_C, W_f̿_C]))
 
@@ -1048,10 +1063,10 @@ def step(
     data_tf: js.data.JaxSimModelData = (
         model.contact_model.integrate_data_with_average_contact_forces(
             model=model,
-            data=data,
+            data=data_inertial_fixed,
             dt=dt,
-            link_forces=link_forces,
-            joint_force_references=joint_force_references,
+            link_forces=references.link_forces(model=model, data=data),
+            joint_force_references=references.joint_force_references(model=model),
             average_link_contact_forces_inertial=W_f̅_L,
             average_of_average_link_contact_forces_mixed=LW_f̿_L,
         )
@@ -1073,5 +1088,10 @@ def step(
             .at[indices_of_enabled_collidable_points]
             .set(m_tf)
         }
+
+    # Restore the original velocity representation.
+    data_tf = data_tf.replace(
+        velocity_representation=data.velocity_representation, validate=False
+    )
 
     return data_tf, {}

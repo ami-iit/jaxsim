@@ -152,7 +152,7 @@ def compute_pytree_scale(
     """
 
     # Consider a zero second pytree, if not given.
-    x2 = jax.tree.map(lambda l: jnp.zeros_like(l), x1) if x2 is None else x2
+    x2 = jax.tree.map(jnp.zeros_like, x1) if x2 is None else x2
 
     # Compute the scaling factors of the initial state and its derivative.
     compute_scale = lambda l1, l2: atol + jnp.maximum(jnp.abs(l1), jnp.abs(l2)) * rtol
@@ -199,9 +199,7 @@ def local_error_estimation(
 
     # Consider a zero estimated final state, if not given.
     xf_estimate = (
-        jax.tree.map(lambda l: jnp.zeros_like(l), xf)
-        if xf_estimate is None
-        else xf_estimate
+        jax.tree.map(jnp.zeros_like, xf) if xf_estimate is None else xf_estimate
     )
 
     # Estimate the error.

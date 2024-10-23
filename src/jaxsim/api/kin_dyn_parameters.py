@@ -238,7 +238,7 @@ class KynDynParameters(JaxsimDataclass):
                 hash(self.number_of_links()),
                 hash(self.number_of_joints()),
                 hash(self.frame_parameters.name),
-                hash(tuple(self.frame_parameters.body.tolist())),
+                hash(self.frame_parameters.body),
                 hash(self._parent_array),
                 hash(self._support_body_array_bool),
             )

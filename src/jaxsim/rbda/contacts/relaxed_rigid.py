@@ -120,19 +120,44 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
         return cls(
             time_constant=jnp.array(
-                time_constant or default("time_constant"), dtype=float
+                (
+                    time_constant
+                    if time_constant is not None
+                    else default("time_constant")
+                ),
+                dtype=float,
             ),
             damping_coefficient=jnp.array(
-                damping_coefficient or default("damping_coefficient"), dtype=float
+                (
+                    damping_coefficient
+                    if damping_coefficient is not None
+                    else default("damping_coefficient")
+                ),
+                dtype=float,
             ),
-            d_min=jnp.array(d_min or default("d_min"), dtype=float),
-            d_max=jnp.array(d_max or default("d_max"), dtype=float),
-            width=jnp.array(width or default("width"), dtype=float),
-            midpoint=jnp.array(midpoint or default("midpoint"), dtype=float),
-            power=jnp.array(power or default("power"), dtype=float),
-            stiffness=jnp.array(stiffness or default("stiffness"), dtype=float),
-            damping=jnp.array(damping or default("damping"), dtype=float),
-            mu=jnp.array(mu or default("mu"), dtype=float),
+            d_min=jnp.array(
+                d_min if d_min is not None else default("d_min"), dtype=float
+            ),
+            d_max=jnp.array(
+                d_max if d_max is not None else default("d_max"), dtype=float
+            ),
+            width=jnp.array(
+                width if width is not None else default("width"), dtype=float
+            ),
+            midpoint=jnp.array(
+                midpoint if midpoint is not None else default("midpoint"), dtype=float
+            ),
+            power=jnp.array(
+                power if power is not None else default("power"), dtype=float
+            ),
+            stiffness=jnp.array(
+                stiffness if stiffness is not None else default("stiffness"),
+                dtype=float,
+            ),
+            damping=jnp.array(
+                damping if damping is not None else default("damping"), dtype=float
+            ),
+            mu=jnp.array(mu if mu is not None else default("mu"), dtype=float),
         )
 
     def valid(self) -> jtp.BoolLike:
@@ -210,7 +235,9 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Create the solver options to set by combining the default solver options
         # with the user-provided solver options.
-        solver_options = default_solver_options | (solver_options or {})
+        solver_options = default_solver_options | (
+            solver_options if solver_options is not None else {}
+        )
 
         # Make sure that the solver options are hashable.
         # We need to check this because the solver options are static.
@@ -223,9 +250,15 @@ class RelaxedRigidContacts(common.ContactModel):
 
         return cls(
             parameters=(
-                parameters or cls.__dataclass_fields__["parameters"].default_factory()
+                parameters
+                if parameters is not None
+                else cls.__dataclass_fields__["parameters"].default_factory()
             ),
-            terrain=terrain or cls.__dataclass_fields__["terrain"].default_factory(),
+            terrain=(
+                terrain
+                if terrain is not None
+                else cls.__dataclass_fields__["terrain"].default_factory()
+            ),
             _solver_options_keys=tuple(solver_options.keys()),
             _solver_options_values=tuple(solver_options.values()),
         )
@@ -238,7 +271,7 @@ class RelaxedRigidContacts(common.ContactModel):
         *,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-    ) -> tuple[jtp.Matrix, tuple]:
+    ) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
         """
         Compute the contact forces.
 
@@ -458,7 +491,7 @@ class RelaxedRigidContacts(common.ContactModel):
             ),
         )(CW_fl_C, W_H_C)
 
-        return W_f_C, ()
+        return W_f_C, {}
 
     @staticmethod
     def _regularizers(

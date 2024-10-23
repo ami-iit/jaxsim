@@ -131,7 +131,7 @@ def system_velocity_dynamics(
 
     # Initialize the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
     # with the terrain.
-    W_f_Li_terrain = jnp.zeros_like(O_f_L).astype(float)
+    W_f_L_terrain = jnp.zeros_like(O_f_L).astype(float)
 
     # Initialize a dictionary of auxiliary data.
     # This dictionary is used to store additional data computed by the contact model.
@@ -139,66 +139,59 @@ def system_velocity_dynamics(
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
-        # Note: the following code should be kept in sync with the function
-        # `jaxsim.api.model.link_contact_forces`. We cannot merge them since
-        # here we need to get also aux_data.
-
-        # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
-        # along with contact-specific auxiliary states.
         with (
             data.switch_velocity_representation(VelRepr.Inertial),
             references.switch_velocity_representation(VelRepr.Inertial),
         ):
-            W_f_Ci, aux_data = js.contact.collidable_point_dynamics(
+
+            # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
+            # along with contact-specific auxiliary states.
+            W_f_C, aux_data = js.contact.collidable_point_dynamics(
                 model=model,
                 data=data,
                 link_forces=references.link_forces(model=model, data=data),
                 joint_force_references=references.joint_force_references(model=model),
             )
 
-        # Construct the vector defining the parent link index of each collidable point.
-        # We use this vector to sum the 6D forces of all collidable points rigidly
-        # attached to the same link.
-        parent_link_index_of_collidable_points = jnp.array(
-            model.kin_dyn_parameters.contact_parameters.body, dtype=int
-        )
-
-        # Sum the forces of all collidable points rigidly attached to a body.
-        # Since the contact forces W_f_Ci are expressed in the world frame,
-        # we don't need any coordinate transformation.
-        mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
-            model.number_of_links()
-        )
-
-        W_f_Li_terrain = mask.T @ W_f_Ci
+            # Compute the 6D forces applied to the links equivalent to the forces applied
+            # to the frames associated to the collidable points.
+            W_f_L_terrain = model.contact_model.link_forces_from_contact_forces(
+                model=model,
+                data=data,
+                contact_forces=W_f_C,
+            )
 
     # ===========================
     # Compute system acceleration
     # ===========================
 
-    # Compute the total link forces
+    # Compute the total link forces.
     with (
         data.switch_velocity_representation(VelRepr.Inertial),
         references.switch_velocity_representation(VelRepr.Inertial),
     ):
+
+        # Sum the contact forces just computed with the link forces applied by the user.
         references = references.apply_link_forces(
             model=model,
             data=data,
-            forces=W_f_Li_terrain,
+            forces=W_f_L_terrain,
             additive=True,
         )
 
-        # Get the link forces in inertial representation
+        # Get the link forces in inertial-fixed representation.
         f_L_total = references.link_forces(model=model, data=data)
 
-        v̇_WB, s̈ = system_acceleration(
+        # Compute the system acceleration in inertial-fixed representation.
+        # This representation is useful for integration purpose.
+        W_v̇_WB, s̈ = system_acceleration(
             model=model,
             data=data,
             joint_force_references=joint_force_references,
             link_forces=f_L_total,
         )
 
-    return v̇_WB, s̈, aux_data
+    return W_v̇_WB, s̈, aux_data
 
 
 def system_acceleration(
@@ -390,17 +383,15 @@ def system_dynamics(
 
         case contacts.ViscoElasticContacts():
 
-            extended_ode_state["contacts_state"] = {
-                "tangential_deformation": jnp.zeros_like(
-                    data.state.extended["tangential_deformation"]
-                )
-            }
+            extended_ode_state["tangential_deformation"] = jnp.zeros_like(
+                data.state.extended["tangential_deformation"]
+            )
 
         case contacts.RigidContacts() | contacts.RelaxedRigidContacts():
             pass
 
         case _:
-            raise ValueError(f"Invalid contact model {model.contact_model}")
+            raise ValueError(f"Invalid contact model: {model.contact_model}")
 
     # Extract the velocities.
     W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(

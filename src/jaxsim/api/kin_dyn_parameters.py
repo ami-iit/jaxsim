@@ -825,7 +825,7 @@ class FrameParameters(JaxsimDataclass):
 
     name: Static[tuple[str, ...]] = dataclasses.field(default_factory=tuple)
 
-    body: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
+    body: Static[tuple[int, ...]] = dataclasses.field(default_factory=tuple)
 
     transform: jtp.Array = dataclasses.field(default_factory=lambda: jnp.array([]))
 
@@ -862,7 +862,7 @@ class FrameParameters(JaxsimDataclass):
         fp = FrameParameters(
             name=names,
             transform=transforms.astype(float),
-            body=jnp.array(parent_link_index_of_frames).astype(int),
+            body=parent_link_index_of_frames,
         )
 
         assert fp.transform.shape[1:] == (4, 4), fp.transform.shape[1:]

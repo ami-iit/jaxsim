@@ -44,25 +44,23 @@ def test_exceptions_in_jit_functions():
         return data
 
     # In the first call, the function will be compiled and print the message.
-    with jax.log_compiles():
-        with io.StringIO() as buf, redirect_stdout(buf):
+    with jax.log_compiles(), io.StringIO() as buf, redirect_stdout(buf):
 
-            data = 40
-            out = jit_compiled_function(data=data)
-            stdout = buf.getvalue()
-            assert out == data
+        data = 40
+        out = jit_compiled_function(data=data)
+        stdout = buf.getvalue()
+        assert out == data
 
     assert msg_during_jit in stdout
     assert jit_compiled_function._cache_size() == 1
 
     # In the second call, the function won't be compiled and won't print the message.
-    with jax.log_compiles():
-        with io.StringIO() as buf, redirect_stdout(buf):
+    with jax.log_compiles(), io.StringIO() as buf, redirect_stdout(buf):
 
-            data = 41
-            out = jit_compiled_function(data=data)
-            stdout = buf.getvalue()
-            assert out == data
+        data = 41
+        out = jit_compiled_function(data=data)
+        stdout = buf.getvalue()
+        assert out == data
 
     assert msg_during_jit not in stdout
     assert jit_compiled_function._cache_size() == 1

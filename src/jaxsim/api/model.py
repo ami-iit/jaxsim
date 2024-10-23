@@ -1971,18 +1971,12 @@ def step(
     name = jaxsim.rbda.contacts.visco_elastic.step.__name__
     msg = "You need to use the custom '{}.{}' function with this contact model."
     jaxsim.exceptions.raise_runtime_error_if(
-        condition=jnp.logical_and(
-            isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts),
-            jnp.array(
-                [
-                    jnp.logical_not(jnp.allclose(dt, model.time_step)),
-                    jnp.logical_not(
-                        isinstance(
-                            integrator, jaxsim.integrators.fixed_step.ForwardEuler
-                        )
-                    ),
-                ]
-            ).any(),
+        condition=(
+            isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts)
+            & (
+                ~jnp.allclose(dt, model.time_step)
+                | ~isinstance(integrator, jaxsim.integrators.fixed_step.ForwardEuler)
+            )
         ),
         msg=msg.format(module, name),
     )

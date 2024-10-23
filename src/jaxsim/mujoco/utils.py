@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.transform import Rotation
 
-from . import MujocoModelHelper
+from .model import MujocoModelHelper
 
 
 def mujoco_data_from_jaxsim(

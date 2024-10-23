@@ -172,7 +172,7 @@ def extract_model_data(
             for j in sdf_model.joints()
             if j.type == "fixed"
             and j.parent == "world"
-            and j.child in links_dict.keys()
+            and j.child in links_dict
             and j.pose.relative_to in {"__model__", "world", None}
         ]
 
@@ -284,7 +284,7 @@ def extract_model_data(
         for j in sdf_model.joints()
         if j.type in {"revolute", "continuous", "prismatic", "fixed"}
         and j.parent != "world"
-        and j.child in links_dict.keys()
+        and j.child in links_dict
     ]
 
     # Create a dictionary to find the parent joint of the links.

@@ -163,47 +163,35 @@ def collidable_point_dynamics(
         Instead, the 6D forces are returned in the active representation.
     """
 
+    # Build the common kw arguments to pass to the computation of the contact forces.
+    common_kwargs = dict(
+        link_forces=link_forces,
+        joint_force_references=joint_force_references,
+    )
+
     # Build the additional kwargs to pass to the computation of the contact forces.
     match model.contact_model:
 
         case contacts.SoftContacts():
 
-            kwargs_contact_model = kwargs
+            kwargs_contact_model = {}
 
         case contacts.RigidContacts():
 
-            kwargs_contact_model = (
-                dict(
-                    link_forces=link_forces,
-                    joint_force_references=joint_force_references,
-                )
-                | kwargs
-            )
+            kwargs_contact_model = common_kwargs | kwargs
 
         case contacts.RelaxedRigidContacts():
 
-            kwargs_contact_model = (
-                dict(
-                    link_forces=link_forces,
-                    joint_force_references=joint_force_references,
-                )
-                | kwargs
-            )
+            kwargs_contact_model = common_kwargs | kwargs
 
         case contacts.ViscoElasticContacts():
 
-            kwargs_contact_model = (
-                dict(
-                    dt=model.time_step,
-                    link_forces=link_forces,
-                    joint_force_references=joint_force_references,
-                )
-                | kwargs
-            )
+            kwargs_contact_model = common_kwargs | dict(dt=model.time_step) | kwargs
 
         case _:
             raise ValueError(f"Invalid contact model: {model.contact_model}")
 
+    # Compute the contact forces with the active contact model.
     W_f_C, aux_data = model.contact_model.compute_contact_forces(
         model=model,
         data=data,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any
 
 import numpy as np
@@ -700,7 +700,7 @@ class KinematicGraph(Sequence[LinkDescription]):
     # Sequence protocol
     # =================
 
-    def __iter__(self) -> Iterable[LinkDescription]:
+    def __iter__(self) -> Iterator[LinkDescription]:
         yield from KinematicGraph.breadth_first_search(root=self.root)
 
     def __reversed__(self) -> Iterable[LinkDescription]:

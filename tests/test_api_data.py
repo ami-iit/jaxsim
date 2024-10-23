@@ -82,9 +82,11 @@ def test_data_switch_velocity_representation(
     )
 
     # The following instead should result to an updated `data` object.
-    with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        with data.mutable_context(mutability=Mutability.MUTABLE):
-            data.state.physics_model.base_linear_velocity = new_base_linear_velocity
+    with (
+        data.switch_velocity_representation(velocity_representation=VelRepr.Inertial),
+        data.mutable_context(mutability=Mutability.MUTABLE),
+    ):
+        data.state.physics_model.base_linear_velocity = new_base_linear_velocity
 
     assert data.state.physics_model.base_linear_velocity == pytest.approx(
         new_base_linear_velocity

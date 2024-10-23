@@ -358,14 +358,16 @@ def test_model_jacobian(
 
     # Get the J.T @ f product in inertial-fixed input/output representation.
     # We use doubly right-trivialized jacobian with inertial-fixed 6D forces.
-    with references.switch_velocity_representation(VelRepr.Inertial):
-        with data.switch_velocity_representation(VelRepr.Inertial):
+    with (
+        references.switch_velocity_representation(VelRepr.Inertial),
+        data.switch_velocity_representation(VelRepr.Inertial),
+    ):
 
-            f = references.link_forces(model=model, data=data)
-            assert f == pytest.approx(references.input.physics_model.f_ext)
+        f = references.link_forces(model=model, data=data)
+        assert f == pytest.approx(references.input.physics_model.f_ext)
 
-            J = js.model.generalized_free_floating_jacobian(model=model, data=data)
-            JTf_inertial = jnp.einsum("l6g,l6->g", J, f)
+        J = js.model.generalized_free_floating_jacobian(model=model, data=data)
+        JTf_inertial = jnp.einsum("l6g,l6->g", J, f)
 
     for vel_repr in [VelRepr.Body, VelRepr.Mixed]:
         with references.switch_velocity_representation(vel_repr):

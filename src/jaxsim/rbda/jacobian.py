@@ -205,7 +205,7 @@ def jacobian_full_doubly_left(
     # Convert adjoints to SE(3) transforms.
     # Returning them here prevents calling FK in case the output representation
     # of the Jacobian needs to be changed.
-    B_H_L = jax.vmap(lambda B_X_L: Adjoint.to_transform(B_X_L))(B_X_i)
+    B_H_L = jax.vmap(Adjoint.to_transform)(B_X_i)
 
     # Adjust shape of doubly-left free-floating full Jacobian.
     B_J_full_WL_B = J.squeeze().astype(float)
@@ -322,7 +322,7 @@ def jacobian_derivative_full_doubly_left(
     # Convert adjoints to SE(3) transforms.
     # Returning them here prevents calling FK in case the output representation
     # of the Jacobian needs to be changed.
-    B_H_L = jax.vmap(lambda B_X_L: Adjoint.to_transform(B_X_L))(B_X_i)
+    B_H_L = jax.vmap(Adjoint.to_transform)(B_X_i)
 
     # Adjust shape of doubly-left free-floating full Jacobian derivative.
     B_J̇_full_WL_B = J̇.squeeze().astype(float)

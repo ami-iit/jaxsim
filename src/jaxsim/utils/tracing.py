@@ -8,15 +8,9 @@ import jax.interpreters.partial_eval
 def tracing(var: Any) -> bool | jax.Array:
     """Returns True if the variable is being traced by JAX, False otherwise."""
 
-    return jax.numpy.array(
-        [
-            isinstance(var, t)
-            for t in (
-                jax._src.core.Tracer,
-                jax.interpreters.partial_eval.DynamicJaxprTracer,
-            )
-        ]
-    ).any()
+    return isinstance(
+        var, jax._src.core.Tracer | jax.interpreters.partial_eval.DynamicJaxprTracer
+    )
 
 
 def not_tracing(var: Any) -> bool | jax.Array:

@@ -492,12 +492,12 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # Extract the frame indices.
         frame_idxs = js.frame.names_to_idxs(frame_names=frame_names, model=model)
-        parent_link_idxs = jax.vmap(js.frame.idx_of_parent_link, in_axes=(None,))(
-            model, frame_index=frame_idxs
-        )
+        parent_link_idxs = model.kin_dyn_parameters.frame_parameters.body[
+            frame_idxs - model.number_of_links
+        ]
 
         exceptions.raise_value_error_if(
-            condition=jnp.logical_not(data.valid(model=model)),
+            condition=~data.valid(model=model),
             msg="The provided data is not valid for the model",
         )
         W_H_Fi = jax.vmap(

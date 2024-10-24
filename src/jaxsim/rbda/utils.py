@@ -135,7 +135,7 @@ def process_inputs(
     # Check that the quaternion is unary since our RBDAs make this assumption in order
     # to prevent introducing additional normalizations that would affect AD.
     exceptions.raise_value_error_if(
-        condition=jnp.logical_not(jnp.allclose(W_Q_B.dot(W_Q_B), 1.0)),
+        condition=~jnp.allclose(W_Q_B.dot(W_Q_B), 1.0),
         msg="A RBDA received a quaternion that is not normalized.",
     )
 

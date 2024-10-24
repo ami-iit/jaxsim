@@ -131,7 +131,11 @@ def idxs_to_names(
         The names of the frames.
     """
 
-    return tuple(idx_to_name(model=model, frame_index=idx) for idx in frame_indices)
+    return tuple(
+        jax.tree.map(
+            lambda idx: idx_to_name(model=model, frame_index=idx), frame_indices
+        )
+    )
 
 
 # ==========

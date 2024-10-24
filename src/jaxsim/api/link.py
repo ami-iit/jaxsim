@@ -54,9 +54,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
     """
 
     exceptions.raise_value_error_if(
-        condition=jnp.array(
-            [link_index < 0, link_index >= model.number_of_links()]
-        ).any(),
+        condition=link_index < 0,
         msg="Invalid link index '{idx}'",
         idx=link_index,
     )
@@ -98,7 +96,9 @@ def idxs_to_names(
         The names of the links.
     """
 
-    return tuple(idx_to_name(model=model, link_index=idx) for idx in link_indices)
+    return tuple(
+        jax.tree.map(lambda idx: idx_to_name(model=model, link_index=idx), link_indices)
+    )
 
 
 # =========

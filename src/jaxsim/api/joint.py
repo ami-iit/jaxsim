@@ -53,9 +53,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str
     """
 
     exceptions.raise_value_error_if(
-        condition=jnp.array(
-            [joint_index < 0, joint_index >= model.number_of_joints()]
-        ).any(),
+        condition=joint_index < 0,
         msg="Invalid joint index '{idx}'",
         idx=joint_index,
     )
@@ -99,7 +97,11 @@ def idxs_to_names(
         The names of the joints.
     """
 
-    return tuple(idx_to_name(model=model, joint_index=idx) for idx in joint_indices)
+    return tuple(
+        jax.tree.map(
+            lambda idx: idx_to_name(model=model, joint_index=idx), joint_indices
+        )
+    )
 
 
 # ============

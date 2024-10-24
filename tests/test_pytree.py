@@ -32,13 +32,12 @@ def test_call_jit_compiled_function_passing_different_objects(
     _ = js.contact.estimate_good_contact_parameters(model=model1)
 
     # Now JAX should not compile it again.
-    with jax.log_compiles():
-        with io.StringIO() as buf, redirect_stdout(buf):
-            # Beyond running without any JIT recompilations, the following function
-            # should work on different JaxSimModel objects without raising any errors
-            # related to the comparison of Static fields.
-            _ = js.contact.estimate_good_contact_parameters(model=model2)
-            stdout = buf.getvalue()
+    with jax.log_compiles(), io.StringIO() as buf, redirect_stdout(buf):
+        # Beyond running without any JIT recompilations, the following function
+        # should work on different JaxSimModel objects without raising any errors
+        # related to the comparison of Static fields.
+        _ = js.contact.estimate_good_contact_parameters(model=model2)
+        stdout = buf.getvalue()
 
     assert (
         f"Compiling {js.contact.estimate_good_contact_parameters.__name__}"

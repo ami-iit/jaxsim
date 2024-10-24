@@ -40,7 +40,7 @@ def idx_of_parent_link(
         idx=frame_index,
     )
 
-    return model.kin_dyn_parameters.frame_parameters.body[
+    return jnp.array(model.kin_dyn_parameters.frame_parameters.body)[
         frame_index - model.number_of_links()
     ]
 

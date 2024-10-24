@@ -216,11 +216,21 @@ class ContactModel(JaxsimDataclass):
             the velocity representation of data.
         """
 
+        # Get the object storing the contact parameters of the model.
+        contact_parameters = model.kin_dyn_parameters.contact_parameters
+
+        # Extract the indices corresponding to the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            contact_parameters.indices_of_enabled_collidable_points
+        )
+
         # Convert the contact forces to a JAX array.
         f_C = jnp.atleast_2d(jnp.array(contact_forces, dtype=float).squeeze())
 
         # Get the pose of the enabled collidable points.
-        W_H_C = js.contact.transforms(model=model, data=data)
+        W_H_C = js.contact.transforms(model=model, data=data)[
+            indices_of_enabled_collidable_points
+        ]
 
         # Convert the contact forces to inertial-fixed representation.
         W_f_C = jax.vmap(
@@ -233,14 +243,6 @@ class ContactModel(JaxsimDataclass):
                 )
             )
         )(f_C, W_H_C)
-
-        # Get the object storing the contact parameters of the model.
-        contact_parameters = model.kin_dyn_parameters.contact_parameters
-
-        # Extract the indices corresponding to the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            contact_parameters.indices_of_enabled_collidable_points
-        )
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly

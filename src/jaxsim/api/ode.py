@@ -243,8 +243,39 @@ def system_acceleration(
     # Enforce joint limits
     # ====================
 
-    # TODO: enforce joint limits
     τ_position_limit = jnp.zeros_like(τ_references).astype(float)
+
+    if model.dofs() > 0:
+
+        # Stiffness and damper parameters for the joint position limits.
+        k_j = jnp.array(
+            model.kin_dyn_parameters.joint_parameters.position_limit_spring
+        ).astype(float)
+        d_j = jnp.array(
+            model.kin_dyn_parameters.joint_parameters.position_limit_damper
+        ).astype(float)
+
+        # Compute the joint position limit violations.
+        lower_violation = jnp.clip(
+            data.state.physics_model.joint_positions
+            - model.kin_dyn_parameters.joint_parameters.position_limits_min,
+            max=0.0,
+        )
+
+        upper_violation = jnp.clip(
+            data.state.physics_model.joint_positions
+            - model.kin_dyn_parameters.joint_parameters.position_limits_max,
+            min=0.0,
+        )
+
+        # Compute the joint position limit torque.
+        τ_position_limit -= jnp.diag(k_j) @ (lower_violation + upper_violation)
+
+        τ_position_limit -= (
+            jnp.positive(τ_position_limit)
+            * jnp.diag(d_j)
+            @ data.state.physics_model.joint_velocities
+        )
 
     # ====================
     # Joint friction model

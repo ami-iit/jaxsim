@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxsim.api as js
@@ -370,3 +371,37 @@ def test_simulation_with_relaxed_rigid_contacts(
     assert data_tf.base_position()[2] + max_penetration == pytest.approx(
         box_height / 2, abs=0.000_100
     )
+
+
+def test_joint_limits(
+    jaxsim_model_single_pendulum: js.model.JaxSimModel,
+):
+
+    model = jaxsim_model_single_pendulum
+
+    position_limits_min = np.array(
+        model.kin_dyn_parameters.joint_parameters.position_limits_min
+    ).astype(float)
+
+    position_limits_max = np.array(
+        model.kin_dyn_parameters.joint_parameters.position_limits_max
+    ).astype(float)
+
+    data = js.data.JaxSimModelData.build(
+        model=model,
+        velocity_representation=VelRepr.Inertial,
+    )
+
+    # Test minimum joint position limits.
+    data_t0 = data.reset_joint_positions(positions=position_limits_min * 0.20)
+
+    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
+
+    assert np.min(np.array(data_tf.joint_positions()), axis=0) >= position_limits_min
+
+    # Test maximum joint position limits.
+    data_t0 = data.reset_joint_positions(positions=position_limits_max * 0.20)
+
+    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
+
+    assert np.max(np.array(data_tf.joint_positions()), axis=0) <= position_limits_max

@@ -54,7 +54,7 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    _integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
+    integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -104,7 +104,9 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         time_step: jtp.FloatLike | None = None,
-        integrator: jaxsim.integrators.Integrator | None = None,
+        integrator: (
+            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
+        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -129,7 +131,9 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model that overrides the one in
                 the description.
             integrator:
-                The optional integrator class to use.
+                The integrator to use. If not specified, a default one is used.
+                This argument can either be a pre-built integrator instance or one
+                of the integrator classes defined in JaxSim.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -178,7 +182,9 @@ class JaxSimModel(JaxsimDataclass):
         model_name: str | None = None,
         *,
         time_step: jtp.FloatLike | None = None,
-        integrator: jaxsim.integrators.Integrator | None = None,
+        integrator: (
+            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
+        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
@@ -197,7 +203,9 @@ class JaxSimModel(JaxsimDataclass):
             terrain: The terrain to consider (the default is a flat infinite plane).
                 The optional name of the model overriding the physics model name.
             integrator:
-                The optional integrator class to use.
+                The integrator to use. If not specified, a default one is used.
+                This argument can either be a pre-built integrator instance or one
+                of the integrator classes defined in JaxSim.
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
@@ -226,8 +234,33 @@ class JaxSimModel(JaxsimDataclass):
             terrain=terrain, parameters=None
         )
 
-        # Consider the default integrator if not specified.
-        integrator = integrator or jaxsim.integrators.fixed_step.Heun2SO3
+        # Build the integrator if not provided.
+        match integrator:
+
+            # If None, build a default integrator.
+            case None:
+
+                integrator = jaxsim.integrators.fixed_step.Heun2SO3.build(
+                    dynamics=js.ode.wrap_system_dynamics_for_integration(
+                        system_dynamics=js.ode.system_dynamics
+                    )
+                )
+
+            # If an integrator class is passed, assume that it is a JaxSim integrator
+            # and build it with the default system dynamics.
+            case _ if isinstance(
+                jaxsim.integrators.Integrator, type(jaxsim.integrators.Integrator)
+            ):
+
+                integrator_cls = integrator
+                integrator = integrator_cls.build(
+                    dynamics=js.ode.wrap_system_dynamics_for_integration(
+                        system_dynamics=js.ode.system_dynamics
+                    )
+                )
+
+            case _:
+                raise ValueError(f"Invalid integrator: {integrator}")
 
         # Build the model.
         model = cls(
@@ -236,13 +269,9 @@ class JaxSimModel(JaxsimDataclass):
                 model_description=model_description
             ),
             time_step=time_step,
-            _integrator=integrator.build(
-                dynamics=js.ode.wrap_system_dynamics_for_integration(
-                    system_dynamics=js.ode.system_dynamics
-                )
-            ),
             terrain=terrain,
             contact_model=contact_model,
+            integrator=integrator,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the

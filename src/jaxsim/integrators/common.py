@@ -49,16 +49,11 @@ class SystemDynamics(Protocol[State, StateDerivative]):
 @jax_dataclasses.pytree_dataclass
 class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
-    AfterInitKey: ClassVar[str] = "after_init"
-    InitializingKey: ClassVar[str] = "initializing"
-
-    AuxDictDynamicsKey: ClassVar[str] = "aux_dict_dynamics"
-
     dynamics: Static[SystemDynamics[State, StateDerivative]] = dataclasses.field(
         repr=False, hash=False, compare=False, kw_only=True
     )
 
-    state_aux_dict: dict[str, Any] = dataclasses.field(
+    metadata: dict[str, Any] = dataclasses.field(
         default_factory=dict, repr=False, hash=False, compare=False, kw_only=True
     )
 
@@ -88,7 +83,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         t0: Time,
         dt: TimeStep,
         *,
-        state_aux_dict: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
         **kwargs,
     ) -> tuple[State, dict[str, Any]]:
         """
@@ -98,22 +93,24 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             x0: The initial state of the system.
             t0: The initial time of the system.
             dt: The time step of the integration.
-            state_aux_dict: The state auxiliary dictionary of the integrator.
+            metadata: The state auxiliary dictionary of the integrator.
             **kwargs: Additional keyword arguments.
 
         Returns:
             The final state of the system and the updated auxiliary dictionary.
         """
 
+        metadata = metadata if metadata is not None else {}
+
         with self.editable(validate=False) as integrator:
-            integrator.state_aux_dict = state_aux_dict
+            integrator.metadata = metadata
 
         with integrator.mutable_context(mutability=Mutability.MUTABLE):
-            xf, aux_dict = integrator(x0, t0, dt, **kwargs)
+            xf, metadata_step = integrator(x0, t0, dt, **kwargs)
 
         return (
             xf,
-            state_aux_dict | aux_dict,
+            metadata | metadata_step,
         )
 
     @abc.abstractmethod
@@ -325,8 +322,11 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             x0,
         )
 
-        # Apply FSAL property by passing ẋ0 = f(x0, t0) from the previous iteration.
-        get_ẋ0_and_aux_dict = lambda: self.state_aux_dict.get("dxdt0", f(x0, t0))
+        # Closure on metadata to either evaluate the dynamics at the initial state
+        # or to use the previous state derivative (only integrators supporting FSAL).
+        def get_ẋ0_and_aux_dict() -> tuple[StateDerivative, dict[str, Any]]:
+            ẋ0, aux_dict = f(x0, t0)
+            return self.metadata.get("dxdt0", ẋ0), aux_dict
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
         # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
@@ -353,8 +353,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
                 # Compute the next time for the kᵢ evaluation.
                 ti = t0 + c[i] * Δt
 
-                # This is kᵢ, aux_dict = f(xᵢ, tᵢ).
-                return f(xi, ti)
+                # Evaluate the dynamics.
+                ki, aux_dict = f(xi, ti)
+                return ki, aux_dict
 
             # This selector enables FSAL property in the first iteration (i=0).
             ki, aux_dict = jax.lax.cond(
@@ -379,9 +380,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Update the FSAL property for the next iteration.
         if self.has_fsal:
-            self.state_aux_dict["dxdt0"] = jax.tree.map(
-                lambda l: l[self.index_of_fsal], K
-            )
+            self.metadata["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
 
         # Compute the output state.
         # Note that z contains as many new states as the rows of `b.T`.
@@ -464,7 +463,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             raise ValueError("The Butcher tableau is not valid.")
 
         if not ExplicitRungeKutta.butcher_tableau_is_explicit(A=A):
-            return False
+            return False, None
 
         if index_of_solution >= b.T.shape[0]:
             msg = "The index of the solution (i-th row of `b.T`) is out of range."

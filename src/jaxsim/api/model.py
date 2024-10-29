@@ -101,8 +101,8 @@ class JaxSimModel(JaxsimDataclass):
     def build_from_model_description(
         cls,
         model_description: str | pathlib.Path | rod.Model,
-        model_name: str | None = None,
         *,
+        model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
         integrator: (
             jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
@@ -128,8 +128,6 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
-                The optional name of the model that overrides the one in
-                the description.
             integrator:
                 The integrator to use. If not specified, a default one is used.
                 This argument can either be a pre-built integrator instance or one
@@ -179,8 +177,8 @@ class JaxSimModel(JaxsimDataclass):
     def build(
         cls,
         model_description: ModelDescription,
-        model_name: str | None = None,
         *,
+        model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
         integrator: (
             jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
@@ -219,19 +217,27 @@ class JaxSimModel(JaxsimDataclass):
 
         # Consider the default terrain (a flat infinite plane) if not specified.
         terrain = (
-            terrain or JaxSimModel.__dataclass_fields__["terrain"].default_factory()
+            terrain
+            if terrain is not None
+            else JaxSimModel.__dataclass_fields__["terrain"].default_factory()
         )
 
         # Consider the default time step if not specified.
         time_step = (
-            time_step or JaxSimModel.__dataclass_fields__["time_step"].default_factory()
+            time_step
+            if time_step is not None
+            else JaxSimModel.__dataclass_fields__["time_step"].default_factory()
         )
 
         # Create the default contact model.
         # It will be populated with an initial estimation of good parameters.
         # While these might not be the best, they are a good starting point.
-        contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts.build(
-            terrain=terrain, parameters=None
+        contact_model = (
+            contact_model
+            if contact_model is not None
+            else jaxsim.rbda.contacts.SoftContacts.build(
+                terrain=terrain, parameters=None
+            )
         )
 
         # Build the integrator if not provided.

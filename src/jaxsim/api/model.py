@@ -246,11 +246,14 @@ class JaxSimModel(JaxsimDataclass):
                     )
                 )
 
+            # If it's a pre-built integrator (also a custom one from the user)
+            # just use it as is.
+            case _ if isinstance(integrator, jaxsim.integrators.Integrator):
+                pass
+
             # If an integrator class is passed, assume that it is a JaxSim integrator
             # and build it with the default system dynamics.
-            case _ if isinstance(
-                jaxsim.integrators.Integrator, type(jaxsim.integrators.Integrator)
-            ):
+            case _ if issubclass(integrator, jaxsim.integrators.Integrator):
 
                 integrator_cls = integrator
                 integrator = integrator_cls.build(

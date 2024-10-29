@@ -1965,10 +1965,10 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    integrator: jaxsim.integrators.Integrator | None = None,
     t0: jtp.FloatLike = 0.0,
     dt: jtp.FloatLike | None = None,
-    integrator_state: dict[str, Any] | None = None,
+    integrator: jaxsim.integrators.Integrator | None = None,
+    integrator_metadata: dict[str, Any] | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
     **kwargs,
@@ -1980,7 +1980,7 @@ def step(
         model: The model to consider.
         data: The data of the considered model.
         integrator: The integrator to use.
-        integrator_state: The state of the integrator.
+        integrator_metadata: The metadata of the integrator, if needed.
         t0: The initial time to consider. Only relevant for time-dependent dynamics.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
@@ -1990,8 +1990,9 @@ def step(
         kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
-        A tuple containing the new data of the model
-        and the new state of the integrator.
+        A tuple containing the new data of the model and a dictionary of auxiliary
+        data computed during the step. If the integrator has metadata, the dictionary
+        will contain the new metadata stored in the `integrator_metadata` key.
 
     Note:
         In order to reduce the occurrences of frame conversions performed internally,
@@ -2006,12 +2007,9 @@ def step(
     integrator_kwargs = kwargs.pop("integrator_kwargs", {})
     integrator_kwargs = kwargs | integrator_kwargs
 
-    # Create the dictionary to pass to the ODE system.
-    ode_dict = {"model": model, "data": data} if not integrator else {}
-
-    # Extract the integrator and integrator state.
-    integrator = integrator or model._integrator
-    integrator_state_t0 = integrator_state or dict()
+    # Extract the integrator and the optional metadata.
+    integrator_metadata_t0 = integrator_metadata
+    integrator = integrator if integrator is not None else model.integrator
 
     # Initialize the time-related variables.
     state_t0 = data.state
@@ -2067,11 +2065,11 @@ def step(
         τ_references = references.joint_force_references(model=model)
 
     # Step the dynamics forward.
-    state_tf, integrator_state_tf = integrator.step(
+    state_tf, integrator_metadata_tf = integrator.step(
         x0=state_t0,
         t0=t0,
         dt=dt,
-        state_aux_dict=integrator_state_t0,
+        metadata=integrator_metadata_t0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
         # by the pair (f_L, τ_references).
@@ -2087,7 +2085,6 @@ def step(
                 joint_force_references=τ_references,
             )
             | integrator_kwargs
-            | ode_dict
         ),
     )
 
@@ -2114,7 +2111,7 @@ def step(
             jaxsim.exceptions.raise_runtime_error_if(
                 condition=jnp.logical_and(
                     isinstance(
-                        model._integrator,
+                        integrator,
                         jaxsim.integrators.fixed_step.ForwardEuler
                         | jaxsim.integrators.fixed_step.ForwardEulerSO3,
                     ),
@@ -2158,4 +2155,8 @@ def step(
         velocity_representation=data.velocity_representation, validate=False
     )
 
-    return data_tf, integrator_state_tf
+    return data_tf, {} | (
+        dict(integrator_metadata=integrator_metadata_tf)
+        if integrator_metadata is not None
+        else {}
+    )

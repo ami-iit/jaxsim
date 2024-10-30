@@ -8,6 +8,7 @@ import jax_dataclasses
 import numpy as np
 
 import jaxsim.typing as jtp
+from jaxsim import exceptions
 
 
 class Terrain(abc.ABC):
@@ -142,6 +143,11 @@ class PlaneTerrain(FlatTerrain):
 
         # Get the plane equation coefficients from the terrain normal.
         A, B, C = self._normal
+
+        exceptions.raise_value_error_if(
+            condition=jnp.allclose(C, 0.0),
+            msg="The z component of the normal cannot be zero.",
+        )
 
         # Compute the final coefficient D considering the terrain height.
         D = -C * self._height

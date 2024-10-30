@@ -380,18 +380,20 @@ def test_joint_limits(
     model = jaxsim_model_single_pendulum
 
     with model.editable(validate=False) as model:
-        model.kin_dyn_parameters.joint_parameters.position_limits_max = jnp.array(
-            1.5708
+        model.kin_dyn_parameters.joint_parameters.position_limits_max = jnp.atleast_1d(
+            jnp.array(1.5708)
         )
-        model.kin_dyn_parameters.joint_parameters.position_limits_min = jnp.array(
-            -1.5708
+        model.kin_dyn_parameters.joint_parameters.position_limits_min = jnp.atleast_1d(
+            jnp.array(-1.5708)
         )
-        model.kin_dyn_parameters.joint_parameters.position_limit_spring = jnp.array(
-            75.0
+        model.kin_dyn_parameters.joint_parameters.position_limit_spring = (
+            jnp.atleast_1d(jnp.array(75.0))
         )
-        model.kin_dyn_parameters.joint_parameters.position_limit_damper = jnp.array(0.1)
+        model.kin_dyn_parameters.joint_parameters.position_limit_damper = (
+            jnp.atleast_1d(jnp.array(0.1))
+        )
 
-    position_limits_min, position_limits_max = js.joint.position_limits(model=model)[0]
+    position_limits_min, position_limits_max = js.joint.position_limits(model=model)
 
     data = js.data.JaxSimModelData.build(
         model=model,
@@ -400,16 +402,27 @@ def test_joint_limits(
 
     theta = 10 * np.pi / 180
 
+    # Define a tolerance since the spring-damper model does
+    # not guarantee that the joint position will be exactly
+    # below the limit.
+    tolerance = theta * 0.10
+
     # Test minimum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
 
-    assert np.min(np.array(data_tf.joint_positions()), axis=0) >= position_limits_min
+    assert (
+        np.min(np.array(data_tf.joint_positions()), axis=0) + tolerance
+        >= position_limits_min
+    )
 
     # Test maximum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
 
-    assert np.max(np.array(data_tf.joint_positions()), axis=0) <= position_limits_max
+    assert (
+        np.max(np.array(data_tf.joint_positions()), axis=0) - tolerance
+        <= position_limits_max
+    )

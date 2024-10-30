@@ -123,7 +123,10 @@ def position_limit(
     """
 
     if model.number_of_joints() <= 1:
-        return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
+        s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min
+        s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max
+
+        return s_min.astype(float), s_max.astype(float)
 
     exceptions.raise_value_error_if(
         condition=jnp.array(

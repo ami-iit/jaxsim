@@ -108,7 +108,9 @@ class PlaneTerrain(FlatTerrain):
             _normal=tuple(normal.tolist()),
         )
 
-    def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+    def normal(
+        self, x: jtp.FloatLike | None = None, y: jtp.FloatLike | None = None
+    ) -> jtp.Vector:
         """
         Compute the normal vector of the terrain at a specific (x, y) location.
 

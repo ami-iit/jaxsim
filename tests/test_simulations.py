@@ -1,5 +1,3 @@
-import functools
-
 import jax
 import jax.numpy as jnp
 import pytest
@@ -62,17 +60,9 @@ def test_box_with_external_forces(
             additive=False,
         )
 
-    # Create the integrator.
-    integrator = jaxsim.integrators.fixed_step.RungeKutta4SO3.build(
-        dynamics=js.ode.wrap_system_dynamics_for_integration(
-            model=model, data=data0, system_dynamics=js.ode.system_dynamics
-        )
-    )
-
     # Initialize the integrator.
     tf = 0.5
     T_ns = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
-    integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=model.time_step)
 
     # Copy the initial data...
     data = data0.copy()
@@ -80,11 +70,9 @@ def test_box_with_external_forces(
     # ... and step the simulation.
     for _ in T_ns:
 
-        data, integrator_state = js.model.step(
+        data, _ = js.model.step(
             model=model,
             data=data,
-            integrator=integrator,
-            integrator_state=integrator_state,
             link_forces=references.link_forces(model=model, data=data),
         )
 
@@ -148,35 +136,23 @@ def test_box_with_zero_gravity(
             additive=False,
         )
 
-    # Create the integrator.
-    integrator = jaxsim.integrators.fixed_step.RungeKutta4SO3.build(
-        dynamics=js.ode.wrap_system_dynamics_for_integration(
-            model=model, data=data0, system_dynamics=js.ode.system_dynamics
-        )
-    )
-
-    # Initialize the integrator.
-    tf, dt = 1.0, 0.010
-    T_ns = jnp.arange(start=0, stop=tf * 1e9, step=dt * 1e9, dtype=int)
-    integrator_state = integrator.init(x0=data0.state, t0=0.0, dt=dt)
+    tf = 0.01
+    T = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
 
     # Copy the initial data...
     data = data0.copy()
 
     # ... and step the simulation.
-    for _ in T_ns:
+    for _ in T:
 
         with (
             data.switch_velocity_representation(velocity_representation),
             references.switch_velocity_representation(velocity_representation),
         ):
 
-            data, integrator_state = js.model.step(
+            data, _ = js.model.step(
                 model=model,
                 data=data,
-                dt=dt,
-                integrator=integrator,
-                integrator_state=integrator_state,
                 link_forces=references.link_forces(model=model, data=data),
             )
 
@@ -195,33 +171,13 @@ def run_simulation(
     tf: jtp.FloatLike,
 ) -> js.data.JaxSimModelData:
 
-    @functools.cache
-    def get_integrator() -> tuple[jaxsim.integrators.Integrator, dict[str, jtp.PyTree]]:
-
-        # Create the integrator.
-        integrator = jaxsim.integrators.fixed_step.Heun2.build(
-            fsal_enabled_if_supported=False,
-            dynamics=js.ode.wrap_system_dynamics_for_integration(
-                model=model,
-                data=data_t0,
-                system_dynamics=js.ode.system_dynamics,
-            ),
-        )
-
-        # Initialize the integrator state.
-        integrator_state_t0 = integrator.init(x0=data_t0.state, t0=0.0, dt=dt)
-
-        return integrator, integrator_state_t0
-
     # Initialize the integration horizon.
     T_ns = jnp.arange(start=0.0, stop=int(tf * 1e9), step=int(dt * 1e9)).astype(int)
 
     # Initialize the simulation data.
-    integrator = None
-    integrator_state = None
     data = data_t0.copy()
 
-    for t_ns in T_ns:
+    for _ in T_ns:
 
         match model.contact_model:
 
@@ -235,16 +191,10 @@ def run_simulation(
 
             case _:
 
-                integrator, integrator_state = (
-                    get_integrator() if t_ns == 0 else (integrator, integrator_state)
-                )
-
-                data, integrator_state = js.model.step(
+                data, _ = js.model.step(
                     model=model,
                     data=data,
                     dt=dt,
-                    integrator=integrator,
-                    integrator_state=integrator_state,
                 )
 
     return data

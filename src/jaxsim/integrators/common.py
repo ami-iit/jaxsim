@@ -10,7 +10,7 @@ from jax_dataclasses import Static
 import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
-from jaxsim import exceptions
+from jaxsim import exceptions, logging
 from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass, Mutability
 
 try:
@@ -49,16 +49,11 @@ class SystemDynamics(Protocol[State, StateDerivative]):
 @jax_dataclasses.pytree_dataclass
 class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
-    AfterInitKey: ClassVar[str] = "after_init"
-    InitializingKey: ClassVar[str] = "initializing"
-
-    AuxDictDynamicsKey: ClassVar[str] = "aux_dict_dynamics"
-
     dynamics: Static[SystemDynamics[State, StateDerivative]] = dataclasses.field(
         repr=False, hash=False, compare=False, kw_only=True
     )
 
-    params: dict[str, Any] = dataclasses.field(
+    metadata: dict[str, Any] = dataclasses.field(
         default_factory=dict, repr=False, hash=False, compare=False, kw_only=True
     )
 
@@ -88,9 +83,9 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         t0: Time,
         dt: TimeStep,
         *,
-        params: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
         **kwargs,
-    ) -> tuple[State, dict[str, Any]]:
+    ) -> tuple[NextState, dict[str, Any]]:
         """
         Perform a single integration step.
 
@@ -98,28 +93,30 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
             x0: The initial state of the system.
             t0: The initial time of the system.
             dt: The time step of the integration.
-            params: The auxiliary dictionary of the integrator.
+            metadata: The state auxiliary dictionary of the integrator.
             **kwargs: Additional keyword arguments.
 
         Returns:
             The final state of the system and the updated auxiliary dictionary.
         """
 
+        metadata = metadata if metadata is not None else {}
+
         with self.editable(validate=False) as integrator:
-            integrator.params = params
+            integrator.metadata = metadata
 
         with integrator.mutable_context(mutability=Mutability.MUTABLE):
-            xf, aux_dict = integrator(x0, t0, dt, **kwargs)
+            xf, metadata_step = integrator(x0, t0, dt, **kwargs)
 
         return (
             xf,
-            integrator.params
-            | {Integrator.AfterInitKey: jnp.array(False).astype(bool)}
-            | aux_dict,
+            metadata | metadata_step,
         )
 
     @abc.abstractmethod
-    def __call__(self, x0: State, t0: Time, dt: TimeStep, **kwargs) -> NextState:
+    def __call__(
+        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+    ) -> tuple[NextState, dict[str, Any]]:
         pass
 
     def init(
@@ -131,62 +128,12 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         include_dynamics_aux_dict: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
-        """
-        Initialize the integrator.
 
-        Args:
-            x0: The initial state of the system.
-            t0: The initial time of the system.
-            dt: The time step of the integration.
+        logging.warning(
+            "The 'init' method has been deprecated. There is no need to call it."
+        )
 
-        Returns:
-            The auxiliary dictionary of the integrator.
-
-        Note:
-            This method should have the same signature as the inherited `__call__`
-            method, including additional kwargs.
-
-        Note:
-            If the integrator supports FSAL, the pair `(x0, t0)` must match the real
-            initial state and time of the system, otherwise the initial derivative of
-            the first step will be wrong.
-        """
-
-        with self.editable(validate=False) as integrator:
-
-            # Initialize the integrator parameters.
-            # For initialization purpose, the integrators can check if the
-            # `Integrator.InitializingKey` is present in their parameters.
-            # The AfterInitKey is used in the first step after initialization.
-            integrator.params = {
-                Integrator.InitializingKey: jnp.array(True),
-                Integrator.AfterInitKey: jnp.array(False),
-            }
-
-            # Run a dummy call of the integrator.
-            # It is used only to get the params so that we know the structure
-            # of the corresponding pytree.
-            _ = integrator(x0, t0, dt, **kwargs)
-
-        # Remove the injected key.
-        _ = integrator.params.pop(Integrator.InitializingKey)
-
-        # Make sure that all leafs of the dictionary are JAX arrays.
-        # Also, since these are dummy parameters, set them all to zero.
-        params_after_init = jax.tree.map(lambda l: jnp.zeros_like(l), integrator.params)
-
-        # Mark the next step as first step after initialization.
-        params_after_init = params_after_init | {
-            Integrator.AfterInitKey: jnp.array(True)
-        }
-
-        # Store the zero parameters in the integrator.
-        # When the integrator is stepped, this is used to check if the passed
-        # parameters are valid.
-        with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-            self.params = params_after_init
-
-        return params_after_init
+        return {}
 
 
 @jax_dataclasses.pytree_dataclass
@@ -377,8 +324,11 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             x0,
         )
 
-        # Apply FSAL property by passing ẋ0 = f(x0, t0) from the previous iteration.
-        get_ẋ0_and_aux_dict = lambda: self.params.get("dxdt0", f(x0, t0))
+        # Closure on metadata to either evaluate the dynamics at the initial state
+        # or to use the previous state derivative (only integrators supporting FSAL).
+        def get_ẋ0_and_aux_dict() -> tuple[StateDerivative, dict[str, Any]]:
+            ẋ0, aux_dict = f(x0, t0)
+            return self.metadata.get("dxdt0", ẋ0), aux_dict
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
         # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
@@ -405,8 +355,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
                 # Compute the next time for the kᵢ evaluation.
                 ti = t0 + c[i] * Δt
 
-                # This is kᵢ, aux_dict = f(xᵢ, tᵢ).
-                return f(xi, ti)
+                # Evaluate the dynamics.
+                ki, aux_dict = f(xi, ti)
+                return ki, aux_dict
 
             # This selector enables FSAL property in the first iteration (i=0).
             ki, aux_dict = jax.lax.cond(
@@ -431,7 +382,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Update the FSAL property for the next iteration.
         if self.has_fsal:
-            self.params["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
+            self.metadata["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
 
         # Compute the output state.
         # Note that z contains as many new states as the rows of `b.T`.
@@ -514,7 +465,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             raise ValueError("The Butcher tableau is not valid.")
 
         if not ExplicitRungeKutta.butcher_tableau_is_explicit(A=A):
-            return False
+            return False, None
 
         if index_of_solution >= b.T.shape[0]:
             msg = "The index of the solution (i-th row of `b.T`) is out of range."

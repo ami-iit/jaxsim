@@ -54,6 +54,10 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
+    integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
+        default=None, repr=False
+    )
+
     _description: Static[wrappers.HashlessObject[ModelDescription | None]] = (
         dataclasses.field(default=None, repr=False)
     )
@@ -93,12 +97,16 @@ class JaxSimModel(JaxsimDataclass):
     # Initialization and state
     # ========================
 
-    @staticmethod
+    @classmethod
     def build_from_model_description(
+        cls,
         model_description: str | pathlib.Path | rod.Model,
-        model_name: str | None = None,
         *,
+        model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
+        integrator: (
+            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
+        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -120,6 +128,10 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
+            integrator:
+                The integrator to use. If not specified, a default one is used.
+                This argument can either be a pre-built integrator instance or one
+                of the integrator classes defined in JaxSim.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -146,10 +158,11 @@ class JaxSimModel(JaxsimDataclass):
             )
 
         # Build the model.
-        model = JaxSimModel.build(
+        model = cls.build(
             model_description=intermediate_description,
             model_name=model_name,
             time_step=time_step,
+            integrator=integrator,
             terrain=terrain,
             contact_model=contact_model,
         )
@@ -160,12 +173,16 @@ class JaxSimModel(JaxsimDataclass):
 
         return model
 
-    @staticmethod
+    @classmethod
     def build(
+        cls,
         model_description: ModelDescription,
-        model_name: str | None = None,
         *,
+        model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
+        integrator: (
+            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
+        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
@@ -182,6 +199,11 @@ class JaxSimModel(JaxsimDataclass):
                 The default time step to consider for the simulation. It can be
                 manually overridden in the function that steps the simulation.
             terrain: The terrain to consider (the default is a flat infinite plane).
+                The optional name of the model overriding the physics model name.
+            integrator:
+                The integrator to use. If not specified, a default one is used.
+                This argument can either be a pre-built integrator instance or one
+                of the integrator classes defined in JaxSim.
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
@@ -195,23 +217,62 @@ class JaxSimModel(JaxsimDataclass):
 
         # Consider the default terrain (a flat infinite plane) if not specified.
         terrain = (
-            terrain or JaxSimModel.__dataclass_fields__["terrain"].default_factory()
+            terrain
+            if terrain is not None
+            else JaxSimModel.__dataclass_fields__["terrain"].default_factory()
         )
 
         # Consider the default time step if not specified.
         time_step = (
-            time_step or JaxSimModel.__dataclass_fields__["time_step"].default_factory()
+            time_step
+            if time_step is not None
+            else JaxSimModel.__dataclass_fields__["time_step"].default_factory()
         )
 
         # Create the default contact model.
         # It will be populated with an initial estimation of good parameters.
         # While these might not be the best, they are a good starting point.
-        contact_model = contact_model or jaxsim.rbda.contacts.SoftContacts.build(
-            terrain=terrain, parameters=None
+        contact_model = (
+            contact_model
+            if contact_model is not None
+            else jaxsim.rbda.contacts.SoftContacts.build(
+                terrain=terrain, parameters=None
+            )
         )
 
+        # Build the integrator if not provided.
+        match integrator:
+
+            # If None, build a default integrator.
+            case None:
+
+                integrator = jaxsim.integrators.fixed_step.Heun2SO3.build(
+                    dynamics=js.ode.wrap_system_dynamics_for_integration(
+                        system_dynamics=js.ode.system_dynamics
+                    )
+                )
+
+            # If it's a pre-built integrator (also a custom one from the user)
+            # just use it as is.
+            case _ if isinstance(integrator, jaxsim.integrators.Integrator):
+                pass
+
+            # If an integrator class is passed, assume that it is a JaxSim integrator
+            # and build it with the default system dynamics.
+            case _ if issubclass(integrator, jaxsim.integrators.Integrator):
+
+                integrator_cls = integrator
+                integrator = integrator_cls.build(
+                    dynamics=js.ode.wrap_system_dynamics_for_integration(
+                        system_dynamics=js.ode.system_dynamics
+                    )
+                )
+
+            case _:
+                raise ValueError(f"Invalid integrator: {integrator}")
+
         # Build the model.
-        model = JaxSimModel(
+        model = cls(
             model_name=model_name,
             kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
                 model_description=model_description
@@ -219,6 +280,7 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
+            integrator=integrator,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the
@@ -404,6 +466,7 @@ def reduce(
     reduced_model = JaxSimModel.build(
         model_description=reduced_intermediate_description,
         model_name=model.name(),
+        time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
     )
@@ -1912,10 +1975,10 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    integrator: jaxsim.integrators.Integrator,
     t0: jtp.FloatLike = 0.0,
     dt: jtp.FloatLike | None = None,
-    integrator_state: dict[str, Any] | None = None,
+    integrator: jaxsim.integrators.Integrator | None = None,
+    integrator_metadata: dict[str, Any] | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
     **kwargs,
@@ -1927,7 +1990,7 @@ def step(
         model: The model to consider.
         data: The data of the considered model.
         integrator: The integrator to use.
-        integrator_state: The state of the integrator.
+        integrator_metadata: The metadata of the integrator, if needed.
         t0: The initial time to consider. Only relevant for time-dependent dynamics.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
@@ -1937,8 +2000,9 @@ def step(
         kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
-        A tuple containing the new data of the model
-        and the new state of the integrator.
+        A tuple containing the new data of the model and a dictionary of auxiliary
+        data computed during the step. If the integrator has metadata, the dictionary
+        will contain the new metadata stored in the `integrator_metadata` key.
 
     Note:
         In order to reduce the occurrences of frame conversions performed internally,
@@ -1953,8 +2017,9 @@ def step(
     integrator_kwargs = kwargs.pop("integrator_kwargs", {})
     integrator_kwargs = kwargs | integrator_kwargs
 
-    # Initialize the integrator state.
-    integrator_state_t0 = integrator_state if integrator_state is not None else dict()
+    # Extract the integrator and the optional metadata.
+    integrator_metadata_t0 = integrator_metadata
+    integrator = integrator if integrator is not None else model.integrator
 
     # Initialize the time-related variables.
     state_t0 = data.state
@@ -2010,11 +2075,11 @@ def step(
         τ_references = references.joint_force_references(model=model)
 
     # Step the dynamics forward.
-    state_tf, integrator_state_tf = integrator.step(
+    state_tf, integrator_metadata_tf = integrator.step(
         x0=state_t0,
         t0=t0,
         dt=dt,
-        params=integrator_state_t0,
+        metadata=integrator_metadata_t0,
         # Always inject the current (model, data) pair into the system dynamics
         # considered by the integrator, and include the input variables represented
         # by the pair (f_L, τ_references).
@@ -2100,4 +2165,8 @@ def step(
         velocity_representation=data.velocity_representation, validate=False
     )
 
-    return data_tf, integrator_state_tf
+    return data_tf, {} | (
+        dict(integrator_metadata=integrator_metadata_tf)
+        if integrator_metadata is not None
+        else {}
+    )

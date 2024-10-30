@@ -379,28 +379,36 @@ def test_joint_limits(
 
     model = jaxsim_model_single_pendulum
 
-    position_limits_min = np.array(
-        model.kin_dyn_parameters.joint_parameters.position_limits_min
-    ).astype(float)
+    with model.editable(validate=False) as model:
+        model.kin_dyn_parameters.joint_parameters.position_limits_max = jnp.array(
+            1.5708
+        )
+        model.kin_dyn_parameters.joint_parameters.position_limits_min = jnp.array(
+            -1.5708
+        )
+        model.kin_dyn_parameters.joint_parameters.position_limit_spring = jnp.array(
+            75.0
+        )
+        model.kin_dyn_parameters.joint_parameters.position_limit_damper = jnp.array(0.1)
 
-    position_limits_max = np.array(
-        model.kin_dyn_parameters.joint_parameters.position_limits_max
-    ).astype(float)
+    position_limits_min, position_limits_max = js.joint.position_limits(model=model)[0]
 
     data = js.data.JaxSimModelData.build(
         model=model,
         velocity_representation=VelRepr.Inertial,
     )
 
+    theta = 10 * np.pi / 180
+
     # Test minimum joint position limits.
-    data_t0 = data.reset_joint_positions(positions=position_limits_min * 0.20)
+    data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
 
     assert np.min(np.array(data_tf.joint_positions()), axis=0) >= position_limits_min
 
     # Test maximum joint position limits.
-    data_t0 = data.reset_joint_positions(positions=position_limits_max * 0.20)
+    data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
 

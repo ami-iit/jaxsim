@@ -297,17 +297,12 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
 
     pivot = rod.Joint(
         name="upper_joint",
-        type="revolute",
+        type="continuous",
         parent=base_builder.name,
         child=upper_builder.name,
         axis=rod.Axis(
             xyz=rod.Xyz([1, 0, 0]),
-            limit=rod.Limit(
-                lower=-1.5708,
-                upper=1.5708,
-                stiffness=75.0,
-                dissipation=0.1,
-            ),
+            limit=rod.Limit(),
         ),
     )
 

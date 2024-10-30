@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import pathlib
 from typing import NamedTuple
 
@@ -273,14 +274,14 @@ def extract_model_data(
                 if j.axis is not None
                 and j.axis.limit is not None
                 and j.axis.limit.dissipation is not None
-                else 0.0
+                else os.environ.get("JAXSIM_JOINT_POSITION_LIMIT_DAMPER", 0.0)
             ),
             position_limit_spring=float(
                 j.axis.limit.stiffness
                 if j.axis is not None
                 and j.axis.limit is not None
                 and j.axis.limit.stiffness is not None
-                else 0.0
+                else os.environ.get("JAXSIM_JOINT_POSITION_LIMIT_SPRING", 0.0)
             ),
         )
         for j in sdf_model.joints()

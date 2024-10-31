@@ -2156,9 +2156,9 @@ def step(
                     )
                 )
 
-            # Reset the generalized velocity.
-            data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
-            data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
+                # Reset the generalized velocity.
+                data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
+                data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
 
     # Restore the input velocity representation.
     data_tf = data_tf.replace(

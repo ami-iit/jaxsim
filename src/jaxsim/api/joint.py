@@ -122,11 +122,11 @@ def position_limit(
         The position limits of the joint.
     """
 
-    if model.number_of_joints() <= 1:
+    if model.number_of_joints() == 0:
         s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min
         s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max
 
-        return s_min.astype(float), s_max.astype(float)
+        return jnp.atleast_1d(s_min).astype(float), jnp.atleast_1d(s_max).astype(float)
 
     exceptions.raise_value_error_if(
         condition=jnp.array(

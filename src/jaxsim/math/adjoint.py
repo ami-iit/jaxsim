@@ -137,11 +137,12 @@ class Adjoint:
             jtp.Matrix: The inverse adjoint matrix.
         """
         A_X_B = adjoint
-        A_H_B = Adjoint.to_transform(adjoint=A_X_B)
 
-        A_R_B = A_H_B[0:3, 0:3]
-        A_o_B = A_H_B[0:3, 3]
+        A_R_B = A_X_B[0:3, 0:3]
 
-        return Adjoint.from_rotation_and_translation(
-            rotation=A_R_B, translation=A_o_B, inverse=True
+        return jnp.vstack(
+            [
+                jnp.block([A_R_B.T, -A_R_B.T @ A_X_B[0:3, 3:6] @ A_R_B.T]),
+                jnp.block([jnp.zeros(shape=(3, 3)), A_R_B.T]),
+            ]
         )

@@ -193,8 +193,11 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             return self.input.physics_model.f_ext
 
         # If we have the model, we can extract the link names, if not provided.
-        link_names = link_names if link_names is not None else model.link_names()
-        link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
+        link_idxs = (
+            js.link.names_to_idxs(link_names=link_names, model=model)
+            if link_names is not None
+            else jnp.arange(model.number_of_links())
+        )
 
         # In inertial-fixed representation, we already have the link forces.
         if self.velocity_representation is VelRepr.Inertial:
@@ -267,8 +270,11 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             msg = "The actuation object is not compatible with the provided model"
             raise ValueError(msg)
 
-        joint_names = joint_names if joint_names is not None else model.joint_names()
-        joint_idxs = js.joint.names_to_idxs(joint_names=joint_names, model=model)
+        joint_idxs = (
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
+            if joint_names is not None
+            else jnp.arange(model.number_of_joints())
+        )
 
         return jnp.atleast_1d(
             self.input.physics_model.tau[joint_idxs].squeeze()
@@ -318,8 +324,11 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             msg = "The references object is not compatible with the provided model"
             raise ValueError(msg)
 
-        joint_names = joint_names if joint_names is not None else model.joint_names()
-        joint_idxs = js.joint.names_to_idxs(joint_names=joint_names, model=model)
+        joint_idxs = (
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
+            if joint_names is not None
+            else jnp.arange(model.number_of_joints())
+        )
 
         return replace(forces=self.input.physics_model.tau.at[joint_idxs].set(forces))
 
@@ -388,18 +397,16 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
             return replace(forces=W_f0_L + W_f_L)
 
-        # If we have the model, we can extract the link names if not provided.
-        link_names = link_names if link_names is not None else model.link_names()
-
-        # Make sure that the link names are a tuple if they are provided by the user.
-        link_names = (link_names,) if isinstance(link_names, str) else link_names
-
-        if len(link_names) != f_L.shape[0]:
+        if link_names is not None and len(link_names) != f_L.shape[0]:
             msg = "The number of link names ({}) must match the number of forces ({})"
             raise ValueError(msg.format(len(link_names), f_L.shape[0]))
 
         # Extract the link indices.
-        link_idxs = js.link.names_to_idxs(link_names=link_names, model=model)
+        link_idxs = (
+            js.link.names_to_idxs(link_names=link_names, model=model)
+            if link_names is not None
+            else jnp.arange(model.number_of_links())
+        )
 
         # Compute the bias depending on whether we either set or add the link forces.
         W_f0_L = (
@@ -480,21 +487,20 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         f_F = jnp.atleast_2d(forces).astype(float)
 
-        # If we have the model, we can extract the frame names if not provided.
-        frame_names = frame_names if frame_names is not None else model.frame_names()
-
-        # Make sure that the frame names are a tuple if they are provided by the user.
-        frame_names = (frame_names,) if isinstance(frame_names, str) else frame_names
-
         if len(frame_names) != f_F.shape[0]:
             msg = "The number of frame names ({}) must match the number of forces ({})"
             raise ValueError(msg.format(len(frame_names), f_F.shape[0]))
 
         # Extract the frame indices.
-        frame_idxs = js.frame.names_to_idxs(frame_names=frame_names, model=model)
-        parent_link_idxs = jax.vmap(js.frame.idx_of_parent_link, in_axes=(None,))(
-            model, frame_index=frame_idxs
+        frame_idxs = (
+            js.frame.names_to_idxs(frame_names=frame_names, model=model)
+            if frame_names is not None
+            else jnp.arange(len(model.frame_names()))
         )
+
+        parent_link_idxs = jnp.array(model.kin_dyn_parameters.frame_parameters.body)[
+            frame_idxs - model.number_of_links()
+        ]
 
         exceptions.raise_value_error_if(
             condition=jnp.logical_not(data.valid(model=model)),

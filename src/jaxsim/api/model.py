@@ -700,14 +700,173 @@ def generalized_free_floating_jacobian_derivative(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    O_J̇_WL_I = jax.vmap(
-        lambda model, data, link_idxs, output_vel_repr: js.link.jacobian_derivative(
-            model, data, link_index=link_idxs, output_vel_repr=output_vel_repr
-        ),
-        in_axes=(None, None, 0, None),
-    )(model, data, jnp.arange(model.number_of_links()), output_vel_repr)
+    # Compute the derivative of the doubly-left free-floating full jacobian.
+    B_J̇_full_WX_B, B_H_L = jaxsim.rbda.jacobian_derivative_full_doubly_left(
+        model=model,
+        joint_positions=data.joint_positions(),
+        joint_velocities=data.joint_velocities(),
+    )
 
-    return O_J̇_WL_I
+    # The derivative of the equation to change the input and output representations
+    # of the Jacobian derivative needs the computation of the plain link Jacobian.
+    B_J_full_WL_B, _ = jaxsim.rbda.jacobian_full_doubly_left(
+        model=model,
+        joint_positions=data.joint_positions(),
+    )
+
+    # Compute the actual doubly-left free-floating jacobian derivative of the link
+    # by zeroing the columns not in the path π_B(L) using the boolean κ(i).
+    κb = model.kin_dyn_parameters.support_body_array_bool
+
+    # Compute the base transform.
+    W_H_B = data.base_transform()
+
+    @functools.partial(jax.vmap, in_axes=(0, None, None, 0))
+    def _compute_row(
+        B_H_L: jtp.Matrix,
+        B_J_full_WL_B: jtp.Matrix,
+        W_H_B: jtp.Matrix,
+        κb: jtp.Matrix,
+    ) -> jtp.Matrix:
+
+        # =====================================================
+        # Compute quantities to adjust the input representation
+        # =====================================================
+
+        In = jnp.eye(model.dofs())
+        On = jnp.zeros(shape=(model.dofs(), model.dofs()))
+
+        # Extract the link quantities using the boolean support body array.
+        B_J̇_WL_B = jnp.hstack([jnp.ones(5), κb]) * B_J̇_full_WX_B
+        B_J_WL_B = jnp.hstack([jnp.ones(5), κb]) * B_J_full_WL_B
+
+        match data.velocity_representation:
+
+            case VelRepr.Inertial:
+
+                B_X_W = jaxsim.math.Adjoint.from_transform(
+                    transform=W_H_B, inverse=True
+                )
+
+                W_v_WB = data.base_velocity()
+                B_Ẋ_W = -B_X_W @ jaxsim.math.Cross.vx(W_v_WB)
+
+                # Compute the operator to change the representation of ν, and its
+                # time derivative.
+                T = jax.scipy.linalg.block_diag(B_X_W, In)
+                Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_W, On)
+
+            case VelRepr.Body:
+
+                B_X_B = jaxsim.math.Adjoint.from_rotation_and_translation(
+                    translation=jnp.zeros(3), rotation=jnp.eye(3)
+                )
+
+                B_Ẋ_B = jnp.zeros(shape=(6, 6))
+
+                # Compute the operator to change the representation of ν, and its
+                # time derivative.
+                T = jax.scipy.linalg.block_diag(B_X_B, In)
+                Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_B, On)
+
+            case VelRepr.Mixed:
+
+                BW_H_B = W_H_B.at[0:3, 3].set(jnp.zeros(3))
+                B_X_BW = jaxsim.math.Adjoint.from_transform(
+                    transform=BW_H_B, inverse=True
+                )
+
+                BW_v_WB = data.base_velocity()
+                BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
+
+                BW_v_BW_B = BW_v_WB - BW_v_W_BW
+                B_Ẋ_BW = -B_X_BW @ jaxsim.math.Cross.vx(BW_v_BW_B)
+
+                # Compute the operator to change the representation of ν, and its
+                # time derivative.
+                T = jax.scipy.linalg.block_diag(B_X_BW, In)
+                Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_BW, On)
+
+            case _:
+                raise ValueError(data.velocity_representation)
+
+        # ======================================================
+        # Compute quantities to adjust the output representation
+        # ======================================================
+
+        match output_vel_repr:
+
+            case VelRepr.Inertial:
+
+                O_X_B = W_X_B = jaxsim.math.Adjoint.from_transform(transform=W_H_B)
+
+                with data.switch_velocity_representation(VelRepr.Body):
+                    B_v_WB = data.base_velocity()
+
+                O_Ẋ_B = W_Ẋ_B = W_X_B @ jaxsim.math.Cross.vx(B_v_WB)  # noqa: F841
+
+            case VelRepr.Body:
+
+                O_X_B = L_X_B = jaxsim.math.Adjoint.from_transform(
+                    transform=B_H_L, inverse=True
+                )
+
+                B_X_L = jaxsim.math.Adjoint.inverse(adjoint=L_X_B)
+
+                with data.switch_velocity_representation(VelRepr.Body):
+                    B_v_WB = data.base_velocity()
+                    L_v_WL = L_X_B @ B_J_WL_B @ data.generalized_velocity()
+
+                O_Ẋ_B = L_Ẋ_B = -L_X_B @ jaxsim.math.Cross.vx(  # noqa: F841
+                    B_X_L @ L_v_WL - B_v_WB
+                )
+
+            case VelRepr.Mixed:
+
+                W_H_L = W_H_B @ B_H_L
+                LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
+                LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
+
+                O_X_B = LW_X_B = jaxsim.math.Adjoint.from_transform(transform=LW_H_B)
+
+                B_X_LW = jaxsim.math.Adjoint.inverse(adjoint=LW_X_B)
+
+                with data.switch_velocity_representation(VelRepr.Body):
+                    B_v_WB = data.base_velocity()
+
+                with data.switch_velocity_representation(VelRepr.Mixed):
+                    BW_H_B = W_H_B.at[0:3, 3].set(jnp.zeros(3))
+                    B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
+                    LW_v_WL = LW_X_B @ (
+                        B_J_WL_B
+                        @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
+                        @ data.generalized_velocity()
+                    )
+                    LW_v_W_LW = LW_v_WL.at[3:6].set(jnp.zeros(3))
+
+                LW_v_LW_L = LW_v_WL - LW_v_W_LW
+                LW_v_B_LW = LW_v_WL - LW_X_B @ B_v_WB - LW_v_LW_L
+
+                O_Ẋ_B = LW_Ẋ_B = -LW_X_B @ jaxsim.math.Cross.vx(  # noqa: F841
+                    B_X_LW @ LW_v_B_LW
+                )
+            case _:
+                raise ValueError(output_vel_repr)
+
+        # =============================================================
+        # Express the Jacobian derivative in the target representations
+        # =============================================================
+
+        # Sum all the components that form the Jacobian derivative in the target
+        # input/output velocity representations.
+        O_J̇_WL_I = jnp.zeros(shape=(6, 6 + model.dofs()))
+        O_J̇_WL_I += O_Ẋ_B @ B_J_WL_B @ T
+        O_J̇_WL_I += O_X_B @ B_J̇_WL_B @ T
+        O_J̇_WL_I += O_X_B @ B_J_WL_B @ Ṫ
+
+        return O_J̇_WL_I
+
+    return _compute_row(B_H_L, B_J_full_WL_B, W_H_B, κb)
 
 
 @functools.partial(jax.jit, static_argnames=["prefer_aba"])
@@ -1064,11 +1223,7 @@ def free_floating_coriolis_matrix(
         L_J_WL_B = generalized_free_floating_jacobian(model=model, data=data)
 
         # Doubly-left free-floating Jacobian derivative.
-        L_J̇_WL_B = jax.vmap(
-            lambda link_index: js.link.jacobian_derivative(
-                model=model, data=data, link_index=link_index
-            )
-        )(jnp.arange(model.number_of_links()))
+        L_J̇_WL_B = generalized_free_floating_jacobian_derivative(model=model, data=data)
 
     L_M_L = link_spatial_inertia_matrices(model=model)
 

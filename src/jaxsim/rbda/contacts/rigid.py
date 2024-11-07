@@ -437,29 +437,25 @@ class RigidContacts(ContactModel):
     def _compute_ineq_constraint_matrix(
         inactive_collidable_points: jtp.Vector, mu: jtp.FloatLike
     ) -> jtp.Matrix:
-
-        def compute_G_single_point(mu: float, c: float) -> jtp.Matrix:
-            """
-            Compute the inequality constraint matrix for a single collidable point
-            Rows 0-3: enforce the friction pyramid constraint,
-            Row 4: last one is for the non negativity of the vertical force
-            Row 5: contact complementarity condition
-            """
-            G_single_point = jnp.array(
-                [
-                    [1, 0, -mu],
-                    [0, 1, -mu],
-                    [-1, 0, -mu],
-                    [0, -1, -mu],
-                    [0, 0, -1],
-                    [0, 0, c],
-                ]
-            )
-            return G_single_point
-
-        G = jax.vmap(compute_G_single_point, in_axes=(None, 0))(
-            mu, inactive_collidable_points
+        """
+        Compute the inequality constraint matrix for a single collidable point
+        Rows 0-3: enforce the friction pyramid constraint,
+        Row 4: last one is for the non negativity of the vertical force
+        Row 5: contact complementarity condition
+        """
+        G_single_point = jnp.array(
+            [
+                [1, 0, -mu],
+                [0, 1, -mu],
+                [-1, 0, -mu],
+                [0, -1, -mu],
+                [0, 0, -1],
+                [0, 0, 0],
+            ]
         )
+        G = jnp.tile(G_single_point, (len(inactive_collidable_points), 1, 1))
+        G = G.at[:, 5, 2].set(inactive_collidable_points)
+
         G = jax.scipy.linalg.block_diag(*G)
         return G
 

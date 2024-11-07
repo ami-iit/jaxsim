@@ -498,28 +498,8 @@ class RigidContacts(ContactModel):
         D: jtp.FloatLike,
     ) -> jtp.Array:
 
-        def baumgarte_stabilization_of_single_point(
-            inactive: jtp.BoolLike,
-            δ: jtp.FloatLike,
-            δ_dot: jtp.FloatLike,
-            n: jtp.ArrayLike,
-            k_baumgarte: jtp.FloatLike,
-            d_baumgarte: jtp.FloatLike,
-        ) -> jtp.Array:
-
-            baumgarte_term = jax.lax.cond(
-                inactive,
-                lambda δ, δ_dot, n, K, D: jnp.zeros(3),
-                # This is equivalent to: K*(pT - p)⋅n̂ + D*(0 - v)⋅n̂,
-                # where pT is the point on the terrain surface vertical to p.
-                lambda δ, δ_dot, n, K, D: (K * δ + D * δ_dot) * n,
-                *(δ, δ_dot, n, k_baumgarte, d_baumgarte),
-            )
-
-            return baumgarte_term
-
-        baumgarte_term = jax.vmap(
-            baumgarte_stabilization_of_single_point, in_axes=(0, 0, 0, 0, None, None)
-        )(inactive_collidable_points, δ, δ_dot, n, K, D)
-
-        return baumgarte_term
+        return jnp.where(
+            inactive_collidable_points[:, jnp.newaxis],
+            jnp.zeros_like(n),
+            (K * δ + D * δ_dot)[:, jnp.newaxis] * n,
+        )

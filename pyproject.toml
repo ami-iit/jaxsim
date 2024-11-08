@@ -132,8 +132,10 @@ testpaths = [
 [tool.ruff]
 exclude = [
     ".git",
+    ".pixi",
     ".pytest_cache",
     ".ruff_cache",
+    ".idea",
     ".vscode",
     ".devcontainer",
     "__pycache__",

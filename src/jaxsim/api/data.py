@@ -378,7 +378,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         # we introduce a Baumgarte stabilization to let the quaternion converge to
         # a unit quaternion. In this case, it is not guaranteed that the quaternion
         # stored in the state is a unit quaternion.
-        W_Q_B = W_Q_B / jnp.linalg.norm(W_Q_B)
+        W_Q_B = jnp.where(
+            jnp.allclose(W_Q_B.dot(W_Q_B), 1.0), W_Q_B, W_Q_B / jnp.linalg.norm(W_Q_B)
+        )
 
         return (W_Q_B if not dcm else jaxsim.math.Quaternion.to_dcm(W_Q_B)).astype(
             float

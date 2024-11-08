@@ -8,8 +8,7 @@ on:
     types:
       - published
   schedule:
-  # * is a special character in YAML so you have to quote this string
-  # Execute a "nightly" build at 2 AM UTC
+  # Execute a nightly build at 2am UTC.
   - cron:  '0 2 * * *'
 
 
@@ -138,6 +137,8 @@ jobs:
            steps.changes.outputs.all == 'true')
         run: pytest
         env:
+          # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591
+          PY_COLORS: "1"
           JAX_PLATFORM_NAME: cpu
 
   publish:

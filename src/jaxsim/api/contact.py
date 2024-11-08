@@ -243,9 +243,7 @@ def in_contact(
         A boolean vector indicating whether the links are in contact with the terrain.
     """
 
-    link_names = link_names if link_names is not None else model.link_names()
-
-    if set(link_names).difference(model.link_names()):
+    if link_names is not None and set(link_names).difference(model.link_names()):
         raise ValueError("One or more link names are not part of the model")
 
     W_p_Ci = collidable_point_positions(model=model, data=data)
@@ -256,13 +254,19 @@ def in_contact(
 
     below_terrain = W_p_Ci[:, 2] <= terrain_height
 
+    link_idxs = (
+        js.link.names_to_idxs(link_names=link_names, model=model)
+        if link_names is not None
+        else jnp.arange(model.number_of_links())
+    )
+
     links_in_contact = jax.vmap(
         lambda link_index: jnp.where(
             jnp.array(model.kin_dyn_parameters.contact_parameters.body) == link_index,
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
-    )(js.link.names_to_idxs(link_names=link_names, model=model))
+    )(link_idxs)
 
     return links_in_contact
 

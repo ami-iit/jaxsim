@@ -407,9 +407,11 @@ class ViscoElasticContacts(common.ContactModel):
         # Compute the contact point dynamics
         # ==================================
 
-        p_t0 = js.contact.collidable_point_positions(model, data)[indices, :]
-        v_t0 = js.contact.collidable_point_velocities(model, data)[indices, :]
+        p_t0, v_t0 = js.contact.collidable_point_kinematics(model, data)
         m_t0 = data.state.extended["tangential_deformation"][indices, :]
+
+        p_t0 = p_t0[indices, :]
+        v_t0 = v_t0[indices, :]
 
         # Compute the linearized contact dynamics.
         # Note that it linearizes the (non-linear) contact model at (p, v, m)[t0].

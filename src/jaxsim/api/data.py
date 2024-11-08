@@ -292,11 +292,13 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
-        joint_names = joint_names if joint_names is not None else model.joint_names()
-
-        return self.state.physics_model.joint_positions[
+        joint_idxs = (
             js.joint.names_to_idxs(joint_names=joint_names, model=model)
-        ]
+            if joint_names is not None
+            else jnp.arange(model.number_of_joints())
+        )
+
+        return self.state.physics_model.joint_positions[joint_idxs]
 
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_velocities(
@@ -337,11 +339,13 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
-        joint_names = joint_names if joint_names is not None else model.joint_names()
-
-        return self.state.physics_model.joint_velocities[
+        joint_idxs = (
             js.joint.names_to_idxs(joint_names=joint_names, model=model)
-        ]
+            if joint_names is not None
+            else jnp.arange(model.number_of_joints())
+        )
+
+        return self.state.physics_model.joint_velocities[joint_idxs]
 
     @jax.jit
     def base_position(self) -> jtp.Vector:
@@ -374,10 +378,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         # we introduce a Baumgarte stabilization to let the quaternion converge to
         # a unit quaternion. In this case, it is not guaranteed that the quaternion
         # stored in the state is a unit quaternion.
-        W_Q_B = jax.lax.select(
-            pred=jnp.allclose(jnp.linalg.norm(W_Q_B), 1.0, atol=1e-6, rtol=0.0),
-            on_true=W_Q_B,
-            on_false=W_Q_B / jnp.linalg.norm(W_Q_B),
+        W_Q_B = jnp.where(
+            jnp.allclose(W_Q_B.dot(W_Q_B), 1.0), W_Q_B, W_Q_B / jnp.linalg.norm(W_Q_B)
         )
 
         return (W_Q_B if not dcm else jaxsim.math.Quaternion.to_dcm(W_Q_B)).astype(
@@ -502,12 +504,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
-        joint_names = joint_names if joint_names is not None else model.joint_names()
+        joint_idxs = (
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
+            if joint_names is not None
+            else jnp.arange(model.number_of_joints())
+        )
 
         return replace(
-            s=self.state.physics_model.joint_positions.at[
-                js.joint.names_to_idxs(joint_names=joint_names, model=model)
-            ].set(positions)
+            s=self.state.physics_model.joint_positions.at[joint_idxs].set(positions)
         )
 
     @functools.partial(jax.jit, static_argnames=["joint_names"])
@@ -548,12 +552,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             msg = "The data object is not compatible with the provided model"
             raise ValueError(msg)
 
-        joint_names = joint_names if joint_names is not None else model.joint_names()
+        joint_idxs = (
+            js.joint.names_to_idxs(joint_names=joint_names, model=model)
+            if joint_names is not None
+            else jnp.arange(model.number_of_joints())
+        )
 
         return replace(
-            ṡ=self.state.physics_model.joint_velocities.at[
-                js.joint.names_to_idxs(joint_names=joint_names, model=model)
-            ].set(velocities)
+            ṡ=self.state.physics_model.joint_velocities.at[joint_idxs].set(velocities)
         )
 
     @jax.jit

@@ -437,29 +437,25 @@ class RigidContacts(ContactModel):
     def _compute_ineq_constraint_matrix(
         inactive_collidable_points: jtp.Vector, mu: jtp.FloatLike
     ) -> jtp.Matrix:
-
-        def compute_G_single_point(mu: float, c: float) -> jtp.Matrix:
-            """
-            Compute the inequality constraint matrix for a single collidable point
-            Rows 0-3: enforce the friction pyramid constraint,
-            Row 4: last one is for the non negativity of the vertical force
-            Row 5: contact complementarity condition
-            """
-            G_single_point = jnp.array(
-                [
-                    [1, 0, -mu],
-                    [0, 1, -mu],
-                    [-1, 0, -mu],
-                    [0, -1, -mu],
-                    [0, 0, -1],
-                    [0, 0, c],
-                ]
-            )
-            return G_single_point
-
-        G = jax.vmap(compute_G_single_point, in_axes=(None, 0))(
-            mu, inactive_collidable_points
+        """
+        Compute the inequality constraint matrix for a single collidable point
+        Rows 0-3: enforce the friction pyramid constraint,
+        Row 4: last one is for the non negativity of the vertical force
+        Row 5: contact complementarity condition
+        """
+        G_single_point = jnp.array(
+            [
+                [1, 0, -mu],
+                [0, 1, -mu],
+                [-1, 0, -mu],
+                [0, -1, -mu],
+                [0, 0, -1],
+                [0, 0, 0],
+            ]
         )
+        G = jnp.tile(G_single_point, (len(inactive_collidable_points), 1, 1))
+        G = G.at[:, 5, 2].set(inactive_collidable_points)
+
         G = jax.scipy.linalg.block_diag(*G)
         return G
 
@@ -498,28 +494,8 @@ class RigidContacts(ContactModel):
         D: jtp.FloatLike,
     ) -> jtp.Array:
 
-        def baumgarte_stabilization_of_single_point(
-            inactive: jtp.BoolLike,
-            δ: jtp.FloatLike,
-            δ_dot: jtp.FloatLike,
-            n: jtp.ArrayLike,
-            k_baumgarte: jtp.FloatLike,
-            d_baumgarte: jtp.FloatLike,
-        ) -> jtp.Array:
-
-            baumgarte_term = jax.lax.cond(
-                inactive,
-                lambda δ, δ_dot, n, K, D: jnp.zeros(3),
-                # This is equivalent to: K*(pT - p)⋅n̂ + D*(0 - v)⋅n̂,
-                # where pT is the point on the terrain surface vertical to p.
-                lambda δ, δ_dot, n, K, D: (K * δ + D * δ_dot) * n,
-                *(δ, δ_dot, n, k_baumgarte, d_baumgarte),
-            )
-
-            return baumgarte_term
-
-        baumgarte_term = jax.vmap(
-            baumgarte_stabilization_of_single_point, in_axes=(0, 0, 0, 0, None, None)
-        )(inactive_collidable_points, δ, δ_dot, n, K, D)
-
-        return baumgarte_term
+        return jnp.where(
+            inactive_collidable_points[:, jnp.newaxis],
+            jnp.zeros_like(n),
+            (K * δ + D * δ_dot)[:, jnp.newaxis] * n,
+        )

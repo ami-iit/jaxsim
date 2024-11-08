@@ -398,9 +398,7 @@ class KynDynParameters(JaxsimDataclass):
         λ_H_pre = jnp.vstack(
             [
                 jnp.eye(4)[jnp.newaxis],
-                jax.vmap(
-                    lambda i: self.joint_model.parent_H_predecessor(joint_index=i)
-                )(jnp.arange(1, 1 + self.number_of_joints())),
+                self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
             ]
         )
 

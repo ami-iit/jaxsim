@@ -157,13 +157,19 @@ def position_limits(
         The position limits of the joints.
     """
 
-    joint_names = joint_names if joint_names is not None else model.joint_names()
+    joint_idxs = (
+        names_to_idxs(joint_names=joint_names, model=model)
+        if joint_names is not None
+        else jnp.arange(model.number_of_joints())
+    )
 
-    if len(joint_names) == 0:
+    if len(joint_idxs) == 0:
         return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
 
-    joint_idxs = names_to_idxs(joint_names=joint_names, model=model)
-    return jax.vmap(lambda i: position_limit(model=model, joint_index=i))(joint_idxs)
+    s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min[joint_idxs]
+    s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max[joint_idxs]
+
+    return s_min.astype(float), s_max.astype(float)
 
 
 # ======================
@@ -203,7 +209,11 @@ def random_joint_positions(
     # Get the joint indices.
     # Note that it will trigger an exception if the given `joint_names` are not valid.
     joint_names = joint_names if joint_names is not None else model.joint_names()
-    joint_indices = names_to_idxs(model=model, joint_names=joint_names)
+    joint_indices = (
+        names_to_idxs(model=model, joint_names=joint_names)
+        if joint_names is not None
+        else jnp.arange(model.number_of_joints())
+    )
 
     from jaxsim.parsers.descriptions.joint import JointType
 

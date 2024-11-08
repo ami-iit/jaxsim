@@ -319,9 +319,8 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
 
         # Initialize the carry of the for loop with the stacked kᵢ vectors.
-        carry0 = jax.tree.map(
-            lambda l: jnp.repeat(jnp.zeros_like(l)[jnp.newaxis, ...], c.size, axis=0),
-            x0,
+        carry0 = jax.tree_map(
+            lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), x0
         )
 
         # Closure on metadata to either evaluate the dynamics at the initial state

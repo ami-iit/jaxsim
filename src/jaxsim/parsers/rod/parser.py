@@ -113,7 +113,7 @@ def extract_model_data(
     links = [
         descriptions.LinkDescription(
             name=l.name,
-            mass=jnp.float32(l.inertial.mass),
+            mass=float(l.inertial.mass),
             inertia=utils.from_sdf_inertial(inertial=l.inertial),
             pose=l.pose.transform() if l.pose is not None else np.eye(4),
         )

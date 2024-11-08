@@ -181,52 +181,87 @@ ignore = [
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64", "osx-64"]
 
+[tool.pixi.environments]
+# We resolve only two groups: cpu and gpu.
+# Then, multiple environments can be created from these groups.
+default = { solve-group = "cpugroup" }
+gpu = { features = ["gpu"], solve-group = "gpugroup" }
+tasks-cpu = { features = ["test", "examples"], solve-group = "cpugroup" }
+tasks-gpu = { features = ["test", "examples", "gpu"], solve-group = "gpugroup" }
+
+# ---------------
+# feature.default
+# ---------------
+
+# Dependencies from conda-forge.
 [tool.pixi.dependencies]
+#
+# Matching `project.dependencies`.
+#
 coloredlogs = "*"
 jax = "*"
-jax-dataclasses = "*"
-jaxopt = "*"
 jaxlib = "*"
 jaxlie = "*"
+jax-dataclasses = "*"
+pptree = "*"
+optax = "*"
+qpax = "*"
+rod = "*"
+typing_extensions = "*"
+#
+# Optional dependencies.
+#
 lxml = "*"
 mediapy = "*"
 mujoco = "*"
-notebook = "*"
-pptree = "*"
-qpax = "*"
-rod = "*"
-sdformat14 = "*"
-typing_extensions = "*"
+scipy = "*"
+#
+# Additional dependencies.
+#
+pip = "*"
+
+# Dependendencies from PyPI.
+[tool.pixi.pypi-dependencies]
+jaxsim = { path = "./", editable = true }
+
+# ------------
+# feature.test
+# ------------
 
 [tool.pixi.feature.test.tasks]
-examples = { cmd = "jupyter notebook ./examples" }
 pipcheck = "pip check"
-test = { cmd = "pytest", depends_on = ["pipcheck"] }
+tests = { cmd = "pytest", depends_on = ["pipcheck"] }
 
 [tool.pixi.feature.test.dependencies]
 black = "24.*"
 idyntree = "*"
 isort = "*"
-pip = "*"
 pre-commit = "*"
 pytest = "*"
 pytest-icdiff = "*"
 robot_descriptions = "*"
 
+# ----------------
+# feature.examples
+# ----------------
+
+[tool.pixi.feature.examples.tasks]
+examples = { cmd = "jupyter notebook ./examples" }
+
+[tool.pixi.feature.examples.dependencies]
+notebook = "*"
+robot_descriptions = "*"
+
+# -----------
+# feature.gpu
+# -----------
+
 [tool.pixi.feature.gpu]
 platforms = ["linux-64"]
-system-requirements = { cuda = "12.1" }
+system-requirements = { cuda = "12" }
 
 [tool.pixi.feature.gpu.dependencies]
-cuda-cupti = "*"
 cuda-version = "12.*"
-jaxlib = {version = "*", build = "*cuda*"}
-
-[tool.pixi.pypi-dependencies]
-jaxsim = { path = "./", editable = true }
-
-[tool.pixi.environments]
-default = { solve-group = "cpugroup" }
-gpu = { features = ["gpu"], solve-group = "gpugroup" }
-test-cpu = { features = ["test"], solve-group = "cpugroup" }
-test-gpu = { features = ["test", "gpu"], solve-group = "gpugroup" }
+# Pinning a specific version awaiting the following to get addressed:
+# https://github.com/conda-forge/jaxlib-feedstock/issues/285
+jaxlib = { version = "<0.4.31", build = "*cuda*" }

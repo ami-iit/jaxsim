@@ -1,26 +1,19 @@
-FROM mcr.microsoft.com/devcontainers/base:ubuntu
-COPY environment.yml /opt/environment.yml
+# syntax=docker/dockerfile:1.4
+FROM mcr.microsoft.com/devcontainers/base:jammy
 
-# Enable by default the conda environment for all users.
-# The prefix is the one used by the micromamba feature.
-ENV CONDA_PREFIX_JAXSIM=/opt/conda/envs/jaxsim
-RUN echo 'function activate_conda() {' >> /etc/bash.bashrc &&\
-    echo '  eval "$(micromamba shell hook -s bash)"' >> /etc/bash.bashrc &&\
-    echo '  micromamba activate ${CONDA_PREFIX_JAXSIM-$CONDA_PREFIX}' >> /etc/bash.bashrc &&\
-    echo '}' >> /etc/bash.bashrc &&\
-    echo '[[ -x $(which micromamba) && -d ${CONDA_PREFIX_JAXSIM-$CONDA_PREFIX} ]] && activate_conda' >> /etc/bash.bashrc &&\
-    echo '[[ -x $(which micromamba) && ! -x $(which mamba) ]] && alias mamba="$(which micromamba)"' >> /etc/bash.bashrc &&\
-    echo '[[ -x $(which micromamba) && ! -x $(which conda) ]] && alias conda="$(which micromamba)"' >> /etc/bash.bashrc
+ARG PROJECT_NAME=jaxsim
+ARG PIXI_VERSION=v0.35.0
 
-# Provide libGL.so.1 from the host OS
-RUN sudo apt-get update &&\
-    sudo apt-get install -y --no-install-recommends libgl1 &&\
-    rm -rf /var/lib/apt/lists/*
+RUN curl -o /usr/local/bin/pixi -SL https://github.com/prefix-dev/pixi/releases/download/${PIXI_VERSION}/pixi-$(uname -m)-unknown-linux-musl \
+    && chmod +x /usr/local/bin/pixi \
+    && pixi info
 
-# The Python extension in VSCode is not able to detect the interpreter installed with micromamba.
-# As documented as follows, we provide a suggestion through an environment variable.
-# https://code.visualstudio.com/docs/python/environments#_where-the-extension-looks-for-environments
-ENV WORKON_HOME=$CONDA_PREFIX_JAXSIM
+# Add LFS repository and install.
+RUN apt-get update && apt-get install -y curl \
+    && curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash \
+    && apt install -y git-lfs
 
-# Specify the workdir of the container
-WORKDIR /workspace/jaxsim
+USER vscode
+WORKDIR /home/vscode
+
+RUN echo 'eval "$(pixi completion -s bash)"' >> /home/vscode/.bashrc

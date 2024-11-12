@@ -5,21 +5,22 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"build": {
 		"context": "..",
-		"dockerfile": "Dockerfile",
+		"dockerfile": "Dockerfile"
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
-		"ghcr.io/mamba-org/devcontainer-features/micromamba:1": {
-			"envFile": "/opt/environment.yml",
-		},
-	},
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    },
+
+    // Put `.pixi` folder in a mounted volume of a case-insensitive filesystem.
+    "mounts": ["source=${localWorkspaceFolderBasename}-pixi,target=${containerWorkspaceFolder}/.pixi,type=volume"],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "uname -a",
+	"postCreateCommand": "sudo chown vscode .pixi && git lfs pull --include='pixi.lock' && pixi install --environment=test-cpu",
 
 	// Configure tool-specific properties.
 	// "customizations": {},
@@ -28,7 +29,23 @@
 	// "remoteUser": "root"
 
 	// VSCode extensions
-	"extensions": [
-		"ms-python.python",
-	],
+	"customizations": {
+		"vscode": {
+			"settings": {
+                		"python.pythonPath": "/workspaces/jaxsim/.pixi/envs/test-cpu/bin/python",
+				"python.defaultInterpreterPath": "/workspaces/jaxsim/.pixi/envs/test-cpu/bin/python",
+				"python.terminal.activateEnvironment": true,
+				"python.terminal.activateEnvInCurrentTerminal": true
+			},
+			"extensions": [
+				"ms-python.python",
+				"donjayamanne.python-extension-pack",
+				"ms-toolsai.jupyter",
+				"GitHub.codespaces",
+                		"GitHub.copilot",
+				"ms-azuretools.vscode-docker",
+                		"charliermarsh.ruff"
+			]
+		}
+	}
 }

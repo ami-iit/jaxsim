@@ -7,6 +7,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy.typing as npt
 import optax
 
 import jaxsim.api as js
@@ -322,18 +323,25 @@ class RelaxedRigidContacts(common.ContactModel):
 
             return jnp.dot(h, n̂)
 
+        # Get the indices of the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
+
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
-        position, velocity = js.contact.collidable_point_kinematics(
-            model=model, data=data
-        )
+        p, v = js.contact.collidable_point_kinematics(model=model, data=data)
+        position = p[indices_of_enabled_collidable_points]
+        velocity = v[indices_of_enabled_collidable_points]
 
         # Compute the activation state of the collidable points
         δ = jax.vmap(detect_contact)(*position.T)
 
         # Compute the transforms of the implicit frames corresponding to the
         # collidable points.
-        W_H_C = js.contact.transforms(model=model, data=data)
+        W_H_C = js.contact.transforms(model=model, data=data)[
+            indices_of_enabled_collidable_points
+        ]
 
         with (
             references.switch_velocity_representation(VelRepr.Mixed),
@@ -357,13 +365,19 @@ class RelaxedRigidContacts(common.ContactModel):
 
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, height: J * (height < 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
+                    js.contact.jacobian(model=model, data=data)[
+                        indices_of_enabled_collidable_points, :3, :
+                    ],
+                    δ,
                 )
             )
 
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(
-                    js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
+                    js.contact.jacobian_derivative(model=model, data=data)[
+                        indices_of_enabled_collidable_points, :3
+                    ],
+                    δ,
                 ),
             )
 
@@ -373,6 +387,7 @@ class RelaxedRigidContacts(common.ContactModel):
             penetration=δ,
             velocity=velocity,
             parameters=data.contacts_params,
+            indices_of_enabled_collidable_points=indices_of_enabled_collidable_points,
         )
 
         # Compute the Delassus matrix and the free mixed linear acceleration of
@@ -499,6 +514,7 @@ class RelaxedRigidContacts(common.ContactModel):
         penetration: jtp.Array,
         velocity: jtp.Array,
         parameters: RelaxedRigidContactsParams,
+        indices_of_enabled_collidable_points: npt.NDArray,
     ) -> tuple:
         """
         Compute the contact jacobian and the reference acceleration.
@@ -508,6 +524,7 @@ class RelaxedRigidContacts(common.ContactModel):
             penetration: The penetration of the collidable points.
             velocity: The velocity of the collidable points.
             parameters: The parameters of the relaxed rigid contacts model.
+            indices_of_enabled_collidable_points: The indices of the enabled collidable points.
 
         Returns:
             A tuple containing the reference acceleration, the regularization matrix, the stiffness, and the damping.
@@ -597,7 +614,7 @@ class RelaxedRigidContacts(common.ContactModel):
                 *jax.vmap(compute_row)(
                     link_idx=jnp.array(
                         model.kin_dyn_parameters.contact_parameters.body
-                    ),
+                    )[indices_of_enabled_collidable_points],
                     penetration=penetration,
                     velocity=velocity,
                 ),

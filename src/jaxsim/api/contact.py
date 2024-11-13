@@ -138,7 +138,7 @@ def collidable_point_dynamics(
     **kwargs,
 ) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
     r"""
-    Compute the 6D force applied to each collidable point.
+    Compute the 6D force applied to each enabled collidable point.
 
     Args:
         model: The model to consider.
@@ -151,7 +151,7 @@ def collidable_point_dynamics(
         kwargs: Additional keyword arguments to pass to the active contact model.
 
     Returns:
-        The 6D force applied to each collidable point and additional data based
+        The 6D force applied to each eneabled collidable point and additional data based
         on the contact model configured:
         - Soft: the material deformation rate.
         - Rigid: no additional data.
@@ -211,10 +211,8 @@ def collidable_point_dynamics(
     W_H_C = (
         js.contact.transforms(model=model, data=data)
         if data.velocity_representation is not VelRepr.Inertial
-        else jnp.zeros(
-            shape=(len(model.kin_dyn_parameters.contact_parameters.body), 4, 4)
-        )
-    )[indices_of_enabled_collidable_points]
+        else jnp.zeros(shape=(len(indices_of_enabled_collidable_points), 4, 4))
+    )
 
     # Convert the 6D forces to the active representation.
     f_Ci = jax.vmap(
@@ -252,6 +250,15 @@ def in_contact(
     if link_names is not None and set(link_names).difference(model.link_names()):
         raise ValueError("One or more link names are not part of the model")
 
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
     W_p_Ci = collidable_point_positions(model=model, data=data)
 
     terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
@@ -268,7 +275,7 @@ def in_contact(
 
     links_in_contact = jax.vmap(
         lambda link_index: jnp.where(
-            jnp.array(model.kin_dyn_parameters.contact_parameters.body) == link_index,
+            parent_link_idx_of_enabled_collidable_points == link_index,
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
@@ -432,14 +439,14 @@ def estimate_good_contact_parameters(
 @jax.jit
 def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
     r"""
-    Return the pose of the collidable points.
+    Return the pose of the enabled collidable points.
 
     Args:
         model: The model to consider.
         data: The data of the considered model.
 
     Returns:
-        The stacked SE(3) matrices of all collidable points.
+        The stacked SE(3) matrices of all enabled collidable points.
 
     Note:
         Each collidable point is implicitly associated with a frame
@@ -448,16 +455,27 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
         rigidly attached to.
     """
 
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
     # Get the transforms of the parent link of all collidable points.
     W_H_L = js.model.forward_kinematics(model=model, data=data)[
-        jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int)
+        parent_link_idx_of_enabled_collidable_points
+    ]
+
+    L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
+        indices_of_enabled_collidable_points
     ]
 
     # Build the link-to-point transform from the displacement between the link frame L
     # and the implicit contact frame C.
-    L_H_C = jax.vmap(lambda L_p_C: jnp.eye(4).at[0:3, 3].set(L_p_C))(
-        model.kin_dyn_parameters.contact_parameters.point
-    )
+    L_H_C = jax.vmap(lambda L_p_C: jnp.eye(4).at[0:3, 3].set(L_p_C))(L_p_Ci)
 
     # Compose the work-to-link and link-to-point transforms.
     return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
@@ -471,7 +489,7 @@ def jacobian(
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Array:
     r"""
-    Return the free-floating Jacobian of the collidable points.
+    Return the free-floating Jacobian of the enabled collidable points.
 
     Args:
         model: The model to consider.
@@ -481,7 +499,7 @@ def jacobian(
 
     Returns:
         The stacked :math:`6 \times (6+n)` free-floating jacobians of the frames associated to the
-        collidable points.
+        enabled collidable points.
 
     Note:
         Each collidable point is implicitly associated with a frame
@@ -494,6 +512,15 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
     # Compute the Jacobians of all links.
     W_J_WL = js.model.generalized_free_floating_jacobian(
         model=model, data=data, output_vel_repr=VelRepr.Inertial
@@ -502,9 +529,7 @@ def jacobian(
     # Compute the contact Jacobian.
     # In inertial-fixed output representation, the Jacobian of the parent link is also
     # the Jacobian of the frame C implicitly associated with the collidable point.
-    W_J_WC = W_J_WL[
-        jnp.array(model.kin_dyn_parameters.contact_parameters.body, dtype=int)
-    ]
+    W_J_WC = W_J_WL[parent_link_idx_of_enabled_collidable_points]
 
     # Adjust the output representation.
     match output_vel_repr:
@@ -556,7 +581,7 @@ def jacobian_derivative(
     output_vel_repr: VelRepr | None = None,
 ) -> jtp.Matrix:
     r"""
-    Compute the derivative of the free-floating jacobian of the contact points.
+    Compute the derivative of the free-floating jacobian of the enabled collidable points.
 
     Args:
         model: The model to consider.
@@ -565,7 +590,7 @@ def jacobian_derivative(
             The output velocity representation of the free-floating jacobian derivative.
 
     Returns:
-        The derivative of the :math:`6 \times (6+n)` free-floating jacobian of the contact points.
+        The derivative of the :math:`6 \times (6+n)` free-floating jacobian of the enabled collidable points.
 
     Note:
         The input representation of the free-floating jacobian derivative is the active
@@ -576,10 +601,18 @@ def jacobian_derivative(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
     # Get the index of the parent link and the position of the collidable point.
-    parent_link_idxs = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
-    L_p_Ci = jnp.array(model.kin_dyn_parameters.contact_parameters.point)
-    contact_idxs = jnp.arange(L_p_Ci.shape[0])
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
+    L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
+        indices_of_enabled_collidable_points
+    ]
 
     # Get the transforms of all the parent links.
     W_H_Li = js.model.forward_kinematics(model=model, data=data)
@@ -652,7 +685,7 @@ def jacobian_derivative(
             output_vel_repr=VelRepr.Inertial,
         )
 
-    # Get the Jacobian of the collidable points in the mixed representation.
+    # Get the Jacobian of the enabled collidable points in the mixed representation.
     with data.switch_velocity_representation(VelRepr.Mixed):
         CW_J_WC_BW = jacobian(
             model=model,
@@ -662,12 +695,10 @@ def jacobian_derivative(
 
     def compute_O_J̇_WC_I(
         L_p_C: jtp.Vector,
-        contact_idx: jtp.Int,
+        parent_link_idx: jtp.Int,
         CW_J_WC_BW: jtp.Matrix,
         W_H_L: jtp.Matrix,
     ) -> jtp.Matrix:
-
-        parent_link_idx = parent_link_idxs[contact_idx]
 
         match output_vel_repr:
             case VelRepr.Inertial:
@@ -709,7 +740,7 @@ def jacobian_derivative(
         return O_J̇_WC_I
 
     O_J̇_WC = jax.vmap(compute_O_J̇_WC_I, in_axes=(0, 0, 0, None))(
-        L_p_Ci, contact_idxs, CW_J_WC_BW, W_H_Li
+        L_p_Ci, parent_link_idx_of_enabled_collidable_points, CW_J_WC_BW, W_H_Li
     )
 
     return O_J̇_WC

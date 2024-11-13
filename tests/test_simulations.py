@@ -212,6 +212,16 @@ def test_simulation_with_soft_contacts(
         model.contact_model = jaxsim.rbda.contacts.SoftContacts.build(
             terrain=model.terrain,
         )
+        # Enable a subset of the collidable points.
+        enabled_collidable_points_mask = np.zeros(
+            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
+        )
+        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
+        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
+            enabled_collidable_points_mask.tolist()
+        )
+
+    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 
     # Initialize the maximum penetration of each collidable point at steady state.
     max_penetration = 0.001
@@ -296,6 +306,16 @@ def test_simulation_with_rigid_contacts(
         model.contact_model = jaxsim.rbda.contacts.RigidContacts.build(
             terrain=model.terrain,
         )
+        # Enable a subset of the collidable points.
+        enabled_collidable_points_mask = np.zeros(
+            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
+        )
+        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
+        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
+            enabled_collidable_points_mask.tolist()
+        )
+
+    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 
     # Initialize the maximum penetration of each collidable point at steady state.
     # This model is rigid, so we expect (almost) no penetration.
@@ -338,6 +358,16 @@ def test_simulation_with_relaxed_rigid_contacts(
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts.build(
             terrain=model.terrain,
         )
+        # Enable a subset of the collidable points.
+        enabled_collidable_points_mask = np.zeros(
+            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
+        )
+        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
+        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
+            enabled_collidable_points_mask.tolist()
+        )
+
+    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 
     # Initialize the maximum penetration of each collidable point at steady state.
     # This model is quasi-rigid, so we expect (almost) no penetration.

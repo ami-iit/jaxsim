@@ -22,6 +22,15 @@ def test_contact_kinematics(
         velocity_representation=velocity_representation,
     )
 
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
     # =====
     # Tests
     # =====
@@ -34,7 +43,7 @@ def test_contact_kinematics(
     # Check that the orientation of the implicit contact frame matches with the
     # orientation of the link to which the contact point is attached.
     for contact_idx, index_of_parent_link in enumerate(
-        model.kin_dyn_parameters.contact_parameters.body
+        parent_link_idx_of_enabled_collidable_points
     ):
         assert W_H_C[contact_idx, 0:3, 0:3] == pytest.approx(
             W_H_L[index_of_parent_link][0:3, 0:3]
@@ -74,29 +83,40 @@ def test_contact_jacobian_derivative(
         velocity_representation=velocity_representation,
     )
 
-    # =====
-    # Tests
-    # =====
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
 
     # Extract the parent link names and the poses of the contact points.
     parent_link_names = js.link.idxs_to_names(
-        model=model, link_indices=model.kin_dyn_parameters.contact_parameters.body
+        model=model,
+        link_indices=jnp.array(
+            model.kin_dyn_parameters.contact_parameters.body, dtype=int
+        )[indices_of_enabled_collidable_points],
     )
-    W_p_Ci = model.kin_dyn_parameters.contact_parameters.point
+
+    L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
+        indices_of_enabled_collidable_points
+    ]
+
+    # =====
+    # Tests
+    # =====
 
     # Load the model in ROD.
     rod_model = rod.Sdf.load(sdf=model.built_from).model
 
     # Add dummy frames on the contact points.
-    for idx, (link_name, W_p_C) in enumerate(
-        zip(parent_link_names, W_p_Ci, strict=True)
+    for idx, link_name, L_p_C in zip(
+        indices_of_enabled_collidable_points, parent_link_names, L_p_Ci, strict=True
     ):
         rod_model.add_frame(
             frame=rod.Frame(
                 name=f"contact_point_{idx}",
                 attached_to=link_name,
                 pose=rod.Pose(
-                    relative_to=link_name, pose=jnp.zeros(shape=(6,)).at[0:3].set(W_p_C)
+                    relative_to=link_name, pose=jnp.zeros(shape=(6,)).at[0:3].set(L_p_C)
                 ),
             ),
         )
@@ -125,7 +145,7 @@ def test_contact_jacobian_derivative(
     frame_idxs = js.frame.names_to_idxs(
         model=model_with_frames,
         frame_names=(
-            f"contact_point_{idx}" for idx in list(range(len(parent_link_names)))
+            f"contact_point_{idx}" for idx in indices_of_enabled_collidable_points
         ),
     )
 

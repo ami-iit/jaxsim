@@ -199,16 +199,22 @@ def collidable_point_dynamics(
     )
 
     # Compute the transforms of the implicit frames `C[L] = (W_p_C, [L])`
-    # associated to each collidable point.
+    # associated to the enabled collidable point.
     # In inertial-fixed representation, the computation of these transforms
     # is not necessary and the conversion below becomes a no-op.
+
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
     W_H_C = (
         js.contact.transforms(model=model, data=data)
         if data.velocity_representation is not VelRepr.Inertial
         else jnp.zeros(
             shape=(len(model.kin_dyn_parameters.contact_parameters.body), 4, 4)
         )
-    )
+    )[indices_of_enabled_collidable_points]
 
     # Convert the 6D forces to the active representation.
     f_Ci = jax.vmap(

@@ -310,22 +310,16 @@ class RigidContacts(ContactModel):
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
-            J_WC = js.contact.jacobian(model=model, data=data)[
-                indices_of_enabled_collidable_points
-            ]
-            J̇_WC = js.contact.jacobian_derivative(model=model, data=data)[
-                indices_of_enabled_collidable_points
-            ]
+            J_WC = js.contact.jacobian(model=model, data=data)
+            J̇_WC = js.contact.jacobian_derivative(model=model, data=data)
 
-            W_H_C = js.contact.transforms(model=model, data=data)[
-                indices_of_enabled_collidable_points
-            ]
+            W_H_C = js.contact.transforms(model=model, data=data)
 
         # Compute the position and linear velocities (mixed representation) of
-        # all collidable points belonging to the robot.
-        p, v = js.contact.collidable_point_kinematics(model=model, data=data)
-        position = p[indices_of_enabled_collidable_points]
-        velocity = v[indices_of_enabled_collidable_points]
+        # all enabled collidable points belonging to the robot.
+        position, velocity = js.contact.collidable_point_kinematics(
+            model=model, data=data
+        )
 
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.

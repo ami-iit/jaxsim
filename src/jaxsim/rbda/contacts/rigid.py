@@ -285,6 +285,13 @@ class RigidContacts(ContactModel):
         # Import qpax privately just in this method.
         import qpax
 
+        # Get the indices of the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
+
+        n_collidable_points = len(indices_of_enabled_collidable_points)
+
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
@@ -299,24 +306,26 @@ class RigidContacts(ContactModel):
 
         # Compute kin-dyn quantities used in the contact model.
         with data.switch_velocity_representation(VelRepr.Mixed):
-
             BW_ν = data.generalized_velocity()
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
-            J_WC = js.contact.jacobian(model=model, data=data)
-            J̇_WC = js.contact.jacobian_derivative(model=model, data=data)
+            J_WC = js.contact.jacobian(model=model, data=data)[
+                indices_of_enabled_collidable_points
+            ]
+            J̇_WC = js.contact.jacobian_derivative(model=model, data=data)[
+                indices_of_enabled_collidable_points
+            ]
 
-            W_H_C = js.contact.transforms(model=model, data=data)
+            W_H_C = js.contact.transforms(model=model, data=data)[
+                indices_of_enabled_collidable_points
+            ]
 
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
-        position, velocity = js.contact.collidable_point_kinematics(
-            model=model, data=data
-        )
-
-        # Get the number of collidable points.
-        n_collidable_points = len(model.kin_dyn_parameters.contact_parameters.body)
+        p, v = js.contact.collidable_point_kinematics(model=model, data=data)
+        position = p[indices_of_enabled_collidable_points]
+        velocity = v[indices_of_enabled_collidable_points]
 
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.
@@ -460,7 +469,7 @@ class RigidContacts(ContactModel):
         return G
 
     @staticmethod
-    def _compute_ineq_bounds(n_collidable_points: jtp.FloatLike) -> jtp.Vector:
+    def _compute_ineq_bounds(n_collidable_points: int) -> jtp.Vector:
 
         n_constraints = 6 * n_collidable_points
         return jnp.zeros(shape=(n_constraints,))

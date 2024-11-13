@@ -250,12 +250,13 @@ Theoretical aspects of JaxSim are based on Chapters 7 and 8 of the following Ph.
 
 ## People
 
-| Author | Maintainers |
+| Authors | Maintainers |
 |:------:|:-----------:|
-| [<img src="https://avatars.githubusercontent.com/u/469199?v=4" width="40">][df] | [<img src="https://avatars.githubusercontent.com/u/102977828?v=4" width="40">][ff] [<img src="https://avatars.githubusercontent.com/u/469199?v=4" width="40">][df] |
+| [<img src="https://avatars.githubusercontent.com/u/469199?v=4" width="40">][df] [<img src="https://avatars.githubusercontent.com/u/102977828?v=4" width="40">][ff] | [<img src="https://avatars.githubusercontent.com/u/102977828?v=4" width="40">][ff] [<img src="https://avatars.githubusercontent.com/u/57228872?v=4" width="40">][ac] |
 
 [df]: https://github.com/diegoferigo
 [ff]: https://github.com/flferretti
+[ac]: https://github.com/xela-95
 
 ## License
 

@@ -115,15 +115,17 @@ Here below we summarize the differences between the projects:
 People
 ------
 
-Author and Maintainer
-'''''''''''''''''''''
+Authors
+'''''''
 
 `Diego Ferigo <https://github.com/diegoferigo>`_
+`Filippo Luca Ferretti <https://github.com/flferretti>`_
 
-Maintainer
-''''''''''
+Maintainers
+'''''''''''
 
 `Filippo Luca Ferretti <https://github.com/flferretti>`_
+`Alessandro Croci <https://github.com/xela-95>`_
 
 License
 -------

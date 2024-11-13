@@ -5,10 +5,11 @@ requires-python = ">= 3.10"
 description = "A differentiable physics engine and multibody dynamics library for control and robot learning."
 authors = [
     { name = "Diego Ferigo", email = "dgferigo@gmail.com" },
+    { name = "Filippo Luca Ferretti", email = "filippoluca.ferretti@outlook.com" },
 ]
 maintainers = [
-    { name = "Diego Ferigo", email = "dgferigo@gmail.com" },
     { name = "Filippo Luca Ferretti", email = "filippo.ferretti@iit.it" },
+    { name = "Alessandro Croci", email = "alessandro.croci@iit.it" },
 ]
 license.file = "LICENSE"
 keywords = [

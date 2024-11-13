@@ -454,8 +454,6 @@ class SoftContacts(common.ContactModel):
         # all the collidable points belonging to the robot and extract the ones
         # for the enabled collidable points.
         W_p_C, W_ṗ_C = js.contact.collidable_point_kinematics(model=model, data=data)
-        W_p_C_enabled = W_p_C[indices_of_enabled_collidable_points]
-        W_ṗ_C_enabled = W_ṗ_C[indices_of_enabled_collidable_points]
 
         # Extract the material deformation corresponding to the collidable points.
         m = data.state.extended["tangential_deformation"]
@@ -475,7 +473,7 @@ class SoftContacts(common.ContactModel):
                 parameters=data.contacts_params,
                 terrain=model.terrain,
             )
-        )(W_p_C_enabled, W_ṗ_C_enabled, m_enabled)
+        )(W_p_C, W_ṗ_C, m_enabled)
 
         ṁ = ṁ.at[indices_of_enabled_collidable_points].set(ṁ_enabled)
 

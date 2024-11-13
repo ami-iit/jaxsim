@@ -445,16 +445,29 @@ class SoftContacts(common.ContactModel):
         # contact parameters are not compatible.
         model, data = self.initialize_model_and_data(model=model, data=data)
 
+        # Get the indices of the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
+
         # Compute the position and linear velocities (mixed representation) of
-        # all collidable points belonging to the robot.
+        # all the collidable points belonging to the robot and extract the ones
+        # for the enabled collidable points.
         W_p_C, W_ṗ_C = js.contact.collidable_point_kinematics(model=model, data=data)
+        W_p_C_enabled = W_p_C[indices_of_enabled_collidable_points]
+        W_ṗ_C_enabled = W_ṗ_C[indices_of_enabled_collidable_points]
 
         # Extract the material deformation corresponding to the collidable points.
         m = data.state.extended["tangential_deformation"]
 
-        # Compute the contact forces for all collidable points.
+        m_enabled = m[indices_of_enabled_collidable_points]
+
+        # Initialize the tangential deformation rate array for every collidable point.
+        ṁ = jnp.zeros_like(m)
+
+        # Compute the contact forces only for the enabled collidable points.
         # Since we treat them as independent, we can vmap the computation.
-        W_f, ṁ = jax.vmap(
+        W_f, ṁ_enabled = jax.vmap(
             lambda p, v, m: SoftContacts.compute_contact_force(
                 position=p,
                 velocity=v,
@@ -462,6 +475,8 @@ class SoftContacts(common.ContactModel):
                 parameters=data.contacts_params,
                 terrain=model.terrain,
             )
-        )(W_p_C, W_ṗ_C, m)
+        )(W_p_C_enabled, W_ṗ_C_enabled, m_enabled)
+
+        ṁ = ṁ.at[indices_of_enabled_collidable_points].set(ṁ_enabled)
 
         return W_f, dict(m_dot=ṁ)

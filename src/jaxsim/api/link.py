@@ -4,6 +4,7 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
+import numpy as np
 
 import jaxsim.api as js
 import jaxsim.rbda
@@ -96,7 +97,7 @@ def idxs_to_names(
         The names of the links.
     """
 
-    return tuple(idx_to_name(model=model, link_index=idx) for idx in link_indices)
+    return tuple(np.array(model.kin_dyn_parameters.link_names)[list(link_indices)])
 
 
 # =========

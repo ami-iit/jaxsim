@@ -30,10 +30,23 @@ def parse_object_mapping_object(obj) -> trimesh.Trimesh:
 
 
 def extract_points_vertices(mesh) -> np.ndarray:
+    """
+    Extracts the vertices of a mesh as points."""
     return mesh.vertices
 
 
 def extract_points_random_surface_sampling(mesh, n: int = -1) -> np.ndarray:
+    """
+    Extracts N random points from the surface of a mesh.
+
+    Args:
+        mesh: The mesh from which to extract points.
+        n: The number of points to extract. If -1, all vertices are extracted.
+
+    Returns:
+        The extracted points (N x 3 array).
+    """
+
     if n > 0 and n <= len(mesh.vertices):
         return mesh.sample(n)
     else:
@@ -45,6 +58,17 @@ def extract_points_random_surface_sampling(mesh, n: int = -1) -> np.ndarray:
 
 
 def extract_points_uniform_surface_sampling(mesh, n: int = -1) -> np.ndarray:
+    """
+    Extracts N uniformly sampled points from the surface of a mesh.
+
+    Args:
+        mesh: The mesh from which to extract points.
+        n: The number of points to extract. If -1, all vertices are extracted.
+
+    Returns:
+        The extracted points (N x 3 array).
+    """
+
     if n > 0 and n <= len(mesh.vertices):
         return trimesh.sample.sample_surface_even(mesh=mesh, count=n)
     else:
@@ -58,6 +82,19 @@ def extract_points_uniform_surface_sampling(mesh, n: int = -1) -> np.ndarray:
 def extract_points_select_points_over_axis(
     mesh, axis: str, direction: str, n: int
 ) -> np.ndarray:
+    """
+    Extracts N points from a mesh along a specified axis. The points are selected based on their position along the axis.
+
+    Args:
+        mesh: The mesh from which to extract points.
+        axis: The axis along which to extract points.
+        direction: The direction along the axis from which to extract points. Valid values are "higher" and "lower".
+        n: The number of points to extract.
+
+    Returns:
+        The extracted points (N x 3 array).
+    """
+
     valid_dirs = ["higher", "lower"]
     if direction not in valid_dirs:
         raise ValueError(f"Invalid direction. Valid directions are {valid_dirs}")
@@ -88,6 +125,22 @@ def extract_points_app(
     upper: float | None = None,
     lower: float | None = None,
 ) -> np.ndarray:
+    """
+    Extracts points from a mesh along a specified axis within a specified range. The points are selected based on their position along the axis.
+
+    Args:
+        mesh: The mesh from which to extract points.
+        axis: The axis along which to extract points.
+        upper: The upper bound of the range.
+        lower: The lower bound of the range.
+
+    Returns:
+        The extracted points (N x 3 array).
+
+    Raises:
+        AssertionError: If the lower bound is greater than the upper bound.
+    """
+
     # Check bounds
     upper = upper if upper is not None else np.inf
     lower = lower if lower is not None else -np.inf
@@ -109,6 +162,21 @@ def extract_points_object_mapping(
     objs: Sequence[trimesh.Trimesh | dict],
     method: str = "subtract",
 ) -> np.ndarray:
+    """
+    Extracts points from a mesh by mapping objects onto it.
+
+    Args:
+        mesh: The mesh from which to extract points.
+        objs: The objects to map onto the mesh.
+        method: The method to use for object mapping. Valid values are "subtract" and "intersect".
+
+    Returns:
+        The extracted points (N x 3 array).
+
+    Raises:
+        ValueError: If an invalid method is provided.
+    """
+
     valid_methods = ["subtract", "intersect"]
     if method not in valid_methods:
         raise ValueError(f"Invalid method {method} for object mapping")

@@ -319,7 +319,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
 
         # Initialize the carry of the for loop with the stacked kᵢ vectors.
-        carry0 = jax.tree_map(
+        carry0 = jax.tree.map(
             lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), x0
         )
 

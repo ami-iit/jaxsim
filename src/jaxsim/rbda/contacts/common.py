@@ -324,10 +324,10 @@ class ContactModel(JaxsimDataclass):
             The initialized model and data objects.
         """
 
+        with self.editable(validate=validate) as contact_model:
+            contact_model.parameters = data.contacts_params
+
         with model.editable(validate=validate) as model_out:
-            model_out.contact_model = self
+            model_out.contact_model = contact_model
 
-        with data.editable(validate=validate) as data_out:
-            data_out.contacts_params = data.contacts_params
-
-        return model_out, data_out
+        return model_out, data

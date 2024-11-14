@@ -304,7 +304,7 @@ class JaxSimModel(JaxsimDataclass):
 
         return self.model_name
 
-    def number_of_links(self) -> jtp.Int:
+    def number_of_links(self) -> int:
         """
         Return the number of links in the model.
 
@@ -317,7 +317,7 @@ class JaxSimModel(JaxsimDataclass):
 
         return self.kin_dyn_parameters.number_of_links()
 
-    def number_of_joints(self) -> jtp.Int:
+    def number_of_joints(self) -> int:
         """
         Return the number of joints in the model.
 
@@ -419,7 +419,7 @@ class JaxSimModel(JaxsimDataclass):
 def reduce(
     model: JaxSimModel,
     considered_joints: tuple[str, ...],
-    locked_joint_positions: dict[str, jtp.Float] | None = None,
+    locked_joint_positions: dict[str, jtp.FloatLike] | None = None,
 ) -> JaxSimModel:
     """
     Reduce the model by lumping together the links connected by removed joints.
@@ -1038,12 +1038,7 @@ def forward_dynamics_aba(
     C_v̇_WB = to_active(
         W_v̇_WB=W_v̇_WB,
         W_H_C=W_H_C,
-        W_v_WB=jnp.hstack(
-            [
-                data.state.physics_model.base_linear_velocity,
-                data.state.physics_model.base_angular_velocity,
-            ]
-        ),
+        W_v_WB=W_v_WB,
         W_v_WC=W_v_WC,
     )
 
@@ -2274,16 +2269,12 @@ def step(
             # Raise runtime error for not supported case in which Rigid contacts and
             # Baumgarte stabilization are enabled and used with ForwardEuler integrator.
             jaxsim.exceptions.raise_runtime_error_if(
-                condition=jnp.logical_and(
-                    isinstance(
-                        integrator,
-                        jaxsim.integrators.fixed_step.ForwardEuler
-                        | jaxsim.integrators.fixed_step.ForwardEulerSO3,
-                    ),
-                    jnp.array(
-                        [data_tf.contacts_params.K, data_tf.contacts_params.D]
-                    ).any(),
-                ),
+                condition=isinstance(
+                    integrator,
+                    jaxsim.integrators.fixed_step.ForwardEuler
+                    | jaxsim.integrators.fixed_step.ForwardEulerSO3,
+                )
+                & ((data_tf.contacts_params.K > 0) | (data_tf.contacts_params.D > 0)),
                 msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
             )
 

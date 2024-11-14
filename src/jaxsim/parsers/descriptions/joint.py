@@ -100,32 +100,7 @@ class JointDescription(JaxsimDataclass):
         if not isinstance(other, JointDescription):
             return False
 
-        if not (
-            self.name == other.name
-            and self.jtype == other.jtype
-            and self.child == other.child
-            and self.parent == other.parent
-            and self.index == other.index
-            and all(
-                np.allclose(getattr(self, attr), getattr(other, attr))
-                for attr in [
-                    "axis",
-                    "pose",
-                    "friction_static",
-                    "friction_viscous",
-                    "position_limit_damper",
-                    "position_limit_spring",
-                    "position_limit",
-                    "initial_position",
-                    "motor_inertia",
-                    "motor_viscous_friction",
-                    "motor_gear_ratio",
-                ]
-            ),
-        ):
-            return False
-
-        return True
+        return hash(self) == hash(other)
 
     def __hash__(self) -> int:
 

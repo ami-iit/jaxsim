@@ -438,7 +438,9 @@ class KynDynParameters(JaxsimDataclass):
     # Helpers to update parameters
     # ============================
 
-    def set_link_mass(self, link_index: int, mass: jtp.FloatLike) -> KynDynParameters:
+    def set_link_mass(
+        self, link_index: jtp.IntLike, mass: jtp.FloatLike
+    ) -> KynDynParameters:
         """
         Set the mass of a link.
 
@@ -457,7 +459,7 @@ class KynDynParameters(JaxsimDataclass):
         return self.replace(link_parameters=link_parameters)
 
     def set_link_inertia(
-        self, link_index: int, inertia: jtp.MatrixLike
+        self, link_index: jtp.IntLike, inertia: jtp.MatrixLike
     ) -> KynDynParameters:
         r"""
         Set the inertia tensor of a link.
@@ -593,10 +595,10 @@ class LinkParameters(JaxsimDataclass):
         """
 
         # Extract the link parameters from the 6D spatial inertia.
-        m, L_p_CoM, I = Inertia.to_params(M=M)
+        m, L_p_CoM, I_CoM = Inertia.to_params(M=M)
 
         # Extract only the necessary elements of the inertia tensor.
-        inertia_elements = I[jnp.triu_indices(3)]
+        inertia_elements = I_CoM[jnp.triu_indices(3)]
 
         return LinkParameters(
             index=jnp.array(index).squeeze().astype(int),

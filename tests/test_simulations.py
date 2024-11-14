@@ -305,6 +305,8 @@ def test_simulation_with_rigid_contacts(
 
         model.contact_model = jaxsim.rbda.contacts.RigidContacts.build(
             terrain=model.terrain,
+            parameters=jaxsim.rbda.contacts.RigidContactsParams.build(K=0.0),
+            solver_options={"solver_tol": 1e-3},
         )
         # Enable a subset of the collidable points.
         enabled_collidable_points_mask = np.zeros(
@@ -357,6 +359,8 @@ def test_simulation_with_relaxed_rigid_contacts(
 
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts.build(
             terrain=model.terrain,
+            parameters=jaxsim.rbda.contacts.RelaxedRigidContactsParams.build(mu=0.001),
+            solver_options={"tol": 1e-3},
         )
         # Enable a subset of the collidable points.
         enabled_collidable_points_mask = np.zeros(

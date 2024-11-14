@@ -179,7 +179,7 @@ def create_sphere_collision(
 
     r = collision.geometry.sphere.radius
     sphere_points = r * fibonacci_sphere(
-        samples=int(os.getenv(key="JAXSIM_COLLISION_SPHERE_POINTS", default="250"))
+        samples=int(os.getenv(key="JAXSIM_COLLISION_SPHERE_POINTS", default="50"))
     )
 
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)

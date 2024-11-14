@@ -53,9 +53,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str
     """
 
     exceptions.raise_value_error_if(
-        condition=jnp.array(
-            [joint_index < 0, joint_index >= model.number_of_joints()]
-        ).any(),
+        condition=joint_index < 0,
         msg="Invalid joint index '{idx}'",
         idx=joint_index,
     )
@@ -123,10 +121,7 @@ def position_limit(
     """
 
     if model.number_of_joints() == 0:
-        s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min
-        s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max
-
-        return jnp.atleast_1d(s_min).astype(float), jnp.atleast_1d(s_max).astype(float)
+        return jnp.empty(0).astype(float), jnp.empty(0).astype(float)
 
     exceptions.raise_value_error_if(
         condition=jnp.array(
@@ -136,8 +131,12 @@ def position_limit(
         idx=joint_index,
     )
 
-    s_min = model.kin_dyn_parameters.joint_parameters.position_limits_min[joint_index]
-    s_max = model.kin_dyn_parameters.joint_parameters.position_limits_max[joint_index]
+    s_min = jnp.atleast_1d(
+        model.kin_dyn_parameters.joint_parameters.position_limits_min
+    )[joint_index]
+    s_max = jnp.atleast_1d(
+        model.kin_dyn_parameters.joint_parameters.position_limits_max
+    )[joint_index]
 
     return s_min.astype(float), s_max.astype(float)
 

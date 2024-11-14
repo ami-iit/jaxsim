@@ -4,6 +4,7 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
+import numpy as np
 
 import jaxsim.api as js
 import jaxsim.rbda
@@ -54,9 +55,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> str:
     """
 
     exceptions.raise_value_error_if(
-        condition=jnp.array(
-            [link_index < 0, link_index >= model.number_of_links()]
-        ).any(),
+        condition=link_index < 0,
         msg="Invalid link index '{idx}'",
         idx=link_index,
     )
@@ -98,7 +97,7 @@ def idxs_to_names(
         The names of the links.
     """
 
-    return tuple(idx_to_name(model=model, link_index=idx) for idx in link_indices)
+    return tuple(np.array(model.kin_dyn_parameters.link_names)[list(link_indices)])
 
 
 # =========

@@ -21,7 +21,7 @@ def collidable_points_pos_vel(
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
     """
 
-    Compute the position and linear velocity of collidable points in the world frame.
+    Compute the position and linear velocity of the enabled collidable points in the world frame.
 
     Args:
         model: The model to consider.
@@ -35,10 +35,23 @@ def collidable_points_pos_vel(
         joint_velocities: The velocities of the joints.
 
     Returns:
-        A tuple containing the position and linear velocity of collidable points.
+        A tuple containing the position and linear velocity of the enabled collidable points.
     """
 
-    if len(model.kin_dyn_parameters.contact_parameters.body) == 0:
+    # Get the indices of the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
+
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
+    L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
+        indices_of_enabled_collidable_points
+    ]
+
+    if len(indices_of_enabled_collidable_points) == 0:
         return jnp.array(0).astype(float), jnp.empty(0).astype(float)
 
     W_p_B, W_Q_B, s, W_v_WB, ṡ, _, _, _, _, _ = utils.process_inputs(
@@ -136,8 +149,8 @@ def collidable_points_pos_vel(
 
     # Process all the collidable points in parallel.
     W_p_Ci, CW_vl_WC = jax.vmap(process_point_kinematics)(
-        model.kin_dyn_parameters.contact_parameters.point,
-        jnp.array(model.kin_dyn_parameters.contact_parameters.body),
+        L_p_Ci,
+        parent_link_idx_of_enabled_collidable_points,
     )
 
     return W_p_Ci, CW_vl_WC

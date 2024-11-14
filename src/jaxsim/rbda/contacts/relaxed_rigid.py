@@ -357,13 +357,15 @@ class RelaxedRigidContacts(common.ContactModel):
 
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, height: J * (height < 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
+                    js.contact.jacobian(model=model, data=data)[:, :3, :],
+                    δ,
                 )
             )
 
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, height: J̇ * (height < 0))(
-                    js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
+                    js.contact.jacobian_derivative(model=model, data=data)[:, :3],
+                    δ,
                 ),
             )
 
@@ -530,6 +532,15 @@ class RelaxedRigidContacts(common.ContactModel):
             )
         )
 
+        # Get the indices of the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
+
+        parent_link_idx_of_enabled_collidable_points = jnp.array(
+            model.kin_dyn_parameters.contact_parameters.body, dtype=int
+        )[indices_of_enabled_collidable_points]
+
         # Compute the 6D inertia matrices of all links.
         M_L = js.model.link_spatial_inertia_matrices(model=model)
 
@@ -595,9 +606,7 @@ class RelaxedRigidContacts(common.ContactModel):
             f=jnp.concatenate,
             tree=(
                 *jax.vmap(compute_row)(
-                    link_idx=jnp.array(
-                        model.kin_dyn_parameters.contact_parameters.body
-                    ),
+                    link_idx=parent_link_idx_of_enabled_collidable_points,
                     penetration=penetration,
                     velocity=velocity,
                 ),

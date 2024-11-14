@@ -2287,7 +2287,14 @@ def step(
                 msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
             )
 
-            W_p_C = js.contact.collidable_point_positions(model, data_tf)
+            # Extract the indices corresponding to the enabled collidable points.
+            indices_of_enabled_collidable_points = (
+                model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+            )
+
+            W_p_C = js.contact.collidable_point_positions(model, data_tf)[
+                indices_of_enabled_collidable_points
+            ]
 
             # Compute the penetration depth of the collidable points.
             δ, *_ = jax.vmap(
@@ -2296,8 +2303,9 @@ def step(
             )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
 
             with data_tf.switch_velocity_representation(VelRepr.Mixed):
-
-                J_WC = js.contact.jacobian(model, data_tf)
+                J_WC = js.contact.jacobian(model, data_tf)[
+                    indices_of_enabled_collidable_points
+                ]
                 M = js.model.free_floating_mass_matrix(model, data_tf)
 
                 # Compute the impact velocity.

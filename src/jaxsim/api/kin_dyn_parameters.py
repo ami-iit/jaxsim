@@ -743,6 +743,9 @@ class ContactParameters(JaxsimDataclass):
         point:
             The translations between the link frame and the collidable point, expressed
             in the coordinates of the parent link frame.
+        enabled:
+            A tuple of booleans representing, for each collidable point, whether it is
+            enabled or not in contact models.
 
     Note:
         Contrarily to LinkParameters and JointParameters, this class is not meant

@@ -224,8 +224,7 @@ def create_mesh_collision(
     mesh = trimesh.load_mesh(file, file_type=_file_type)
 
     if mesh.is_empty:
-        logging.warning(f"Mesh {collision.geometry.mesh.uri} is empty, ignoring it")
-        return
+        raise RuntimeError(f"Failed to process '{file}' with trimesh")
 
     mesh.apply_scale(collision.geometry.mesh.scale)
     logging.info(

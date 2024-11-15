@@ -241,6 +241,7 @@ def create_mesh_collision(
     logging.debug(f"Extracted {len(points)} points from mesh")
 
     W_H_L = collision.pose.transform() if collision.pose is not None else np.eye(4)
+
     # Extract translation from transformation matrix
     W_p_L = W_H_L[:3, 3]
     mesh_points_wrt_link = points @ W_H_L[:3, :3].T + W_p_L
@@ -252,4 +253,5 @@ def create_mesh_collision(
         )
         for point in mesh_points_wrt_link
     ]
+
     return descriptions.MeshCollision(collidable_points=collidable_points, center=W_p_L)

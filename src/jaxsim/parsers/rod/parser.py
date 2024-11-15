@@ -340,8 +340,8 @@ def extract_model_data(
                     link_description=links_dict[link.name],
                     method=utils.meshes.extract_points_vertices,
                 )
-                if mesh_collision is not None:
-                    collisions.append(mesh_collision)
+
+                collisions.append(mesh_collision)
 
     return SDFData(
         model_name=sdf_model.name,

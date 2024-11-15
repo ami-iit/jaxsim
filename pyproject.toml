@@ -69,9 +69,7 @@ testing = [
     "idyntree >= 12.2.1",
     "pytest >=6.0",
     "pytest-icdiff",
-    "robot-descriptions",
-    "networkx",
-    "lark"
+    "robot-descriptions"
 ]
 viz = [
     "lxml",

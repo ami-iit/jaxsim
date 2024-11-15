@@ -334,7 +334,10 @@ def extract_model_data(
 
                 collisions.append(sphere_collision)
 
-            if collision.geometry.mesh is not None:
+            if collision.geometry.mesh is not None and os.environ.get(
+                "JAXSIM_COLLISION_MESH_ENABLED", "0"
+            ):
+                logging.warning("Mesh collision support is still experimental.")
                 mesh_collision = utils.create_mesh_collision(
                     collision=collision,
                     link_description=links_dict[link.name],

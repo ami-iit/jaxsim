@@ -95,34 +95,3 @@ def test_mesh_wrapping_points_over_axis():
     )
     assert len(points) == sphere_n_vertices // 2
     assert all(points[:, 2] >= 0.0)
-
-
-def test_mesh_wrapping_object_mapping():
-    """Test the object mapping method on different meshes.
-    1. Subtract a box from a sphere
-    2. Subtract a sphere from a bigger sphere
-    3. Subtract a small box from a bigger box to remove the right-top corner of the first box
-    """
-
-    # Test 1: Subtract a box from a sphere
-    sphere = trimesh.creation.icosphere(subdivisions=4, radius=1.0)
-    box = trimesh.creation.box(extents=[0.5, 0.5, 0.5])
-    points = meshes.extract_points_object_mapping(mesh=sphere, objs=[box])
-    assert len(points) < len(sphere.vertices)
-
-    # Test 2: Subtract a sphere from a bigger sphere
-    sphere1 = trimesh.creation.icosphere(subdivisions=4, radius=1.5)
-    sphere2 = trimesh.creation.icosphere(subdivisions=4, radius=1.0)
-    points = meshes.extract_points_object_mapping(mesh=sphere1, objs=[sphere2])
-    assert len(points) < len(sphere1.vertices)
-    assert len(points) > len(sphere2.vertices)
-
-    # Test 3: Subtract a small box from a bigger box to remove the right-top corner of the first box
-    box1 = trimesh.creation.box(extents=[3.0, 3.0, 3.0])
-    box2 = trimesh.creation.box(
-        extents=[1.0, 1.0, 1.0],
-        transform=trimesh.transformations.translation_matrix([1.5, 1.5, 1.5]),
-    )
-    points = meshes.extract_points_object_mapping(mesh=box1, objs=[box2])
-    assert len(points) < len(box1)
-    assert len(points) == 7

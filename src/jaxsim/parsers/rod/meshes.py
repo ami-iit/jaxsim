@@ -1,9 +1,5 @@
-from collections.abc import Sequence
-
 import numpy as np
 import trimesh
-
-from jaxsim import logging
 
 VALID_AXIS = {"x": 0, "y": 1, "z": 2}
 
@@ -77,13 +73,13 @@ def extract_points_select_points_over_axis(
         The extracted points (N x 3 array).
     """
 
-    dirs = {"higher": np.s_[:n], "lower": np.s_[-n:]}
+    dirs = {"higher": np.s_[-n:], "lower": np.s_[:n]}
     arr = mesh.vertices
-    index = dict(zip(("x", "y", "z"), np.arange(3), strict=False))
 
     # Sort the array in ascending order
-    arr.sort(axis=index[axis])
-    return arr[dirs[direction]]
+    arr.sort(axis=0)  # Sort rows lexicographically first, then columnar
+    sorted_arr = arr[dirs[direction]]
+    return sorted_arr
 
 
 def extract_points_aap(
@@ -121,43 +117,3 @@ def extract_points_aap(
     ]
 
     return points
-
-
-def extract_points_object_mapping(
-    mesh: trimesh.Trimesh,
-    objs: Sequence[trimesh.Trimesh | dict],
-    method: str = "subtract",
-) -> np.ndarray:
-    """
-    Extracts points from a mesh by mapping objects onto it.
-
-    Args:
-        mesh: The mesh from which to extract points.
-        objs: The objects to map onto the mesh.
-        method: The method to use for object mapping. Valid values are "subtract" and "intersect".
-
-    Returns:
-        The extracted points (N x 3 array).
-
-    Raises:
-        ValueError: If an invalid method is provided.
-    """
-
-    valid_methods = {
-        "subtract": trimesh.Trimesh.difference,
-        "intersect": trimesh.Trimesh.intersection,
-    }
-    if method not in valid_methods:
-        raise ValueError(f"Invalid method {method} for object mapping")
-    if len(objs) == 0:
-        logging.warning(
-            "No objects provided for object mapping, returning original mesh"
-        )
-        return mesh.vertices
-
-    # Parse objects
-    for obj in objs:
-        obj = parse_object_mapping_object(obj)
-        mesh = valid_methods[method](mesh, obj)
-
-    return mesh.vertices

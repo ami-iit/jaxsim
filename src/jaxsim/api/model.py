@@ -2235,7 +2235,7 @@ def step(
         # by the pair (f_L, τ_references).
         # Note that the wrapper of the system dynamics will override (state_x0, t0)
         # inside the passed data even if it is not strictly needed. This logic is
-        # necessary to re-use the jit-compiled step function of compatible pytrees
+        # necessary to reuse the jit-compiled step function of compatible pytrees
         # of model and data produced e.g. by parameterized applications.
         **(
             dict(

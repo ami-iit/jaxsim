@@ -151,7 +151,7 @@ def collidable_point_dynamics(
         kwargs: Additional keyword arguments to pass to the active contact model.
 
     Returns:
-        The 6D force applied to each eneabled collidable point and additional data based
+        The 6D force applied to each enabled collidable point and additional data based
         on the contact model configured:
         - Soft: the material deformation rate.
         - Rigid: no additional data.

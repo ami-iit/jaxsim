@@ -23,8 +23,8 @@ Alternatively, you can use `pypa/pip`_, preferably in a `virtual environment`_:
 
    pip install jaxsim
 
-Have a look to `setup.cfg` for a complete list of optional dependencies.
-You can install all of them by specifying ``jaxsim[all]``.
+Have a look to `pyproject.toml`_ for a complete list of optional dependencies.
+You can install all of them by specifying ``jaxsim[all]`.
 
 .. note::
 

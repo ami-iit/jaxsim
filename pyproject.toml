@@ -164,7 +164,7 @@ ignore = [
     "E731", # Do not assign a `lambda` expression, use a `def`
     "E741", # Ambiguous variable name
     "I001", # Import block is unsorted or unformatted
-    "RUF003", # Ambigous unicode character in comment
+    "RUF003", # Ambiguous unicode character in comment
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -221,7 +221,7 @@ scipy = "*"
 #
 pip = "*"
 
-# Dependendencies from PyPI.
+# Dependencies from PyPI.
 [tool.pixi.pypi-dependencies]
 jaxsim = { path = "./", editable = true }
 

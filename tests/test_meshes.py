@@ -68,9 +68,7 @@ def test_mesh_wrapping_points_over_axis():
 
     # Test 1.1: Remove 10 points from the lower end of the x-axis
     # First, create a box with origin at (0,0,0) and extents (3,3,3) -> points span from -1.5 to 1.5 on axis
-    mesh = trimesh.creation.box(
-        extents=[3.0, 3.0, 3.0],
-    )
+    mesh = trimesh.creation.box(extents=[3.0, 3.0, 3.0])
     points = meshes.extract_points_select_points_over_axis(
         mesh=mesh, axis="x", direction="lower", n=4
     )

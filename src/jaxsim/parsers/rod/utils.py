@@ -242,8 +242,8 @@ def create_mesh_collision(
 
     W_H_L = collision.pose.transform() if collision.pose is not None else np.eye(4)
     # Extract translation from transformation matrix
-    W_p_L = H[:3, 3]
-    mesh_points_wrt_link = points @ H[:3, :3].T + W_p_L
+    W_p_L = W_H_L[:3, 3]
+    mesh_points_wrt_link = points @ W_H_L[:3, :3].T + W_p_L
     collidable_points = [
         descriptions.CollidablePoint(
             parent_link=link_description,

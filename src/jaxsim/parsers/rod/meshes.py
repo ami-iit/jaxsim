@@ -4,20 +4,6 @@ import trimesh
 VALID_AXIS = {"x": 0, "y": 1, "z": 2}
 
 
-def parse_object_mapping_object(obj: trimesh.Trimesh | dict) -> trimesh.Trimesh:
-    if isinstance(obj, trimesh.Trimesh):
-        return obj
-    elif isinstance(obj, dict):
-        if obj["type"] == "box":
-            return trimesh.creation.box(extents=obj["extents"])
-        elif obj["type"] == "sphere":
-            return trimesh.creation.icosphere(subdivisions=4, radius=obj["radius"])
-        else:
-            raise ValueError(f"Invalid object type {obj['type']}")
-    else:
-        raise ValueError("Invalid object type")
-
-
 def extract_points_vertices(mesh: trimesh.Trimesh) -> np.ndarray:
     """
     Extracts the vertices of a mesh as points.

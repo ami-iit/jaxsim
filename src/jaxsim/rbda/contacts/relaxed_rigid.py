@@ -10,6 +10,7 @@ import jax_dataclasses
 import optax
 
 import jaxsim.api as js
+import jaxsim.rbda.contacts
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
@@ -314,22 +315,20 @@ class RelaxedRigidContacts(common.ContactModel):
             joint_force_references=joint_force_references,
         )
 
-        def detect_contact(x: jtp.Array, y: jtp.Array, z: jtp.Array) -> jtp.Array:
-            x, y, z = jax.tree.map(jnp.squeeze, (x, y, z))
-
-            n̂ = model.terrain.normal(x=x, y=y).squeeze()
-            h = jnp.array([0, 0, z - model.terrain.height(x=x, y=y)])
-
-            return jnp.dot(h, n̂)
-
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
         position, velocity = js.contact.collidable_point_kinematics(
             model=model, data=data
         )
 
-        # Compute the activation state of the collidable points
-        δ = jax.vmap(detect_contact)(*position.T)
+        # Compute the penetration depth and velocity of the collidable points.
+        # Note that this function considers the penetration in the normal direction.
+        δ, _, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
+            position, velocity, model.terrain
+        )
+
+        # Compute the position in the constraint frame.
+        position_constraint = jax.vmap(lambda δ, n̂: -δ * n̂)(δ, n̂)
 
         # Compute the transforms of the implicit frames corresponding to the
         # collidable points.
@@ -356,24 +355,22 @@ class RelaxedRigidContacts(common.ContactModel):
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
             Jl_WC = jnp.vstack(
-                jax.vmap(lambda J, height: J * (height < 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3, :],
-                    δ,
+                jax.vmap(lambda J, δ: J * (δ > 0))(
+                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
                 )
             )
 
             J̇_WC = jnp.vstack(
-                jax.vmap(lambda J̇, height: J̇ * (height < 0))(
-                    js.contact.jacobian_derivative(model=model, data=data)[:, :3],
-                    δ,
+                jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
+                    js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
 
         # Compute the regularization terms.
-        a_ref, R, K, D = self._regularizers(
+        a_ref, R, *_ = self._regularizers(
             model=model,
-            penetration=δ,
-            velocity=velocity,
+            position_constraint=position_constraint,
+            velocity_constraint=velocity,
             parameters=data.contacts_params,
         )
 
@@ -435,6 +432,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
                 return params, state
 
+            # TODO: maybe fix the number of iterations and switch to scan?
             def continuing_criterion(carry: OptimizationCarry) -> jtp.Bool:
 
                 _, state = carry
@@ -456,10 +454,20 @@ class RelaxedRigidContacts(common.ContactModel):
         # ======================================
 
         # Initialize the optimized forces with a linear Hunt/Crossley model.
-        init_params = (
-            K[:, jnp.newaxis] * jnp.zeros_like(position).at[:, 2].set(δ)
-            + D[:, jnp.newaxis] * velocity
-        ).flatten()
+        init_params = jax.vmap(
+            lambda p, v: jaxsim.rbda.contacts.SoftContacts.hunt_crossley_contact_model(
+                position=p,
+                velocity=v,
+                terrain=model.terrain,
+                K=1e6,
+                D=2e3,
+                p=0.0,
+                q=0.0,
+                # No tangential initial forces.
+                mu=0.0,
+                tangential_deformation=jnp.zeros(3),
+            )[0]
+        )(position, velocity).flatten()
 
         # Get the solver options.
         solver_options = self.solver_options
@@ -498,8 +506,8 @@ class RelaxedRigidContacts(common.ContactModel):
     @staticmethod
     def _regularizers(
         model: js.model.JaxSimModel,
-        penetration: jtp.Array,
-        velocity: jtp.Array,
+        position_constraint: jtp.Vector,
+        velocity_constraint: jtp.Vector,
         parameters: RelaxedRigidContactsParams,
     ) -> tuple:
         """
@@ -507,12 +515,13 @@ class RelaxedRigidContacts(common.ContactModel):
 
         Args:
             model: The jaxsim model.
-            penetration: The penetration of the collidable points.
-            velocity: The velocity of the collidable points.
+            penetration: The point position in the constraint frame.
+            velocity: The point velocity in the constraint frame.
             parameters: The parameters of the relaxed rigid contacts model.
 
         Returns:
-            A tuple containing the reference acceleration, the regularization matrix, the stiffness, and the damping.
+            A tuple containing the reference acceleration, the regularization matrix,
+            the stiffness, and the damping.
         """
 
         # Extract the parameters of the contact model.
@@ -545,70 +554,79 @@ class RelaxedRigidContacts(common.ContactModel):
         M_L = js.model.link_spatial_inertia_matrices(model=model)
 
         def imp_aref(
-            penetration: jtp.Array, velocity: jtp.Array
-        ) -> tuple[jtp.Array, jtp.Array]:
+            pos: jtp.Vector,
+            vel: jtp.Vector,
+        ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector]:
             """
             Calculates impedance and offset acceleration in constraint frame.
 
             Args:
-                penetration: penetration in constraint frame
-                velocity: velocity in constraint frame
+                pos: position in constraint frame.
+                vel: velocity in constraint frame.
 
             Returns:
+                ξ: computed impedance
                 a_ref: offset acceleration in constraint frame
-                R: regularization matrix
                 K: computed stiffness
                 D: computed damping
             """
-            position = jnp.zeros(shape=(3,)).at[2].set(penetration)
 
-            imp_x = jnp.abs(position) / width
+            imp_x = jnp.abs(pos) / width
+
             imp_a = (1.0 / jnp.power(mid, p - 1)) * jnp.power(imp_x, p)
-
             imp_b = 1 - (1.0 / jnp.power(1 - mid, p - 1)) * jnp.power(1 - imp_x, p)
-
             imp_y = jnp.where(imp_x < mid, imp_a, imp_b)
 
-            imp = jnp.clip(ξ_min + imp_y * (ξ_max - ξ_min), ξ_min, ξ_max)
-            imp = jnp.atleast_1d(jnp.where(imp_x > 1.0, ξ_max, imp))
+            # Compute the impedance.
+            ξ = ξ_min + imp_y * (ξ_max - ξ_min)
+            ξ = jnp.clip(ξ, ξ_min, ξ_max)
+            ξ = jnp.where(imp_x > 1.0, ξ_max, ξ)
 
-            # When passing negative values, K and D represent a spring and damper, respectively.
-            K_f = jnp.where(K < 0, -K / ξ_max**2, 1 / (ξ_max * Ω * ζ) ** 2)
-            D_f = jnp.where(D < 0, -D / ξ_max, 2 / (ξ_max * Ω))
+            # Compute the spring and damper parameters during runtime from the
+            # impedance and other contact parameters.
+            K = 1 / (ξ_max * Ω * ζ) ** 2
+            D = 2 / (ξ_max * Ω)
 
-            a_ref = -jnp.atleast_1d(D_f * velocity + K_f * imp * position)
+            # If the user specifies K and D and they are negative, the computed `a_ref`
+            # becomes something more similar to a classic Baumgarte regularization.
+            K = jnp.where(K < 0, -K / ξ_max**2, K)
+            D = jnp.where(D < 0, -D / ξ_max, D)
 
-            return imp, a_ref, jnp.atleast_1d(K_f), jnp.atleast_1d(D_f)
+            # Compute the reference acceleration.
+            a_ref = -(D * vel + K * ξ * pos)
+
+            return ξ, a_ref, K, D
 
         def compute_row(
             *,
-            link_idx: jtp.Float,
-            penetration: jtp.Array,
-            velocity: jtp.Array,
-        ) -> tuple[jtp.Array, jtp.Array]:
+            link_idx: jtp.Int,
+            pos: jtp.Vector,
+            vel: jtp.Vector,
+        ) -> tuple[jtp.Vector, jtp.Matrix, jtp.Vector, jtp.Vector]:
 
             # Compute the reference acceleration.
-            ξ, a_ref, K, D = imp_aref(
-                penetration=penetration,
-                velocity=velocity,
-            )
+            ξ, a_ref, K, D = imp_aref(pos=pos, vel=vel)
 
-            # Compute the regularization terms.
+            # Compute the regularization term.
             R = (
                 (2 * μ**2 * (1 - ξ) / (ξ + 1e-12))
                 * (1 + μ**2)
                 @ jnp.linalg.inv(M_L[link_idx, :3, :3])
             )
 
-            return jax.tree.map(lambda x: x * (penetration < 0), (a_ref, R, K, D))
+            # Return the computed values, setting them to zero in case of no contact.
+            is_active = (pos.dot(pos) > 0).astype(float)
+            return jax.tree.map(
+                lambda x: jnp.atleast_1d(x) * is_active, (a_ref, R, K, D)
+            )
 
         a_ref, R, K, D = jax.tree.map(
             f=jnp.concatenate,
             tree=(
                 *jax.vmap(compute_row)(
                     link_idx=parent_link_idx_of_enabled_collidable_points,
-                    penetration=penetration,
-                    velocity=velocity,
+                    pos=position_constraint,
+                    vel=velocity_constraint,
                 ),
             ),
         )

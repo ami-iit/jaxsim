@@ -62,8 +62,8 @@ def extract_points_select_points_over_axis(
     dirs = {"higher": np.s_[-n:], "lower": np.s_[:n]}
     arr = mesh.vertices
 
-    # Sort the array in ascending order
-    arr.sort(axis=0)  # Sort rows lexicographically first, then columnar
+    # Sort rows lexicographically first, then columnar.
+    arr.sort(axis=0)
     sorted_arr = arr[dirs[direction]]
     return sorted_arr
 
@@ -90,13 +90,12 @@ def extract_points_aap(
         AssertionError: If the lower bound is greater than the upper bound.
     """
 
-    # Check bounds
+    # Check bounds.
     upper = upper if upper is not None else np.inf
     lower = lower if lower is not None else -np.inf
     assert lower < upper, "Invalid bounds for axis-aligned plane"
 
-    # Logic
-
+    # Logic.
     points = mesh.vertices[
         (mesh.vertices[:, VALID_AXIS[axis]] >= lower)
         & (mesh.vertices[:, VALID_AXIS[axis]] <= upper)

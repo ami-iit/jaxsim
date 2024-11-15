@@ -240,7 +240,7 @@ def create_mesh_collision(
     points = method(mesh=mesh)
     logging.debug(f"Extracted {len(points)} points from mesh")
 
-    H = collision.pose.transform() if collision.pose is not None else np.eye(4)
+    W_H_L = collision.pose.transform() if collision.pose is not None else np.eye(4)
     # Extract translation from transformation matrix
     W_p_L = H[:3, 3]
     mesh_points_wrt_link = points @ H[:3, :3].T + W_p_L

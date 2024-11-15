@@ -37,7 +37,7 @@ def test_mesh_wrapping_aap():
 
     # Test 1.1: Remove all points above x=0.0.
     #     The expected result is that the number of points is halved.
-    #     First, create a box with origin at (0,0,0) and extents (3,3,3), 
+    #     First, create a box with origin at (0,0,0) and extents (3,3,3),
     #     i.e. points span from -1.5 to 1.5 on the axis.
     mesh = trimesh.creation.box(extents=[3.0, 3.0, 3.0])
     points = meshes.extract_points_aap(mesh=mesh, axis="x", lower=0.0)
@@ -51,7 +51,7 @@ def test_mesh_wrapping_aap():
     assert all(points[:, 1] < 0.0)
 
     # Test 2: A sphere.
-    #     The sphere is centered at the origin and has a radius of 1.0. 
+    #     The sphere is centered at the origin and has a radius of 1.0.
     #     Points are expected to be halved.
     mesh = trimesh.creation.icosphere(subdivisions=4, radius=1.0)
 

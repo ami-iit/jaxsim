@@ -209,6 +209,7 @@ pptree = "*"
 optax = "*"
 qpax = "*"
 rod = "*"
+trimesh = "*"
 typing_extensions = "*"
 #
 # Optional dependencies.

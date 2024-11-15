@@ -154,3 +154,22 @@ class SphereCollision(CollisionShape):
             return False
 
         return hash(self) == hash(other)
+
+
+@dataclasses.dataclass
+class MeshCollision(CollisionShape):
+    center: jtp.VectorLike
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                hash(tuple(self.center.tolist())),
+                hash(self.collidable_points),
+            )
+        )
+
+    def __eq__(self, other: MeshCollision) -> bool:
+        if not isinstance(other, MeshCollision):
+            return False
+
+        return hash(self) == hash(other)

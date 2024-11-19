@@ -470,10 +470,10 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
 
     # Build the link-to-point transform from the displacement between the link frame L
     # and the implicit contact frame C.
-    L_H_C = jax.vmap(lambda L_p_C: jnp.eye(4).at[0:3, 3].set(L_p_C))(L_p_Ci)
+    L_H_C = jnp.stack([jnp.eye(4)] * L_p_Ci.shape[0]).at[:, :3, 3].set(L_p_Ci)
 
     # Compose the work-to-link and link-to-point transforms.
-    return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
+    return W_H_L @ L_H_C
 
 
 @js.common.named_scope

@@ -30,9 +30,6 @@ class Transform:
         W_Q_B = jnp.array(quaternion).astype(float)
         W_p_B = jnp.array(translation).astype(float)
 
-        assert W_p_B.size == 3
-        assert W_Q_B.size == 4
-
         A_R_B = jaxlie.SO3(wxyz=W_Q_B)
         A_R_B = A_R_B if not normalize_quaternion else A_R_B.normalize()
 
@@ -63,9 +60,6 @@ class Transform:
         A_R_B = jnp.array(rotation).astype(float)
         W_p_B = jnp.array(translation).astype(float)
 
-        assert W_p_B.size == 3
-        assert A_R_B.shape == (3, 3)
-
         A_H_B = jaxlie.SE3.from_rotation_and_translation(
             rotation=jaxlie.SO3.from_matrix(A_R_B), translation=W_p_B
         )
@@ -85,6 +79,5 @@ class Transform:
         """
 
         A_H_B = jnp.array(transform).astype(float)
-        assert A_H_B.shape == (4, 4)
 
         return jaxlie.SE3.from_matrix(matrix=A_H_B).inverse().as_matrix()

@@ -27,8 +27,6 @@ class Adjoint:
         Returns:
             jtp.Matrix: The adjoint matrix.
         """
-        assert quaternion.size == 4
-        assert translation.size == 3
 
         Q_sixd = jaxlie.SO3(wxyz=quaternion)
         Q_sixd = Q_sixd if not normalize_quaternion else Q_sixd.normalize()
@@ -51,7 +49,6 @@ class Adjoint:
         """
 
         A_H_B = jnp.array(transform).astype(float)
-        assert transform.shape == (4, 4)
 
         return (
             jaxlie.SE3.from_matrix(matrix=A_H_B).adjoint()
@@ -76,8 +73,6 @@ class Adjoint:
         Returns:
             jtp.Matrix: The adjoint matrix.
         """
-        assert rotation.shape == (3, 3)
-        assert translation.size == 3
 
         A_R_B = rotation.squeeze()
         A_o_B = translation.squeeze()

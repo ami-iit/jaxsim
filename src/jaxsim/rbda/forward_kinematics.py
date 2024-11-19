@@ -85,7 +85,7 @@ def forward_kinematics_model(
         else [(W_X_i,), None]
     )
 
-    return jax.vmap(Adjoint.to_transform)(W_X_i)
+    return Adjoint.to_transform(W_X_i)
 
 
 def forward_kinematics(

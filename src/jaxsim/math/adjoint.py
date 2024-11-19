@@ -105,18 +105,26 @@ class Adjoint:
         Returns:
             jtp.Matrix: The transformation matrix (4x4).
         """
-        X = adjoint.squeeze()
-        assert X.shape == (6, 6)
+        X = adjoint.reshape(-1, 6, 6)
 
-        R = X[0:3, 0:3]
-        o_x_R = X[0:3, 3:6]
+        R = X[..., 0:3, 0:3]
+        o_x_R = X[..., 0:3, 3:6]
 
-        H = jnp.vstack(
+        H = jnp.concatenate(
             [
-                jnp.block([R, Skew.vee(matrix=o_x_R @ R.T)]),
-                jnp.array([0, 0, 0, 1]),
-            ]
-        )
+                jnp.concatenate(
+                    [
+                        R,
+                        Skew.vee(matrix=o_x_R @ R.transpose(0, 2, 1))[
+                            ..., :, jnp.newaxis
+                        ],
+                    ],
+                    axis=-1,
+                ),
+                jnp.zeros((X.shape[0], 1, 4)).at[:, :, 3].set(1),
+            ],
+            axis=-2,
+        ).reshape(adjoint.shape[:-2] + (4, 4))
 
         return H
 

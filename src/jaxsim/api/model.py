@@ -634,11 +634,11 @@ def generalized_free_floating_jacobian(
 
     # Keep only the columns of the full Jacobian corresponding to the support
     # body array of each link.
-    B_J_WL_I = jax.vmap(
-        lambda κ: jnp.where(
-            jnp.hstack([jnp.ones(5), κ]), B_J_full_WX_I, jnp.zeros_like(B_J_full_WX_I)
-        )
-    )(κ_bool)
+    B_J_WL_I = jnp.where(
+        jnp.hstack([jnp.ones((κ_bool.shape[0], 5)), κ_bool])[:, jnp.newaxis],
+        B_J_full_WX_I[jnp.newaxis, :],
+        0.0,
+    )
 
     # =======================================================================
     # Update the output velocity representation such that O_v_WL = O_J_WL @ ν
@@ -651,35 +651,24 @@ def generalized_free_floating_jacobian(
             W_H_B = data.base_transform()
             W_X_B = jaxsim.math.Adjoint.from_transform(W_H_B)
 
-            O_J_WL_I = W_J_WL_I = jax.vmap(  # noqa: F841
-                lambda B_J_WL_I: W_X_B @ B_J_WL_I
-            )(B_J_WL_I)
+            O_J_WL_I = W_J_WL_I = W_X_B @ B_J_WL_I  # noqa: F841
 
         case VelRepr.Body:
 
-            O_J_WL_I = L_J_WL_I = jax.vmap(  # noqa: F841
-                lambda B_H_L, B_J_WL_I: jaxsim.math.Adjoint.from_transform(
-                    B_H_L, inverse=True
-                )
-                @ B_J_WL_I
-            )(B_H_L, B_J_WL_I)
+            B_X_L = jaxsim.math.Adjoint.from_transform(B_H_L, inverse=True)
+
+            O_J_WL_I = L_J_WL_I = B_X_L @ B_J_WL_I  # noqa: F841
 
         case VelRepr.Mixed:
 
             W_H_B = data.base_transform()
 
-            LW_H_L = jax.vmap(
-                lambda B_H_L: (W_H_B @ B_H_L).at[0:3, 3].set(jnp.zeros(3))
-            )(B_H_L)
+            LW_H_L = (W_H_B @ B_H_L).at[:, 0:3, 3].set(0.0)
 
-            LW_H_B = jax.vmap(
-                lambda LW_H_L, B_H_L: LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
-            )(LW_H_L, B_H_L)
+            LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
 
-            O_J_WL_I = LW_J_WL_I = jax.vmap(  # noqa: F841
-                lambda LW_H_B, B_J_WL_I: jaxsim.math.Adjoint.from_transform(LW_H_B)
-                @ B_J_WL_I
-            )(LW_H_B, B_J_WL_I)
+            LW_X_B = jaxsim.math.Adjoint.from_transform(LW_H_B)
+            O_J_WL_I = LW_J_WL_I = LW_X_B @ B_J_WL_I  # noqa: F841
 
         case _:
             raise ValueError(output_vel_repr)

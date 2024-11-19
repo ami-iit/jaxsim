@@ -20,9 +20,20 @@ class Skew:
             jtp.Matrix: The skew-symmetric matrix corresponding to the input vector.
 
         """
-        vector = vector.squeeze()
-        x, y, z = vector
-        skew = jnp.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+
+        vector = vector.reshape(-1, 3)
+
+        x, y, z = jnp.split(vector, 3, axis=-1)
+
+        skew = jnp.stack(
+            [
+                jnp.concatenate([jnp.zeros_like(x), -z, y], axis=-1),
+                jnp.concatenate([z, jnp.zeros_like(x), -x], axis=-1),
+                jnp.concatenate([-y, x, jnp.zeros_like(x)], axis=-1),
+            ],
+            axis=-2,
+        ).squeeze()
+
         return skew
 
     @staticmethod

@@ -301,9 +301,7 @@ def bias_acceleration(
             C_v̇_WL = W_v̇_bias_WL = v̇_bias_WL  # noqa: F841
             C_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
 
-            L_H_C = L_H_W = jax.vmap(  # noqa: F841
-                lambda W_H_L: jaxsim.math.Transform.inverse(W_H_L)
-            )(W_H_L)
+            L_H_C = L_H_W = jaxsim.math.Transform.inverse(W_H_L)  # noqa: F841
 
             L_v_LC = L_v_LW = jax.vmap(  # noqa: F841
                 lambda i: -js.link.velocity(
@@ -332,11 +330,9 @@ def bias_acceleration(
                 .set(jnp.zeros(3))
             )(jnp.arange(model.number_of_links()))
 
-            L_H_C = L_H_LW = jax.vmap(  # noqa: F841
-                lambda W_H_L: jaxsim.math.Transform.inverse(
-                    W_H_L.at[0:3, 3].set(jnp.zeros(3))
-                )
-            )(W_H_L)
+            L_H_C = L_H_LW = jaxsim.math.Transform.inverse(  # noqa: F841
+                W_H_L.at[:, 0:3, 3].set(jnp.zeros_like(W_H_L[:, 0:3, 3]))
+            )
 
             L_v_LC = L_v_L_LW = jax.vmap(  # noqa: F841
                 lambda i: -js.link.velocity(

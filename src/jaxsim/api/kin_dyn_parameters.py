@@ -436,11 +436,9 @@ class KynDynParameters(JaxsimDataclass):
 
         # Compute the overall transforms from the parent to the child of each joint by
         # composing all the components of our joint model.
-        i_X_λ = jax.vmap(
-            lambda λ_Hi_pre, pre_Hi_suc, suc_Hi_i: Adjoint.from_transform(
-                transform=λ_Hi_pre @ pre_Hi_suc @ suc_Hi_i, inverse=True
-            )
-        )(λ_H_pre, pre_H_suc, suc_H_i)
+        i_X_λ = Adjoint.from_transform(
+            transform=λ_H_pre @ pre_H_suc @ suc_H_i, inverse=True
+        )
 
         return i_X_λ, S
 

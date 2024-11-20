@@ -78,6 +78,11 @@ class Transform:
             The 4x4 inverse transformation matrix.
         """
 
-        A_H_B = jnp.array(transform).astype(float)
+        A_H_B = jnp.reshape(transform, (-1, 4, 4))
 
-        return jaxlie.SE3.from_matrix(matrix=A_H_B).inverse().as_matrix()
+        return (
+            jaxlie.SE3.from_matrix(matrix=A_H_B)
+            .inverse()
+            .as_matrix()
+            .reshape(transform.shape[:-2] + (4, 4))
+        )

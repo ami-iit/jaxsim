@@ -1230,18 +1230,12 @@ def free_floating_coriolis_matrix(
     # Body-fixed link velocities.
     # Note: we could have called link.velocity() instead of computing it ourselves,
     # but since we need the link Jacobians later, we can save a double calculation.
-    L_v_WL = jax.vmap(lambda J: J @ B_ν)(L_J_WL_B)
+    L_v_WL = L_J_WL_B @ B_ν
 
     # Compute the contribution of each link to the Coriolis matrix.
-    def compute_link_contribution(M, v, J, J̇) -> jtp.Array:
-
-        return J.T @ ((Cross.vx_star(v) @ M + M @ Cross.vx(v)) @ J + M @ J̇)
-
-    C_B_links = jax.vmap(compute_link_contribution)(
-        L_M_L,
-        L_v_WL,
-        L_J_WL_B,
-        L_J̇_WL_B,
+    C_B_links = L_J_WL_B.transpose((0, 2, 1)) @ (
+        (Cross.vx_star(L_v_WL) @ L_M_L + L_M_L @ Cross.vx(L_v_WL)) @ L_J_WL_B
+        + L_M_L @ L_J̇_WL_B
     )
 
     # We need to adjust the Coriolis matrix for fixed-base models.

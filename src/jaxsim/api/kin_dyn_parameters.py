@@ -323,11 +323,9 @@ class KynDynParameters(JaxsimDataclass):
             of all joints of the model.
         """
 
-        pre_Xi_λ = jax.vmap(
-            lambda i: self.joint_model.parent_H_predecessor(joint_index=i)
-            .inverse()
-            .adjoint()
-        )(jnp.arange(1, self.number_of_joints() + 1))
+        pre_Xi_λ = (
+            self.joint_model.λ_H_pre[1 : self.number_of_joints + 1].inverse().adjoint()
+        )
 
         return jnp.vstack(
             [

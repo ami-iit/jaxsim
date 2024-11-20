@@ -245,9 +245,7 @@ def test_link_bias_acceleration(
 
             with data.switch_velocity_representation(VelRepr.Body):
 
-                W_X_L = jax.vmap(
-                    lambda W_H_L: jaxsim.math.Adjoint.from_transform(transform=W_H_L)
-                )(W_H_L)
+                W_X_L = jaxsim.math.Adjoint.from_transform(transform=W_H_L)
 
                 L_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
@@ -266,11 +264,9 @@ def test_link_bias_acceleration(
 
             with data.switch_velocity_representation(VelRepr.Inertial):
 
-                L_X_W = jax.vmap(
-                    lambda W_H_L: jaxsim.math.Adjoint.from_transform(
-                        transform=W_H_L, inverse=True
-                    )
-                )(W_H_L)
+                L_X_W = jaxsim.math.Adjoint.from_transform(
+                    transform=W_H_L, inverse=True
+                )
 
                 W_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 

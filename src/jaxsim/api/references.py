@@ -496,22 +496,17 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             )
         )(frame_idxs)
 
-        # Helper function to convert a single 6D force to the inertial representation
-        # considering as body the frame (i.e. L_f_F and LW_f_F).
-        def to_inertial(f_F: jtp.MatrixLike, W_H_F: jtp.MatrixLike) -> jtp.Matrix:
-            return JaxSimModelReferences.other_representation_to_inertial(
-                array=f_F,
-                other_representation=self.velocity_representation,
-                transform=W_H_F,
-                is_force=True,
-            )
-
         match self.velocity_representation:
             case VelRepr.Inertial:
                 W_f_F = f_F
 
             case VelRepr.Body | VelRepr.Mixed:
-                W_f_F = jax.vmap(to_inertial)(f_F, W_H_Fi)
+                W_f_F = JaxSimModelReferences.other_representation_to_inertial(
+                    array=f_F,
+                    other_representation=self.velocity_representation,
+                    transform=W_H_Fi,
+                    is_force=True,
+                )
 
             case _:
                 raise ValueError("Invalid velocity representation.")

@@ -680,62 +680,43 @@ def jacobian_derivative(
             output_vel_repr=VelRepr.Inertial,
         )
 
-    # Get the Jacobian of the enabled collidable points in the mixed representation.
-    with data.switch_velocity_representation(VelRepr.Mixed):
-        CW_J_WC_BW = jacobian(
-            model=model,
-            data=data,
-            output_vel_repr=VelRepr.Mixed,
-        )
+    match output_vel_repr:
+        case VelRepr.Inertial:
+            O_X_W = W_X_W = Adjoint.from_transform(transform=jnp.eye(4))
+            O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))
 
-    def compute_O_J̇_WC_I(
-        L_p_C: jtp.Vector,
-        parent_link_idx: jtp.Int,
-        CW_J_WC_BW: jtp.Matrix,
-        W_H_L: jtp.Matrix,
-    ) -> jtp.Matrix:
+        case VelRepr.Body:
+            L_H_C = Transform.from_rotation_and_translation(translation=L_p_Ci)
+            W_H_C = W_H_Li[parent_link_idx_of_enabled_collidable_points] @ L_H_C
+            O_X_W = C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
+            with data.switch_velocity_representation(VelRepr.Inertial):
+                W_nu = data.generalized_velocity()
+            W_v_WC = W_J_WL_W[parent_link_idx_of_enabled_collidable_points] @ W_nu
+            W_vx_WC = Cross.vx(W_v_WC)
+            O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC  # noqa: F841
 
-        match output_vel_repr:
-            case VelRepr.Inertial:
-                O_X_W = W_X_W = Adjoint.from_transform(  # noqa: F841
-                    transform=jnp.eye(4)
+        case VelRepr.Mixed:
+            L_H_C = Transform.from_rotation_and_translation(translation=L_p_Ci)
+            W_H_C = W_H_Li[parent_link_idx_of_enabled_collidable_points] @ L_H_C
+            W_H_CW = W_H_C.at[:, 0:3, 0:3].set(jnp.eye(3))
+            CW_H_W = Transform.inverse(W_H_CW)
+            O_X_W = CW_X_W = Adjoint.from_transform(transform=CW_H_W)
+            with data.switch_velocity_representation(VelRepr.Mixed):
+                CW_J_WC_BW = jacobian(
+                    model=model,
+                    data=data,
+                    output_vel_repr=VelRepr.Mixed,
                 )
-                O_Ẋ_W = W_Ẋ_W = jnp.zeros((6, 6))  # noqa: F841
+                CW_v_WC = CW_J_WC_BW @ data.generalized_velocity()
+            W_v_W_CW = jnp.zeros_like(CW_v_WC).at[:, 0:3].set(CW_v_WC[:, 0:3])
+            W_vx_W_CW = Cross.vx(W_v_W_CW)
+            O_Ẋ_W = CW_Ẋ_W = -CW_X_W @ W_vx_W_CW  # noqa: F841
 
-            case VelRepr.Body:
-                L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
-                W_H_C = W_H_L[parent_link_idx] @ L_H_C
-                O_X_W = C_X_W = Adjoint.from_transform(transform=W_H_C, inverse=True)
-                with data.switch_velocity_representation(VelRepr.Inertial):
-                    W_nu = data.generalized_velocity()
-                W_v_WC = W_J_WL_W[parent_link_idx] @ W_nu
-                W_vx_WC = Cross.vx(W_v_WC)
-                O_Ẋ_W = C_Ẋ_W = -C_X_W @ W_vx_WC  # noqa: F841
+        case _:
+            raise ValueError(output_vel_repr)
 
-            case VelRepr.Mixed:
-                L_H_C = Transform.from_rotation_and_translation(translation=L_p_C)
-                W_H_C = W_H_L[parent_link_idx] @ L_H_C
-                W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
-                CW_H_W = Transform.inverse(W_H_CW)
-                O_X_W = CW_X_W = Adjoint.from_transform(transform=CW_H_W)
-                with data.switch_velocity_representation(VelRepr.Mixed):
-                    CW_v_WC = CW_J_WC_BW @ data.generalized_velocity()
-                W_v_W_CW = jnp.zeros(6).at[0:3].set(CW_v_WC[0:3])
-                W_vx_W_CW = Cross.vx(W_v_W_CW)
-                O_Ẋ_W = CW_Ẋ_W = -CW_X_W @ W_vx_W_CW  # noqa: F841
-
-            case _:
-                raise ValueError(output_vel_repr)
-
-        O_J̇_WC_I = jnp.zeros(shape=(6, 6 + model.dofs()))
-        O_J̇_WC_I += O_Ẋ_W @ W_J_WL_W[parent_link_idx] @ T
-        O_J̇_WC_I += O_X_W @ W_J̇_WL_W[parent_link_idx] @ T
-        O_J̇_WC_I += O_X_W @ W_J_WL_W[parent_link_idx] @ Ṫ
-
-        return O_J̇_WC_I
-
-    O_J̇_WC = jax.vmap(compute_O_J̇_WC_I, in_axes=(0, 0, 0, None))(
-        L_p_Ci, parent_link_idx_of_enabled_collidable_points, CW_J_WC_BW, W_H_Li
-    )
+    O_J̇_WC = O_Ẋ_W @ W_J_WL_W[parent_link_idx_of_enabled_collidable_points] @ T
+    O_J̇_WC += O_X_W @ W_J̇_WL_W[parent_link_idx_of_enabled_collidable_points] @ T
+    O_J̇_WC += O_X_W @ W_J_WL_W[parent_link_idx_of_enabled_collidable_points] @ Ṫ
 
     return O_J̇_WC

@@ -220,16 +220,12 @@ class ContactModel(JaxsimDataclass):
         ]
 
         # Convert the contact forces to inertial-fixed representation.
-        W_f_C = jax.vmap(
-            lambda f_C, W_H_C: (
-                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                    array=f_C,
-                    other_representation=data.velocity_representation,
-                    transform=W_H_C,
-                    is_force=True,
-                )
-            )
-        )(f_C, W_H_C)
+        W_f_C = ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+            array=f_C,
+            other_representation=data.velocity_representation,
+            transform=W_H_C,
+            is_force=True,
+        )
 
         # Construct the vector defining the parent link index of each collidable point.
         # We use this vector to sum the 6D forces of all collidable points rigidly
@@ -257,16 +253,12 @@ class ContactModel(JaxsimDataclass):
         )
 
         # Convert the inertial-fixed link forces to the velocity representation of data.
-        f_L = jax.vmap(
-            lambda W_f_L, W_H_L: (
-                ModelDataWithVelocityRepresentation.inertial_to_other_representation(
-                    array=W_f_L,
-                    other_representation=data.velocity_representation,
-                    transform=W_H_L,
-                    is_force=True,
-                )
-            )
-        )(W_f_L, W_H_L)
+        f_L = ModelDataWithVelocityRepresentation.inertial_to_other_representation(
+            array=W_f_L,
+            other_representation=data.velocity_representation,
+            transform=W_H_L,
+            is_force=True,
+        )
 
         return f_L
 

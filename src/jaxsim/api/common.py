@@ -127,7 +127,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
         match other_representation:
 
             case VelRepr.Inertial:
-                return W_array
+                return W_array.reshape(array.shape[:-1] + (6,))
 
             case VelRepr.Body:
 
@@ -139,7 +139,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     O_Xf_W = Adjoint.from_transform(transform=W_H_O).swapaxes(-1, -2)
                     O_array = jnp.einsum("...ij,...j->...i", O_Xf_W, W_array)
 
-                return O_array
+                return O_array.reshape(array.shape[:-1] + (6,))
 
             case VelRepr.Mixed:
                 W_H_OW = W_H_O.at[..., 0:3, 0:3].set(jnp.eye(3))
@@ -152,7 +152,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).swapaxes(-1, -2)
                     OW_array = jnp.einsum("...ij,...j->...i", OW_Xf_W, W_array)
 
-                return OW_array
+                return OW_array.reshape(array.shape[:-1] + (6,))
 
             case _:
                 raise ValueError(other_representation)
@@ -200,7 +200,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     ).swapaxes(-1, -2)
                     W_array = jnp.einsum("...ij,...j->...i", W_Xf_O, O_array)
 
-                return W_array
+                return W_array.reshape(array.shape[:-1] + (6,))
 
             case VelRepr.Mixed:
 
@@ -216,7 +216,7 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     ).swapaxes(-1, -2)
                     W_array = jnp.einsum("...ij,...j->...i", W_Xf_BW, O_array)
 
-                return W_array
+                return W_array.reshape(array.shape[:-1] + (6,))
 
             case _:
                 raise ValueError(other_representation)

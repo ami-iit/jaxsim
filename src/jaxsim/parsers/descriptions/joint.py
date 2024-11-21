@@ -20,27 +20,6 @@ class JointType:
     Prismatic: ClassVar[int] = 2
 
 
-@jax_dataclasses.pytree_dataclass
-class JointGenericAxis:
-    """
-    A joint requiring the specification of a 3D axis.
-    """
-
-    # The axis of rotation or translation of the joint (must have norm 1).
-    axis: jtp.Vector
-
-    def __hash__(self) -> int:
-
-        return hash(tuple(self.axis.tolist()))
-
-    def __eq__(self, other: JointGenericAxis) -> bool:
-
-        if not isinstance(other, JointGenericAxis):
-            return False
-
-        return hash(self) == hash(other)
-
-
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class JointDescription(JaxsimDataclass):
     """

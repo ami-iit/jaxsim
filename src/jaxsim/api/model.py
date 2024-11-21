@@ -1968,11 +1968,9 @@ def link_bias_accelerations(
 
         case VelRepr.Mixed:
             W_H_L = js.model.forward_kinematics(model=model, data=data)
-            LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
+            LW_H_L = W_H_L.at[:, 0:3, 3].set(jnp.zeros(3))
             C_H_L = LW_H_L
-            L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
-                lambda v: v.at[0:3].set(jnp.zeros(3))
-            )(L_v_WL)
+            L_v_CL = L_v_LW_L = L_v_WL.at[:, 0:3].set(jnp.zeros(3))  # noqa: F841
 
         case _:
             raise ValueError(data.velocity_representation)

@@ -7,8 +7,9 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
+from jaxsim.parsers.descriptions import JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
+from jaxsim.utils.wrappers import HashedNumpyArray
 
 from .rotation import Rotation
 from .transform import Transform
@@ -29,6 +30,7 @@ class JointModel:
         joint_dofs: The number of DoFs of each joint.
         joint_names: The names of each joint.
         joint_types: The types of each joint.
+        joint_axis: The axis of rotation or translation of each joint.
 
     Note:
         Due to the presence of the static attributes, this class needs to be created
@@ -41,7 +43,11 @@ class JointModel:
     joint_dofs: Static[tuple[int, ...]]
     joint_names: Static[tuple[str, ...]]
     joint_types: Static[tuple[int, ...]]
-    joint_axis: Static[tuple[JointGenericAxis, ...]]
+    _joint_axis: Static[HashedNumpyArray]
+
+    @property
+    def joint_axis(self) -> jtp.Array:
+        return self._joint_axis.get()
 
     @staticmethod
     def build(description: ModelDescription) -> JointModel:
@@ -110,7 +116,9 @@ class JointModel:
             joint_dofs=tuple([base_dofs] + [1 for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
             joint_types=tuple([JointType.Fixed] + [j.jtype for j in ordered_joints]),
-            joint_axis=tuple(JointGenericAxis(axis=j.axis) for j in ordered_joints),
+            _joint_axis=HashedNumpyArray(
+                array=jnp.array([j.axis for j in ordered_joints]), large_array=True
+            ),
         )
 
     def parent_H_child(
@@ -202,7 +210,7 @@ class JointModel:
         pre_H_suc, S = supported_joint_motion(
             self.joint_types[joint_index],
             joint_position,
-            self.joint_axis[joint_index].axis,
+            self.joint_axis[joint_index],
         )
 
         return pre_H_suc, S

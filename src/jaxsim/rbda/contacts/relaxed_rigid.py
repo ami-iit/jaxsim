@@ -81,16 +81,16 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
         return hash(
             (
-                HashedNumpyArray(self.time_constant),
-                HashedNumpyArray(self.damping_coefficient),
-                HashedNumpyArray(self.d_min),
-                HashedNumpyArray(self.d_max),
-                HashedNumpyArray(self.width),
-                HashedNumpyArray(self.midpoint),
-                HashedNumpyArray(self.power),
-                HashedNumpyArray(self.stiffness),
-                HashedNumpyArray(self.damping),
-                HashedNumpyArray(self.mu),
+                HashedNumpyArray(self.time_constant, large_array=True),
+                HashedNumpyArray(self.damping_coefficient, large_array=True),
+                HashedNumpyArray(self.d_min, large_array=True),
+                HashedNumpyArray(self.d_max, large_array=True),
+                HashedNumpyArray(self.width, large_array=True),
+                HashedNumpyArray(self.midpoint, large_array=True),
+                HashedNumpyArray(self.power, large_array=True),
+                HashedNumpyArray(self.stiffness, large_array=True),
+                HashedNumpyArray(self.damping, large_array=True),
+                HashedNumpyArray(self.mu, large_array=True),
             )
         )
 

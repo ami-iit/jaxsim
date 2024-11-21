@@ -220,14 +220,12 @@ def collidable_point_dynamics(
     )
 
     # Convert the 6D forces to the active representation.
-    f_Ci = jax.vmap(
-        lambda W_f_C, W_H_C: data.inertial_to_other_representation(
-            array=W_f_C,
-            other_representation=data.velocity_representation,
-            transform=W_H_C,
-            is_force=True,
-        )
-    )(W_f_C, W_H_C)
+    f_Ci = data.inertial_to_other_representation(
+        array=W_f_C,
+        other_representation=data.velocity_representation,
+        transform=W_H_C,
+        is_force=True,
+    )
 
     return f_Ci, aux_data
 

@@ -331,7 +331,7 @@ class RelaxedRigidContacts(common.ContactModel):
             J̇_WC = jnp.vstack(
                 jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
-                ),
+                )
             )
 
         # Compute the regularization terms.

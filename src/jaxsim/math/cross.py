@@ -20,9 +20,8 @@ class Cross:
         Raises:
             ValueError: If the input vector does not have a size of 6.
         """
-        velocity_sixd = velocity_sixd.reshape(-1, 6)
 
-        v, ω = jnp.split(velocity_sixd, 2, axis=-1)
+        v, ω = jnp.split(velocity_sixd.reshape(-1, 6), 2, axis=-1)
 
         v_cross = jnp.concatenate(
             [
@@ -50,5 +49,5 @@ class Cross:
         Raises:
             ValueError: If the input vector does not have a size of 6.
         """
-        v_cross_star = -Cross.vx(velocity_sixd).T
+        v_cross_star = -Cross.vx(velocity_sixd).swapaxes(-1, -2)
         return v_cross_star

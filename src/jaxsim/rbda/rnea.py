@@ -121,7 +121,7 @@ def rnea(
         # Force applied to the base link that produce the base acceleration w/o gravity.
         f_0 = (
             M[0] @ a[0]
-            + Cross.vx_star(v[0]) @ M[0] @ v[0]
+            + Cross.vx_star(v[0].squeeze()) @ M[0] @ v[0]
             - W_X_B.T @ jnp.vstack(W_f[0])
         )
         f = f.at[0].set(f_0)

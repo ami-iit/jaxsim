@@ -376,7 +376,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Compute the Delassus matrix and the free mixed linear acceleration of
         # the collidable points.
-        G = Jl_WC @ jnp.linalg.lstsq(M, Jl_WC.T)[0]
+        G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
         CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
 
         # Calculate quantities for the linear optimization problem.

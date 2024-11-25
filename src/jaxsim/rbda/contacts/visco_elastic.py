@@ -15,7 +15,7 @@ import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation
 from jaxsim.math import StandardGravity
-from jaxsim.terrain import FlatTerrain, Terrain
+from jaxsim.terrain import Terrain
 
 from . import common
 from .soft import SoftContacts, SoftContactsParams
@@ -188,21 +188,11 @@ class ViscoElasticContactsParams(common.ContactsParams):
 class ViscoElasticContacts(common.ContactModel):
     """Visco-elastic contacts model."""
 
-    parameters: ViscoElasticContactsParams = dataclasses.field(
-        default_factory=ViscoElasticContactsParams
-    )
-
-    terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain
-    )
-
     max_squarings: jax_dataclasses.Static[int] = dataclasses.field(default=25)
 
     @classmethod
     def build(
         cls: type[Self],
-        parameters: SoftContactsParams | None = None,
-        terrain: Terrain | None = None,
         model: js.model.JaxSimModel | None = None,
         max_squarings: jtp.IntLike | None = None,
         **kwargs,
@@ -211,8 +201,6 @@ class ViscoElasticContacts(common.ContactModel):
         Create a `ViscoElasticContacts` instance with specified parameters.
 
         Args:
-            parameters: The parameters of the soft contacts model.
-            terrain: The considered terrain.
             model:
                 The robot model considered by the contact model.
                 If passed, it is used to estimate good default parameters.
@@ -226,23 +214,7 @@ class ViscoElasticContacts(common.ContactModel):
         if len(kwargs) != 0:
             logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
 
-        # Build the contact parameters if not provided. Use the model to estimate
-        # good default parameters, if passed. Users can later override these default
-        # parameters with their own values -- possibly tuned better.
-        if parameters is None:
-            parameters = (
-                ViscoElasticContactsParams.build_default_from_jaxsim_model(model=model)
-                if model is not None
-                else cls.__dataclass_fields__["parameters"].default_factory()
-            )
-
         return cls(
-            parameters=parameters,
-            terrain=(
-                terrain
-                if terrain is not None
-                else cls.__dataclass_fields__["terrain"].default_factory()
-            ),
             max_squarings=int(
                 max_squarings
                 if max_squarings is not None

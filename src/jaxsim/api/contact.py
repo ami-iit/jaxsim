@@ -374,13 +374,7 @@ def estimate_good_contact_parameters(
                 max_penetration=max_δ,
                 number_of_active_collidable_points_steady_state=nc,
                 damping_ratio=damping_ratio,
-                **(
-                    dict(
-                        p=model.contact_model.parameters.p,
-                        q=model.contact_model.parameters.q,
-                    )
-                    | kwargs
-                ),
+                **kwargs,
             )
 
         case contacts.ViscoElasticContacts():
@@ -394,13 +388,7 @@ def estimate_good_contact_parameters(
                     max_penetration=max_δ,
                     number_of_active_collidable_points_steady_state=nc,
                     damping_ratio=damping_ratio,
-                    **(
-                        dict(
-                            p=model.contact_model.parameters.p,
-                            q=model.contact_model.parameters.q,
-                        )
-                        | kwargs
-                    ),
+                    **kwargs,
                 )
             )
 

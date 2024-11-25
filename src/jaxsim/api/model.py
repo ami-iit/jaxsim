@@ -235,9 +235,7 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.SoftContacts.build(
-                terrain=terrain, parameters=None
-            )
+            else jaxsim.rbda.contacts.SoftContacts.build()
         )
 
         # Build the integrator if not provided.

@@ -301,12 +301,6 @@ class ViscoElasticContacts(common.ContactModel):
             a dictionary of optional additional information.
         """
 
-        # Initialize the model and data this contact model is operating on.
-        # This will raise an exception if either the contact model or the
-        # contact parameters are not compatible.
-        model, data = self.initialize_model_and_data(model=model, data=data)
-        assert isinstance(data.contacts_params, ViscoElasticContactsParams)
-
         # Extract the indices corresponding to the enabled collidable points.
         indices_of_enabled_collidable_points = (
             model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points

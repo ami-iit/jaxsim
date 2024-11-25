@@ -95,29 +95,16 @@ class ContactsParams(JaxsimDataclass):
 class ContactModel(JaxsimDataclass):
     """
     Abstract class representing a contact model.
-
-    Attributes:
-        parameters: The parameters of the contact model.
-        terrain: The considered terrain.
     """
-
-    parameters: ContactsParams
-    terrain: jaxsim.terrain.Terrain
 
     @classmethod
     @abc.abstractmethod
     def build(
         cls: type[Self],
-        parameters: ContactsParams,
-        terrain: jaxsim.terrain.Terrain,
         **kwargs,
     ) -> Self:
         """
         Create a `ContactModel` instance with specified parameters.
-
-        Args:
-            parameters: The parameters of the contact model.
-            terrain: The considered terrain.
 
         Returns:
             The `ContactModel` instance.
@@ -303,31 +290,3 @@ class ContactModel(JaxsimDataclass):
         """
 
         return {}
-
-    def initialize_model_and_data(
-        self,
-        model: js.model.JaxSimModel,
-        data: js.data.JaxSimModelData,
-        validate: bool = True,
-    ) -> tuple[js.model.JaxSimModel, js.data.JaxSimModelData]:
-        """
-        Helper function to initialize the active model and data objects.
-
-        Args:
-            model: The robot model considered by the contact model.
-            data: The data of the considered robot model.
-            validate:
-                Whether to validate if the model and data objects have been
-                initialized with the current contact model.
-
-        Returns:
-            The initialized model and data objects.
-        """
-
-        with self.editable(validate=validate) as contact_model:
-            contact_model.parameters = data.contacts_params
-
-        with model.editable(validate=validate) as model_out:
-            model_out.contact_model = contact_model
-
-        return model_out, data

@@ -230,7 +230,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 )
 
             else:
-                contacts_params = model.contact_model.parameters
+                contacts_params = model.contact_model._parameters_class()
 
         return JaxSimModelData(
             state=ode_state,

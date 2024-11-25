@@ -290,3 +290,22 @@ class ContactModel(JaxsimDataclass):
         """
 
         return {}
+
+    @property
+    def _parameters_class(cls) -> type[ContactsParams]:
+        """
+        Return the class of the contact parameters.
+
+        Returns:
+            The class of the contact parameters.
+        """
+        import importlib
+
+        return getattr(
+            importlib.import_module("jaxsim.rbda.contacts"),
+            (
+                cls.__name__ + "Params"
+                if isinstance(cls, type)
+                else cls.__class__.__name__ + "Params"
+            ),
+        )

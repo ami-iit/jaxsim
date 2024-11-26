@@ -775,6 +775,7 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = (-1.0, 1.0),
+    contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
     standard_gravity_bounds: tuple[jtp.FloatLike, jtp.FloatLike] = (
         jaxsim.math.StandardGravity,
         jaxsim.math.StandardGravity,
@@ -797,6 +798,7 @@ def random_model_data(
         base_vel_lin_bounds: The bounds for the base linear velocity.
         base_vel_ang_bounds: The bounds for the base angular velocity.
         joint_vel_bounds: The bounds for the joint velocities.
+        contacts_params: The parameters of the contact model.
         standard_gravity_bounds: The bounds for the standard gravity.
 
     Returns:
@@ -885,5 +887,26 @@ def random_model_data(
                 )
             )
         )
+
+        if contacts_params is None:
+
+            if isinstance(
+                model.contact_model,
+                jaxsim.rbda.contacts.SoftContacts
+                | jaxsim.rbda.contacts.ViscoElasticContacts,
+            ):
+
+                random_data = random_data.replace(
+                    contacts_params=js.contact.estimate_good_contact_parameters(
+                        model=model, standard_gravity=random_data.gravity
+                    ),
+                    validate=False,
+                )
+
+            else:
+                random_data = random_data.replace(
+                    contacts_params=model.contact_model._parameters_class(),
+                    validate=False,
+                )
 
     return random_data

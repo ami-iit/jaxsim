@@ -327,6 +327,17 @@ class JaxSimModel(JaxsimDataclass):
 
         return self.kin_dyn_parameters.number_of_joints()
 
+    def number_of_frames(self) -> int:
+        """
+        Return the number of frames in the model.
+
+        Returns:
+            The number of frames in the model.
+
+        """
+
+        return self.kin_dyn_parameters.number_of_frames()
+
     # =================
     # Base link methods
     # =================

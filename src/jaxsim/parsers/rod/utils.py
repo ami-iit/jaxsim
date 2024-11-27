@@ -139,7 +139,6 @@ def create_box_collision(
 
     collidable_points = [
         descriptions.CollidablePoint(
-            parent_link=link_description,
             position=np.array(corner),
             enabled=True,
         )
@@ -147,7 +146,9 @@ def create_box_collision(
     ]
 
     return descriptions.BoxCollision(
-        collidable_points=collidable_points, center=center_wrt_link
+        collidable_points=collidable_points,
+        center=center_wrt_link,
+        parent_link=link_description,
     )
 
 
@@ -206,7 +207,6 @@ def create_sphere_collision(
 
     collidable_points = [
         descriptions.CollidablePoint(
-            parent_link=link_description,
             position=np.array(point),
             enabled=True,
         )
@@ -214,7 +214,9 @@ def create_sphere_collision(
     ]
 
     return descriptions.SphereCollision(
-        collidable_points=collidable_points, center=center_wrt_link
+        collidable_points=collidable_points,
+        center=center_wrt_link,
+        parent_link=link_description,
     )
 
 
@@ -252,11 +254,12 @@ def create_mesh_collision(
     mesh_points_wrt_link = points @ W_H_L[:3, :3].T + W_p_L
     collidable_points = [
         descriptions.CollidablePoint(
-            parent_link=link_description,
             position=point,
             enabled=True,
         )
         for point in mesh_points_wrt_link
     ]
 
-    return descriptions.MeshCollision(collidable_points=collidable_points, center=W_p_L)
+    return descriptions.MeshCollision(
+        collidable_points=collidable_points, center=W_p_L, parent_link=link_description
+    )

@@ -799,7 +799,9 @@ class ContactParameters(JaxsimDataclass):
         # Extract the indices of the links to which the collidable points are rigidly
         # attached to.
         link_index_of_points = tuple(
-            links_dict[cp.parent_link.name].index for cp in collidable_points
+            links_dict[collision.parent_link.name].index
+            for collision in model_description.collision_shapes
+            for cp in collision.collidable_points
         )
 
         # Build the ContactParameters object.

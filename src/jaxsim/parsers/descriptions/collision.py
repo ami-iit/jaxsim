@@ -8,7 +8,6 @@ import numpy as np
 import numpy.typing as npt
 
 import jaxsim.typing as jtp
-from jaxsim import logging
 
 from .link import LinkDescription
 
@@ -19,13 +18,11 @@ class CollidablePoint:
     Represents a collidable point associated with a parent link.
 
     Attributes:
-        parent_link: The parent link to which the collidable point is attached.
         position: The position of the collidable point relative to the parent link.
         enabled: A flag indicating whether the collidable point is enabled for collision detection.
 
     """
 
-    parent_link: LinkDescription
     position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
     enabled: bool = True
 
@@ -43,11 +40,7 @@ class CollidablePoint:
             CollidablePoint: A new collidable point associated with the new parent link.
         """
 
-        msg = f"Moving collidable point: {self.parent_link.name} -> {new_link.name}"
-        logging.debug(msg=msg)
-
         return CollidablePoint(
-            parent_link=new_link,
             position=(new_H_old @ jnp.hstack([self.position, 1.0])).squeeze()[0:3],
             enabled=self.enabled,
         )
@@ -56,7 +49,6 @@ class CollidablePoint:
 
         return hash(
             (
-                hash(self.parent_link),
                 hash(tuple(self.position.tolist())),
                 hash(self.enabled),
             )
@@ -72,7 +64,6 @@ class CollidablePoint:
     def __str__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            + f"parent_link={self.parent_link.name}"
             + f", position={self.position}"
             + f", enabled={self.enabled}"
             + ")"
@@ -90,6 +81,7 @@ class CollisionShape(abc.ABC):
     """
 
     collidable_points: tuple[CollidablePoint]
+    parent_link: LinkDescription
 
     def __str__(self):
         return (

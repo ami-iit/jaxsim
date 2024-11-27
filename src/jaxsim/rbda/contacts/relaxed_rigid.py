@@ -238,7 +238,6 @@ class RelaxedRigidContacts(common.ContactModel):
             **kwargs,
         )
 
-    @jax.jit
     def compute_contact_forces(
         self,
         model: js.model.JaxSimModel,

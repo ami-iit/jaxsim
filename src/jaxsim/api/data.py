@@ -347,7 +347,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.joint_velocities[joint_idxs]
 
-    @jax.jit
     def base_position(self) -> jtp.Vector:
         """
         Get the base position.
@@ -386,7 +385,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             float
         )
 
-    @jax.jit
     def base_transform(self) -> jtp.Matrix:
         """
         Get the base transform.
@@ -405,7 +403,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ]
         )
 
-    @jax.jit
     def base_velocity(self) -> jtp.Vector:
         """
         Get the base 6D velocity.
@@ -434,7 +431,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             .astype(float)
         )
 
-    @jax.jit
     def generalized_position(self) -> tuple[jtp.Matrix, jtp.Vector]:
         r"""
         Get the generalized position
@@ -446,7 +442,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.base_transform(), self.joint_positions()
 
-    @jax.jit
     def generalized_velocity(self) -> jtp.Vector:
         r"""
         Get the generalized velocity
@@ -562,7 +557,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ṡ=self.state.physics_model.joint_velocities.at[joint_idxs].set(velocities)
         )
 
-    @jax.jit
     def reset_base_position(self, base_position: jtp.VectorLike) -> Self:
         """
         Reset the base position.
@@ -585,7 +579,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ),
         )
 
-    @jax.jit
     def reset_base_quaternion(self, base_quaternion: jtp.VectorLike) -> Self:
         """
         Reset the base quaternion.
@@ -612,7 +605,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ),
         )
 
-    @jax.jit
     def reset_base_pose(self, base_pose: jtp.MatrixLike) -> Self:
         """
         Reset the base pose.

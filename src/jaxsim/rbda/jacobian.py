@@ -122,7 +122,6 @@ def jacobian(
     return L_J_WL_B
 
 
-@jax.jit
 def jacobian_full_doubly_left(
     model: js.model.JaxSimModel,
     *,

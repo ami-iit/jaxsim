@@ -16,7 +16,6 @@ from jaxsim.rbda import contacts
 from .common import VelRepr
 
 
-@jax.jit
 def collidable_point_kinematics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
@@ -52,7 +51,6 @@ def collidable_point_kinematics(
     return W_p_Ci, W_ṗ_Ci
 
 
-@jax.jit
 def collidable_point_positions(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -72,7 +70,6 @@ def collidable_point_positions(
     return W_p_Ci
 
 
-@jax.jit
 def collidable_point_velocities(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -92,7 +89,6 @@ def collidable_point_velocities(
     return W_ṗ_Ci
 
 
-@jax.jit
 def collidable_point_forces(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -129,7 +125,6 @@ def collidable_point_forces(
     return f_Ci
 
 
-@jax.jit
 def collidable_point_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -424,7 +419,6 @@ def estimate_good_contact_parameters(
     return parameters
 
 
-@jax.jit
 def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
     r"""
     Return the pose of the enabled collidable points.

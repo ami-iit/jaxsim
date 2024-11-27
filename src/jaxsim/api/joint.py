@@ -105,7 +105,6 @@ def idxs_to_names(
 # ============
 
 
-@jax.jit
 def position_limit(
     model: js.model.JaxSimModel, *, joint_index: jtp.IntLike
 ) -> tuple[jtp.Float, jtp.Float]:

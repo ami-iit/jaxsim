@@ -301,7 +301,6 @@ class KynDynParameters(JaxsimDataclass):
     # Quantities used by RBDAs
     # ========================
 
-    @jax.jit
     def links_spatial_inertia(self) -> jtp.Array:
         """
         Return the spatial inertia of all links of the model.
@@ -312,7 +311,6 @@ class KynDynParameters(JaxsimDataclass):
 
         return jax.vmap(LinkParameters.spatial_inertia)(self.link_parameters)
 
-    @jax.jit
     def tree_transforms(self) -> jtp.Array:
         r"""
         Return the tree transforms of the model.
@@ -336,7 +334,6 @@ class KynDynParameters(JaxsimDataclass):
             ]
         )
 
-    @jax.jit
     def joint_transforms(
         self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
     ) -> jtp.Array:
@@ -358,7 +355,6 @@ class KynDynParameters(JaxsimDataclass):
             base_transform=base_transform,
         )[0]
 
-    @jax.jit
     def joint_motion_subspaces(
         self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
     ) -> jtp.Array:
@@ -378,7 +374,6 @@ class KynDynParameters(JaxsimDataclass):
             base_transform=base_transform,
         )[1]
 
-    @jax.jit
     def joint_transforms_and_motion_subspaces(
         self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
     ) -> tuple[jtp.Array, jtp.Array]:

@@ -264,7 +264,6 @@ class RelaxedRigidContacts(common.ContactModel):
             _solver_options_values=tuple(solver_options.values()),
         )
 
-    @jax.jit
     def compute_contact_forces(
         self,
         model: js.model.JaxSimModel,

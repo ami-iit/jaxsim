@@ -105,7 +105,6 @@ def idxs_to_names(
 # =========
 
 
-@jax.jit
 def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
     """
     Return the mass of the link.
@@ -129,7 +128,6 @@ def mass(model: js.model.JaxSimModel, *, link_index: jtp.IntLike) -> jtp.Float:
     return model.kin_dyn_parameters.link_parameters.mass[link_index].astype(float)
 
 
-@jax.jit
 def spatial_inertia(
     model: js.model.JaxSimModel, *, link_index: jtp.IntLike
 ) -> jtp.Matrix:
@@ -160,7 +158,6 @@ def spatial_inertia(
     return js.kin_dyn_parameters.LinkParameters.spatial_inertia(link_parameters)
 
 
-@jax.jit
 def transform(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -190,7 +187,6 @@ def transform(
     return js.model.forward_kinematics(model=model, data=data)[link_index]
 
 
-@jax.jit
 def com_position(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -429,7 +425,6 @@ def jacobian_derivative(
     return O_J̇_WL_I
 
 
-@jax.jit
 def bias_acceleration(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

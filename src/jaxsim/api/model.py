@@ -483,7 +483,6 @@ def reduce(
 # ===================
 
 
-@jax.jit
 def total_mass(model: JaxSimModel) -> jtp.Float:
     """
     Compute the total mass of the model.
@@ -498,7 +497,6 @@ def total_mass(model: JaxSimModel) -> jtp.Float:
     return model.kin_dyn_parameters.link_parameters.mass.sum().astype(float)
 
 
-@jax.jit
 def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
     """
     Compute the spatial 6D inertia matrices of all links of the model.
@@ -520,7 +518,6 @@ def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
 # ==============================
 
 
-@jax.jit
 def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
     """
     Compute the SE(3) transforms from the world frame to the frames of all links.
@@ -907,7 +904,6 @@ def forward_dynamics(
     )
 
 
-@jax.jit
 def forward_dynamics_aba(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -1051,7 +1047,6 @@ def forward_dynamics_aba(
     return C_v̇_WB.astype(float), s̈.astype(float)
 
 
-@jax.jit
 def forward_dynamics_crb(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -1142,7 +1137,6 @@ def forward_dynamics_crb(
     return v̇_WB, s̈
 
 
-@jax.jit
 def free_floating_mass_matrix(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -1187,7 +1181,6 @@ def free_floating_mass_matrix(
             raise ValueError(data.velocity_representation)
 
 
-@jax.jit
 def free_floating_coriolis_matrix(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -1303,7 +1296,6 @@ def free_floating_coriolis_matrix(
             raise ValueError(data.velocity_representation)
 
 
-@jax.jit
 def inverse_dynamics(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -1458,7 +1450,6 @@ def inverse_dynamics(
     return f_B.astype(float), τ.astype(float)
 
 
-@jax.jit
 def free_floating_gravity_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Vector:
@@ -1507,7 +1498,6 @@ def free_floating_gravity_forces(
     ).astype(float)
 
 
-@jax.jit
 def free_floating_bias_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Vector:
@@ -1576,7 +1566,6 @@ def free_floating_bias_forces(
 # ==========================
 
 
-@jax.jit
 def locked_spatial_inertia(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -1594,7 +1583,6 @@ def locked_spatial_inertia(
     return total_momentum_jacobian(model=model, data=data)[:, 0:6]
 
 
-@jax.jit
 def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
     """
     Compute the total momentum of the model.
@@ -1682,7 +1670,6 @@ def total_momentum_jacobian(
             raise ValueError(output_vel_repr)
 
 
-@jax.jit
 def average_velocity(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
     """
     Compute the average velocity of the model.
@@ -1770,7 +1757,6 @@ def average_velocity_jacobian(
 # ========================
 
 
-@jax.jit
 def link_bias_accelerations(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -1979,7 +1965,6 @@ def link_bias_accelerations(
     return O_v̇_WL
 
 
-@jax.jit
 def link_contact_forces(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -2054,7 +2039,6 @@ def link_contact_forces(
 # ======
 
 
-@jax.jit
 def mechanical_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
     """
     Compute the mechanical energy of the model.
@@ -2073,7 +2057,6 @@ def mechanical_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.
     return (K + U).astype(float)
 
 
-@jax.jit
 def kinetic_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
     """
     Compute the kinetic energy of the model.
@@ -2094,7 +2077,6 @@ def kinetic_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Flo
     return K.squeeze().astype(float)
 
 
-@jax.jit
 def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
     """
     Compute the potential energy of the model.
@@ -2120,7 +2102,6 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 # ==========
 
 
-@jax.jit
 def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,

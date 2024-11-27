@@ -251,7 +251,6 @@ class RigidContacts(ContactModel):
 
         return BW_ν_post_impact
 
-    @jax.jit
     def compute_contact_forces(
         self,
         model: js.model.JaxSimModel,

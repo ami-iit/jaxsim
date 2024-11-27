@@ -422,7 +422,7 @@ class SoftContacts(common.ContactModel):
 
         return W_f, ṁ
 
-    @jax.jit
+    @staticmethod
     def compute_contact_forces(
         self,
         model: js.model.JaxSimModel,

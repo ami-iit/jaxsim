@@ -141,7 +141,6 @@ class JointModel:
         # Compose all the transforms.
         return λ_Hi_pre @ pre_Hi_suc @ suc_Hi_i, S
 
-    @jax.jit
     def child_H_parent(
         self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
     ) -> tuple[jtp.Matrix, jtp.Array]:
@@ -223,7 +222,6 @@ class JointModel:
         return self.suc_H_i[joint_index]
 
 
-@jax.jit
 def supported_joint_motion(
     joint_type: jtp.IntLike,
     joint_position: jtp.VectorLike,

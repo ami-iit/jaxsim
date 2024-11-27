@@ -131,7 +131,6 @@ def estimate_step_size(
     return jnp.array(jnp.minimum(100.0 * h0, h1), dtype=float), ẋ0
 
 
-@jax.jit
 def compute_pytree_scale(
     x1: jtp.PyTree,
     x2: jtp.PyTree | None = None,
@@ -161,7 +160,6 @@ def compute_pytree_scale(
     return scale
 
 
-@jax.jit
 def local_error_estimation(
     xf: jtp.PyTree,
     xf_estimate: jtp.PyTree | None = None,

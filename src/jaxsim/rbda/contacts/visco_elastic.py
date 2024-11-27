@@ -264,7 +264,6 @@ class ViscoElasticContacts(common.ContactModel):
 
         return {"tangential_deformation": tangential_deformation}
 
-    @jax.jit
     def compute_contact_forces(
         self,
         model: js.model.JaxSimModel,
@@ -491,7 +490,6 @@ class ViscoElasticContacts(common.ContactModel):
         return CW_f̅, CW_f̿, m_tf
 
     @staticmethod
-    @jax.jit
     def _contact_points_dynamics(
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
@@ -827,7 +825,6 @@ class ViscoElasticContacts(common.ContactModel):
         return CW_fl, ṁ
 
     @staticmethod
-    @jax.jit
     def integrate_data_with_average_contact_forces(
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
@@ -964,7 +961,6 @@ class ViscoElasticContacts(common.ContactModel):
         )
 
 
-@jax.jit
 def step(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

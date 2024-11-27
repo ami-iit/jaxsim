@@ -16,7 +16,6 @@ from .common import VelRepr
 # =======================
 
 
-@jax.jit
 def idx_of_parent_link(
     model: js.model.JaxSimModel, *, frame_index: jtp.IntLike
 ) -> jtp.Int:
@@ -139,7 +138,6 @@ def idxs_to_names(
 # ==========
 
 
-@jax.jit
 def transform(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

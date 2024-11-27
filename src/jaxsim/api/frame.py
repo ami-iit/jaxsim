@@ -214,9 +214,9 @@ def velocity(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # Get the link jacobian having I as input representation (taken from data)
+    # Get the frame jacobian having I as input representation (taken from data)
     # and O as output representation, specified by the user (or taken from data).
-    O_J_WL_I = jacobian(
+    O_J_WF_I = jacobian(
         model=model,
         data=data,
         frame_index=frame_index,

@@ -201,11 +201,11 @@ def velocity(
     Returns:
         The 6D velocity of the frame in the specified velocity representation.
     """
+    n_l = model.number_of_links()
+    n_f = model.number_of_frames()
 
     exceptions.raise_value_error_if(
-        condition=jnp.array(
-            [frame_index < 0, frame_index >= model.number_of_frames()]
-        ).any(),
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
         msg="Invalid frame index '{idx}'",
         idx=frame_index,
     )
@@ -257,7 +257,7 @@ def jacobian(
     """
 
     n_l = model.number_of_links()
-    n_f = len(model.frame_names())
+    n_f = model.number_of_frames()
 
     exceptions.raise_value_error_if(
         condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),

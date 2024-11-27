@@ -86,18 +86,11 @@ class ModelDescription(KinematicGraph):
         # lumped link that replace the combination of the removed link and its parent.
         for collision_shape in collisions:
 
-            # Get all the collidable points of the shape
-            coll_points = tuple(collision_shape.collidable_points)
-
-            # Assume they have an unique parent link
-            if not len(set({cp.parent_link.name for cp in coll_points})) == 1:
-                msg = "Collision shape not currently supported (multiple parent links)"
-                raise RuntimeError(msg)
-
             # Get the parent link of the collision shape.
             # Note that this link could have been lumped and we need to find the
             # link in which it was lumped into.
-            parent_link_of_shape = collision_shape.collidable_points[0].parent_link
+            # Note that we assume that all the collidable points have the same parent link.
+            parent_link_of_shape = collision_shape.parent_link
 
             # If it is part of the (reduced) graph, add it as it is...
             if parent_link_of_shape.name in kinematic_graph.link_names():
@@ -111,7 +104,9 @@ class ModelDescription(KinematicGraph):
                 continue
 
             # Create a new collision shape
-            new_collision_shape = CollisionShape(collidable_points=())
+            new_collision_shape = CollisionShape(
+                collidable_points=(), parent_link=parent_link_of_shape
+            )
             final_collisions.append(new_collision_shape)
 
             # If the frame was found, update the collidable points' pose and add them
@@ -123,15 +118,21 @@ class ModelDescription(KinematicGraph):
                     parent_link_of_shape.name
                 ].parent
 
+                msg = f"Moving collidable point: {collision_shape.parent_link.name} -> {real_parent_link_of_shape.name}"
+                logging.debug(msg=msg)
+
                 # Change the link associated to the collidable point, updating their
                 # relative pose
                 moved_cp = cp.change_link(
                     new_link=real_parent_link_of_shape,
                     new_H_old=fk.relative_transform(
                         relative_to=real_parent_link_of_shape.name,
-                        name=cp.parent_link.name,
+                        name=collision_shape.parent_link.name,
                     ),
                 )
+
+                # Update the parent link of the collision shape.
+                new_collision_shape.parent_link = real_parent_link_of_shape
 
                 # Store the updated collision.
                 new_collision_shape.collidable_points += (moved_cp,)

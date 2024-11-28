@@ -58,7 +58,7 @@ def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
         The index of the frame.
     """
 
-    if frame_name not in model.kin_dyn_parameters.frame_parameters.name:
+    if frame_name not in model.frame_names():
         raise ValueError(f"Frame '{frame_name}' not found in the model.")
 
     return (
@@ -181,6 +181,56 @@ def transform(
 
 
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+def velocity(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    frame_index: jtp.IntLike,
+    output_vel_repr: VelRepr | None = None,
+) -> jtp.Vector:
+    """
+    Compute the 6D velocity of the frame.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        frame_index: The index of the frame.
+        output_vel_repr:
+            The output velocity representation of the frame velocity.
+
+    Returns:
+        The 6D velocity of the frame in the specified velocity representation.
+    """
+    n_l = model.number_of_links()
+    n_f = model.number_of_frames()
+
+    exceptions.raise_value_error_if(
+        condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),
+        msg="Invalid frame index '{idx}'",
+        idx=frame_index,
+    )
+
+    output_vel_repr = (
+        output_vel_repr if output_vel_repr is not None else data.velocity_representation
+    )
+
+    # Get the frame jacobian having I as input representation (taken from data)
+    # and O as output representation, specified by the user (or taken from data).
+    O_J_WF_I = jacobian(
+        model=model,
+        data=data,
+        frame_index=frame_index,
+        output_vel_repr=output_vel_repr,
+    )
+
+    # Get the generalized velocity in the input velocity representation.
+    I_ν = data.generalized_velocity()
+
+    # Compute the frame velocity in the output velocity representation.
+    return O_J_WF_I @ I_ν
+
+
+@functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -207,7 +257,7 @@ def jacobian(
     """
 
     n_l = model.number_of_links()
-    n_f = len(model.frame_names())
+    n_f = model.number_of_frames()
 
     exceptions.raise_value_error_if(
         condition=jnp.array([frame_index < n_l, frame_index >= n_l + n_f]).any(),

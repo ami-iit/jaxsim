@@ -268,6 +268,16 @@ class KynDynParameters(JaxsimDataclass):
 
         return len(self.joint_model.joint_names) - 1
 
+    def number_of_frames(self) -> int:
+        """
+        Return the number of frames of the model.
+
+        Returns:
+            The number of frames of the model.
+        """
+
+        return len(self.frame_parameters.name)
+
     def support_body_array(self, link_index: jtp.IntLike) -> jtp.Vector:
         r"""
         Return the support parent array :math:`\kappa(i)` of a link.

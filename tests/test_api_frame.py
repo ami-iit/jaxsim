@@ -171,6 +171,12 @@ def test_frame_jacobians(
         J_WL_idt = kin_dyn.jacobian_frame(frame_name=frame_name)
         assert J_WL_js == pytest.approx(J_WL_idt, abs=1e-9)
 
+    for frame_name, frame_index in zip(frame_names, frame_indices, strict=True):
+
+        v_WF_idt = kin_dyn.frame_velocity(frame_name=frame_name)
+        v_WF_js = js.frame.velocity(model=model, data=data, frame_index=frame_index)
+        assert v_WF_js == pytest.approx(v_WF_idt), frame_name
+
 
 def test_frame_jacobian_derivative(
     jaxsim_models_types: js.model.JaxSimModel,

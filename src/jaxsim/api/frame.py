@@ -196,7 +196,7 @@ def velocity(
         data: The data of the considered model.
         frame_index: The index of the frame.
         output_vel_repr:
-            The output velocity representation of the link velocity.
+            The output velocity representation of the frame velocity.
 
     Returns:
         The 6D velocity of the frame in the specified velocity representation.

@@ -747,6 +747,7 @@ def random_model_data(
     *,
     key: jax.Array | None = None,
     velocity_representation: VelRepr | None = None,
+    contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
     base_pos_bounds: tuple[
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
@@ -775,7 +776,6 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = (-1.0, 1.0),
-    contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
     standard_gravity_bounds: tuple[jtp.FloatLike, jtp.FloatLike] = (
         jaxsim.math.StandardGravity,
         jaxsim.math.StandardGravity,

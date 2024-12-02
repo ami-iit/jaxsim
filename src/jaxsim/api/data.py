@@ -230,7 +230,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 )
 
             else:
-                contacts_params = model.contact_model._parameters_class()
+                contacts_params = model.contact_model()._parameters_class()
 
         return JaxSimModelData(
             state=ode_state,
@@ -905,7 +905,8 @@ def random_model_data(
 
             else:
                 random_data = random_data.replace(
-                    model.contact_model._parameters_class(), validate=False
+                    contacts_params=model.contact_model()._parameters_class(),
+                    validate=False,
                 )
 
     return random_data

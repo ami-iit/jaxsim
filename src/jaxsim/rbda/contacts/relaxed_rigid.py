@@ -461,8 +461,8 @@ class RelaxedRigidContacts(common.ContactModel):
                 terrain=model.terrain,
                 K=1e6,
                 D=2e3,
-                p=0.0,
-                q=0.0,
+                p=0.5,
+                q=0.5,
                 # No tangential initial forces.
                 mu=0.0,
                 tangential_deformation=jnp.zeros(3),

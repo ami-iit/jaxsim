@@ -1,5 +1,6 @@
 import os
 import pathlib
+import subprocess
 
 import jax
 import pytest
@@ -11,13 +12,60 @@ import jaxsim
 import jaxsim.api as js
 
 
-def pytest_configure() -> None:
+def pytest_addoption(parser):
+    parser.addoption(
+        "--gpu-only",
+        action="store_true",
+        default=False,
+        help="Run tests only if GPU is available and utilized",
+    )
+
+
+def check_gpu_usage():
+    # Set environment variable to prioritize GPU.
+    os.environ["JAX_PLATFORM_NAME"] = "gpu"
+
+    # Run a simple JAX operation
+    x = jax.device_put(jax.numpy.ones((512, 512)))
+    y = jax.device_put(jax.numpy.ones((512, 512)))
+    _ = jax.numpy.dot(x, y).block_until_ready()
+
+    # Check GPU memory usage with nvidia-smi.
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.exit(
+            "Failed to query GPU usage. Ensure nvidia-smi is installed and accessible."
+        )
+
+    gpu_memory_usage = [
+        int(line.strip().split()[0]) for line in result.stdout.splitlines()
+    ]
+    if all(usage == 0 for usage in gpu_memory_usage):
+        pytest.exit(
+            "GPU is available but not utilized during computations. Check your JAX installation."
+        )
+
+
+def pytest_configure(config) -> None:
     """Pytest configuration hook."""
 
     # This is a global variable that is updated by the `prng_key` fixture.
     pytest.prng_key = jax.random.PRNGKey(
         seed=int(os.environ.get("JAXSIM_TEST_SEED", 0))
     )
+
+    # Check if GPU is available and utilized.
+    if config.getoption("--gpu-only"):
+        devices = jax.devices()
+        if not any(device.platform == "gpu" for device in devices):
+            pytest.exit("No GPU devices found. Check your JAX installation.")
+
+        # Ensure GPU is being used during computation
+        check_gpu_usage()
 
 
 # ================

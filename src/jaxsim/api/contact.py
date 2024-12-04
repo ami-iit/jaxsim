@@ -211,7 +211,7 @@ def collidable_point_dynamics(
     W_H_C = (
         js.contact.transforms(model=model, data=data)
         if data.velocity_representation is not VelRepr.Inertial
-        else jnp.zeros(shape=(len(indices_of_enabled_collidable_points), 4, 4))
+        else jnp.stack([jnp.eye(4)] * len(indices_of_enabled_collidable_points))
     )
 
     # Convert the 6D forces to the active representation.

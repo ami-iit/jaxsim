@@ -74,7 +74,7 @@ The JaxSim API documentation is available at [jaxsim.readthedocs.io][readthedocs
 ## Installation
 
 <details>
-<summary>With conda</summary>
+<summary>With <code>conda</code></summary>
 
 You can install the project using [`conda`][conda] as follows:
 
@@ -87,7 +87,23 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 </details>
 
 <details>
-<summary>With pip</summary>
+<summary>With <code>pixi</code></summary>
+
+> [!NOTE]
+> The minimum version of `pixi` required is `0.39.0`.
+
+You can install the default dependencies of the project using [`pixi`][pixi] as follows:
+
+```bash
+pixi install
+```
+
+See `pixi task list` for a list of available tasks.
+
+</details>
+
+<details>
+<summary>With <code>pip</code></summary>
 
 You can install the project using [`pypa/pip`][pip], preferably in a [virtual environment][venv], as follows:
 
@@ -122,6 +138,7 @@ pip install --no-deps -e .
 
 [conda]: https://anaconda.org/
 [pip]: https://github.com/pypa/pip/
+[pixi]: https://pixi.sh/
 [venv]: https://docs.python.org/3/tutorial/venv.html
 [jax_gpu]: https://github.com/google/jax/#installation
 

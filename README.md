@@ -89,6 +89,9 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 <details>
 <summary>With <code>pixi</code></summary>
 
+> [!NOTE]
+> The minimum version of `pixi` required is `0.39.0`.
+
 You can install the default dependencies of the project using [`pixi`][pixi] as follows:
 
 ```bash

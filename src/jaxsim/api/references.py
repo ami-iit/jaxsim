@@ -12,7 +12,6 @@ from jaxsim import exceptions
 from jaxsim.utils.tracing import not_tracing
 
 from .common import VelRepr
-from .ode_data import ODEInput
 
 try:
     from typing import Self
@@ -26,7 +25,8 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     Class containing the references for a `JaxSimModel` object.
     """
 
-    input: ODEInput
+    _link_forces: jtp.Matrix
+    _joint_force_references: jtp.Vector
 
     @staticmethod
     def zero(
@@ -94,16 +94,20 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         velocity_representation = (
             velocity_representation
             if velocity_representation is not None
-            else (
-                data.velocity_representation if data is not None else VelRepr.Inertial
-            )
+            else getattr(data, "velocity_representation", VelRepr.Inertial)
         )
 
         # Create a zero references object.
         references = JaxSimModelReferences(
-            input=ODEInput.zero(model=model),
+            _link_forces=f_L,
+            _joint_force_references=joint_force_references,
             velocity_representation=velocity_representation,
         )
+
+        # If the velocity representation is inertial-fixed, we can return
+        # the references directly, as we store the link forces in this frame.
+        if velocity_representation is VelRepr.Inertial:
+            return references
 
         # Store the joint force references.
         references = references.set_joint_force_references(
@@ -135,12 +139,22 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             `False` otherwise.
         """
 
-        valid = True
+        if model is None:
+            return True
 
-        if model is not None:
-            valid = valid and self.input.valid(model=model)
+        shape = self._joint_force_references.shape
+        expected_shape = (model.dofs(),)
 
-        return valid
+        if shape != expected_shape:
+            return False
+
+        shape = self._link_forces.shape
+        expected_shape = (model.number_of_links(), 6)
+
+        if shape != expected_shape:
+            return False
+
+        return True
 
     # ==================
     # Extract quantities
@@ -178,7 +192,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             e.g. to the contact model and other kinematic constraints.
         """
 
-        W_f_L = self.input.physics_model.f_ext
+        W_f_L = self._link_forces
 
         # Return all link forces in inertial-fixed representation using the implicit
         # serialization.
@@ -190,7 +204,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             if link_names is not None:
                 raise ValueError("Link names cannot be provided without a model")
 
-            return self.input.physics_model.f_ext
+            return W_f_L
 
         # If we have the model, we can extract the link names, if not provided.
         link_idxs = (
@@ -207,7 +221,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             msg = "Missing model data to use a representation different from {}"
             raise ValueError(msg.format(VelRepr.Inertial.name))
 
-        if not_tracing(self.input.physics_model.f_ext) and not data.valid(model=model):
+        if not_tracing(self._link_forces) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
 
         # Helper function to convert a single 6D force to the active representation
@@ -264,9 +278,9 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             if joint_names is not None:
                 raise ValueError("Joint names cannot be provided without a model")
 
-            return self.input.physics_model.tau
+            return self._joint_force_references
 
-        if not_tracing(self.input.physics_model.tau) and not self.valid(model=model):
+        if not_tracing(self._joint_force_references) and not self.valid(model=model):
             msg = "The actuation object is not compatible with the provided model"
             raise ValueError(msg)
 
@@ -277,7 +291,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         )
 
         return jnp.atleast_1d(
-            self.input.physics_model.tau[joint_idxs].squeeze()
+            self._joint_force_references[joint_idxs].squeeze()
         ).astype(float)
 
     # ================
@@ -310,11 +324,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         def replace(forces: jtp.Vector) -> JaxSimModelReferences:
             return self.replace(
                 validate=True,
-                input=self.input.replace(
-                    physics_model=self.input.physics_model.replace(
-                        tau=jnp.atleast_1d(forces.squeeze()).astype(float)
-                    )
-                ),
+                _joint_force_references=jnp.atleast_1d(forces.squeeze()).astype(float),
             )
 
         if model is None:
@@ -330,7 +340,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             else jnp.arange(model.number_of_joints())
         )
 
-        return replace(forces=self.input.physics_model.tau.at[joint_idxs].set(forces))
+        return replace(forces=self._joint_force_references.at[joint_idxs].set(forces))
 
     @functools.partial(jax.jit, static_argnames=["link_names", "additive"])
     def apply_link_forces(
@@ -370,11 +380,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         def replace(forces: jtp.MatrixLike) -> JaxSimModelReferences:
             return self.replace(
                 validate=True,
-                input=self.input.replace(
-                    physics_model=self.input.physics_model.replace(
-                        f_ext=jnp.atleast_2d(forces.squeeze()).astype(float)
-                    )
-                ),
+                _link_forces=jnp.atleast_2d(forces.squeeze()).astype(float),
             )
 
         # In this case, we allow only to set the inertial 6D forces to all links
@@ -389,11 +395,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
             W_f_L = f_L
 
-            W_f0_L = (
-                jnp.zeros_like(W_f_L)
-                if not additive
-                else self.input.physics_model.f_ext
-            )
+            W_f0_L = jnp.zeros_like(W_f_L) if not additive else self._link_forces
 
             return replace(forces=W_f0_L + W_f_L)
 
@@ -410,18 +412,14 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         # Compute the bias depending on whether we either set or add the link forces.
         W_f0_L = (
-            jnp.zeros_like(f_L)
-            if not additive
-            else self.input.physics_model.f_ext[link_idxs, :]
+            jnp.zeros_like(f_L) if not additive else self._link_forces[link_idxs, :]
         )
 
         # If inertial-fixed representation, we can directly store the link forces.
         if self.velocity_representation is VelRepr.Inertial:
             W_f_L = f_L
             return replace(
-                forces=self.input.physics_model.f_ext.at[link_idxs, :].set(
-                    W_f0_L + W_f_L
-                )
+                forces=self._link_forces.at[link_idxs, :].set(W_f0_L + W_f_L)
             )
 
         if data is None:
@@ -450,9 +448,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         W_H_L = js.model.forward_kinematics(model=model, data=data)
         W_f_L = convert_using_link_frame(f_L=f_L, W_H_L=W_H_L[link_idxs, :, :])
 
-        return replace(
-            forces=self.input.physics_model.f_ext.at[link_idxs, :].set(W_f0_L + W_f_L)
-        )
+        return replace(forces=self._link_forces.at[link_idxs, :].set(W_f0_L + W_f_L))
 
     def apply_frame_forces(
         self,

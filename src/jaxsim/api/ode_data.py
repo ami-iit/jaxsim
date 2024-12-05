@@ -10,106 +10,12 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.utils import JaxsimDataclass
 
-# =============================================================================
-# Define the input and state of the ODE system defining the integrated dynamics
-# =============================================================================
+# ===================================================================
+# Define the state of the ODE system defining the integrated dynamics
+# ===================================================================
 
 # Note: the ODE system is the combination of the floating-base dynamics and the
 #       soft-contacts dynamics.
-
-
-@jax_dataclasses.pytree_dataclass
-class ODEInput(JaxsimDataclass):
-    """
-    The input to the ODE system.
-
-    Attributes:
-        physics_model: The input to the physics model.
-    """
-
-    physics_model: PhysicsModelInput
-
-    @staticmethod
-    def build_from_jaxsim_model(
-        model: js.model.JaxSimModel | None = None,
-        link_forces: jtp.MatrixLike | None = None,
-        joint_force_references: jtp.VectorLike | None = None,
-    ) -> ODEInput:
-        """
-        Build an `ODEInput` from a `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` associated with the ODE input.
-            link_forces: The matrix of external forces applied to the links.
-            joint_force_references: The vector of joint force references.
-
-        Returns:
-            The `ODEInput` built from the `JaxSimModel`.
-
-        Note:
-            If any of the input components are not provided, they are built from the
-            `JaxSimModel` and initialized to zero.
-        """
-
-        return ODEInput.build(
-            physics_model_input=PhysicsModelInput.build_from_jaxsim_model(
-                model=model,
-                link_forces=link_forces,
-                joint_force_references=joint_force_references,
-            ),
-            model=model,
-        )
-
-    @staticmethod
-    def build(
-        physics_model_input: PhysicsModelInput | None = None,
-        model: js.model.JaxSimModel | None = None,
-    ) -> ODEInput:
-        """
-        Build an `ODEInput` from a `PhysicsModelInput`.
-
-        Args:
-            physics_model_input: The `PhysicsModelInput` associated with the ODE input.
-            model: The `JaxSimModel` associated with the ODE input.
-
-        Returns:
-            A `ODEInput` instance.
-        """
-
-        physics_model_input = (
-            physics_model_input
-            if physics_model_input is not None
-            else PhysicsModelInput.zero(model=model)
-        )
-
-        return ODEInput(physics_model=physics_model_input)
-
-    @staticmethod
-    def zero(model: js.model.JaxSimModel) -> ODEInput:
-        """
-        Build a zero `ODEInput` from a `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` associated with the ODE input.
-
-        Returns:
-            A zero `ODEInput` instance.
-        """
-
-        return ODEInput.build(model=model)
-
-    def valid(self, model: js.model.JaxSimModel) -> bool:
-        """
-        Check if the `ODEInput` is valid for a given `JaxSimModel`.
-
-        Args:
-            model: The `JaxSimModel` to validate the `ODEInput` against.
-
-        Returns:
-            `True` if the ODE input is valid for the given model, `False` otherwise.
-        """
-
-        return self.physics_model.valid(model=model)
 
 
 @jax_dataclasses.pytree_dataclass

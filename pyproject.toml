@@ -67,6 +67,7 @@ style = [
 testing = [
     "idyntree >= 12.2.1",
     "pytest >=6.0",
+    "pytest-benchmark",
     "pytest-icdiff",
     "robot-descriptions"
 ]
@@ -241,6 +242,7 @@ idyntree = "*"
 isort = "*"
 pre-commit = "*"
 pytest = "*"
+pytest-benchmark = "*"
 pytest-icdiff = "*"
 robot_descriptions = "*"
 

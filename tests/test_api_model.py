@@ -364,7 +364,7 @@ def test_model_jacobian(
     ):
 
         f = references.link_forces(model=model, data=data)
-        assert f == pytest.approx(references.input.physics_model.f_ext)
+        assert f == pytest.approx(references._link_forces)
 
         J = js.model.generalized_free_floating_jacobian(model=model, data=data)
         JTf_inertial = jnp.einsum("l6g,l6->g", J, f)

@@ -851,7 +851,7 @@ class ViscoElasticContacts(common.ContactModel):
         W_f̅_L = (
             jnp.array(average_link_contact_forces_inertial)
             if average_link_contact_forces_inertial is not None
-            else jnp.zeros_like(references.input.physics_model.f_ext)
+            else jnp.zeros_like(references._link_forces)
         ).astype(float)
 
         LW_f̿_L = (

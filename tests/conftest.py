@@ -20,6 +20,20 @@ def pytest_addoption(parser):
         help="Run tests only if GPU is available and utilized",
     )
 
+    parser.addoption(
+        "--batch-size",
+        action="store",
+        default="1",
+        help="Batch size for vectorized benchmarks (only applies to benchmark tests)",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    if "batch_size" in metafunc.fixturenames:
+        metafunc.parametrize(
+            "batch_size", [1, int(metafunc.config.getoption("--batch-size"))]
+        )
+
 
 def check_gpu_usage():
     # Set environment variable to prioritize GPU.

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import jax
 import pytest
 
@@ -5,7 +7,7 @@ import jaxsim
 import jaxsim.api as js
 
 
-def vectorize_data(model: js.model.JaxSimModel, batch_size: str):
+def vectorize_data(model: js.model.JaxSimModel, batch_size: int):
     key = jax.random.PRNGKey(seed=0)
 
     return jax.vmap(
@@ -16,26 +18,18 @@ def vectorize_data(model: js.model.JaxSimModel, batch_size: str):
     )(jax.numpy.repeat(key[None, :], repeats=batch_size, axis=0))
 
 
-def benchmark_test_function(func, model, benchmark, batch_size=None):
+def benchmark_test_function(
+    func: Callable, model: js.model.JaxSimModel, benchmark, batch_size
+):
     """Reusability wrapper for benchmark tests."""
-    if batch_size is None:
-        # Phase 1: Run without batch size
-        data = js.data.random_model_data(model=model)
+    data = vectorize_data(model=model, batch_size=batch_size)
 
-        # Warm-up call to avoid including compilation time
-        func(model, data)
-        benchmark(func, model, data)
-    else:
-        # Phase 2: Run with batch size
-        data = vectorize_data(model=model, batch_size=batch_size)
-
-        # Warm-up call to avoid including compilation time
-        jax.vmap(func, in_axes=(None, 0))(model, data)
-        benchmark(jax.vmap(func, in_axes=(None, 0)), model, data)
+    # Warm-up call to avoid including compilation time
+    jax.vmap(func, in_axes=(None, 0))(model, data)
+    benchmark(jax.vmap(func, in_axes=(None, 0)), model, data)
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_forward_dynamics_aba(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -45,7 +39,6 @@ def test_forward_dynamics_aba(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_free_floating_bias_forces(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -57,7 +50,6 @@ def test_free_floating_bias_forces(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_forward_kinematics(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -67,7 +59,6 @@ def test_forward_kinematics(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_free_floating_mass_matrix(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -79,7 +70,6 @@ def test_free_floating_mass_matrix(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_free_floating_jacobian(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -91,7 +81,6 @@ def test_free_floating_jacobian(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_free_floating_jacobian_derivative(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -106,7 +95,6 @@ def test_free_floating_jacobian_derivative(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_soft_contact_model(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -116,7 +104,6 @@ def test_soft_contact_model(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_rigid_contact_model(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):
@@ -129,7 +116,6 @@ def test_rigid_contact_model(
 
 
 @pytest.mark.benchmark
-@pytest.mark.parametrize("batch_size", [None, 1024])
 def test_relaxed_rigid_contact_model(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):

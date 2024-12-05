@@ -122,7 +122,7 @@ multi_line_output = 3
 profile = "black"
 
 [tool.pytest.ini_options]
-addopts = "-rsxX -v --strict-markers"
+addopts = "-rsxX -v --strict-markers --benchmark-skip"
 minversion = "6.0"
 testpaths = [
     "tests",

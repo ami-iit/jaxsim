@@ -12,9 +12,7 @@ import optax
 import jaxsim.api as js
 import jaxsim.rbda.contacts
 import jaxsim.typing as jtp
-from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
-from jaxsim.terrain.terrain import FlatTerrain, Terrain
 
 from . import common
 
@@ -180,14 +178,6 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 class RelaxedRigidContacts(common.ContactModel):
     """Relaxed rigid contacts model."""
 
-    parameters: RelaxedRigidContactsParams = dataclasses.field(
-        default_factory=RelaxedRigidContactsParams.build
-    )
-
-    terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain.build
-    )
-
     _solver_options_keys: jax_dataclasses.Static[tuple[str, ...]] = dataclasses.field(
         default=("tol", "maxiter", "memory_size"), kw_only=True
     )
@@ -209,8 +199,6 @@ class RelaxedRigidContacts(common.ContactModel):
     @classmethod
     def build(
         cls: type[Self],
-        parameters: RelaxedRigidContactsParams | None = None,
-        terrain: Terrain | None = None,
         solver_options: dict[str, Any] | None = None,
         **kwargs,
     ) -> Self:
@@ -218,16 +206,11 @@ class RelaxedRigidContacts(common.ContactModel):
         Create a `RelaxedRigidContacts` instance with specified parameters.
 
         Args:
-            parameters: The parameters of the rigid contacts model.
-            terrain: The considered terrain.
             solver_options: The options to pass to the L-BFGS solver.
 
         Returns:
             The `RelaxedRigidContacts` instance.
         """
-
-        if len(kwargs) != 0:
-            logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
 
         # Get the default solver options.
         default_solver_options = dict(
@@ -250,18 +233,9 @@ class RelaxedRigidContacts(common.ContactModel):
             ) from exc
 
         return cls(
-            parameters=(
-                parameters
-                if parameters is not None
-                else cls.__dataclass_fields__["parameters"].default_factory()
-            ),
-            terrain=(
-                terrain
-                if terrain is not None
-                else cls.__dataclass_fields__["terrain"].default_factory()
-            ),
             _solver_options_keys=tuple(solver_options.keys()),
             _solver_options_values=tuple(solver_options.values()),
+            **kwargs,
         )
 
     @jax.jit
@@ -288,12 +262,6 @@ class RelaxedRigidContacts(common.ContactModel):
         Returns:
             A tuple containing as first element the computed contact forces.
         """
-
-        # Initialize the model and data this contact model is operating on.
-        # This will raise an exception if either the contact model or the
-        # contact parameters are not compatible.
-        model, data = self.initialize_model_and_data(model=model, data=data)
-        assert isinstance(data.contacts_params, RelaxedRigidContactsParams)
 
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()

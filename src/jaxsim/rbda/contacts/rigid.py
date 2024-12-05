@@ -11,7 +11,6 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
-from jaxsim.terrain import FlatTerrain, Terrain
 
 from . import common
 from .common import ContactModel, ContactsParams
@@ -92,14 +91,6 @@ class RigidContactsParams(ContactsParams):
 class RigidContacts(ContactModel):
     """Rigid contacts model."""
 
-    parameters: RigidContactsParams = dataclasses.field(
-        default_factory=RigidContactsParams
-    )
-
-    terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain.build
-    )
-
     regularization_delassus: jax_dataclasses.Static[float] = dataclasses.field(
         default=1e-6, kw_only=True
     )
@@ -125,8 +116,6 @@ class RigidContacts(ContactModel):
     @classmethod
     def build(
         cls: type[Self],
-        parameters: RigidContactsParams | None = None,
-        terrain: Terrain | None = None,
         regularization_delassus: jtp.FloatLike | None = None,
         solver_options: dict[str, Any] | None = None,
         **kwargs,
@@ -135,8 +124,6 @@ class RigidContacts(ContactModel):
         Create a `RigidContacts` instance with specified parameters.
 
         Args:
-            parameters: The parameters of the rigid contacts model.
-            terrain: The considered terrain.
             regularization_delassus:
                 The regularization term to add to the diagonal of the Delassus matrix.
             solver_options: The options to pass to the QP solver.
@@ -169,16 +156,6 @@ class RigidContacts(ContactModel):
             ) from exc
 
         return cls(
-            parameters=(
-                parameters
-                if parameters is not None
-                else cls.__dataclass_fields__["parameters"].default_factory()
-            ),
-            terrain=(
-                terrain
-                if terrain is not None
-                else cls.__dataclass_fields__["terrain"].default_factory()
-            ),
             regularization_delassus=float(
                 regularization_delassus
                 if regularization_delassus is not None
@@ -186,6 +163,7 @@ class RigidContacts(ContactModel):
             ),
             _solver_options_keys=tuple(solver_options.keys()),
             _solver_options_values=tuple(solver_options.values()),
+            **kwargs,
         )
 
     @staticmethod
@@ -275,12 +253,6 @@ class RigidContacts(ContactModel):
         Returns:
             A tuple containing as first element the computed contact forces.
         """
-
-        # Initialize the model and data this contact model is operating on.
-        # This will raise an exception if either the contact model or the
-        # contact parameters are not compatible.
-        model, data = self.initialize_model_and_data(model=model, data=data)
-        assert isinstance(data.contacts_params, RigidContactsParams)
 
         # Import qpax privately just in this method.
         import qpax

@@ -41,8 +41,7 @@ class JaxSimModel(JaxsimDataclass):
     )
 
     # Note that this is the default contact model.
-    # Its parameters, if any, are then overridden from those stored in JaxSimModelData.
-    contact_model: jaxsim.rbda.contacts.ContactModel | None = dataclasses.field(
+    contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -235,9 +234,7 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.SoftContacts.build(
-                terrain=terrain, parameters=None
-            )
+            else jaxsim.rbda.contacts.SoftContacts.build()
         )
 
         # Build the integrator if not provided.

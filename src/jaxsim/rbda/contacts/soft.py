@@ -12,7 +12,7 @@ import jaxsim.math
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.math import StandardGravity
-from jaxsim.terrain import FlatTerrain, Terrain
+from jaxsim.terrain import Terrain
 
 from . import common
 
@@ -194,19 +194,9 @@ class SoftContactsParams(common.ContactsParams):
 class SoftContacts(common.ContactModel):
     """Soft contacts model."""
 
-    parameters: SoftContactsParams = dataclasses.field(
-        default_factory=SoftContactsParams.build
-    )
-
-    terrain: jax_dataclasses.Static[Terrain] = dataclasses.field(
-        default_factory=FlatTerrain.build
-    )
-
     @classmethod
     def build(
         cls: type[Self],
-        parameters: SoftContactsParams | None = None,
-        terrain: Terrain | None = None,
         model: js.model.JaxSimModel | None = None,
         **kwargs,
     ) -> Self:
@@ -214,8 +204,6 @@ class SoftContacts(common.ContactModel):
         Create a `SoftContacts` instance with specified parameters.
 
         Args:
-            parameters: The parameters of the soft contacts model.
-            terrain: The considered terrain.
             model:
                 The robot model considered by the contact model.
                 If passed, it is used to estimate good default parameters.
@@ -227,24 +215,7 @@ class SoftContacts(common.ContactModel):
         if len(kwargs) != 0:
             logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
 
-        # Build the contact parameters if not provided. Use the model to estimate
-        # good default parameters, if passed. Users can later override these default
-        # parameters with their own values -- possibly tuned better.
-        if parameters is None:
-            parameters = (
-                SoftContactsParams.build_default_from_jaxsim_model(model=model)
-                if model is not None
-                else cls.__dataclass_fields__["parameters"].default_factory()
-            )
-
-        return cls(
-            parameters=parameters,
-            terrain=(
-                terrain
-                if terrain is not None
-                else cls.__dataclass_fields__["terrain"].default_factory()
-            ),
-        )
+        return cls(**kwargs)
 
     @classmethod
     def zero_state_variables(cls, model: js.model.JaxSimModel) -> dict[str, jtp.Array]:
@@ -422,9 +393,9 @@ class SoftContacts(common.ContactModel):
 
         return W_f, ṁ
 
+    @staticmethod
     @jax.jit
     def compute_contact_forces(
-        self,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
     ) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
@@ -439,11 +410,6 @@ class SoftContacts(common.ContactModel):
             A tuple containing as first element the computed contact forces, and as
             second element a dictionary with derivative of the material deformation.
         """
-
-        # Initialize the model and data this contact model is operating on.
-        # This will raise an exception if either the contact model or the
-        # contact parameters are not compatible.
-        model, data = self.initialize_model_and_data(model=model, data=data)
 
         # Get the indices of the enabled collidable points.
         indices_of_enabled_collidable_points = (

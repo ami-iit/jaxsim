@@ -209,9 +209,7 @@ def test_simulation_with_soft_contacts(
 
     with model.editable(validate=False) as model:
 
-        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build(
-            terrain=model.terrain,
-        )
+        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build()
         # Enable a subset of the collidable points.
         enabled_collidable_points_mask = np.zeros(
             len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
@@ -261,9 +259,7 @@ def test_simulation_with_visco_elastic_contacts(
 
     with model.editable(validate=False) as model:
 
-        model.contact_model = jaxsim.rbda.contacts.ViscoElasticContacts.build(
-            terrain=model.terrain,
-        )
+        model.contact_model = jaxsim.rbda.contacts.ViscoElasticContacts.build()
 
     # Initialize the maximum penetration of each collidable point at steady state.
     max_penetration = 0.001
@@ -304,8 +300,6 @@ def test_simulation_with_rigid_contacts(
     with model.editable(validate=False) as model:
 
         model.contact_model = jaxsim.rbda.contacts.RigidContacts.build(
-            terrain=model.terrain,
-            parameters=jaxsim.rbda.contacts.RigidContactsParams.build(K=0.0),
             solver_options={"solver_tol": 1e-3},
         )
         # Enable a subset of the collidable points.
@@ -358,8 +352,6 @@ def test_simulation_with_relaxed_rigid_contacts(
     with model.editable(validate=False) as model:
 
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts.build(
-            terrain=model.terrain,
-            parameters=jaxsim.rbda.contacts.RelaxedRigidContactsParams.build(mu=0.001),
             solver_options={"tol": 1e-3},
         )
         # Enable a subset of the collidable points.
@@ -390,8 +382,10 @@ def test_simulation_with_relaxed_rigid_contacts(
         # gets broken if it is updated in the future.
         contacts_params=js.contact.estimate_good_contact_parameters(
             model=model,
+            static_friction_coefficient=0.001,
         ),
     )
+
     # ===========================================
     # Run the simulation and test the final state
     # ===========================================

@@ -20,6 +20,17 @@ except ImportError:
     from typing_extensions import Self
 
 
+def named_scope(fn, name: str | None = None):
+    """Applies a JAX named scope to a function for improved profiling and clarity."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with jax.named_scope(name or fn.__name__):
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
 @enum.unique
 class VelRepr(enum.IntEnum):
     """

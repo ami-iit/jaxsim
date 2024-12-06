@@ -23,6 +23,10 @@ except ImportError:
 class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     """
     Class containing the references for a `JaxSimModel` object.
+
+    Attributes:
+        _link_forces: The link 6D forces in inertial-fixed representation.
+        _joint_force_references: The joint force references.
     """
 
     _link_forces: jtp.Matrix

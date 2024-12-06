@@ -253,6 +253,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return -self.gravity[2]
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_positions(
         self,
@@ -300,6 +301,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.joint_positions[joint_idxs]
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def joint_velocities(
         self,
@@ -347,6 +349,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.joint_velocities[joint_idxs]
 
+    @js.common.named_scope
     @jax.jit
     def base_position(self) -> jtp.Vector:
         """
@@ -358,6 +361,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.base_position.squeeze()
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["dcm"])
     def base_orientation(self, dcm: jtp.BoolLike = False) -> jtp.Vector | jtp.Matrix:
         """
@@ -386,6 +390,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             float
         )
 
+    @js.common.named_scope
     @jax.jit
     def base_transform(self) -> jtp.Matrix:
         """
@@ -405,6 +410,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ]
         )
 
+    @js.common.named_scope
     @jax.jit
     def base_velocity(self) -> jtp.Vector:
         """
@@ -434,6 +440,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             .astype(float)
         )
 
+    @js.common.named_scope
     @jax.jit
     def generalized_position(self) -> tuple[jtp.Matrix, jtp.Vector]:
         r"""
@@ -446,6 +453,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.base_transform(), self.joint_positions()
 
+    @js.common.named_scope
     @jax.jit
     def generalized_velocity(self) -> jtp.Vector:
         r"""
@@ -466,6 +474,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     # Store quantities
     # ================
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def reset_joint_positions(
         self,
@@ -514,6 +523,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             s=self.state.physics_model.joint_positions.at[joint_idxs].set(positions)
         )
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def reset_joint_velocities(
         self,
@@ -562,6 +572,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ṡ=self.state.physics_model.joint_velocities.at[joint_idxs].set(velocities)
         )
 
+    @js.common.named_scope
     @jax.jit
     def reset_base_position(self, base_position: jtp.VectorLike) -> Self:
         """
@@ -585,6 +596,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ),
         )
 
+    @js.common.named_scope
     @jax.jit
     def reset_base_quaternion(self, base_quaternion: jtp.VectorLike) -> Self:
         """
@@ -612,6 +624,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ),
         )
 
+    @js.common.named_scope
     @jax.jit
     def reset_base_pose(self, base_pose: jtp.MatrixLike) -> Self:
         """
@@ -634,6 +647,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=W_Q_B
         )
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["velocity_representation"])
     def reset_base_linear_velocity(
         self,
@@ -665,6 +679,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             velocity_representation=velocity_representation,
         )
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["velocity_representation"])
     def reset_base_angular_velocity(
         self,
@@ -696,6 +711,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             velocity_representation=velocity_representation,
         )
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["velocity_representation"])
     def reset_base_velocity(
         self,

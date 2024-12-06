@@ -23,16 +23,17 @@ def pytest_addoption(parser):
     parser.addoption(
         "--batch-size",
         action="store",
-        default="1",
+        default="None",
         help="Batch size for vectorized benchmarks (only applies to benchmark tests)",
     )
 
 
 def pytest_generate_tests(metafunc):
-    if "batch_size" in metafunc.fixturenames:
-        metafunc.parametrize(
-            "batch_size", [1, int(metafunc.config.getoption("--batch-size"))]
-        )
+    if (
+        "batch_size" in metafunc.fixturenames
+        and (batch_size := metafunc.config.getoption("--batch-size")) != "None"
+    ):
+        metafunc.parametrize("batch_size", [1, int(batch_size)])
 
 
 def check_gpu_usage():
@@ -121,6 +122,18 @@ def velocity_representation(request) -> jaxsim.VelRepr:
     """
 
     return request.param
+
+
+@pytest.fixture(scope="session")
+def batch_size(request) -> int:
+    """
+    Fixture providing the batch size for vectorized benchmarks.
+
+    Returns:
+        The batch size for vectorized benchmarks.
+    """
+
+    return 1
 
 
 # ================================

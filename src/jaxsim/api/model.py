@@ -2198,7 +2198,9 @@ def step(
             isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts)
             & (
                 ~jnp.allclose(dt, model.time_step)
-                | ~isinstance(integrator, jaxsim.integrators.fixed_step.ForwardEuler)
+                | ~int(
+                    isinstance(integrator, jaxsim.integrators.fixed_step.ForwardEuler)
+                )
             )
         ),
         msg=msg.format(module, name),

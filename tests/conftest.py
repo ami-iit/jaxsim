@@ -20,6 +20,21 @@ def pytest_addoption(parser):
         help="Run tests only if GPU is available and utilized",
     )
 
+    parser.addoption(
+        "--batch-size",
+        action="store",
+        default="None",
+        help="Batch size for vectorized benchmarks (only applies to benchmark tests)",
+    )
+
+
+def pytest_generate_tests(metafunc):
+    if (
+        "batch_size" in metafunc.fixturenames
+        and (batch_size := metafunc.config.getoption("--batch-size")) != "None"
+    ):
+        metafunc.parametrize("batch_size", [1, int(batch_size)])
+
 
 def check_gpu_usage():
     # Set environment variable to prioritize GPU.
@@ -107,6 +122,18 @@ def velocity_representation(request) -> jaxsim.VelRepr:
     """
 
     return request.param
+
+
+@pytest.fixture(scope="session")
+def batch_size(request) -> int:
+    """
+    Fixture providing the batch size for vectorized benchmarks.
+
+    Returns:
+        The batch size for vectorized benchmarks.
+    """
+
+    return 1
 
 
 # ================================

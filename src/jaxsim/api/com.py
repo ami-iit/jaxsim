@@ -8,6 +8,7 @@ import jaxsim.typing as jtp
 from .common import VelRepr
 
 
+@js.common.named_scope
 @jax.jit
 def com_position(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -44,6 +45,7 @@ def com_position(
     return (W_H_B @ B_p̃_CoM)[0:3].astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def com_linear_velocity(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -74,6 +76,7 @@ def com_linear_velocity(
     return G_vl_WG
 
 
+@js.common.named_scope
 @jax.jit
 def centroidal_momentum(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -101,6 +104,7 @@ def centroidal_momentum(
     return G_J @ ν
 
 
+@js.common.named_scope
 @jax.jit
 def centroidal_momentum_jacobian(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -149,6 +153,7 @@ def centroidal_momentum_jacobian(
     return G_Xf_B @ B_Jh
 
 
+@js.common.named_scope
 @jax.jit
 def locked_centroidal_spatial_inertia(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -186,6 +191,7 @@ def locked_centroidal_spatial_inertia(
     return G_Xf_B @ B_Mbb_B @ B_Xv_G
 
 
+@js.common.named_scope
 @jax.jit
 def average_centroidal_velocity(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -213,6 +219,7 @@ def average_centroidal_velocity(
     return G_J @ ν
 
 
+@js.common.named_scope
 @jax.jit
 def average_centroidal_velocity_jacobian(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -239,6 +246,7 @@ def average_centroidal_velocity_jacobian(
     return jnp.linalg.inv(G_Mbb) @ G_J
 
 
+@js.common.named_scope
 @jax.jit
 def bias_acceleration(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData

@@ -16,6 +16,7 @@ from jaxsim.rbda import contacts
 from .common import VelRepr
 
 
+@js.common.named_scope
 @jax.jit
 def collidable_point_kinematics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -52,6 +53,7 @@ def collidable_point_kinematics(
     return W_p_Ci, W_ṗ_Ci
 
 
+@js.common.named_scope
 @jax.jit
 def collidable_point_positions(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -72,6 +74,7 @@ def collidable_point_positions(
     return W_p_Ci
 
 
+@js.common.named_scope
 @jax.jit
 def collidable_point_velocities(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
@@ -92,6 +95,7 @@ def collidable_point_velocities(
     return W_ṗ_Ci
 
 
+@js.common.named_scope
 @jax.jit
 def collidable_point_forces(
     model: js.model.JaxSimModel,
@@ -129,6 +133,7 @@ def collidable_point_forces(
     return f_Ci
 
 
+@js.common.named_scope
 @jax.jit
 def collidable_point_dynamics(
     model: js.model.JaxSimModel,
@@ -227,6 +232,7 @@ def collidable_point_dynamics(
     return f_Ci, aux_data
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["link_names"])
 def in_contact(
     model: js.model.JaxSimModel,
@@ -424,6 +430,7 @@ def estimate_good_contact_parameters(
     return parameters
 
 
+@js.common.named_scope
 @jax.jit
 def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
     r"""
@@ -469,6 +476,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def jacobian(
     model: js.model.JaxSimModel,
@@ -561,6 +569,7 @@ def jacobian(
     return O_J_WC
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def jacobian_derivative(
     model: js.model.JaxSimModel,

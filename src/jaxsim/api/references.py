@@ -145,7 +145,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     # ==================
     # Extract quantities
     # ==================
-
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["link_names"])
     def link_forces(
         self,
@@ -283,7 +283,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
     # ================
     # Store quantities
     # ================
-
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["joint_names"])
     def set_joint_force_references(
         self,
@@ -332,6 +332,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
 
         return replace(forces=self.input.physics_model.tau.at[joint_idxs].set(forces))
 
+    @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["link_names", "additive"])
     def apply_link_forces(
         self,

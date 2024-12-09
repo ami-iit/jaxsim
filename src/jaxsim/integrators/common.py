@@ -329,67 +329,44 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             ẋ0, aux_dict = f(x0, t0)
             return self.metadata.get("dxdt0", ẋ0), aux_dict
 
-        # We use a `jax.lax.scan` to compile the `f` function only once.
-        # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
-        # would include 4 repetitions of the `f` logic, making everything extremely slow.
-        def scan_body(
-            carry: jax.Array, i: int | jax.Array
-        ) -> tuple[jax.Array, dict[str, Any]]:
-            """"""
+        def compute_k(K):
+            # Compute ∑ⱼ aᵢⱼ kⱼ.
+            sum_ak = jax.tree.map(lambda k: jnp.einsum("bs,s...->b...", A, k), K)
 
-            # Unpack the carry, i.e. the stacked kᵢ vectors.
-            K = carry
+            # Compute the next state for the kᵢ evaluation.
+            xi = self.integrate_rk_stage(x0, t0, Δt, sum_ak)
 
-            # Define the computation of the Runge-Kutta stage.
-            def compute_ki() -> tuple[jax.Array, dict[str, Any]]:
+            # Compute the next time for the kᵢ evaluation.
+            ti = t0 + c * Δt
 
-                # Compute ∑ⱼ aᵢⱼ kⱼ.
-                op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
-                sum_ak = jax.tree.map(op_sum_ak, K)
+            # Evaluate the dynamics.
+            ki, aux_dict = jax.vmap(f)(xi, ti)
+            return ki, aux_dict
 
-                # Compute the next state for the kᵢ evaluation.
-                # Note that this is not a Δt integration since aᵢⱼ could be fractional.
-                xi = self.integrate_rk_stage(x0, t0, Δt, sum_ak)
+        # Compute the kᵢ derivatives.
+        K, aux_dict = compute_k(carry0)
 
-                # Compute the next time for the kᵢ evaluation.
-                ti = t0 + c[i] * Δt
-
-                # Evaluate the dynamics.
-                ki, aux_dict = f(xi, ti)
-                return ki, aux_dict
-
-            # This selector enables FSAL property in the first iteration (i=0).
-            ki, aux_dict = jax.lax.cond(
-                pred=jnp.logical_and(i == 0, self.has_fsal),
-                true_fun=get_ẋ0_and_aux_dict,
-                false_fun=compute_ki,
+        # Update the FSAL property if applicable.
+        if self.has_fsal:
+            # Set the first derivative of the next step to the last derivative of the
+            # current step. This is possible only if the Butcher tableau supports FSAL.
+            K = jax.tree.map(
+                lambda l, ẋ0: l.at[self.index_of_fsal].set(ẋ0),
+                K,
+                get_ẋ0_and_aux_dict()[0],
             )
 
-            # Store the kᵢ derivative in K.
-            op = lambda l_k, l_ki: l_k.at[i].set(l_ki)
-            K = jax.tree.map(op, K, ki)
-
-            carry = K
-            return carry, aux_dict
-
-        # Compute the state derivatives kᵢ.
-        K, aux_dict = jax.lax.scan(
-            f=scan_body,
-            init=carry0,
-            xs=jnp.arange(c.size),
-        )
-
-        # Update the FSAL property for the next iteration.
-        if self.has_fsal:
+            # Store the first derivative of the next step in the metadata.
             self.metadata["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
 
         # Compute the output state.
-        # Note that z contains as many new states as the rows of `b.T`.
-        op = lambda x0, k: x0 + Δt * jnp.einsum("zs,s...->z...", b.T, k)
-        z = jax.tree.map(op, x0, K)
+        # This step is already a batch-wise operation, so we vectorize the operation.
+        z = jax.tree.map(
+            lambda x0, k: x0 + Δt * jnp.einsum("zs,s...->z...", b.T, k), x0, K
+        )
 
         # Transform the final state of the integration.
-        # This allows to inject custom logic, if needed.
+        # Apply any custom transformation logic in a batch-wise manner.
         z_transformed = jax.vmap(
             lambda xf: self.post_process_state(x0=x0, t0=t0, xf=xf, dt=dt)
         )(z)

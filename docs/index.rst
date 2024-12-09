@@ -70,6 +70,7 @@ Features
   :hidden:
 
   guide/install
+  guide/configuration
 
   examples
 

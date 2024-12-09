@@ -53,10 +53,6 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         repr=False, hash=False, compare=False, kw_only=True
     )
 
-    metadata: dict[str, Any] = dataclasses.field(
-        default_factory=dict, repr=False, hash=False, compare=False, kw_only=True
-    )
-
     @classmethod
     def build(
         cls: type[Self],
@@ -102,10 +98,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
         metadata = metadata if metadata is not None else {}
 
-        with self.editable(validate=False) as integrator:
-            integrator.metadata = metadata
-
-        with integrator.mutable_context(mutability=Mutability.MUTABLE):
+        with self.mutable_context(mutability=Mutability.MUTABLE) as integrator:
             xf, metadata_step = integrator(x0, t0, dt, **kwargs)
 
         return (
@@ -315,6 +308,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         b = self.b
         A = self.A
 
+        # Extract metadata from the kwargs.
+        metadata = kwargs.pop("metadata", {})
+
         # Close f over optional kwargs.
         f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
 
@@ -327,7 +323,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         # or to use the previous state derivative (only integrators supporting FSAL).
         def get_ẋ0_and_aux_dict() -> tuple[StateDerivative, dict[str, Any]]:
             ẋ0, aux_dict = f(x0, t0)
-            return self.metadata.get("dxdt0", ẋ0), aux_dict
+            return metadata.get("dxdt0", ẋ0), aux_dict
 
         def compute_k(K):
             # Compute ∑ⱼ aᵢⱼ kⱼ.
@@ -357,7 +353,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             )
 
             # Store the first derivative of the next step in the metadata.
-            self.metadata["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
+            metadata["dxdt0"] = jax.tree.map(lambda l: l[self.index_of_fsal], K)
 
         # Compute the output state.
         # This step is already a batch-wise operation, so we vectorize the operation.
@@ -371,7 +367,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             lambda xf: self.post_process_state(x0=x0, t0=t0, xf=xf, dt=dt)
         )(z)
 
-        return z_transformed, aux_dict
+        return z_transformed, aux_dict | {"metadata": metadata}
 
     @staticmethod
     def butcher_tableau_is_valid(

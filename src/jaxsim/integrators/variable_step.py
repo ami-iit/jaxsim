@@ -481,10 +481,10 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                 metadata_next,
                 discarded_steps,
             ) = jax.lax.cond(
-                pred=discarded_steps
-                >= self.max_step_rejections | local_error
-                <= 1.0 | Δt_next
-                < self.dt_min | integrator_init,
+                pred=(discarded_steps >= self.max_step_rejections)
+                | (local_error <= 1.0)
+                | (Δt_next < self.dt_min)
+                | integrator_init,
                 true_fun=accept_step,
                 false_fun=reject_step,
             )

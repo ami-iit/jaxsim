@@ -187,10 +187,8 @@ platforms = ["linux-64", "osx-arm64", "osx-64"]
 [tool.pixi.environments]
 # We resolve only two groups: cpu and gpu.
 # Then, multiple environments can be created from these groups.
-default = { solve-group = "cpugroup" }
-gpu = { features = ["gpu"], solve-group = "gpugroup" }
-tasks-cpu = { features = ["test", "examples"], solve-group = "cpugroup" }
-tasks-gpu = { features = ["test", "examples", "gpu"], solve-group = "gpugroup" }
+default = { features = ["test", "examples"] }
+gpu = { features = ["test", "examples", "gpu"] }
 
 # ---------------
 # feature.default

@@ -185,7 +185,7 @@ def create_sphere_collision(
 
         # Filter to keep only the bottom half if required.
         if os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0"):
-            # Keep only the points with y <= 0.
+            # Keep only the points with z <= 0.
             points = [point for point in points if point[2] <= 0]
 
         return np.vstack(points)

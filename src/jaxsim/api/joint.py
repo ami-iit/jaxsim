@@ -13,6 +13,7 @@ from jaxsim import exceptions
 # =======================
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames="joint_name")
 def name_to_idx(model: js.model.JaxSimModel, *, joint_name: str) -> jtp.Int:
     """
@@ -61,6 +62,7 @@ def idx_to_name(model: js.model.JaxSimModel, *, joint_index: jtp.IntLike) -> str
     return model.kin_dyn_parameters.joint_model.joint_names[joint_index + 1]
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames="joint_names")
 def names_to_idxs(
     model: js.model.JaxSimModel, *, joint_names: Sequence[str]
@@ -141,6 +143,7 @@ def position_limit(
     return s_min.astype(float), s_max.astype(float)
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["joint_names"])
 def position_limits(
     model: js.model.JaxSimModel, *, joint_names: Sequence[str] | None = None
@@ -176,6 +179,7 @@ def position_limits(
 # ======================
 
 
+@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["joint_names"])
 def random_joint_positions(
     model: js.model.JaxSimModel,

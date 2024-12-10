@@ -3,7 +3,8 @@ import contextlib
 import dataclasses
 import enum
 import functools
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import ParamSpec, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -18,6 +19,21 @@ try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
+
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def named_scope(fn, name: str | None = None) -> Callable[_P, _R]:
+    """Applies a JAX named scope to a function for improved profiling and clarity."""
+
+    @functools.wraps(fn)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with jax.named_scope(name or fn.__name__):
+            return fn(*args, **kwargs)
+
+    return wrapper
 
 
 @enum.unique

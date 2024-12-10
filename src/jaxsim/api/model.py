@@ -491,6 +491,7 @@ def reduce(
 # ===================
 
 
+@js.common.named_scope
 @jax.jit
 def total_mass(model: JaxSimModel) -> jtp.Float:
     """
@@ -506,6 +507,7 @@ def total_mass(model: JaxSimModel) -> jtp.Float:
     return model.kin_dyn_parameters.link_parameters.mass.sum().astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
     """
@@ -528,6 +530,7 @@ def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
 # ==============================
 
 
+@js.common.named_scope
 @jax.jit
 def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
     """
@@ -915,6 +918,7 @@ def forward_dynamics(
     )
 
 
+@js.common.named_scope
 @jax.jit
 def forward_dynamics_aba(
     model: JaxSimModel,
@@ -1059,6 +1063,7 @@ def forward_dynamics_aba(
     return C_v̇_WB.astype(float), s̈.astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def forward_dynamics_crb(
     model: JaxSimModel,
@@ -1150,6 +1155,7 @@ def forward_dynamics_crb(
     return v̇_WB, s̈
 
 
+@js.common.named_scope
 @jax.jit
 def free_floating_mass_matrix(
     model: JaxSimModel, data: js.data.JaxSimModelData
@@ -1195,6 +1201,7 @@ def free_floating_mass_matrix(
             raise ValueError(data.velocity_representation)
 
 
+@js.common.named_scope
 @jax.jit
 def free_floating_coriolis_matrix(
     model: JaxSimModel, data: js.data.JaxSimModelData
@@ -1311,6 +1318,7 @@ def free_floating_coriolis_matrix(
             raise ValueError(data.velocity_representation)
 
 
+@js.common.named_scope
 @jax.jit
 def inverse_dynamics(
     model: JaxSimModel,
@@ -1466,6 +1474,7 @@ def inverse_dynamics(
     return f_B.astype(float), τ.astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def free_floating_gravity_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
@@ -1515,6 +1524,7 @@ def free_floating_gravity_forces(
     ).astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def free_floating_bias_forces(
     model: JaxSimModel, data: js.data.JaxSimModelData
@@ -1584,6 +1594,7 @@ def free_floating_bias_forces(
 # ==========================
 
 
+@js.common.named_scope
 @jax.jit
 def locked_spatial_inertia(
     model: JaxSimModel, data: js.data.JaxSimModelData
@@ -1602,6 +1613,7 @@ def locked_spatial_inertia(
     return total_momentum_jacobian(model=model, data=data)[:, 0:6]
 
 
+@js.common.named_scope
 @jax.jit
 def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
     """
@@ -1690,6 +1702,7 @@ def total_momentum_jacobian(
             raise ValueError(output_vel_repr)
 
 
+@js.common.named_scope
 @jax.jit
 def average_velocity(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vector:
     """
@@ -1778,6 +1791,7 @@ def average_velocity_jacobian(
 # ========================
 
 
+@js.common.named_scope
 @jax.jit
 def link_bias_accelerations(
     model: JaxSimModel,
@@ -1987,6 +2001,7 @@ def link_bias_accelerations(
     return O_v̇_WL
 
 
+@js.common.named_scope
 @jax.jit
 def link_contact_forces(
     model: js.model.JaxSimModel,
@@ -2062,6 +2077,7 @@ def link_contact_forces(
 # ======
 
 
+@js.common.named_scope
 @jax.jit
 def mechanical_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
     """
@@ -2081,6 +2097,7 @@ def mechanical_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.
     return (K + U).astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def kinetic_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
     """
@@ -2102,6 +2119,7 @@ def kinetic_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Flo
     return K.squeeze().astype(float)
 
 
+@js.common.named_scope
 @jax.jit
 def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Float:
     """
@@ -2128,6 +2146,7 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 # ==========
 
 
+@js.common.named_scope
 @jax.jit
 def step(
     model: JaxSimModel,

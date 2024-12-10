@@ -266,9 +266,7 @@ system-requirements = { cuda = "12" }
 
 [tool.pixi.feature.gpu.dependencies]
 cuda-version = "12.*"
-# Pinning a specific version awaiting the following to get addressed:
-# https://github.com/conda-forge/jaxlib-feedstock/issues/285
-jaxlib = { version = "<0.4.31", build = "*cuda*" }
+jaxlib = { version = "*", build = "*cuda*" }
 
 [tool.pixi.feature.gpu.tasks]
 gpu-tests = { cmd = "pytest --gpu-only", depends_on = ["pipcheck"] }

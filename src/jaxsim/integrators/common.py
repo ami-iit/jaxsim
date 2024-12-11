@@ -493,10 +493,11 @@ class ExplicitRungeKuttaSO3Mixin:
         # Extract the initial base quaternion.
         W_Q_B_t0 = x0.physics_model.base_quaternion
 
-        # We assume that the initial quaternion is already unary.
-        exceptions.raise_runtime_error_if(
-            condition=~jnp.allclose(W_Q_B_t0.dot(W_Q_B_t0), 1.0),
-            msg="The SO(3) integrator received a quaternion at t0 that is not unary.",
+        # Normalize the quaternion to ensure it is a unit quaternion.
+        W_Q_B_t0 = jnp.where(
+            jnp.allclose(W_Q_B_t0.dot(W_Q_B_t0), 1.0),
+            W_Q_B_t0,
+            W_Q_B_t0 / jnp.linalg.norm(W_Q_B_t0),
         )
 
         # Get the angular velocity ω to integrate the quaternion.

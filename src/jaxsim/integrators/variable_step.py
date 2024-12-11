@@ -21,7 +21,6 @@ from .common import (
     NextState,
     PyTreeType,
     State,
-    StateDerivative,
     SystemDynamics,
     Time,
     TimeStep,
@@ -294,7 +293,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         return metadata_after_init
 
     def __call__(
-        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+        self, x0: State, t0: Time, dt: TimeStep, dynamics: SystemDynamics, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:
 
         # This method is called differently in three stages:
@@ -321,7 +320,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         )
 
         # Close f over optional kwargs.
-        f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
+        f = lambda x, t: dynamics(x=x, t=t, **kwargs)
 
         # Define the final time.
         tf = t0 + dt
@@ -337,7 +336,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             pred=("dt0" in metadata) & ~jnp.isnan(metadata.get("dt0", 0.0)).any(),
             true_fun=lambda metadata: (
                 metadata.get("dt0", jnp.array(0.0, dtype=float)),
-                metadata.get("dxdt0", f(x0, t0)[0]),
+                metadata.get("dxdt0", f(x0, t0)),
             ),
             false_fun=lambda aux: estimate_step_size(
                 x0=x0, t0=t0, f=f, order=p, atol=self.atol, rtol=self.rtol
@@ -522,7 +521,6 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     def build(
         cls: type[Self],
         *,
-        dynamics: SystemDynamics[State, StateDerivative],
         fsal_enabled_if_supported: jtp.BoolLike = True,
         dt_max: jtp.FloatLike = jnp.inf,
         dt_min: jtp.FloatLike = -jnp.inf,
@@ -548,8 +546,6 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             )
 
         integrator = super().build(
-            # Integrator:
-            dynamics=dynamics,
             # ExplicitRungeKutta:
             fsal_enabled_if_supported=bool(fsal_enabled_if_supported),
             # EmbeddedRungeKutta:

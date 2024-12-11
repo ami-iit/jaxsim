@@ -16,8 +16,8 @@ from .common import VelRepr
 # =======================
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def idx_of_parent_link(
     model: js.model.JaxSimModel, *, frame_index: jtp.IntLike
 ) -> jtp.Int:
@@ -46,8 +46,8 @@ def idx_of_parent_link(
     ]
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames="frame_name")
+@js.common.named_scope
 def name_to_idx(model: js.model.JaxSimModel, *, frame_name: str) -> jtp.Int:
     """
     Convert the name of a frame to its index.
@@ -99,8 +99,8 @@ def idx_to_name(model: js.model.JaxSimModel, *, frame_index: jtp.IntLike) -> str
     ]
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["frame_names"])
+@js.common.named_scope
 def names_to_idxs(
     model: js.model.JaxSimModel, *, frame_names: Sequence[str]
 ) -> jax.Array:
@@ -142,8 +142,8 @@ def idxs_to_names(
 # ==========
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def transform(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -184,8 +184,8 @@ def transform(
     return W_H_L @ L_H_F
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@js.common.named_scope
 def velocity(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -235,8 +235,8 @@ def velocity(
     return O_J_WF_I @ I_ν
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@js.common.named_scope
 def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -315,8 +315,8 @@ def jacobian(
     return O_J_WL_I
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@js.common.named_scope
 def jacobian_derivative(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

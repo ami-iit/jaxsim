@@ -85,8 +85,8 @@ def wrap_system_dynamics_for_integration(
 # ==================================
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def system_velocity_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -332,8 +332,8 @@ def system_acceleration(
     return v̇_WB, s̈
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def system_position_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -372,8 +372,8 @@ def system_position_dynamics(
     return W_ṗ_B, W_Q̇_B, ṡ
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def system_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

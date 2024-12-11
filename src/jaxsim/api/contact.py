@@ -16,8 +16,8 @@ from jaxsim.rbda import contacts
 from .common import VelRepr
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def collidable_point_kinematics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
@@ -53,8 +53,8 @@ def collidable_point_kinematics(
     return W_p_Ci, W_ṗ_Ci
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def collidable_point_positions(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -74,8 +74,8 @@ def collidable_point_positions(
     return W_p_Ci
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def collidable_point_velocities(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
@@ -95,8 +95,8 @@ def collidable_point_velocities(
     return W_ṗ_Ci
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def collidable_point_forces(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -133,8 +133,8 @@ def collidable_point_forces(
     return f_Ci
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def collidable_point_dynamics(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -232,8 +232,8 @@ def collidable_point_dynamics(
     return f_Ci, aux_data
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["link_names"])
+@js.common.named_scope
 def in_contact(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -430,8 +430,8 @@ def estimate_good_contact_parameters(
     return parameters
 
 
-@js.common.named_scope
 @jax.jit
+@js.common.named_scope
 def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
     r"""
     Return the pose of the enabled collidable points.
@@ -476,8 +476,8 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@js.common.named_scope
 def jacobian(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -569,8 +569,8 @@ def jacobian(
     return O_J_WC
 
 
-@js.common.named_scope
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
+@js.common.named_scope
 def jacobian_derivative(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

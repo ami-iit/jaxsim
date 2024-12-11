@@ -57,6 +57,10 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
+    dynamics: Static[jaxsim.integrators.common.SystemDynamics | None] = (
+        dataclasses.field(default=None, repr=False)
+    )
+
     _description: Static[wrappers.HashlessObject[ModelDescription | None]] = (
         dataclasses.field(default=None, repr=False)
     )
@@ -106,6 +110,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: (
             jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
         ) = None,
+        dynamics: jaxsim.integrators.common.SystemDynamics | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -131,6 +136,10 @@ class JaxSimModel(JaxsimDataclass):
                 The integrator to use. If not specified, a default one is used.
                 This argument can either be a pre-built integrator instance or one
                 of the integrator classes defined in JaxSim.
+            dynamics:
+                The system dynamics to use. If not specified, the default one is used.
+                This argument can be set to a custom system dynamics function, e.g.,
+                to consider tendons or other non-standard dynamics.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -162,6 +171,7 @@ class JaxSimModel(JaxsimDataclass):
             model_name=model_name,
             time_step=time_step,
             integrator=integrator,
+            dynamics=dynamics,
             terrain=terrain,
             contact_model=contact_model,
         )
@@ -182,6 +192,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: (
             jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
         ) = None,
+        dynamics: jaxsim.integrators.common.SystemDynamics | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
@@ -203,6 +214,10 @@ class JaxSimModel(JaxsimDataclass):
                 The integrator to use. If not specified, a default one is used.
                 This argument can either be a pre-built integrator instance or one
                 of the integrator classes defined in JaxSim.
+            dynamics:
+                The system dynamics to use. If not specified, the default one is used.
+                This argument can be set to a custom system dynamics function, e.g.,
+                to consider tendons or other non-standard dynamics.
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
@@ -243,11 +258,7 @@ class JaxSimModel(JaxsimDataclass):
             # If None, build a default integrator.
             case None:
 
-                integrator = jaxsim.integrators.fixed_step.Heun2SO3.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
-                )
+                integrator = jaxsim.integrators.fixed_step.Heun2SO3.build()
 
             # If it's a pre-built integrator (also a custom one from the user)
             # just use it as is.
@@ -268,6 +279,21 @@ class JaxSimModel(JaxsimDataclass):
             case _:
                 raise ValueError(f"Invalid integrator: {integrator}")
 
+        match dynamics:
+
+            case None:
+
+                dynamics = js.ode.wrap_system_dynamics_for_integration(
+                    system_dynamics=js.ode.system_dynamics
+                )
+
+            case jaxsim.integrators.common.SystemDynamics:
+
+                pass
+
+            case _:
+                raise ValueError(f"Invalid dynamics: {dynamics}")
+
         # Build the model.
         model = cls(
             model_name=model_name,
@@ -278,6 +304,7 @@ class JaxSimModel(JaxsimDataclass):
             terrain=terrain,
             contact_model=contact_model,
             integrator=integrator,
+            dynamics=dynamics,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the
@@ -2196,7 +2223,6 @@ def step(
     integrator = integrator if integrator is not None else model.integrator
 
     # Initialize the time-related variables.
-    state_t0 = data.state
     t0 = jnp.array(t0, dtype=float)
     dt = jnp.array(dt if dt is not None else model.time_step).astype(float)
 
@@ -2244,33 +2270,32 @@ def step(
     # Phase 2: step
     # =============
 
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        data=data,
+        velocity_representation=data.velocity_representation,
+        link_forces=link_forces,
+        joint_force_references=joint_force_references,
+    )
+
     # Prepare the references to pass.
     with references.switch_velocity_representation(data.velocity_representation):
 
         f_L = references.link_forces(model=model, data=data)
         τ_references = references.joint_force_references(model=model)
 
-    # Integrate the system dynamics.
-    state_tf, integrator_metadata_tf = integrator.step(
-        x0=state_t0,
+    # Step the dynamics forward.
+    state_tf, integrator_metadata_tf = integrator.integrate(
+        x0=data.state,
         t0=t0,
         dt=dt,
         metadata=integrator_metadata_t0,
-        # Always inject the current (model, data) pair into the system dynamics
-        # considered by the integrator, and include the input variables represented
-        # by the pair (f_L, τ_references).
-        # Note that the wrapper of the system dynamics will override (state_x0, t0)
-        # inside the passed data even if it is not strictly needed. This logic is
-        # necessary to reuse the jit-compiled step function of compatible pytrees
-        # of model and data produced e.g. by parameterized applications.
-        **(
-            dict(
-                model=model,
-                data=data,
-                link_forces=f_L,
-                joint_force_references=τ_references,
-            )
-            | integrator_kwargs
+        dynamics=model.dynamics,
+        **dict(
+            model=model,
+            data=data,
+            link_forces=f_L,
+            joint_force_references=τ_references,
         ),
     )
 

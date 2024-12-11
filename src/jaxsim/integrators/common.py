@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+import functools
 from typing import Any, ClassVar, Generic, Protocol, TypeVar
 
 import jax
@@ -10,8 +11,8 @@ from jax_dataclasses import Static
 import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
-from jaxsim import exceptions, logging
-from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass, Mutability
+from jaxsim import logging
+from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
 try:
     from typing import override
@@ -49,35 +50,29 @@ class SystemDynamics(Protocol[State, StateDerivative]):
 @jax_dataclasses.pytree_dataclass
 class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
-    dynamics: Static[SystemDynamics[State, StateDerivative]] = dataclasses.field(
-        repr=False, hash=False, compare=False, kw_only=True
-    )
-
     @classmethod
     def build(
         cls: type[Self],
-        *,
-        dynamics: SystemDynamics[State, StateDerivative],
         **kwargs,
     ) -> Self:
         """
         Build the integrator object.
 
         Args:
-            dynamics: The system dynamics.
             **kwargs: Additional keyword arguments to build the integrator.
 
         Returns:
             The integrator object.
         """
 
-        return cls(dynamics=dynamics, **kwargs)
+        return cls(**kwargs)
 
-    def step(
+    def integrate(
         self,
         x0: State,
         t0: Time,
         dt: TimeStep,
+        dynamics: SystemDynamics[State, StateDerivative],
         *,
         metadata: dict[str, Any] | None = None,
         **kwargs,
@@ -98,8 +93,7 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
         metadata = metadata if metadata is not None else {}
 
-        with self.mutable_context(mutability=Mutability.MUTABLE) as integrator:
-            xf, metadata_step = integrator(x0, t0, dt, **kwargs)
+        xf, metadata_step = self(x0, t0, dt, dynamics, **kwargs)
 
         return (
             xf,
@@ -167,7 +161,6 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     def build(
         cls: type[Self],
         *,
-        dynamics: SystemDynamics[State, StateDerivative],
         fsal_enabled_if_supported: jtp.BoolLike = True,
         **kwargs,
     ) -> Self:
@@ -175,7 +168,6 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         Build the integrator object.
 
         Args:
-            dynamics: The system dynamics.
             fsal_enabled_if_supported:
                 Whether to enable the FSAL property, if supported.
             **kwargs: Additional keyword arguments to build the integrator.
@@ -210,7 +202,6 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Build the integrator object.
         integrator = super().build(
-            dynamics=dynamics,
             index_of_fsal=index_of_fsal,
             fsal_enabled_if_supported=bool(fsal_enabled_if_supported),
             **kwargs,
@@ -219,13 +210,15 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         return integrator
 
     def __call__(
-        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+        self, x0: State, t0: Time, dt: TimeStep, dynamics: SystemDynamics, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:
 
         # Here z is a batched state with as many batch elements as b.T rows.
         # Note that z has multiple batches only if b.T has more than one row,
         # e.g. in Butcher tableau of embedded schemes.
-        z, aux_dict = self._compute_next_state(x0=x0, t0=t0, dt=dt, **kwargs)
+        z, aux_dict = self._compute_next_state(
+            x0=x0, t0=t0, dt=dt, dynamics=dynamics, **kwargs
+        )
 
         # The next state is the batch element located at the configured index of solution.
         next_state = jax.tree.map(lambda l: l[self.row_index_of_solution], z)
@@ -287,7 +280,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         return xf
 
     def _compute_next_state(
-        self, x0: State, t0: Time, dt: TimeStep, **kwargs
+        self, x0: State, t0: Time, dt: TimeStep, dynamics: SystemDynamics, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:
         """
         Compute the next state of the system, returning all the output states.
@@ -312,7 +305,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         metadata = kwargs.pop("metadata", {})
 
         # Close f over optional kwargs.
-        f = lambda x, t: self.dynamics(x=x, t=t, **kwargs)
+        f = functools.partial(dynamics, **kwargs)
 
         # Initialize the carry of the for loop with the stacked kᵢ vectors.
         carry0 = jax.tree.map(
@@ -321,9 +314,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
         # Closure on metadata to either evaluate the dynamics at the initial state
         # or to use the previous state derivative (only integrators supporting FSAL).
-        def get_ẋ0_and_aux_dict() -> tuple[StateDerivative, dict[str, Any]]:
-            ẋ0, aux_dict = f(x0, t0)
-            return metadata.get("dxdt0", ẋ0), aux_dict
+        x0 = metadata.get("dxdt0", x0)
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
         # Otherwise, if we compute e.g. for RK4 sequentially, the jit-compiled code
@@ -351,13 +342,13 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
                 ti = t0 + c[i] * Δt
 
                 # Evaluate the dynamics.
-                ki, aux_dict = f(xi, ti)
+                ki, aux_dict = f(x=xi, t=ti)
                 return ki, aux_dict
 
             # This selector enables FSAL property in the first iteration (i=0).
             ki, aux_dict = jax.lax.cond(
                 pred=jnp.logical_and(i == 0, self.has_fsal),
-                true_fun=get_ẋ0_and_aux_dict,
+                true_fun=lambda: x0,
                 false_fun=compute_ki,
             )
 
@@ -369,7 +360,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             return carry, aux_dict
 
         # Compute the state derivatives kᵢ.
-        K, aux_dict = jax.lax.scan(
+        K, _ = jax.lax.scan(
             f=scan_body,
             init=carry0,
             xs=jnp.arange(c.size),
@@ -391,7 +382,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             lambda xf: self.post_process_state(x0=x0, t0=t0, xf=xf, dt=dt)
         )(z)
 
-        return z_transformed, aux_dict | {"metadata": metadata}
+        return z_transformed, {"metadata": metadata}
 
     @staticmethod
     def butcher_tableau_is_valid(

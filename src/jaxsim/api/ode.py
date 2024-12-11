@@ -381,7 +381,7 @@ def system_dynamics(
     link_forces: jtp.Vector | None = None,
     joint_force_references: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
-) -> tuple[ODEState, dict[str, Any]]:
+) -> ODEState:
     """
     Compute the dynamics of the system.
 
@@ -397,9 +397,9 @@ def system_dynamics(
             quaternion (only used in integrators not operating on the SO(3) manifold).
 
     Returns:
-        A tuple with an `ODEState` object storing in each of its attributes the
-        corresponding derivative, and the dictionary of auxiliary data returned
-        by the system dynamics evaluation.
+        An `ODEState` object storing in each of its attributes the corresponding
+        derivative, including the dictionary of auxiliary data returned by the
+        system dynamics evaluation.
     """
 
     # Compute the accelerations and the material deformation rate.
@@ -452,4 +452,4 @@ def system_dynamics(
         **extended_ode_state,
     )
 
-    return ode_state_derivative, aux_dict
+    return ode_state_derivative

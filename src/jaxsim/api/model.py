@@ -2175,6 +2175,58 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
 
 @js.common.named_scope
 @jax.jit
+def forward(
+    model: JaxSimModel,
+    data: js.data.JaxSimModelData,
+    link_forces: jtp.MatrixLike | None = None,
+    joint_force_references: jtp.VectorLike | None = None,
+) -> js.data.JaxSimModelData:
+
+    # TODO: some contact models here may want to perform a dynamic filtering of
+    # the enabled collidable points.
+
+    # Build the references object.
+    # We assume that the link forces are expressed in the frame corresponding to the
+    # velocity representation of the data.
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        data=data,
+        velocity_representation=data.velocity_representation,
+        link_forces=link_forces,
+        joint_force_references=joint_force_references,
+    )
+
+    # Prepare the references to pass.
+    with references.switch_velocity_representation(data.velocity_representation):
+
+        f_L = references.link_forces(model=model, data=data)
+        τ_references = references.joint_force_references(model=model)
+
+    state_tf = model.dynamics(
+        # Always inject the current (model, data) pair into the system dynamics
+        # considered by the integrator, and include the input variables represented
+        # by the pair (f_L, τ_references).
+        # Note that the wrapper of the system dynamics will override (state_x0, t0)
+        # inside the passed data even if it is not strictly needed. This logic is
+        # necessary to reuse the jit-compiled step function of compatible pytrees
+        # of model and data produced e.g. by parameterized applications.
+        x=data.state,
+        t=jnp.array(0.0, dtype=float),
+        **dict(
+            model=model,
+            data=data,
+            link_forces=f_L,
+            joint_force_references=τ_references,
+        ),
+    )
+
+    data_tf = data.replace(state=state_tf)
+
+    return data_tf
+
+
+@js.common.named_scope
+@jax.jit
 def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
@@ -2251,20 +2303,13 @@ def step(
         msg=msg.format(module, name),
     )
 
-    # =================
-    # Phase 1: pre-step
-    # =================
+    # =========================
+    # Phase 1: forward dynamics
+    # =========================
 
-    # TODO: some contact models here may want to perform a dynamic filtering of
-    # the enabled collidable points.
-
-    # Build the references object.
-    # We assume that the link forces are expressed in the frame corresponding to the
-    # velocity representation of the data.
-    references = js.references.JaxSimModelReferences.build(
+    data_t0 = forward(
         model=model,
         data=data,
-        velocity_representation=data.velocity_representation,
         link_forces=link_forces,
         joint_force_references=joint_force_references,
     )

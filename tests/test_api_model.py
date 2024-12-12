@@ -98,6 +98,15 @@ def test_model_creation_and_reduction(
     # Check that the reduced model maintains the same terrain of the full model.
     assert model_full.terrain == model_reduced.terrain
 
+    # Check that the reduced model maintains the same contact model of the full model.
+    assert model_full.contact_model == model_reduced.contact_model
+
+    # Check that the reduced model maintains the same integration step of the full model.
+    assert model_full.time_step == model_reduced.time_step
+
+    # Check that the reduced model maintains the same integrator of the full model.
+    assert model_full.integrator == model_reduced.integrator
+
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,

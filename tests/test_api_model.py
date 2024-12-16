@@ -447,7 +447,7 @@ def test_coriolis_matrix(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
 
         q = jnp.hstack(
-            [data.base_position(), data.base_orientation(), data.joint_positions()]
+            [data.base_position, data.base_orientation(), data.joint_positions()]
         )
 
         return q

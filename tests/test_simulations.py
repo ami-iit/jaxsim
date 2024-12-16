@@ -78,7 +78,7 @@ def test_box_with_external_forces(
         )
 
     # Check that the box didn't move.
-    assert data.base_position() == pytest.approx(data0.base_position())
+    assert data.base_position == pytest.approx(data0.base_position())
     assert data.base_orientation() == pytest.approx(data0.base_orientation())
 
 
@@ -158,7 +158,7 @@ def test_box_with_zero_gravity(
             )
 
     # Check that the box moved as expected.
-    assert data.base_position() == pytest.approx(
+    assert data.base_position == pytest.approx(
         data0.base_position()
         + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
         abs=1e-3,

@@ -232,3 +232,52 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
 
             case _:
                 raise ValueError(other_representation)
+
+
+def convert_mass_matrix(
+    M: jtp.Matrix,
+    base_transform: jtp.Matrix,
+    dofs: jtp.Int,
+    velocity_representation: VelRepr,
+):
+
+    # The mass matrix is always save in body-fixed representation.
+
+    match velocity_representation:
+        case VelRepr.Body:
+            return M
+
+        case VelRepr.Inertial:
+
+            B_X_W = Adjoint.from_transform(transform=base_transform, inverse=True)
+            invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(dofs))
+
+            return invT.T @ M @ invT
+
+        case VelRepr.Mixed:
+
+            BW_H_B = base_transform.at[0:3, 3].set(jnp.zeros(3))
+            B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
+            invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(dofs))
+
+            return invT.T @ M @ invT
+
+
+def convert_jacobian(
+    J: jtp.Matrix,
+    base_transform: jtp.Matrix,
+    dofs: jtp.Int,
+    velocity_representation: VelRepr,
+):
+    # TODO (flferretti): save actual Jacobian instead of full doubly left and perform conversion.
+    return J
+
+
+def convert_jacobian_derivative(
+    Jd: jtp.Matrix,
+    base_transform: jtp.Matrix,
+    dofs: jtp.Int,
+    velocity_representation: VelRepr,
+):
+    # TODO (flferretti): save actual Jacobian derivative instead of full doubly left and perform conversion.
+    return Jd

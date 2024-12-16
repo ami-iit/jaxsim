@@ -242,7 +242,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             )(W_f_L, W_H_L)
 
         # The f_L output is either L_f_L or LW_f_L, depending on the representation.
-        W_H_L = js.model.forward_kinematics(model=model, data=data)
+        W_H_L = data.kyn_dyn.forward_kinematics
         f_L = convert(W_f_L=W_f_L[link_idxs, :], W_H_L=W_H_L[link_idxs, :, :])
 
         return f_L
@@ -450,7 +450,7 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             )(f_L, W_H_L)
 
         # The f_L input is either L_f_L or LW_f_L, depending on the representation.
-        W_H_L = js.model.forward_kinematics(model=model, data=data)
+        W_H_L = data.kyn_dyn.forward_kinematics
         W_f_L = convert_using_link_frame(f_L=f_L, W_H_L=W_H_L[link_idxs, :, :])
 
         return replace(forces=self._link_forces.at[link_idxs, :].set(W_f0_L + W_f_L))

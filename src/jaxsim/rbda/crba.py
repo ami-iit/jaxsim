@@ -4,10 +4,14 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.typing as jtp
 
-from . import utils
 
-
-def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Matrix:
+def crba(
+    model: js.model.JaxSimModel,
+    *,
+    joint_positions: jtp.Vector,
+    joint_transforms,
+    motion_subspaces,
+) -> jtp.Matrix:
     """
     Compute the free-floating mass matrix using the Composite Rigid-Body Algorithm (CRBA).
 
@@ -19,10 +23,6 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
         The free-floating mass matrix of the model in body-fixed representation.
     """
 
-    _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
-        model=model, joint_positions=joint_positions
-    )
-
     # Get the 6D spatial inertia matrices of all links.
     Mc = js.model.link_spatial_inertia_matrices(model=model)
 
@@ -30,12 +30,10 @@ def crba(model: js.model.JaxSimModel, *, joint_positions: jtp.Vector) -> jtp.Mat
     # Note: λ(0) must not be used, it's initialized to -1.
     λ = model.kin_dyn_parameters.parent_array
 
-    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # Extract the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=s, base_transform=jnp.eye(4)
-    )
+    i_X_λi, S = joint_transforms, motion_subspaces
 
     # Allocate the buffer of transforms link -> base.
     i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))

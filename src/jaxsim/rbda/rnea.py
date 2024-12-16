@@ -23,6 +23,8 @@ def rnea(
     joint_accelerations: jtp.Vector | None = None,
     link_forces: jtp.Matrix | None = None,
     standard_gravity: jtp.FloatLike = StandardGravity,
+    joint_transforms,
+    motion_subspaces,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute inverse dynamics using the Recursive Newton-Euler Algorithm (RNEA).
@@ -88,12 +90,10 @@ def rnea(
     W_X_B = W_H_B.adjoint()
     B_X_W = W_H_B.inverse().adjoint()
 
-    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # Extract the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=s, base_transform=W_H_B.as_matrix()
-    )
+    i_X_λi, S = joint_transforms, motion_subspaces
 
     # Allocate buffers.
     v = jnp.zeros(shape=(model.number_of_links(), 6, 1))

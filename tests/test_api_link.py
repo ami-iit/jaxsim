@@ -332,6 +332,9 @@ def test_link_jacobian_derivative(
         data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
         data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
+        # Update the kyn_dyn cache.
+        data_ad = data_ad.update_kyn_dyn(model=model)
+
         O_J_WL_I = js.model.generalized_free_floating_jacobian(
             model=model, data=data_ad
         )
@@ -341,7 +344,7 @@ def test_link_jacobian_derivative(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
 
         q = jnp.hstack(
-            [data.base_position(), data.base_orientation(), data.joint_positions()]
+            [data.base_position, data.base_orientation(), data.joint_positions()]
         )
 
         return q

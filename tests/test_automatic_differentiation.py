@@ -417,13 +417,14 @@ def test_ad_integration(
                     base_linear_velocity=W_v_WB[0:3],
                     base_angular_velocity=W_v_WB[3:6],
                     joint_velocities=ṡ,
+                    number_of_dofs=len(ṡ),
                 ),
                 extended_state={"tangential_deformation": m},
             ),
         )
 
         # Update the kyn_dyn cache.
-        data_x0.update_kyn_dyn(model=model)
+        data_x0 = data_x0.update_kyn_dyn(model=model)
 
         data_xf, _ = js.model.step(
             model=model,

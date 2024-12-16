@@ -320,7 +320,7 @@ class RelaxedRigidContacts(common.ContactModel):
                 )
             )
 
-            M = js.model.free_floating_mass_matrix(model=model, data=data)
+            M = data.kyn_dyn.mass_matrix
 
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, δ: J * (δ > 0))(

@@ -423,7 +423,7 @@ def jacobian_derivative(
     )
 
     O_J̇_WL_I = js.model.generalized_free_floating_jacobian_derivative(
-        model=model, data=data, output_vel_repr=output_vel_repr
+        model=model, data=data
     )[link_index]
 
     return O_J̇_WL_I

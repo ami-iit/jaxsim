@@ -666,13 +666,11 @@ def jacobian_derivative(
         W_J_WL_W = js.model.generalized_free_floating_jacobian(
             model=model,
             data=data,
-            output_vel_repr=VelRepr.Inertial,
         )
         # Compute the Jacobian derivative of the parent link in inertial representation.
         W_J̇_WL_W = js.model.generalized_free_floating_jacobian_derivative(
             model=model,
             data=data,
-            output_vel_repr=VelRepr.Inertial,
         )
 
     # Get the Jacobian of the enabled collidable points in the mixed representation.
@@ -680,7 +678,6 @@ def jacobian_derivative(
         CW_J_WC_BW = jacobian(
             model=model,
             data=data,
-            output_vel_repr=VelRepr.Mixed,
         )
 
     def compute_O_J̇_WC_I(

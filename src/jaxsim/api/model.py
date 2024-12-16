@@ -271,9 +271,9 @@ class JaxSimModel(JaxsimDataclass):
 
                 integrator_cls = integrator
                 integrator = integrator_cls.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
+                    # dynamics=js.ode.wrap_system_dynamics_for_integration(
+                    #     system_dynamics=js.ode.system_dynamics
+                    # )
                 )
 
             case _:
@@ -2217,6 +2217,8 @@ def forward(
     )
 
     data_tf = data.replace(state=state_tf)
+
+    data_tf = data_tf.update_kyn_dyn(model=model)
 
     return data_tf
 

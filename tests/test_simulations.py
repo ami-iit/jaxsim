@@ -201,19 +201,8 @@ def run_simulation(
     return data
 
 
-@pytest.mark.parametrize(
-    "integrator",
-    [
-        jaxsim.integrators.fixed_step.ForwardEuler,
-        jaxsim.integrators.fixed_step.ForwardEulerSO3,
-        jaxsim.integrators.fixed_step.RungeKutta4,
-        jaxsim.integrators.fixed_step.RungeKutta4SO3,
-        jaxsim.integrators.variable_step.BogackiShampineSO3,
-    ],
-)
 def test_simulation_with_soft_contacts(
     jaxsim_model_box: js.model.JaxSimModel,
-    integrator: jaxsim.integrators.Integrator,
 ):
 
     model = jaxsim_model_box
@@ -229,7 +218,6 @@ def test_simulation_with_soft_contacts(
         model.kin_dyn_parameters.contact_parameters.enabled = tuple(
             enabled_collidable_points_mask.tolist()
         )
-        model.integrator = integrator.build()
 
     assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 

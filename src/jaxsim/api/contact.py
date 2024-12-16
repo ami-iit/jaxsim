@@ -42,12 +42,14 @@ def collidable_point_kinematics(
 
         W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
             model=model,
-            base_position=data.base_position(),
+            base_position=data.base_position,
             base_quaternion=data.base_orientation(dcm=False),
             joint_positions=data.joint_positions(model=model),
             base_linear_velocity=data.base_velocity()[0:3],
             base_angular_velocity=data.base_velocity()[3:6],
             joint_velocities=data.joint_velocities(model=model),
+            joint_transforms=data.kyn_dyn.joint_transforms,
+            motion_subspaces=data.kyn_dyn.motion_subspaces,
         )
 
     return W_p_Ci, W_ṗ_Ci
@@ -460,7 +462,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     )[indices_of_enabled_collidable_points]
 
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = js.model.forward_kinematics(model=model, data=data)[
+    W_H_L = data.kyn_dyn.forward_kinematics[
         parent_link_idx_of_enabled_collidable_points
     ]
 
@@ -518,9 +520,7 @@ def jacobian(
     )[indices_of_enabled_collidable_points]
 
     # Compute the Jacobians of all links.
-    W_J_WL = js.model.generalized_free_floating_jacobian(
-        model=model, data=data, output_vel_repr=VelRepr.Inertial
-    )
+    W_J_WL = data.kyn_dyn.jacobian
 
     # Compute the contact Jacobian.
     # In inertial-fixed output representation, the Jacobian of the parent link is also
@@ -612,7 +612,7 @@ def jacobian_derivative(
     ]
 
     # Get the transforms of all the parent links.
-    W_H_Li = js.model.forward_kinematics(model=model, data=data)
+    W_H_Li = data.kyn_dyn.forward_kinematics
 
     # =====================================================
     # Compute quantities to adjust the input representation
@@ -670,17 +670,9 @@ def jacobian_derivative(
 
     with data.switch_velocity_representation(VelRepr.Inertial):
         # Compute the Jacobian of the parent link in inertial representation.
-        W_J_WL_W = js.model.generalized_free_floating_jacobian(
-            model=model,
-            data=data,
-            output_vel_repr=VelRepr.Inertial,
-        )
+        W_J_WL_W = data.kyn_dyn.jacobian
         # Compute the Jacobian derivative of the parent link in inertial representation.
-        W_J̇_WL_W = js.model.generalized_free_floating_jacobian_derivative(
-            model=model,
-            data=data,
-            output_vel_repr=VelRepr.Inertial,
-        )
+        W_J̇_WL_W = data.kyn_dyn.jacobian_derivative
 
     # Get the Jacobian of the enabled collidable points in the mixed representation.
     with data.switch_velocity_representation(VelRepr.Mixed):

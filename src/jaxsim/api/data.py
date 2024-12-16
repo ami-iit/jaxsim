@@ -27,12 +27,30 @@ except ImportError:
 
 
 @jax_dataclasses.pytree_dataclass
+class KynDynComputation:
+
+    jacobian: jtp.Matrix
+
+    jacobian_derivative: jtp.Matrix
+
+    motion_subspaces: jtp.Matrix
+
+    joint_transforms: jtp.Matrix
+
+    mass_matrix: jtp.Matrix
+
+    forward_kinematics: jtp.Matrix
+
+
+@jax_dataclasses.pytree_dataclass
 class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     """
     Class containing the data of a `JaxSimModel` object.
     """
 
     state: ODEState
+
+    kyn_dyn: KynDynComputation
 
     gravity: jtp.Vector
 
@@ -232,11 +250,33 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             else:
                 contacts_params = model.contact_model._parameters_class()
 
+        n = model.dofs()
+        n_fb = n + 6 * model.floating_base()
+
+        jacobian = jnp.zeros((model.number_of_links(), 6, n_fb))
+        jacobian_derivative = jnp.zeros((model.number_of_links(), 6, n_fb))
+        motion_subspaces = jnp.zeros((model.number_of_links(), 6, 1))
+        joint_transforms = jnp.zeros((model.number_of_links(), 6, 6))
+        mass_matrix = jnp.zeros((n_fb, n_fb))
+        forward_kinematics = jnp.zeros((model.number_of_links(), 4, 4))
+
+        kyn_dyn = KynDynComputation(
+            jacobian=jacobian,
+            jacobian_derivative=jacobian_derivative,
+            motion_subspaces=motion_subspaces,
+            joint_transforms=joint_transforms,
+            mass_matrix=mass_matrix,
+            forward_kinematics=forward_kinematics,
+        )
+
+        print(jacobian.shape)
+
         return JaxSimModelData(
             state=ode_state,
             gravity=gravity,
             contacts_params=contacts_params,
             velocity_representation=velocity_representation,
+            kyn_dyn=kyn_dyn,
         )
 
     # ==================
@@ -349,8 +389,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.joint_velocities[joint_idxs]
 
-    @js.common.named_scope
-    @jax.jit
+    @property
     def base_position(self) -> jtp.Vector:
         """
         Get the base position.
@@ -359,7 +398,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             The base position.
         """
 
-        return self.state.physics_model.base_position.squeeze()
+        return self.state.physics_model.base_position
 
     @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["dcm"])
@@ -400,7 +439,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         W_R_B = self.base_orientation(dcm=True)
-        W_p_B = jnp.vstack(self.base_position())
+        W_p_B = jnp.vstack(self.base_position)
 
         return jnp.vstack(
             [

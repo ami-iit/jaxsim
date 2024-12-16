@@ -342,11 +342,11 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
                 ti = t0 + c[i] * Δt
 
                 # Evaluate the dynamics.
-                ki, aux_dict = f(x=xi, t=ti)
-                return ki, aux_dict
+                ki = f(x=xi, t=ti)
+                return ki
 
             # This selector enables FSAL property in the first iteration (i=0).
-            ki, aux_dict = jax.lax.cond(
+            ki = jax.lax.cond(
                 pred=jnp.logical_and(i == 0, self.has_fsal),
                 true_fun=lambda: x0,
                 false_fun=compute_ki,
@@ -357,7 +357,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
             K = jax.tree.map(op, K, ki)
 
             carry = K
-            return carry, aux_dict
+            return carry, None
 
         # Compute the state derivatives kᵢ.
         K, _ = jax.lax.scan(

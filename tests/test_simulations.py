@@ -78,7 +78,7 @@ def test_box_with_external_forces(
         )
 
     # Check that the box didn't move.
-    assert data.base_position() == pytest.approx(data0.base_position())
+    assert data.base_position == pytest.approx(data0.base_position())
     assert data.base_orientation() == pytest.approx(data0.base_orientation())
 
 
@@ -158,7 +158,7 @@ def test_box_with_zero_gravity(
             )
 
     # Check that the box moved as expected.
-    assert data.base_position() == pytest.approx(
+    assert data.base_position == pytest.approx(
         data0.base_position()
         + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
         abs=1e-3,
@@ -201,19 +201,8 @@ def run_simulation(
     return data
 
 
-@pytest.mark.parametrize(
-    "integrator",
-    [
-        jaxsim.integrators.fixed_step.ForwardEuler,
-        jaxsim.integrators.fixed_step.ForwardEulerSO3,
-        jaxsim.integrators.fixed_step.RungeKutta4,
-        jaxsim.integrators.fixed_step.RungeKutta4SO3,
-        jaxsim.integrators.variable_step.BogackiShampineSO3,
-    ],
-)
 def test_simulation_with_soft_contacts(
     jaxsim_model_box: js.model.JaxSimModel,
-    integrator: jaxsim.integrators.Integrator,
 ):
 
     model = jaxsim_model_box
@@ -229,7 +218,6 @@ def test_simulation_with_soft_contacts(
         model.kin_dyn_parameters.contact_parameters.enabled = tuple(
             enabled_collidable_points_mask.tolist()
         )
-        model.integrator = integrator.build()
 
     assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 

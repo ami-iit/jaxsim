@@ -132,7 +132,7 @@ def test_contact_jacobian_derivative(
     # Rebuild the JaxSim data.
     data_with_frames = js.data.JaxSimModelData.build(
         model=model_with_frames,
-        base_position=data.base_position(),
+        base_position=data.base_position,
         base_quaternion=data.base_orientation(dcm=False),
         joint_positions=data.joint_positions(),
         base_linear_velocity=data.base_velocity()[0:3],

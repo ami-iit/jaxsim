@@ -75,7 +75,7 @@ def test_ad_aba(
     g = jaxsim.math.StandardGravity
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()
@@ -129,7 +129,7 @@ def test_ad_rnea(
     g = jaxsim.math.StandardGravity
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()
@@ -217,7 +217,7 @@ def test_ad_fk(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
 
@@ -344,7 +344,7 @@ def test_ad_integration(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()

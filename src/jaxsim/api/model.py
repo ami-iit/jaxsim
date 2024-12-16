@@ -271,9 +271,9 @@ class JaxSimModel(JaxsimDataclass):
 
                 integrator_cls = integrator
                 integrator = integrator_cls.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
+                    # dynamics=js.ode.wrap_system_dynamics_for_integration(
+                    #     system_dynamics=js.ode.system_dynamics
+                    # )
                 )
 
             case _:
@@ -574,9 +574,10 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
 
     W_H_LL = jaxsim.rbda.forward_kinematics_model(
         model=model,
-        base_position=data.base_position(),
+        base_position=data.base_position,
         base_quaternion=data.base_orientation(dcm=False),
         joint_positions=data.joint_positions(model=model),
+        joint_transforms=data.kyn_dyn.joint_transforms,
     )
 
     return jnp.atleast_3d(W_H_LL).astype(float)
@@ -616,6 +617,8 @@ def generalized_free_floating_jacobian(
     B_J_full_WX_B, B_H_L = jaxsim.rbda.jacobian_full_doubly_left(
         model=model,
         joint_positions=data.joint_positions(),
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # ======================================================================
@@ -743,6 +746,8 @@ def generalized_free_floating_jacobian_derivative(
         model=model,
         joint_positions=data.joint_positions(),
         joint_velocities=data.joint_velocities(),
+        # joint_transforms=data.kyn_dyn.joint_transforms,
+        # motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # The derivative of the equation to change the input and output representations
@@ -750,6 +755,8 @@ def generalized_free_floating_jacobian_derivative(
     B_J_full_WL_B, _ = jaxsim.rbda.jacobian_full_doubly_left(
         model=model,
         joint_positions=data.joint_positions(),
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # Compute the actual doubly-left free-floating jacobian derivative of the link
@@ -1005,7 +1012,7 @@ def forward_dynamics_aba(
 
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_B = data.base_position()
+        W_p_B = data.base_position
         W_v_WB = data.base_velocity()
         W_Q_B = data.base_orientation(dcm=False)
         s = data.joint_positions(model=model, joint_names=joint_names)
@@ -1031,6 +1038,8 @@ def forward_dynamics_aba(
         joint_forces=τ,
         link_forces=W_f_L,
         standard_gravity=data.standard_gravity(),
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # =============
@@ -1201,6 +1210,8 @@ def free_floating_mass_matrix(
     M_body = jaxsim.rbda.crba(
         model=model,
         joint_positions=data.state.physics_model.joint_positions,
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     match data.velocity_representation:
@@ -1457,7 +1468,7 @@ def inverse_dynamics(
 
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_B = data.base_position()
+        W_p_B = data.base_position
         W_v_WB = data.base_velocity()
         W_Q_B = data.base_orientation(dcm=False)
         s = data.joint_positions(model=model, joint_names=joint_names)
@@ -1484,6 +1495,8 @@ def inverse_dynamics(
         joint_accelerations=s̈,
         link_forces=W_f_L,
         standard_gravity=data.standard_gravity(),
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # =============
@@ -1792,7 +1805,7 @@ def average_velocity_jacobian(
         case VelRepr.Body:
 
             GB_J = G_J
-            W_p_B = data.base_position()
+            W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
             B_R_W = data.base_orientation(dcm=True).transpose()
 
@@ -1804,7 +1817,7 @@ def average_velocity_jacobian(
         case VelRepr.Mixed:
 
             GW_J = G_J
-            W_p_B = data.base_position()
+            W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
 
             BW_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM - W_p_B)
@@ -2006,11 +2019,11 @@ def link_bias_accelerations(
             )
 
         case VelRepr.Inertial:
-            C_H_L = W_H_L = js.model.forward_kinematics(model=model, data=data)
+            C_H_L = W_H_L = data.kyn_dyn.forward_kinematics
             L_v_CL = L_v_WL
 
         case VelRepr.Mixed:
-            W_H_L = js.model.forward_kinematics(model=model, data=data)
+            W_H_L = data.kyn_dyn.forward_kinematics
             LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
             C_H_L = LW_H_L
             L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
@@ -2181,6 +2194,25 @@ def forward(
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
 ) -> js.data.JaxSimModelData:
+
+    # Kinematics computation.
+    M = js.model.free_floating_mass_matrix(model=model, data=data)
+    J = js.model.generalized_free_floating_jacobian(model=model, data=data)
+    J̇ = js.model.generalized_free_floating_jacobian_derivative(model=model, data=data)
+    i_X_λ, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+        joint_positions=data.joint_positions(), base_transform=data.base_transform()
+    )
+    FK = js.model.forward_kinematics(model=model, data=data)
+    kyn_dyn = js.data.KynDynComputation(
+        jacobian=J,
+        jacobian_derivative=J̇,
+        joint_transforms=i_X_λ,
+        motion_subspaces=S,
+        mass_matrix=M,
+        forward_kinematics=FK,
+    )
+
+    data = data.replace(kyn_dyn=kyn_dyn)
 
     # TODO: some contact models here may want to perform a dynamic filtering of
     # the enabled collidable points.

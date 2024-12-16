@@ -187,7 +187,7 @@ def transform(
         idx=link_index,
     )
 
-    return js.model.forward_kinematics(model=model, data=data)[link_index]
+    return data.kyn_dyn.forward_kinematics[link_index]
 
 
 @jax.jit
@@ -272,10 +272,10 @@ def jacobian(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    # Compute the doubly-left free-floating full jacobian.
-    B_J_full_WX_B, B_H_Li = jaxsim.rbda.jacobian_full_doubly_left(
-        model=model,
-        joint_positions=data.joint_positions(),
+    # Compute the doubly left free-floating full jacobian.
+    B_J_full_WX_B, B_H_Li = (
+        data.kyn_dyn.jacobian_full_doubly_left,
+        data.kyn_dyn.link_body_transforms,
     )
 
     # Compute the actual doubly-left free-floating jacobian of the link.

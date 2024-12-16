@@ -20,9 +20,9 @@ PyTree: object = (
     dict[Hashable, TypeVar("PyTree")]
     | list[TypeVar("PyTree")]
     | tuple[TypeVar("PyTree")]
-    | None
     | jax.Array
     | Any
+    | None
 )
 
 # =======================

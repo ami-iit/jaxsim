@@ -232,3 +232,33 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
 
             case _:
                 raise ValueError(other_representation)
+
+
+def convert_mass_matrix(
+    M: jtp.Matrix,
+    base_transform: jtp.Matrix,
+    dofs: jtp.Int,
+    velocity_representation: VelRepr,
+):
+    # TODO (flferretti): perform the velocity representation conversion here.
+    return M
+
+
+def convert_jacobian(
+    J: jtp.Matrix,
+    base_transform: jtp.Matrix,
+    dofs: jtp.Int,
+    velocity_representation: VelRepr,
+):
+    # TODO (flferretti): save actual Jacobian instead of full doubly left and perform conversion.
+    return J
+
+
+def convert_jacobian_derivative(
+    Jd: jtp.Matrix,
+    base_transform: jtp.Matrix,
+    dofs: jtp.Int,
+    velocity_representation: VelRepr,
+):
+    # TODO (flferretti): save actual Jacobian derivative instead of full doubly left and perform conversion.
+    return Jd

@@ -827,7 +827,7 @@ class ViscoElasticContacts(common.ContactModel):
         """
 
         s_t0 = data.joint_positions()
-        W_p_B_t0 = data.base_position()
+        W_p_B_t0 = data.base_position
         W_Q_B_t0 = data.base_orientation(dcm=False)
 
         ṡ_t0 = data.joint_velocities()
@@ -925,6 +925,8 @@ class ViscoElasticContacts(common.ContactModel):
             W_ν_plus[0:6], velocity_representation=jaxsim.VelRepr.Inertial
         )
 
+        data_tf = data_tf.update_kyn_dyn(model=model)
+
         return data_tf.replace(
             velocity_representation=data.velocity_representation, validate=False
         )
@@ -1005,7 +1007,7 @@ def step(
 
     # Compute the link transforms.
     W_H_L = (
-        js.model.forward_kinematics(model=model, data=data)
+        data.kyn_dyn.forward_kinematics
         if data.velocity_representation is not jaxsim.VelRepr.Inertial
         else jnp.zeros(shape=(model.number_of_links(), 4, 4))
     )

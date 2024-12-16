@@ -79,7 +79,7 @@ def test_box_with_external_forces(
         )
 
     # Check that the box didn't move.
-    assert data.base_position() == pytest.approx(data0.base_position())
+    assert data.base_position == pytest.approx(data0.base_position)
     assert data.base_orientation() == pytest.approx(data0.base_orientation())
 
 
@@ -159,8 +159,8 @@ def test_box_with_zero_gravity(
             )
 
     # Check that the box moved as expected.
-    assert data.base_position() == pytest.approx(
-        data0.base_position()
+    assert data.base_position == pytest.approx(
+        data0.base_position
         + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
         abs=1e-3,
     )
@@ -264,8 +264,8 @@ def test_simulation_with_soft_contacts(
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
 
-    assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
+    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
+    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
 
 
 def test_simulation_with_visco_elastic_contacts(
@@ -304,8 +304,8 @@ def test_simulation_with_visco_elastic_contacts(
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
 
-    assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
+    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
+    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
 
 
 def test_simulation_with_rigid_contacts(
@@ -356,8 +356,8 @@ def test_simulation_with_rigid_contacts(
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
 
-    assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
+    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
+    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
 
 
 def test_simulation_with_relaxed_rigid_contacts(
@@ -410,10 +410,10 @@ def test_simulation_with_relaxed_rigid_contacts(
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
 
     # With this contact model, we need to slightly increase the tolerances.
-    assert data_tf.base_position()[0:2] == pytest.approx(
-        data_t0.base_position()[0:2], abs=0.000_010
+    assert data_tf.base_position[0:2] == pytest.approx(
+        data_t0.base_position[0:2], abs=0.000_010
     )
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(
+    assert data_tf.base_position[2] + max_penetration == pytest.approx(
         box_height / 2, abs=0.000_100
     )
 
@@ -455,6 +455,9 @@ def test_joint_limits(
     # Test minimum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
 
+    # Update the kyn_dyn cache.
+    data_t0 = data_t0.update_kyn_dyn(model=model)
+
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
 
     assert (
@@ -464,6 +467,9 @@ def test_joint_limits(
 
     # Test maximum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
+
+    # Update the kyn_dyn cache.
+    data_t0 = data_t0.update_kyn_dyn(model=model)
 
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
 

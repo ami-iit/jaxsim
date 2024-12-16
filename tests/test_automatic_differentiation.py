@@ -76,11 +76,13 @@ def test_ad_aba(
     g = jaxsim.math.StandardGravity
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
+    i_X_λ = data.kyn_dyn.joint_transforms
+    S = data.kyn_dyn.motion_subspaces
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -102,6 +104,8 @@ def test_ad_aba(
         joint_forces=τ,
         link_forces=W_f_L,
         standard_gravity=g,
+        joint_transforms=i_X_λ,
+        motion_subspaces=S,
     )
 
     # Check derivatives against finite differences.
@@ -130,11 +134,13 @@ def test_ad_rnea(
     g = jaxsim.math.StandardGravity
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()
     ṡ = data.joint_velocities(model=model)
+    i_X_λ = data.kyn_dyn.joint_transforms
+    S = data.kyn_dyn.motion_subspaces
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -161,12 +167,24 @@ def test_ad_rnea(
         joint_accelerations=s̈,
         link_forces=W_f_L,
         standard_gravity=g,
+        joint_transforms=i_X_λ,
+        motion_subspaces=S,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=rnea,
-        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, W_v̇_WB, s̈, W_f_L, g),
+        args=(
+            W_p_B,
+            W_Q_B,
+            s,
+            W_v_WB,
+            ṡ,
+            W_v̇_WB,
+            s̈,
+            W_f_L,
+            g,
+        ),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
@@ -187,13 +205,20 @@ def test_ad_crba(
 
     # State in VelRepr.Inertial representation.
     s = data.joint_positions(model=model)
+    i_X_λ = data.kyn_dyn.joint_transforms
+    S = data.kyn_dyn.motion_subspaces
 
     # ====
     # Test
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    crba = lambda s: jaxsim.rbda.crba(model=model, joint_positions=s)
+    crba = lambda s: jaxsim.rbda.crba(
+        model=model,
+        joint_positions=s,
+        joint_transforms=i_X_λ,
+        motion_subspaces=S,
+    )
 
     # Check derivatives against finite differences.
     check_grads(
@@ -218,26 +243,28 @@ def test_ad_fk(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
+    i_X_λ = data.kyn_dyn.joint_transforms
 
     # ====
     # Test
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    fk = lambda W_p_B, W_Q_B, s: jaxsim.rbda.forward_kinematics_model(
+    fk = lambda W_p_B, W_Q_B: jaxsim.rbda.forward_kinematics_model(
         model=model,
         base_position=W_p_B,
         base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
+        joint_transforms=i_X_λ,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=fk,
-        args=(W_p_B, W_Q_B, s),
+        args=(W_p_B, W_Q_B),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
@@ -258,6 +285,8 @@ def test_ad_jacobian(
 
     # State in VelRepr.Inertial representation.
     s = data.joint_positions(model=model)
+    i_X_λ = data.kyn_dyn.joint_transforms
+    S = data.kyn_dyn.motion_subspaces
 
     # ====
     # Test
@@ -270,7 +299,11 @@ def test_ad_jacobian(
     # We differentiate the jacobian of the last link, likely among those
     # farther from the base.
     jacobian = lambda s: jaxsim.rbda.jacobian(
-        model=model, joint_positions=s, link_index=link_indices[-1]
+        model=model,
+        joint_positions=s,
+        link_index=link_indices[-1],
+        joint_transforms=i_X_λ,
+        motion_subspaces=S,
     )
 
     # Check derivatives against finite differences.
@@ -345,7 +378,7 @@ def test_ad_integration(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions(model=model)
     W_v_WB = data.base_velocity()
@@ -390,6 +423,9 @@ def test_ad_integration(
             ),
         )
 
+        # Update the kyn_dyn cache.
+        data_x0.update_kyn_dyn(model=model)
+
         data_xf, _ = js.model.step(
             model=model,
             data=data_x0,
@@ -397,7 +433,7 @@ def test_ad_integration(
             link_forces=W_f_L,
         )
 
-        xf_W_p_B = data_xf.base_position()
+        xf_W_p_B = data_xf.base_position
         xf_W_Q_B = data_xf.base_orientation(dcm=False)
         xf_s = data_xf.joint_positions(model=model)
         xf_W_v_WB = data_xf.base_velocity()

@@ -13,17 +13,145 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
 from . import common
-from .common import VelRepr
+from .common import (
+    VelRepr,
+    convert_jacobian,
+    convert_jacobian_derivative,
+    convert_mass_matrix,
+)
 from .ode_data import ODEState
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
+
+
+class KynDynProxy:
+    """
+    Proxy class for KynDynComputation that ensures attribute-specific
+    velocity representation consistency.
+    """
+
+    _data: JaxSimModelData
+    _kyn_dyn: KynDynComputation
+
+    def __init__(self, data, kyn_dyn):
+        self._data = data
+        self._kyn_dyn = kyn_dyn
+
+    def __convert_attribute(self, value, name):
+
+        if name in [
+            "motion_subspaces",
+            "joint_transforms",
+            "forward_kinematics",
+            "velocity_representation",
+            "link_body_transforms",
+            "collidable_point_positions",
+            "collidable_point_velocities",
+        ]:
+            return value
+
+        W_R_B = jaxsim.math.Quaternion.to_dcm(
+            self._data.state.physics_model.base_quaternion
+        )
+        W_p_B = jnp.vstack(self._data.state.physics_model.base_position)
+
+        W_H_B = jnp.vstack(
+            [
+                jnp.block([W_R_B, W_p_B]),
+                jnp.array([0, 0, 0, 1]),
+            ]
+        )
+
+        match name:
+
+            case "jacobian_full_doubly_left":
+                if (
+                    self._data.velocity_representation
+                    != self._kyn_dyn.velocity_representation
+                ):
+                    value = convert_jacobian(
+                        J=value,
+                        dofs=len(self._data.state.physics_model.joint_positions),
+                        base_transform=W_H_B,
+                        velocity_representation=self._data.velocity_representation,
+                    )
+
+            case "jacobian_derivative_full_doubly_left":
+                if (
+                    self._data.velocity_representation
+                    != self._kyn_dyn.velocity_representation
+                ):
+                    value = convert_jacobian_derivative(
+                        Jd=value,
+                        dofs=len(self._data.state.physics_model.joint_positions),
+                        base_transform=W_H_B,
+                        velocity_representation=self._data.velocity_representation,
+                    )
+
+            case "mass_matrix":
+                if (
+                    self._data.velocity_representation
+                    != self._kyn_dyn.velocity_representation
+                ):
+                    value = convert_mass_matrix(
+                        M=value,
+                        dofs=len(self._data.state.physics_model.joint_positions),
+                        base_transform=W_H_B,
+                        velocity_representation=self._data.velocity_representation,
+                    )
+
+            case _:
+                raise AttributeError(
+                    f"'{type(self._kyn_dyn).__name__}' object has no attribute '{name}'"
+                )
+
+        return value
+
+    def __getattr__(self, name: str):
+
+        if name in ["_data", "_kyn_dyn"]:
+            return super().__getattribute__(name)
+
+        value = getattr(self._kyn_dyn, name)
+
+        return self.__convert_attribute(value=value, name=name)
+
+    def __setattr__(self, name, value):
+
+        if name in ["_data", "_kyn_dyn"]:
+            return super().__setattr__(name, value)
+
+        value = self.__convert_attribute(value=value, name=name)
+
+        # Push the update to JaxSimModelData.
+        self._data._update_kyn_dyn(name, value)
+
+
+@jax_dataclasses.pytree_dataclass
+class KynDynComputation(common.ModelDataWithVelocityRepresentation):
+    motion_subspaces: jtp.Matrix
+
+    joint_transforms: jtp.Matrix
+
+    forward_kinematics: jtp.Matrix
+
+    jacobian_full_doubly_left: jtp.Matrix
+
+    jacobian_derivative_full_doubly_left: jtp.Matrix
+
+    link_body_transforms: jtp.Matrix
+
+    collidable_point_positions: jtp.Matrix
+
+    collidable_point_velocities: jtp.Matrix
+
+    mass_matrix: jtp.Matrix
 
 
 @jax_dataclasses.pytree_dataclass
@@ -37,6 +165,41 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     gravity: jtp.Vector
 
     contacts_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(repr=False)
+
+    _kyn_dyn: KynDynComputation | None = dataclasses.field(default=None, repr=False)
+
+    _kyn_dyn_stale: jtp.Array = dataclasses.field(
+        repr=False, default_factory=lambda: jnp.array(0, dtype=bool)
+    )
+
+    @property
+    def kyn_dyn(self):
+
+        jaxsim.exceptions.raise_runtime_error_if(
+            self._kyn_dyn_stale,
+            msg="The `kyn_dyn` cache is invalid, please call the `update_kyn_dyn` method after resetting the `JaxSimModelData` state.",
+        )
+
+        # Return proxy object that handles attribute-specific conversions.
+        return KynDynProxy(data=self, kyn_dyn=self._kyn_dyn)
+
+    @kyn_dyn.setter
+    def kyn_dyn(self, new_kyn_dyn: KynDynComputation):
+
+        if not isinstance(new_kyn_dyn, KynDynComputation):
+            raise ValueError("kyn_dyn must be an instance of KynDynComputation")
+
+        self._kyn_dyn = new_kyn_dyn
+
+    def _update_kyn_dyn(self, name: str, value):
+        """
+        Update a specific attribute of `_kyn_dyn` and reset the instance immutably.
+        """
+        # Replace the specific attribute in `_kyn_dyn`.
+        updated_kyn_dyn = self._kyn_dyn.replace(**{name: value})
+
+        # Update `_kyn_dyn` immutably.
+        object.__setattr__(self, "_kyn_dyn", updated_kyn_dyn)
 
     def __hash__(self) -> int:
 
@@ -232,11 +395,76 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             else:
                 contacts_params = model.contact_model._parameters_class()
 
+        base_orientation = jaxsim.math.Quaternion.to_dcm(base_quaternion)
+
+        base_transform = jnp.vstack(
+            [
+                jnp.block([base_orientation, jnp.vstack(base_position)]),
+                jnp.array([0, 0, 0, 1]),
+            ]
+        )
+
+        i_X_λ, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+            joint_positions=joint_positions, base_transform=base_transform
+        )
+
+        M = jaxsim.rbda.crba(
+            model=model,
+            joint_positions=joint_positions,
+            joint_transforms=i_X_λ,
+            motion_subspaces=S,
+        )
+        J, _ = jaxsim.rbda.jacobian_full_doubly_left(
+            model=model,
+            joint_positions=joint_positions,
+            joint_transforms=i_X_λ,
+            motion_subspaces=S,
+        )
+        J̇, B_H_LL = jaxsim.rbda.jacobian_derivative_full_doubly_left(
+            model=model,
+            joint_positions=joint_positions,
+            joint_velocities=joint_velocities,
+        )
+
+        W_H_LL = jaxsim.rbda.forward_kinematics_model(
+            model=model,
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            joint_transforms=i_X_λ,
+        )
+
+        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+            model=model,
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            base_linear_velocity=v_WB[0:3],
+            base_angular_velocity=v_WB[3:6],
+            joint_velocities=joint_velocities,
+            joint_transforms=i_X_λ,
+            motion_subspaces=S,
+        )
+
+        kyn_dyn = KynDynComputation(
+            velocity_representation=velocity_representation,
+            jacobian_full_doubly_left=J,
+            jacobian_derivative_full_doubly_left=J̇,
+            link_body_transforms=B_H_LL,
+            motion_subspaces=S,
+            joint_transforms=i_X_λ,
+            mass_matrix=M,
+            forward_kinematics=W_H_LL,
+            collidable_point_positions=W_p_Ci,
+            collidable_point_velocities=W_ṗ_Ci,
+        )
+
         return JaxSimModelData(
             state=ode_state,
             gravity=gravity,
             contacts_params=contacts_params,
             velocity_representation=velocity_representation,
+            _kyn_dyn=kyn_dyn,
         )
 
     # ==================
@@ -287,12 +515,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
             return self.state.physics_model.joint_positions
 
-        if not_tracing(self.state.physics_model.joint_positions) and not self.valid(
-            model=model
-        ):
-            msg = "The data object is not compatible with the provided model"
-            raise ValueError(msg)
-
         joint_idxs = (
             js.joint.names_to_idxs(joint_names=joint_names, model=model)
             if joint_names is not None
@@ -335,12 +557,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
             return self.state.physics_model.joint_velocities
 
-        if not_tracing(self.state.physics_model.joint_velocities) and not self.valid(
-            model=model
-        ):
-            msg = "The data object is not compatible with the provided model"
-            raise ValueError(msg)
-
         joint_idxs = (
             js.joint.names_to_idxs(joint_names=joint_names, model=model)
             if joint_names is not None
@@ -349,8 +565,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.joint_velocities[joint_idxs]
 
-    @js.common.named_scope
-    @jax.jit
+    @property
     def base_position(self) -> jtp.Vector:
         """
         Get the base position.
@@ -359,7 +574,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             The base position.
         """
 
-        return self.state.physics_model.base_position.squeeze()
+        return self.state.physics_model.base_position
 
     @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["dcm"])
@@ -400,7 +615,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         W_R_B = self.base_orientation(dcm=True)
-        W_p_B = jnp.vstack(self.base_position())
+        W_p_B = jnp.vstack(self.base_position)
 
         return jnp.vstack(
             [
@@ -428,16 +643,12 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         W_H_B = self.base_transform()
 
-        return (
-            JaxSimModelData.inertial_to_other_representation(
-                array=W_v_WB,
-                other_representation=self.velocity_representation,
-                transform=W_H_B,
-                is_force=False,
-            )
-            .squeeze()
-            .astype(float)
-        )
+        return JaxSimModelData.inertial_to_other_representation(
+            array=W_v_WB,
+            other_representation=self.velocity_representation,
+            transform=W_H_B,
+            is_force=False,
+        ).astype(float)
 
     @js.common.named_scope
     @jax.jit
@@ -504,6 +715,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                         joint_positions=jnp.atleast_1d(s.squeeze()).astype(float)
                     )
                 ),
+                _kyn_dyn_stale=jnp.array(1, dtype=bool),
             )
 
         if model is None:
@@ -553,6 +765,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                         joint_velocities=jnp.atleast_1d(ṡ.squeeze()).astype(float)
                     )
                 ),
+                _kyn_dyn_stale=jnp.array(1, dtype=bool),
             )
 
         if model is None:
@@ -594,6 +807,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                     base_position=jnp.atleast_1d(base_position.squeeze()).astype(float)
                 )
             ),
+            _kyn_dyn_stale=jnp.array(1, dtype=bool),
         )
 
     @js.common.named_scope
@@ -619,6 +833,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             state=self.state.replace(
                 physics_model=self.state.physics_model.replace(base_quaternion=W_Q_B)
             ),
+            _kyn_dyn_stale=jnp.array(1, dtype=bool),
         )
 
     @js.common.named_scope
@@ -751,7 +966,90 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                     base_angular_velocity=W_v_WB[3:6].squeeze().astype(float),
                 )
             ),
+            _kyn_dyn_stale=jnp.array(1, dtype=bool),
         )
+
+    @js.common.named_scope
+    @jax.jit
+    def update_kyn_dyn(
+        self,
+        model: js.model.JaxSimModel,
+    ) -> KynDynComputation:
+        """
+        Updates the `kyn_dyn` attribute of `JaxSimModelData`.
+
+        Args:
+            model: The model to consider.
+
+        Returns:
+            An instance of `JaxSimModelData` with the updated `kyn_dyn` attribute.
+        """
+
+        base_quaternion = self.base_orientation(dcm=False)
+        base_transform = self.base_transform()
+        joint_positions = self.joint_positions()
+        joint_velocities = self.joint_velocities()
+
+        i_X_λ, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+            joint_positions=joint_positions, base_transform=base_transform
+        )
+
+        M = jaxsim.rbda.crba(
+            model=model,
+            joint_positions=joint_positions,
+            joint_transforms=i_X_λ,
+            motion_subspaces=S,
+        )
+
+        J, _ = jaxsim.rbda.jacobian_full_doubly_left(
+            model=model,
+            joint_positions=joint_positions,
+            joint_transforms=i_X_λ,
+            motion_subspaces=S,
+        )
+
+        J̇, B_H_LL = jaxsim.rbda.jacobian_derivative_full_doubly_left(
+            model=model,
+            joint_positions=joint_positions,
+            joint_velocities=joint_velocities,
+        )
+
+        W_H_LL = jaxsim.rbda.forward_kinematics_model(
+            model=model,
+            base_position=base_transform[:3, 3],
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            joint_transforms=i_X_λ,
+        )
+
+        with self.switch_velocity_representation(VelRepr.Inertial) as data:
+            base_velocity = data.base_velocity()
+
+            W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+                model=model,
+                base_position=base_transform[:3, 3],
+                base_quaternion=base_quaternion,
+                joint_positions=joint_positions,
+                base_linear_velocity=base_velocity[0:3],
+                base_angular_velocity=base_velocity[3:6],
+                joint_velocities=joint_velocities,
+                joint_transforms=i_X_λ,
+                motion_subspaces=S,
+            )
+
+        data = self.replace(_kyn_dyn_stale=jnp.array(0, dtype=bool))
+
+        data.kyn_dyn.jacobian_full_doubly_left = J
+        data.kyn_dyn.jacobian_derivative_full_doubly_left = J̇
+        data.kyn_dyn.link_body_transforms = B_H_LL
+        data.kyn_dyn.motion_subspaces = S
+        data.kyn_dyn.joint_transforms = i_X_λ
+        data.kyn_dyn.mass_matrix = M
+        data.kyn_dyn.forward_kinematics = W_H_LL
+        data.kyn_dyn.collidable_point_positions = W_p_Ci
+        data.kyn_dyn.collidable_point_velocities = W_ṗ_Ci
+
+        return data
 
 
 @functools.partial(jax.jit, static_argnames=["velocity_representation", "base_rpy_seq"])
@@ -831,74 +1129,60 @@ def random_model_data(
     ω_max = jnp.array(base_vel_ang_bounds[1], dtype=float)
     ṡ_min, ṡ_max = joint_vel_bounds
 
-    random_data = JaxSimModelData.zero(
-        model=model,
-        **(
-            dict(velocity_representation=velocity_representation)
-            if velocity_representation is not None
-            else {}
-        ),
+    base_position = jax.random.uniform(key=k1, shape=(3,), minval=p_min, maxval=p_max)
+
+    base_quaternion = jaxsim.math.Quaternion.to_wxyz(
+        xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
+            seq=base_rpy_seq,
+            angles=jax.random.uniform(
+                key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
+            ),
+        ).as_quat()
     )
 
-    with random_data.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
+    (
+        joint_positions,
+        joint_velocities,
+        base_linear_velocity,
+        base_angular_velocity,
+        standard_gravity,
+        contacts_params,
+    ) = (None,) * 6
 
-        physics_model_state = random_data.state.physics_model
+    if model.number_of_joints() > 0:
 
-        physics_model_state.base_position = jax.random.uniform(
-            key=k1, shape=(3,), minval=p_min, maxval=p_max
+        s_min, s_max = (
+            jnp.array(joint_pos_bounds, dtype=float)
+            if joint_pos_bounds is not None
+            else (None, None)
         )
 
-        physics_model_state.base_quaternion = jaxsim.math.Quaternion.to_wxyz(
-            xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
-                seq=base_rpy_seq,
-                angles=jax.random.uniform(
-                    key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
-                ),
-            ).as_quat()
+        joint_positions = (
+            js.joint.random_joint_positions(model=model, key=k3)
+            if (s_min is None or s_max is None)
+            else jax.random.uniform(
+                key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
+            )
         )
 
-        if model.number_of_joints() > 0:
+        joint_velocities = jax.random.uniform(
+            key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+        )
 
-            s_min, s_max = (
-                jnp.array(joint_pos_bounds, dtype=float)
-                if joint_pos_bounds is not None
-                else (None, None)
-            )
+    if model.floating_base():
+        base_linear_velocity = jax.random.uniform(
+            key=k5, shape=(3,), minval=v_min, maxval=v_max
+        )
 
-            physics_model_state.joint_positions = (
-                js.joint.random_joint_positions(model=model, key=k3)
-                if (s_min is None or s_max is None)
-                else jax.random.uniform(
-                    key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
-                )
-            )
+        base_angular_velocity = jax.random.uniform(
+            key=k6, shape=(3,), minval=ω_min, maxval=ω_max
+        )
 
-            physics_model_state.joint_velocities = jax.random.uniform(
-                key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
-            )
-
-        if model.floating_base():
-            physics_model_state.base_linear_velocity = jax.random.uniform(
-                key=k5, shape=(3,), minval=v_min, maxval=v_max
-            )
-
-            physics_model_state.base_angular_velocity = jax.random.uniform(
-                key=k6, shape=(3,), minval=ω_min, maxval=ω_max
-            )
-
-        random_data.gravity = (
-            jnp.zeros(3, dtype=random_data.gravity.dtype)
-            .at[2]
-            .set(
-                -jax.random.uniform(
-                    key=k7,
-                    shape=(),
-                    minval=standard_gravity_bounds[0],
-                    maxval=standard_gravity_bounds[1],
-                )
-            )
+        standard_gravity = jax.random.uniform(
+            key=k7,
+            shape=(),
+            minval=standard_gravity_bounds[0],
+            maxval=standard_gravity_bounds[1],
         )
 
         if contacts_params is None:
@@ -909,17 +1193,29 @@ def random_model_data(
                 | jaxsim.rbda.contacts.ViscoElasticContacts,
             ):
 
-                random_data = random_data.replace(
-                    contacts_params=js.contact.estimate_good_contact_parameters(
-                        model=model, standard_gravity=random_data.gravity
-                    ),
-                    validate=False,
+                contacts_params = js.contact.estimate_good_contact_parameters(
+                    model=model, standard_gravity=standard_gravity
                 )
-
             else:
-                random_data = random_data.replace(
-                    contacts_params=model.contact_model._parameters_class(),
-                    validate=False,
-                )
+                contacts_params = model.contact_model._parameters_class()
 
-    return random_data
+    return JaxSimModelData.build(
+        model=model,
+        base_position=base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=joint_positions,
+        joint_velocities=joint_velocities,
+        base_linear_velocity=base_linear_velocity,
+        base_angular_velocity=base_angular_velocity,
+        contacts_params=contacts_params,
+        **(
+            {"standard_gravity": standard_gravity}
+            if standard_gravity is not None
+            else {}
+        ),
+        **(
+            {"velocity_representation": velocity_representation}
+            if velocity_representation is not None
+            else {}
+        ),
+    )

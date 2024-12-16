@@ -110,7 +110,7 @@ def test_model_creation_and_reduction(
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,
-        base_position=data_full.base_position(),
+        base_position=data_full.base_position,
         base_quaternion=data_full.base_orientation(dcm=False),
         joint_positions=data_full.joint_positions(
             model=model_full, joint_names=model_reduced.joint_names()
@@ -284,6 +284,7 @@ def test_model_rbda(
     model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
+
     data = js.data.random_model_data(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
@@ -440,6 +441,9 @@ def test_coriolis_matrix(
         data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
         data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
+        # Update the kyn_dyn cache.
+        data_ad = data_ad.update_kyn_dyn(model=model)
+
         M = js.model.free_floating_mass_matrix(model=model, data=data_ad)
 
         return M
@@ -447,7 +451,7 @@ def test_coriolis_matrix(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
 
         q = jnp.hstack(
-            [data.base_position(), data.base_orientation(), data.joint_positions()]
+            [data.base_position, data.base_orientation(), data.joint_positions()]
         )
 
         return q

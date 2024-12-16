@@ -26,7 +26,7 @@ def com_position(
 
     m = js.model.total_mass(model=model)
 
-    W_H_L = js.model.forward_kinematics(model=model, data=data)
+    W_H_L = data.kyn_dyn.forward_kinematics
     W_H_B = data.base_transform()
     B_H_W = jaxsim.math.Transform.inverse(transform=W_H_B)
 
@@ -269,7 +269,7 @@ def bias_acceleration(
     """
 
     # Compute the pose of all links with forward kinematics.
-    W_H_L = js.model.forward_kinematics(model=model, data=data)
+    W_H_L = data.kyn_dyn.forward_kinematics
 
     # Compute the bias acceleration of all links by zeroing the generalized velocity
     # in the active representation.

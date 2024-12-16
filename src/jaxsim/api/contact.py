@@ -40,15 +40,8 @@ def collidable_point_kinematics(
     # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
 
-        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
-            model=model,
-            base_position=data.base_position(),
-            base_quaternion=data.base_orientation(dcm=False),
-            joint_positions=data.joint_positions(model=model),
-            base_linear_velocity=data.base_velocity()[0:3],
-            base_angular_velocity=data.base_velocity()[3:6],
-            joint_velocities=data.joint_velocities(model=model),
-        )
+        W_p_Ci = data.kyn_dyn.collidable_point_positions
+        W_ṗ_Ci = data.kyn_dyn.collidable_point_velocities
 
     return W_p_Ci, W_ṗ_Ci
 
@@ -463,7 +456,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     )[indices_of_enabled_collidable_points]
 
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = js.model.forward_kinematics(model=model, data=data)[
+    W_H_L = data.kyn_dyn.forward_kinematics[
         parent_link_idx_of_enabled_collidable_points
     ]
 
@@ -615,7 +608,7 @@ def jacobian_derivative(
     ]
 
     # Get the transforms of all the parent links.
-    W_H_Li = js.model.forward_kinematics(model=model, data=data)
+    W_H_Li = data.kyn_dyn.forward_kinematics
 
     # =====================================================
     # Compute quantities to adjust the input representation

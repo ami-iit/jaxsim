@@ -549,12 +549,7 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
         The first axis is the link index.
     """
 
-    W_H_LL = jaxsim.rbda.forward_kinematics_model(
-        model=model,
-        base_position=data.base_position(),
-        base_quaternion=data.base_orientation(dcm=False),
-        joint_positions=data.joint_positions(model=model),
-    )
+    W_H_LL = data.kyn_dyn.forward_kinematics
 
     return jnp.atleast_3d(W_H_LL).astype(float)
 
@@ -590,9 +585,9 @@ def generalized_free_floating_jacobian(
     )
 
     # Compute the doubly-left free-floating full jacobian.
-    B_J_full_WX_B, B_H_L = jaxsim.rbda.jacobian_full_doubly_left(
-        model=model,
-        joint_positions=data.joint_positions(),
+    B_J_full_WX_B, B_H_L = (
+        data.kyn_dyn.jacobian_full_doubly_left,
+        data.kyn_dyn.link_body_transforms,
     )
 
     # ======================================================================
@@ -716,25 +711,20 @@ def generalized_free_floating_jacobian_derivative(
     )
 
     # Compute the derivative of the doubly-left free-floating full jacobian.
-    B_J̇_full_WX_B, B_H_L = jaxsim.rbda.jacobian_derivative_full_doubly_left(
-        model=model,
-        joint_positions=data.joint_positions(),
-        joint_velocities=data.joint_velocities(),
+    B_J̇_full_WX_B, B_H_L = (
+        data.kyn_dyn.jacobian_derivative_full_doubly_left,
+        data.kyn_dyn.link_body_transforms,
     )
 
     # The derivative of the equation to change the input and output representations
     # of the Jacobian derivative needs the computation of the plain link Jacobian.
-    B_J_full_WL_B, _ = jaxsim.rbda.jacobian_full_doubly_left(
-        model=model,
-        joint_positions=data.joint_positions(),
-    )
+    B_J_full_WL_B = data.kyn_dyn.jacobian_full_doubly_left
 
     # Compute the actual doubly-left free-floating jacobian derivative of the link
     # by zeroing the columns not in the path π_B(L) using the boolean κ(i).
     κb = model.kin_dyn_parameters.support_body_array_bool
 
-    # Compute the base transform.
-    W_H_B = data.base_transform()
+    W_H_B = data.kyn_dyn.base_transform
 
     # We add the 5 columns of ones to the Jacobian derivative to account for the
     # base velocity and acceleration (5 + number of links = 6 + number of joints).
@@ -979,7 +969,7 @@ def forward_dynamics_aba(
 
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_B = data.base_position()
+        W_p_B = data.base_position
         W_v_WB = data.base_velocity()
         W_Q_B = data.base_orientation(dcm=False)
         s = data.joint_positions(model=model, joint_names=joint_names)
@@ -1005,6 +995,8 @@ def forward_dynamics_aba(
         joint_forces=τ,
         link_forces=W_f_L,
         standard_gravity=data.standard_gravity(),
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # =============
@@ -1172,10 +1164,7 @@ def free_floating_mass_matrix(
         The free-floating mass matrix of the model.
     """
 
-    M_body = jaxsim.rbda.crba(
-        model=model,
-        joint_positions=data.state.physics_model.joint_positions,
-    )
+    M_body = data.kyn_dyn.mass_matrix
 
     match data.velocity_representation:
         case VelRepr.Body:
@@ -1431,7 +1420,7 @@ def inverse_dynamics(
 
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_B = data.base_position()
+        W_p_B = data.base_position
         W_v_WB = data.base_velocity()
         W_Q_B = data.base_orientation(dcm=False)
         s = data.joint_positions(model=model, joint_names=joint_names)
@@ -1458,6 +1447,8 @@ def inverse_dynamics(
         joint_accelerations=s̈,
         link_forces=W_f_L,
         standard_gravity=data.standard_gravity(),
+        joint_transforms=data.kyn_dyn.joint_transforms,
+        motion_subspaces=data.kyn_dyn.motion_subspaces,
     )
 
     # =============
@@ -1512,6 +1503,8 @@ def free_floating_gravity_forces(
         data_rnea.state.physics_model.joint_positions = (
             data.state.physics_model.joint_positions
         )
+
+    data_rnea = data_rnea.update_kyn_dyn(model=model)
 
     return jnp.hstack(
         inverse_dynamics(
@@ -1577,6 +1570,8 @@ def free_floating_bias_forces(
             data_rnea.state.physics_model.base_angular_velocity = (
                 data.state.physics_model.base_angular_velocity
             )
+
+    data_rnea = data_rnea.update_kyn_dyn(model=model)
 
     return jnp.hstack(
         inverse_dynamics(
@@ -1766,7 +1761,7 @@ def average_velocity_jacobian(
         case VelRepr.Body:
 
             GB_J = G_J
-            W_p_B = data.base_position()
+            W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
             B_R_W = data.base_orientation(dcm=True).transpose()
 
@@ -1778,7 +1773,7 @@ def average_velocity_jacobian(
         case VelRepr.Mixed:
 
             GW_J = G_J
-            W_p_B = data.base_position()
+            W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
 
             BW_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM - W_p_B)
@@ -1980,11 +1975,11 @@ def link_bias_accelerations(
             )
 
         case VelRepr.Inertial:
-            C_H_L = W_H_L = js.model.forward_kinematics(model=model, data=data)
+            C_H_L = W_H_L = data.kyn_dyn.forward_kinematics
             L_v_CL = L_v_WL
 
         case VelRepr.Mixed:
-            W_H_L = js.model.forward_kinematics(model=model, data=data)
+            W_H_L = data.kyn_dyn.forward_kinematics
             LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
             C_H_L = LW_H_L
             L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
@@ -2254,7 +2249,7 @@ def step(
         f_L = references.link_forces(model=model, data=data)
         τ_references = references.joint_force_references(model=model)
 
-    # Step the dynamics forward.
+    # Integrate the system dynamics.
     state_tf, integrator_metadata_tf = integrator.step(
         x0=state_t0,
         t0=t0,
@@ -2284,6 +2279,8 @@ def step(
     # ==================
     # Phase 3: post-step
     # ==================
+
+    data_tf = data_tf.update_kyn_dyn(model=model)
 
     # Post process the simulation state, if needed.
     match model.contact_model:
@@ -2341,6 +2338,12 @@ def step(
                 # Reset the generalized velocity.
                 data_tf = data_tf.reset_base_velocity(BW_ν_post_impact[0:6])
                 data_tf = data_tf.reset_joint_velocities(BW_ν_post_impact[6:])
+
+                # Update the kyn_dyn cache.
+                data_tf = data_tf.update_kyn_dyn(model=model)
+
+                # Update the kyn_dyn cache.
+                data_tf = data_tf.update_kyn_dyn(model=model)
 
     # Restore the input velocity representation.
     data_tf = data_tf.replace(

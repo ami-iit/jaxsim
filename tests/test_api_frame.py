@@ -237,6 +237,9 @@ def test_frame_jacobian_derivative(
         data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
         data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
+        # Update the kyn_dyn cache.
+        data_ad = data_ad.update_kyn_dyn(model=model)
+
         O_J_ad_WF_I = jax.vmap(
             lambda model, data, frame_index: js.frame.jacobian(
                 model=model, data=data, frame_index=frame_index
@@ -249,7 +252,7 @@ def test_frame_jacobian_derivative(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
         q = jnp.hstack(
             [
-                data.base_position(),
+                data.base_position,
                 data.base_orientation(),
                 data.joint_positions(),
             ]

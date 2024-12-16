@@ -253,7 +253,7 @@ class ContactModel(JaxsimDataclass):
 
         # Compute the link transforms.
         W_H_L = (
-            js.model.forward_kinematics(model=model, data=data)
+            data.kyn_dyn.forward_kinematics
             if data.velocity_representation is not jaxsim.VelRepr.Inertial
             else jnp.zeros(shape=(model.number_of_links(), 4, 4))
         )

@@ -14,6 +14,8 @@ def jacobian(
     *,
     link_index: jtp.Int,
     joint_positions: jtp.VectorLike,
+    joint_transforms,
+    motion_subspaces,
 ) -> jtp.Matrix:
     """
     Compute the free-floating Jacobian of a link.
@@ -27,20 +29,14 @@ def jacobian(
         The free-floating left-trivialized Jacobian of the link :math:`{}^L J_{W,L/B}`.
     """
 
-    _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
-        model=model, joint_positions=joint_positions
-    )
-
     # Get the parent array λ(i).
     # Note: λ(0) must not be used, it's initialized to -1.
     λ = model.kin_dyn_parameters.parent_array
 
-    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # Extract the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=s, base_transform=jnp.eye(4)
-    )
+    i_X_λi, S = joint_transforms, motion_subspaces
 
     # Allocate the buffer of transforms link -> base.
     i_X_0 = jnp.zeros(shape=(model.number_of_links(), 6, 6))
@@ -127,6 +123,8 @@ def jacobian_full_doubly_left(
     model: js.model.JaxSimModel,
     *,
     joint_positions: jtp.VectorLike,
+    joint_transforms,
+    motion_subspaces,
 ) -> tuple[jtp.Matrix, jtp.Array]:
     r"""
     Compute the doubly-left full free-floating Jacobian of a model.
@@ -144,10 +142,6 @@ def jacobian_full_doubly_left(
         The doubly-left full free-floating Jacobian of a model.
     """
 
-    _, _, s, _, _, _, _, _, _, _ = utils.process_inputs(
-        model=model, joint_positions=joint_positions
-    )
-
     # Get the parent array λ(i).
     # Note: λ(0) must not be used, it's initialized to -1.
     λ = model.kin_dyn_parameters.parent_array
@@ -155,9 +149,7 @@ def jacobian_full_doubly_left(
     # Compute the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=s, base_transform=jnp.eye(4)
-    )
+    i_X_λi, S = joint_transforms, motion_subspaces
 
     # Allocate the buffer of transforms base -> link.
     B_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))

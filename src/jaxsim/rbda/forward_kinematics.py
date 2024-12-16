@@ -1,12 +1,9 @@
 import jax
 import jax.numpy as jnp
-import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint
-
-from . import utils
 
 
 def forward_kinematics_model(
@@ -15,6 +12,7 @@ def forward_kinematics_model(
     base_position: jtp.VectorLike,
     base_quaternion: jtp.VectorLike,
     joint_positions: jtp.VectorLike,
+    joint_transforms,
 ) -> jtp.Array:
     """
     Compute the forward kinematics.
@@ -29,29 +27,14 @@ def forward_kinematics_model(
         A 3D array containing the SE(3) transforms of all links belonging to the model.
     """
 
-    W_p_B, W_Q_B, s, _, _, _, _, _, _, _ = utils.process_inputs(
-        model=model,
-        base_position=base_position,
-        base_quaternion=base_quaternion,
-        joint_positions=joint_positions,
-    )
-
     # Get the parent array λ(i).
     # Note: λ(0) must not be used, it's initialized to -1.
     λ = model.kin_dyn_parameters.parent_array
 
-    # Compute the base transform.
-    W_H_B = jaxlie.SE3.from_rotation_and_translation(
-        rotation=jaxlie.SO3(wxyz=W_Q_B),
-        translation=W_p_B,
-    )
-
-    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # Extract the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, _ = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=s, base_transform=W_H_B.as_matrix()
-    )
+    i_X_λi = joint_transforms
 
     # Allocate the buffer of transforms world -> link and initialize the base pose.
     W_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))

@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
@@ -18,6 +17,8 @@ def collidable_points_pos_vel(
     base_linear_velocity: jtp.Vector,
     base_angular_velocity: jtp.Vector,
     joint_velocities: jtp.Vector,
+    joint_transforms,
+    motion_subspaces,
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
     """
 
@@ -54,7 +55,7 @@ def collidable_points_pos_vel(
     if len(indices_of_enabled_collidable_points) == 0:
         return jnp.array(0).astype(float), jnp.empty(0).astype(float)
 
-    W_p_B, W_Q_B, s, W_v_WB, ṡ, _, _, _, _, _ = utils.process_inputs(
+    _, _, _, W_v_WB, ṡ, _, _, _, _, _ = utils.process_inputs(
         model=model,
         base_position=base_position,
         base_quaternion=base_quaternion,
@@ -68,18 +69,10 @@ def collidable_points_pos_vel(
     # Note: λ(0) must not be used, it's initialized to -1.
     λ = model.kin_dyn_parameters.parent_array
 
-    # Compute the base transform.
-    W_H_B = jaxlie.SE3.from_rotation_and_translation(
-        rotation=jaxlie.SO3(wxyz=W_Q_B),
-        translation=W_p_B,
-    )
-
-    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # Extract the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=s, base_transform=W_H_B.as_matrix()
-    )
+    i_X_λi, S = joint_transforms, motion_subspaces
 
     # Allocate buffer of transforms world -> link and initialize the base pose.
     W_X_i = jnp.zeros(shape=(model.number_of_links(), 6, 6))

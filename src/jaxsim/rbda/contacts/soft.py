@@ -309,19 +309,16 @@ class SoftContacts(common.ContactModel):
 
         # Compute the direction of the tangential force.
         # To prevent dividing by zero, we use a switch statement.
-        # The ε, instead, is needed to make AD happy.
-        f_tangential_direction = jnp.where(
-            f_tangential.dot(f_tangential) != 0,
-            f_tangential / jnp.linalg.norm(f_tangential + ε),
-            jnp.zeros(3),
+        norm = jaxsim.math.safe_norm(f_tangential)
+        f_tangential_direction = f_tangential / (
+            norm + jnp.finfo(float).eps * (norm == 0)
         )
 
         # Project the tangential force to the friction cone if slipping.
         f_tangential = jnp.where(
             sticking,
             f_tangential,
-            jnp.minimum(μ * force_normal_mag, jnp.linalg.norm(f_tangential + ε))
-            * f_tangential_direction,
+            jnp.minimum(μ * force_normal_mag, norm) * f_tangential_direction,
         )
 
         # Set the tangential force to zero if there is no contact.

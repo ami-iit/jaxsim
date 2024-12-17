@@ -24,7 +24,7 @@
 
 ## Usage
 
-### Using Jaxsim as simulator
+### Using JaxSim as simulator
 
 
 ```python

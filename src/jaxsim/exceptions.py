@@ -1,3 +1,5 @@
+import os
+
 import jax
 
 
@@ -18,7 +20,9 @@ def raise_if(
     """
 
     # Disable host callback if running on TPU.
-    if jax.devices()[0].platform == "tpu":
+    if jax.devices()[0].platform == "tpu" or os.environ.get(
+        "JAXSIM_DISABLE_EXCEPTIONS", 0
+    ):
         return
 
     # Check early that the format string is well-formed.

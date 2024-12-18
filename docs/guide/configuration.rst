@@ -46,10 +46,16 @@ Joint dynamics are configured using environment variables starting with ``JAXSIM
 - ``JAXSIM_JOINT_POSITION_LIMIT_SPRING``: Overrides the spring value for joint position limits of the SDF model.
 
 
-Logging
-~~~~~~~
+Logging and Exceptions
+~~~~~~~~~~~~~~~~~~~~~~
 
-The logging configuration is controlled by the following environment variable:
+The logging and exceptions configurations is controlled by the following environment variables:
 
 - ``JAXSIM_LOGGING_LEVEL``: Determines the logging level.
   *Default:* ``DEBUG`` for development, ``WARNING`` for production.
+
+- ``JAXSIM_DISABLE_EXCEPTIONS``: Disables the runtime checks and exceptions.
+  *Default:* ``False``.
+
+.. note::
+    Runtime exceptions are disabled by default on TPU.

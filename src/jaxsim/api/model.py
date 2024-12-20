@@ -45,7 +45,7 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    kin_dyn_parameters: js.kin_dyn_parameters.KynDynParameters | None = (
+    kin_dyn_parameters: js.kin_dyn_parameters.KinDynParameters | None = (
         dataclasses.field(default=None, repr=False)
     )
 
@@ -271,7 +271,7 @@ class JaxSimModel(JaxsimDataclass):
         # Build the model.
         model = cls(
             model_name=model_name,
-            kin_dyn_parameters=js.kin_dyn_parameters.KynDynParameters.build(
+            kin_dyn_parameters=js.kin_dyn_parameters.KinDynParameters.build(
                 model_description=model_description
             ),
             time_step=time_step,

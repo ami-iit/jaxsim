@@ -10,12 +10,15 @@ Collision Dynamics
 Environment variables starting with ``JAXSIM_COLLISION_`` are used to configure collision dynamics. The available variables are:
 
 - ``JAXSIM_COLLISION_SPHERE_POINTS``: Specifies the number of collision points to approximate the sphere.
+
   *Default:* ``50``.
 
 - ``JAXSIM_COLLISION_MESH_ENABLED``: Enables or disables mesh-based collision detection.
+
   *Default:* ``False``.
 
 - ``JAXSIM_COLLISION_USE_BOTTOM_ONLY``: Limits collision detection to only the bottom half of the box or sphere.
+
   *Default:* ``False``.
 
 .. note::
@@ -28,12 +31,15 @@ Testing
 For testing configurations, environment variables beginning with ``JAXSIM_TEST_`` are used. The following variables are available:
 
 - ``JAXSIM_TEST_SEED``: Defines the seed for the random number generator.
+
   *Default:* ``0``.
 
 - ``JAXSIM_TEST_AD_ORDER``: Specifies the gradient order for automatic differentiation tests.
+
   *Default:* ``1``.
 
 - ``JAXSIM_TEST_FD_STEP_SIZE``: Sets the step size for finite difference tests.
+
   *Default:* the cube root of the machine epsilon.
 
 
@@ -46,10 +52,18 @@ Joint dynamics are configured using environment variables starting with ``JAXSIM
 - ``JAXSIM_JOINT_POSITION_LIMIT_SPRING``: Overrides the spring value for joint position limits of the SDF model.
 
 
-Logging
-~~~~~~~
+Logging and Exceptions
+~~~~~~~~~~~~~~~~~~~~~~
 
-The logging configuration is controlled by the following environment variable:
+The logging and exceptions configurations is controlled by the following environment variables:
 
 - ``JAXSIM_LOGGING_LEVEL``: Determines the logging level.
+
   *Default:* ``DEBUG`` for development, ``WARNING`` for production.
+
+- ``JAXSIM_DISABLE_EXCEPTIONS``: Disables the runtime checks and exceptions.
+
+  *Default:* ``False``.
+
+.. note::
+    Runtime exceptions are disabled by default on TPU.

@@ -16,7 +16,7 @@ from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
-class KynDynParameters(JaxsimDataclass):
+class KinDynParameters(JaxsimDataclass):
     r"""
     Class storing the kinematic and dynamic parameters of a model.
 
@@ -59,7 +59,7 @@ class KynDynParameters(JaxsimDataclass):
         return self._support_body_array_bool.get()
 
     @staticmethod
-    def build(model_description: ModelDescription) -> KynDynParameters:
+    def build(model_description: ModelDescription) -> KinDynParameters:
         """
         Construct the kinematic and dynamic parameters of the model.
 
@@ -210,10 +210,10 @@ class KynDynParameters(JaxsimDataclass):
         )
 
         # =================================
-        # Build and return KynDynParameters
+        # Build and return KinDynParameters
         # =================================
 
-        return KynDynParameters(
+        return KinDynParameters(
             link_names=tuple(l.name for l in ordered_links),
             _parent_array=HashedNumpyArray(array=parent_array),
             _support_body_array_bool=HashedNumpyArray(array=support_body_array_bool),
@@ -224,9 +224,9 @@ class KynDynParameters(JaxsimDataclass):
             frame_parameters=frame_parameters,
         )
 
-    def __eq__(self, other: KynDynParameters) -> bool:
+    def __eq__(self, other: KinDynParameters) -> bool:
 
-        if not isinstance(other, KynDynParameters):
+        if not isinstance(other, KinDynParameters):
             return False
 
         return hash(self) == hash(other)
@@ -450,7 +450,7 @@ class KynDynParameters(JaxsimDataclass):
 
     def set_link_mass(
         self, link_index: jtp.IntLike, mass: jtp.FloatLike
-    ) -> KynDynParameters:
+    ) -> KinDynParameters:
         """
         Set the mass of a link.
 
@@ -470,7 +470,7 @@ class KynDynParameters(JaxsimDataclass):
 
     def set_link_inertia(
         self, link_index: jtp.IntLike, inertia: jtp.MatrixLike
-    ) -> KynDynParameters:
+    ) -> KinDynParameters:
         r"""
         Set the inertia tensor of a link.
 

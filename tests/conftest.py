@@ -426,7 +426,7 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
 
     rod_model.model.resolve_frames()
 
-    urdf_string = rod.urdf.exporter.UrdfExporter.sdf_to_urdf_string(
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
         sdf=rod_model.models()[0]
     )
 

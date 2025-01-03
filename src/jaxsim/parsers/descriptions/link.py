@@ -4,7 +4,6 @@ import dataclasses
 
 import jax.numpy as jnp
 import jax_dataclasses
-import numpy as np
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
@@ -37,45 +36,6 @@ class LinkDescription(JaxsimDataclass):
     children: Static[tuple[LinkDescription]] = dataclasses.field(
         default_factory=list, repr=False
     )
-
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                hash(self.name),
-                hash(float(self.mass)),
-                HashedNumpyArray.hash_of_array(self.inertia),
-                hash(int(self.index)) if self.index is not None else 0,
-                HashedNumpyArray.hash_of_array(self.pose),
-                hash(tuple(self.children)),
-                # Here only using the name to prevent circular recursion:
-                hash(self.parent.name) if self.parent is not None else 0,
-            )
-        )
-
-    def __eq__(self, other: LinkDescription) -> bool:
-
-        if not isinstance(other, LinkDescription):
-            return False
-
-        if not (
-            self.name == other.name
-            and np.allclose(self.mass, other.mass)
-            and np.allclose(self.inertia, other.inertia)
-            and self.index == other.index
-            and np.allclose(self.pose, other.pose)
-            and self.children == other.children
-            and (
-                (self.parent is not None and self.parent.name == other.parent.name)
-                if self.parent is not None
-                else other.parent is None
-            ),
-        ):
-            return False
-
-        return True
 
     @property
     def name_and_index(self) -> str:

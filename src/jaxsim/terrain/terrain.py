@@ -5,7 +5,6 @@ import dataclasses
 
 import jax.numpy as jnp
 import jax_dataclasses
-import numpy as np
 
 import jaxsim.typing as jtp
 from jaxsim import exceptions
@@ -61,17 +60,6 @@ class FlatTerrain(Terrain):
     def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
 
         return jnp.array([0.0, 0.0, 1.0], dtype=float)
-
-    def __hash__(self) -> int:
-
-        return hash(self._height)
-
-    def __eq__(self, other: FlatTerrain) -> bool:
-
-        if not isinstance(other, FlatTerrain):
-            return False
-
-        return self._height == other._height
 
 
 @jax_dataclasses.pytree_dataclass
@@ -154,32 +142,3 @@ class PlaneTerrain(FlatTerrain):
 
         # Invert the plane equation to get the height at the given (x, y) coordinates.
         return jnp.array(-(A * x + B * y + D) / C).astype(float)
-
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                hash(self._height),
-                HashedNumpyArray.hash_of_array(
-                    array=np.array(self._normal, dtype=float)
-                ),
-            )
-        )
-
-    def __eq__(self, other: PlaneTerrain) -> bool:
-
-        if not isinstance(other, PlaneTerrain):
-            return False
-
-        if not (
-            np.allclose(self._height, other._height)
-            and np.allclose(
-                np.array(self._normal, dtype=float),
-                np.array(other._normal, dtype=float),
-            )
-        ):
-            return False
-
-        return True

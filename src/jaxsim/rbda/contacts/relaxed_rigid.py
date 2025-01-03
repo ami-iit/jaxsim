@@ -76,27 +76,6 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         default_factory=lambda: jnp.array(0.5, dtype=float)
     )
 
-    def __hash__(self) -> int:
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray(self.time_constant),
-                HashedNumpyArray(self.damping_coefficient),
-                HashedNumpyArray(self.d_min),
-                HashedNumpyArray(self.d_max),
-                HashedNumpyArray(self.width),
-                HashedNumpyArray(self.midpoint),
-                HashedNumpyArray(self.power),
-                HashedNumpyArray(self.stiffness),
-                HashedNumpyArray(self.damping),
-                HashedNumpyArray(self.mu),
-            )
-        )
-
-    def __eq__(self, other: RelaxedRigidContactsParams) -> bool:
-        return hash(self) == hash(other)
-
     @classmethod
     def build(
         cls: type[Self],

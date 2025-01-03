@@ -57,41 +57,6 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    _description: Static[wrappers.HashlessObject[ModelDescription | None]] = (
-        dataclasses.field(default=None, repr=False)
-    )
-
-    @property
-    def description(self) -> ModelDescription:
-        return self._description.get()
-
-    def __eq__(self, other: JaxSimModel) -> bool:
-
-        if not isinstance(other, JaxSimModel):
-            return False
-
-        if self.model_name != other.model_name:
-            return False
-
-        if self.time_step != other.time_step:
-            return False
-
-        if self.kin_dyn_parameters != other.kin_dyn_parameters:
-            return False
-
-        return True
-
-    def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.model_name),
-                hash(float(self.time_step)),
-                hash(self.kin_dyn_parameters),
-                hash(self.contact_model),
-            )
-        )
-
     # ========================
     # Initialization and state
     # ========================

@@ -7,7 +7,7 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
+from jaxsim.parsers.descriptions import JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
 
 from .rotation import Rotation
@@ -41,7 +41,7 @@ class JointModel:
     joint_dofs: Static[tuple[int, ...]]
     joint_names: Static[tuple[str, ...]]
     joint_types: Static[tuple[int, ...]]
-    joint_axis: Static[tuple[JointGenericAxis, ...]]
+    joint_axis: Static[tuple[tuple[int]]]
 
     @staticmethod
     def build(description: ModelDescription) -> JointModel:
@@ -110,7 +110,7 @@ class JointModel:
             joint_dofs=tuple([base_dofs] + [1 for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
             joint_types=tuple([JointType.Fixed] + [j.jtype for j in ordered_joints]),
-            joint_axis=tuple(JointGenericAxis(axis=j.axis) for j in ordered_joints),
+            joint_axis=tuple(j.axis for j in ordered_joints),
         )
 
     def parent_H_child(
@@ -202,7 +202,7 @@ class JointModel:
         pre_H_suc, S = supported_joint_motion(
             self.joint_types[joint_index],
             joint_position,
-            self.joint_axis[joint_index].axis,
+            self.joint_axis[joint_index],
         )
 
         return pre_H_suc, S

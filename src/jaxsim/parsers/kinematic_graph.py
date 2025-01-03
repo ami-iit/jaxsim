@@ -37,30 +37,6 @@ class RootPose:
         default_factory=lambda: np.array([1.0, 0, 0, 0])
     )
 
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.root_position),
-                HashedNumpyArray.hash_of_array(self.root_quaternion),
-            )
-        )
-
-    def __eq__(self, other: RootPose) -> bool:
-
-        if not isinstance(other, RootPose):
-            return False
-
-        if not np.allclose(self.root_position, other.root_position):
-            return False
-
-        if not np.allclose(self.root_quaternion, other.root_quaternion):
-            return False
-
-        return True
-
 
 @dataclasses.dataclass(frozen=True)
 class KinematicGraph(Sequence[LinkDescription]):

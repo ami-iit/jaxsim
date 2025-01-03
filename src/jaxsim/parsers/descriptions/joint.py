@@ -29,17 +29,6 @@ class JointGenericAxis:
     # The axis of rotation or translation of the joint (must have norm 1).
     axis: jtp.Vector
 
-    def __hash__(self) -> int:
-
-        return hash(tuple(self.axis.tolist()))
-
-    def __eq__(self, other: JointGenericAxis) -> bool:
-
-        if not isinstance(other, JointGenericAxis):
-            return False
-
-        return hash(self) == hash(other)
-
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
 class JointDescription(JaxsimDataclass):
@@ -66,7 +55,7 @@ class JointDescription(JaxsimDataclass):
     name: jax_dataclasses.Static[str]
     axis: jtp.Vector
     pose: jtp.Matrix
-    jtype: jax_dataclasses.Static[jtp.IntLike]
+    jtype: jax_dataclasses.Static[int]
     child: LinkDescription = dataclasses.dataclass(repr=False)
     parent: LinkDescription = dataclasses.dataclass(repr=False)
 
@@ -94,35 +83,3 @@ class JointDescription(JaxsimDataclass):
             ):
                 norm_of_axis = np.linalg.norm(self.axis)
                 self.axis = self.axis / norm_of_axis
-
-    def __eq__(self, other: JointDescription) -> bool:
-
-        if not isinstance(other, JointDescription):
-            return False
-
-        return hash(self) == hash(other)
-
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                hash(self.name),
-                HashedNumpyArray.hash_of_array(self.axis),
-                HashedNumpyArray.hash_of_array(self.pose),
-                hash(int(self.jtype)),
-                hash(self.child),
-                hash(self.parent),
-                hash(int(self.index)) if self.index is not None else 0,
-                HashedNumpyArray.hash_of_array(self.friction_static),
-                HashedNumpyArray.hash_of_array(self.friction_viscous),
-                HashedNumpyArray.hash_of_array(self.position_limit_damper),
-                HashedNumpyArray.hash_of_array(self.position_limit_spring),
-                HashedNumpyArray.hash_of_array(self.position_limit),
-                HashedNumpyArray.hash_of_array(self.initial_position),
-                HashedNumpyArray.hash_of_array(self.motor_inertia),
-                HashedNumpyArray.hash_of_array(self.motor_viscous_friction),
-                HashedNumpyArray.hash_of_array(self.motor_gear_ratio),
-            ),
-        )

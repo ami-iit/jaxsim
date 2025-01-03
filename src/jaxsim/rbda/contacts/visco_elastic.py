@@ -162,27 +162,6 @@ class ViscoElasticContactsParams(common.ContactsParams):
             and jnp.all(self.q >= 0.0)
         )
 
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.K),
-                HashedNumpyArray.hash_of_array(self.D),
-                HashedNumpyArray.hash_of_array(self.static_friction),
-                HashedNumpyArray.hash_of_array(self.p),
-                HashedNumpyArray.hash_of_array(self.q),
-            )
-        )
-
-    def __eq__(self, other: ViscoElasticContactsParams) -> bool:
-
-        if not isinstance(other, ViscoElasticContactsParams):
-            return False
-
-        return hash(self) == hash(other)
-
 
 @jax_dataclasses.pytree_dataclass
 class ViscoElasticContacts(common.ContactModel):

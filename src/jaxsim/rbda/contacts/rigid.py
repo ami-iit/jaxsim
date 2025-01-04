@@ -173,7 +173,7 @@ class RigidContacts(ContactModel):
         inactive_collidable_points: jtp.ArrayLike,
         M: jtp.MatrixLike,
         J_WC: jtp.MatrixLike,
-        data: js.data.JaxSimModelData,
+        generalized_velocity: jtp.VectorLike,
     ) -> jtp.Vector:
         """
         Return the new velocity of the system after a potential impact.
@@ -185,52 +185,30 @@ class RigidContacts(ContactModel):
             data: The `JaxSimModelData` instance.
         """
 
-        def impact_velocity(
-            inactive_collidable_points: jtp.ArrayLike,
-            nu_pre: jtp.ArrayLike,
-            M: jtp.MatrixLike,
-            J_WC: jtp.MatrixLike,
-            data: js.data.JaxSimModelData,
-        ):
-            # Compute system velocity after impact maintaining zero linear velocity of active points
-            with data.switch_velocity_representation(VelRepr.Mixed):
-                sl = jnp.s_[:, 0:3, :]
-                Jl_WC = J_WC[sl]
-                # Zero out the jacobian rows of inactive points
-                Jl_WC = jnp.vstack(
-                    jnp.where(
-                        inactive_collidable_points[:, jnp.newaxis, jnp.newaxis],
-                        jnp.zeros_like(Jl_WC),
-                        Jl_WC,
-                    )
-                )
+        # Compute system velocity after impact maintaining zero linear velocity of active points.
+        sl = jnp.s_[:, 0:3, :]
+        Jl_WC = J_WC[sl]
 
-                A = jnp.vstack(
-                    [
-                        jnp.hstack([M, -Jl_WC.T]),
-                        jnp.hstack(
-                            [Jl_WC, jnp.zeros((Jl_WC.shape[0], Jl_WC.shape[0]))]
-                        ),
-                    ]
-                )
-                b = jnp.hstack([M @ nu_pre, jnp.zeros(Jl_WC.shape[0])])
-                x = jnp.linalg.lstsq(A, b)[0]
-                nu_post = x[0 : M.shape[0]]
-
-                return nu_post
-
-        with data.switch_velocity_representation(VelRepr.Mixed):
-            BW_ν_pre_impact = data.generalized_velocity()
-
-            BW_ν_post_impact = impact_velocity(
-                data=data,
-                inactive_collidable_points=inactive_collidable_points,
-                nu_pre=BW_ν_pre_impact,
-                M=M,
-                J_WC=J_WC,
+        # Zero out the jacobian rows of inactive points.
+        Jl_WC = jnp.vstack(
+            jnp.where(
+                inactive_collidable_points[:, jnp.newaxis, jnp.newaxis],
+                jnp.zeros_like(Jl_WC),
+                Jl_WC,
             )
+        )
 
-        return BW_ν_post_impact
+        A = jnp.vstack(
+            [
+                jnp.hstack([M, -Jl_WC.T]),
+                jnp.hstack([Jl_WC, jnp.zeros((Jl_WC.shape[0], Jl_WC.shape[0]))]),
+            ]
+        )
+        b = jnp.hstack([M @ generalized_velocity, jnp.zeros(Jl_WC.shape[0])])
+
+        BW_ν_post_impact = jnp.linalg.lstsq(A, b)[0]
+
+        return BW_ν_post_impact[0 : M.shape[0]]
 
     @jax.jit
     def compute_contact_forces(

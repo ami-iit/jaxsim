@@ -2331,12 +2331,13 @@ def step(
                     indices_of_enabled_collidable_points
                 ]
                 M = js.model.free_floating_mass_matrix(model, data_tf)
+                BW_ν_pre_impact = data_tf.generalized_velocity()
 
                 # Compute the impact velocity.
                 # It may be discontinuous in case new contacts are made.
-                BW_nu_post_impact = (
+                BW_ν_post_impact = (
                     jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
-                        data=data_tf,
+                        generalized_velocity=BW_ν_pre_impact,
                         inactive_collidable_points=(δ <= 0),
                         M=M,
                         J_WC=J_WC,
@@ -2344,8 +2345,8 @@ def step(
                 )
 
                 # Reset the generalized velocity.
-                data_tf = data_tf.reset_base_velocity(BW_nu_post_impact[0:6])
-                data_tf = data_tf.reset_joint_velocities(BW_nu_post_impact[6:])
+                data_tf = data_tf.reset_base_velocity(BW_ν_post_impact[0:6])
+                data_tf = data_tf.reset_joint_velocities(BW_ν_post_impact[6:])
 
     # Restore the input velocity representation.
     data_tf = data_tf.replace(

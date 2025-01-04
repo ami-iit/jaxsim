@@ -22,7 +22,7 @@ def load_rod_model(
     model_name: str | None = None,
 ) -> rod.Model:
     """
-    Loads a ROD model from a URDF/SDF file or a ROD model.
+    Load a ROD model from a URDF/SDF file or a ROD model.
 
     Args:
         model_description: The URDF/SDF file or ROD model to load.
@@ -69,7 +69,7 @@ class RodModelToMjcf:
         rod_model: rod.Model,
     ) -> dict[str, bytes]:
         """
-        Generates a dictionary of assets from a ROD model.
+        Generate a dictionary of assets from a ROD model.
 
         Args:
             rod_model: The ROD model to extract the assets from.
@@ -112,7 +112,7 @@ class RodModelToMjcf:
         floating_joint_name: str = "world_to_base",
     ) -> str:
         """
-        Adds a floating joint to a URDF string.
+        Add a floating joint to a URDF string.
 
         Args:
             urdf_string: The URDF string to modify.
@@ -171,7 +171,7 @@ class RodModelToMjcf:
         cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
-        Converts a ROD model to a Mujoco MJCF string.
+        Convert a ROD model to a Mujoco MJCF string.
 
         Args:
             rod_model: The ROD model to convert.
@@ -532,7 +532,7 @@ class UrdfToMjcf:
         cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
-        Converts a URDF file to a Mujoco MJCF string.
+        Convert a URDF file to a Mujoco MJCF string.
 
         Args:
             urdf: The URDF file to convert.
@@ -574,7 +574,7 @@ class SdfToMjcf:
         cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
-        Converts a SDF file to a Mujoco MJCF string.
+        Convert a SDF file to a Mujoco MJCF string.
 
         Args:
             sdf: The SDF file to convert.

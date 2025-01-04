@@ -173,7 +173,8 @@ class RigidContacts(ContactModel):
         J_WC: jtp.MatrixLike,
         data: js.data.JaxSimModelData,
     ) -> jtp.Vector:
-        """Returns the new velocity of the system after a potential impact.
+        """
+        Return the new velocity of the system after a potential impact.
 
         Args:
             inactive_collidable_points: The activation state of the collidable points.

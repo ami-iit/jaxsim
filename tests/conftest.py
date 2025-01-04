@@ -149,7 +149,7 @@ def build_jaxsim_model(
     model_description: str | pathlib.Path | rod.Model,
 ) -> js.model.JaxSimModel:
     """
-    Helper to build a JaxSim model from a model description.
+    Build a JaxSim model from a model description.
 
     Args:
         model_description: A model description provided by any fixture provider.
@@ -444,7 +444,7 @@ def get_jaxsim_model_fixture(
     model_name: str, request: pytest.FixtureRequest
 ) -> str | pathlib.Path:
     """
-    Factory to get the fixture providing the JaxSim model of a robot.
+    Get the fixture providing the JaxSim model of a robot.
 
     Args:
         model_name: The name of the model.

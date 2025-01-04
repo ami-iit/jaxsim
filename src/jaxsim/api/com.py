@@ -279,7 +279,7 @@ def bias_acceleration(
         C_v̇_WL: jtp.Vector, C_v_WC: jtp.Vector, L_H_C: jtp.Matrix, L_v_LC: jtp.Vector
     ) -> jtp.Vector:
         """
-        Helper to convert the body-fixed representation of the link bias acceleration
+        Convert the body-fixed representation of the link bias acceleration
         C_v̇_WL expressed in a generic frame C to the body-fixed representation L_v̇_WL.
         """
 

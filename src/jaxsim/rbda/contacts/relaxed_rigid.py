@@ -526,7 +526,7 @@ class RelaxedRigidContacts(common.ContactModel):
             vel: jtp.Vector,
         ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector, jtp.Vector]:
             """
-            Calculates impedance and offset acceleration in constraint frame.
+            Calculate impedance and offset acceleration in constraint frame.
 
             Args:
                 pos: position in constraint frame.

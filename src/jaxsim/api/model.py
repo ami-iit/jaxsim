@@ -2295,9 +2295,6 @@ def step(
         # Hence, here we need to reset the velocity after each impact to guarantee that
         # the linear velocity of the active collidable points is zero.
         case jaxsim.rbda.contacts.RigidContacts():
-            assert isinstance(
-                data_tf.contacts_params, jaxsim.rbda.contacts.RigidContactsParams
-            )
 
             # Raise runtime error for not supported case in which Rigid contacts and
             # Baumgarte stabilization are enabled and used with ForwardEuler integrator.

@@ -158,6 +158,13 @@ class SphereCollision(CollisionShape):
 
 @dataclasses.dataclass
 class MeshCollision(CollisionShape):
+    """
+    Represents a mesh-shaped collision shape.
+
+    Attributes:
+        center: The center of the mesh in the local frame of the collision shape.
+    """
+
     center: jtp.VectorLike
 
     def __hash__(self) -> int:

@@ -62,7 +62,7 @@ class RigidContactsParams(ContactsParams):
         K: jtp.FloatLike | None = None,
         D: jtp.FloatLike | None = None,
     ) -> Self:
-        """Create a `RigidContactParams` instance"""
+        """Create a `RigidContactParams` instance."""
 
         return cls(
             mu=jnp.array(
@@ -416,7 +416,8 @@ class RigidContacts(ContactModel):
         inactive_collidable_points: jtp.Vector, mu: jtp.FloatLike
     ) -> jtp.Matrix:
         """
-        Compute the inequality constraint matrix for a single collidable point
+        Compute the inequality constraint matrix for a single collidable point.
+
         Rows 0-3: enforce the friction pyramid constraint,
         Row 4: last one is for the non negativity of the vertical force
         Row 5: contact complementarity condition

@@ -207,6 +207,7 @@ class SoftContacts(common.ContactModel):
             model:
                 The robot model considered by the contact model.
                 If passed, it is used to estimate good default parameters.
+            **kwargs: Additional parameters to pass to the contact model.
 
         Returns:
             The `SoftContacts` instance.

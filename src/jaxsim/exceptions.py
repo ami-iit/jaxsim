@@ -17,6 +17,8 @@ def raise_if(
         msg:
             The message to display when the exception is raised. The message can be a
             format string (fmt), whose fields are filled with the args and kwargs.
+        *args: The arguments to fill the format string.
+        **kwargs: The keyword arguments to fill the format string
     """
 
     # Disable host callback if running on unsupported hardware or if the user

@@ -112,7 +112,7 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         damping: jtp.FloatLike | None = None,
         mu: jtp.FloatLike | None = None,
     ) -> Self:
-        """Create a `RelaxedRigidContactsParams` instance"""
+        """Create a `RelaxedRigidContactsParams` instance."""
 
         def default(name: str):
             return cls.__dataclass_fields__[name].default_factory()

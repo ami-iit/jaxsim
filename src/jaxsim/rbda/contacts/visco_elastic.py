@@ -206,6 +206,7 @@ class ViscoElasticContacts(common.ContactModel):
                 If passed, it is used to estimate good default parameters.
             max_squarings:
                 The maximum number of squarings performed in the matrix exponential.
+            **kwargs: Extra arguments to ignore.
 
         Returns:
             The `ViscoElasticContacts` instance.

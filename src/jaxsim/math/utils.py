@@ -5,8 +5,8 @@ import jaxsim.typing as jtp
 
 def safe_norm(array: jtp.ArrayLike, axis=None) -> jtp.Array:
     """
-    Provides a calculation for an array norm so that it is safe
-    to compute the gradient and handle NaNs.
+    Compute an array norm handling NaNs and making sure that
+    it is safe to get the gradient.
 
     Args:
         array: The array for which to compute the norm.

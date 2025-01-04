@@ -14,7 +14,7 @@ class Skew:
         Compute the skew-symmetric matrix (wedge operator) of a 3D vector.
 
         Args:
-            vector (jtp.Vector): A 3D vector.
+            vector: A 3D vector.
 
         Returns:
             jtp.Matrix: The skew-symmetric matrix corresponding to the input vector.
@@ -31,7 +31,7 @@ class Skew:
         Extract the 3D vector from a skew-symmetric matrix (vee operator).
 
         Args:
-            matrix (jtp.Matrix): A 3x3 skew-symmetric matrix.
+            matrix: A 3x3 skew-symmetric matrix.
 
         Returns:
             jtp.Vector: The 3D vector extracted from the input matrix.

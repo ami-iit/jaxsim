@@ -47,20 +47,19 @@ class JointDescription(JaxsimDataclass):
     In-memory description of a robot link.
 
     Attributes:
-        name (str): The name of the joint.
-        axis (npt.NDArray): The axis of rotation or translation for the joint.
-        pose (npt.NDArray): The pose transformation matrix of the joint.
-        jtype (JointType): The type of the joint.
-        child (LinkDescription): The child link attached to the joint.
-        parent (LinkDescription): The parent link attached to the joint.
-        index (Optional[int]): An optional index for the joint.
-        friction_static (float): The static friction coefficient for the joint.
-        friction_viscous (float): The viscous friction coefficient for the joint.
-        position_limit_damper (float): The damper coefficient for position limits.
-        position_limit_spring (float): The spring coefficient for position limits.
-        position_limit (Tuple[float, float]): The position limits for the joint.
-        initial_position (Union[float, npt.NDArray]): The initial position of the joint.
-
+        name: The name of the joint.
+        axis: The axis of rotation or translation for the joint.
+        pose: The pose transformation matrix of the joint.
+        jtype: The type of the joint.
+        child: The child link attached to the joint.
+        parent: The parent link attached to the joint.
+        index: An optional index for the joint.
+        friction_static: The static friction coefficient for the joint.
+        friction_viscous: The viscous friction coefficient for the joint.
+        position_limit_damper: The damper coefficient for position limits.
+        position_limit_spring: The spring coefficient for position limits.
+        position_limit: The position limits for the joint.
+        initial_position: The initial position of the joint.
     """
 
     name: jax_dataclasses.Static[str]

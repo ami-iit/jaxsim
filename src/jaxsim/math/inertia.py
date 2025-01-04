@@ -12,9 +12,9 @@ class Inertia:
         Convert mass, center of mass, and inertia matrix to a 6x6 inertia matrix.
 
         Args:
-            mass (jtp.Float): The mass of the body.
-            com (jtp.Vector): The center of mass position (3D).
-            I (jtp.Matrix): The 3x3 inertia matrix.
+            mass: The mass of the body.
+            com: The center of mass position (3D).
+            I: The 3x3 inertia matrix.
 
         Returns:
             jtp.Matrix: The 6x6 inertia matrix.
@@ -42,7 +42,7 @@ class Inertia:
         Convert a 6x6 inertia matrix to mass, center of mass, and inertia matrix.
 
         Args:
-            M (jtp.Matrix): The 6x6 inertia matrix.
+            M: The 6x6 inertia matrix.
 
         Returns:
             tuple[jtp.Float, jtp.Vector, jtp.Matrix]: A tuple containing mass, center of mass (3D), and inertia matrix (3x3).

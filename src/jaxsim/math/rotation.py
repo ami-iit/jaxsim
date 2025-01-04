@@ -15,7 +15,7 @@ class Rotation:
         Generate a 3D rotation matrix around the X-axis.
 
         Args:
-            theta (jtp.Float): Rotation angle in radians.
+            theta: Rotation angle in radians.
 
         Returns:
             jtp.Matrix: 3D rotation matrix.
@@ -29,7 +29,7 @@ class Rotation:
         Generate a 3D rotation matrix around the Y-axis.
 
         Args:
-            theta (jtp.Float): Rotation angle in radians.
+            theta: Rotation angle in radians.
 
         Returns:
             jtp.Matrix: 3D rotation matrix.
@@ -43,7 +43,7 @@ class Rotation:
         Generate a 3D rotation matrix around the Z-axis.
 
         Args:
-            theta (jtp.Float): Rotation angle in radians.
+            theta: Rotation angle in radians.
 
         Returns:
             jtp.Matrix: 3D rotation matrix.

@@ -2,6 +2,7 @@ import os
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.test_util import check_grads
 
 import jaxsim.api as js
@@ -409,6 +410,48 @@ def test_ad_integration(
     check_grads(
         f=step,
         args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, m, τ, W_f_L),
+        order=AD_ORDER,
+        modes=["rev", "fwd"],
+        eps=ε,
+    )
+
+
+def test_ad_safe_norm(
+    prng_key: jax.Array,
+):
+
+    _, subkey = jax.random.split(prng_key, num=2)
+    array = jax.random.uniform(subkey, shape=(4,), minval=-5, maxval=5)
+
+    # ====
+    # Test
+    # ====
+
+    # Test that the safe_norm function is compatible with batching.
+    array = jnp.stack([array, array])
+    assert jaxsim.math.safe_norm(array, axis=1).shape == (2,)
+
+    # Test that the safe_norm function is correctly computing the norm.
+    assert np.allclose(jaxsim.math.safe_norm(array), np.linalg.norm(array))
+
+    # Function exposing only the parameters to be differentiated.
+    def safe_norm(array: jtp.Array) -> jtp.Array:
+
+        return jaxsim.math.safe_norm(array)
+
+    # Check derivatives against finite differences.
+    check_grads(
+        f=safe_norm,
+        args=(array,),
+        order=AD_ORDER,
+        modes=["rev", "fwd"],
+        eps=ε,
+    )
+
+    # Check derivatives against finite differences when the array is zero.
+    check_grads(
+        f=safe_norm,
+        args=(jnp.zeros_like(array),),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

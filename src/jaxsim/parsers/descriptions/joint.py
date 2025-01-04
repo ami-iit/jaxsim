@@ -14,6 +14,9 @@ from .link import LinkDescription
 
 @dataclasses.dataclass(frozen=True)
 class JointType:
+    """
+    Enumeration of joint types.
+    """
 
     Fixed: ClassVar[int] = 0
     Revolute: ClassVar[int] = 1

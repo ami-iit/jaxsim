@@ -79,7 +79,7 @@ class RigidContactsParams(ContactsParams):
         )
 
     def valid(self) -> jtp.BoolLike:
-
+        """Check if the parameters are valid."""
         return bool(
             jnp.all(self.mu >= 0.0)
             and jnp.all(self.K >= 0.0)
@@ -104,6 +104,7 @@ class RigidContacts(ContactModel):
 
     @property
     def solver_options(self) -> dict[str, Any]:
+        """Get the solver options as a dictionary."""
 
         return dict(
             zip(
@@ -127,6 +128,7 @@ class RigidContacts(ContactModel):
             regularization_delassus:
                 The regularization term to add to the diagonal of the Delassus matrix.
             solver_options: The options to pass to the QP solver.
+            **kwargs: Extra arguments which are ignored.
 
         Returns:
             The `RigidContacts` instance.

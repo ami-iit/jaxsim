@@ -61,6 +61,9 @@ def raise_if(
 def raise_runtime_error_if(
     condition: bool | jax.Array, msg: str, *args, **kwargs
 ) -> None:
+    """
+    Raise a RuntimeError if a condition is met. Useful in jit-compiled functions.
+    """
 
     return raise_if(condition, RuntimeError, msg, *args, **kwargs)
 
@@ -68,5 +71,8 @@ def raise_runtime_error_if(
 def raise_value_error_if(
     condition: bool | jax.Array, msg: str, *args, **kwargs
 ) -> None:
+    """
+    Raise a ValueError if a condition is met. Useful in jit-compiled functions.
+    """
 
     return raise_if(condition, ValueError, msg, *args, **kwargs)

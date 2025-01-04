@@ -36,9 +36,25 @@ PyTreeType = TypeVar("PyTreeType", bound=jtp.PyTree)
 
 
 class SystemDynamics(Protocol[State, StateDerivative]):
+    """
+    Protocol defining the system dynamics.
+    """
+
     def __call__(
         self, x: State, t: Time, **kwargs
-    ) -> tuple[StateDerivative, dict[str, Any]]: ...
+    ) -> tuple[StateDerivative, dict[str, Any]]:
+        """
+        Compute the state derivative of the system.
+
+        Args:
+            x: The state of the system.
+            t: The time of the system.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The state derivative of the system and the auxiliary dictionary.
+        """
+        pass
 
 
 # =======================
@@ -48,6 +64,9 @@ class SystemDynamics(Protocol[State, StateDerivative]):
 
 @jax_dataclasses.pytree_dataclass
 class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
+    """
+    Factory class for integrators.
+    """
 
     dynamics: Static[SystemDynamics[State, StateDerivative]] = dataclasses.field(
         repr=False, hash=False, compare=False, kw_only=True
@@ -110,6 +129,9 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
     def __call__(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:
+        """
+        Perform a single integration step.
+        """
         pass
 
     def init(
@@ -121,6 +143,9 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
         include_dynamics_aux_dict: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
+        """
+        Initialize the integrator. This method is deprecated.
+        """
 
         logging.warning(
             "The 'init' method has been deprecated. There is no need to call it."
@@ -131,6 +156,18 @@ class Integrator(JaxsimDataclass, abc.ABC, Generic[State, StateDerivative]):
 
 @jax_dataclasses.pytree_dataclass
 class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]):
+    """
+    Base class for explicit Runge-Kutta integrators.
+
+    Attributes:
+        A: The Runge-Kutta matrix.
+        b: The weights coefficients.
+        c: The nodes coefficients.
+        order_of_bT_rows: The order of the solution.
+        row_index_of_solution: The row of the integration output corresponding to the final solution.
+        fsal_enabled_if_supported: Whether to enable the FSAL property, if supported.
+        index_of_fsal: The index of the intermediate derivative to be used as the first derivative of the next iteration.
+    """
 
     # The Runge-Kutta matrix.
     A: ClassVar[jtp.Matrix]
@@ -156,10 +193,16 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     @property
     def has_fsal(self) -> bool:
+        """
+        Check if the integrator supports the FSAL property.
+        """
         return self.fsal_enabled_if_supported and self.index_of_fsal is not None
 
     @property
     def order(self) -> int:
+        """
+        Return the order of the integrator.
+        """
         return self.order_of_bT_rows[self.row_index_of_solution]
 
     @override
@@ -221,6 +264,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     def __call__(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:
+        """
+        Perform a single integration step.
+        """
 
         # Here z is a batched state with as many batch elements as b.T rows.
         # Note that z has multiple batches only if b.T has more than one row,
@@ -331,7 +377,9 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         def scan_body(
             carry: jax.Array, i: int | jax.Array
         ) -> tuple[jax.Array, dict[str, Any]]:
-            """"""
+            """
+            Compute the kᵢ derivative of the Runge-Kutta stage.
+            """
 
             # Unpack the carry, i.e. the stacked kᵢ vectors.
             K = carry
@@ -498,6 +546,16 @@ class ExplicitRungeKuttaSO3Mixin:
     def post_process_state(
         cls, x0: js.ode_data.ODEState, t0: Time, xf: js.ode_data.ODEState, dt: TimeStep
     ) -> js.ode_data.ODEState:
+        r"""
+        Post-process the integrated state at :math:`t_f = t_0 + \Delta t` so that the
+        quaternion is normalized.
+
+        Args:
+            x0: The initial state of the system.
+            t0: The initial time of the system.
+            xf: The final state of the system obtain through the integration.
+            dt: The time step used for the integration.
+        """
 
         # Extract the initial base quaternion.
         W_Q_B_t0 = x0.physics_model.base_quaternion

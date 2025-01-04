@@ -63,6 +63,9 @@ class JaxSimModel(JaxsimDataclass):
 
     @property
     def description(self) -> ModelDescription:
+        """
+        Return the model description.
+        """
         return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:

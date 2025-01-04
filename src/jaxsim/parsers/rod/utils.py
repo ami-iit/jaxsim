@@ -223,6 +223,17 @@ def create_mesh_collision(
     link_description: descriptions.LinkDescription,
     method: MeshMappingMethod = None,
 ) -> descriptions.MeshCollision:
+    """
+    Create a mesh collision from an SDF collision element.
+
+    Args:
+        collision: The SDF collision element.
+        link_description: The link description.
+        method: The method to use for mesh wrapping.
+
+    Returns:
+        The mesh collision description.
+    """
 
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
     file_type = file.suffix.replace(".", "")

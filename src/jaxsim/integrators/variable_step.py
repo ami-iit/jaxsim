@@ -216,6 +216,17 @@ def local_error_estimation(
 
 @jax_dataclasses.pytree_dataclass
 class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
+    """
+    An Embedded Runge-Kutta integrator.
+
+    This class implements a general-purpose Embedded Runge-Kutta integrator
+    that can be used to solve ordinary differential equations with adaptive
+    step sizes.
+
+    The integrator is based on an Explicit Runge-Kutta method, and it uses
+    two different solutions to estimate the local integration error. The
+    error is then used to adapt the step size to reach a desired accuracy.
+    """
 
     AfterInitKey: ClassVar[str] = "after_init"
     InitializingKey: ClassVar[str] = "initializing"
@@ -257,6 +268,7 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             x0: The initial state of the system.
             t0: The initial time of the system.
             dt: The time step of the integration.
+            **kwargs: Additional parameters.
 
         Returns:
             The metadata of the integrator to be passed to the first step.
@@ -296,6 +308,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     def __call__(
         self, x0: State, t0: Time, dt: TimeStep, **kwargs
     ) -> tuple[NextState, dict[str, Any]]:
+        """
+        Integrate the system for a single step.
+        """
 
         # This method is called differently in three stages:
         #
@@ -512,10 +527,16 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     @property
     def order_of_solution(self) -> int:
+        """
+        The order of the solution.
+        """
         return self.order_of_bT_rows[self.row_index_of_solution]
 
     @property
     def order_of_solution_estimate(self) -> int:
+        """
+        The order of the solution estimate.
+        """
         return self.order_of_bT_rows[self.row_index_of_solution_estimate]
 
     @classmethod
@@ -534,6 +555,23 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
         max_step_rejections: jtp.IntLike = MAX_STEP_REJECTIONS_DEFAULT,
         **kwargs,
     ) -> Self:
+        """
+        Build an Embedded Runge-Kutta integrator.
+
+        Args:
+            dynamics: The system dynamics function.
+            fsal_enabled_if_supported:
+                Whether to enable the FSAL property if supported by the integrator.
+            dt_max: The maximum step size.
+            dt_min: The minimum step size.
+            rtol: The relative tolerance.
+            atol: The absolute tolerance.
+            safety: The safety factor to shrink the step size.
+            beta_max: The maximum factor to increase the step size.
+            beta_min: The minimum factor to increase the step size.
+            max_step_rejections: The maximum number of step rejections.
+            **kwargs: Additional parameters.
+        """
 
         # Check that b.T has enough rows based on the configured index of the
         # solution estimate. This is necessary for embedded methods.
@@ -569,6 +607,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
 @jax_dataclasses.pytree_dataclass
 class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
+    """
+    The Heun-Euler integrator for SO(3) dynamics.
+    """
 
     A: ClassVar[jtp.Matrix] = jnp.array(
         [
@@ -602,6 +643,9 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
 
 @jax_dataclasses.pytree_dataclass
 class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
+    """
+    The Bogacki-Shampine integrator for SO(3) dynamics.
+    """
 
     A: ClassVar[jtp.Matrix] = jnp.array(
         [

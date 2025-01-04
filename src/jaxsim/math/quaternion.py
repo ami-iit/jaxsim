@@ -8,6 +8,10 @@ from .utils import safe_norm
 
 
 class Quaternion:
+    """
+    A utility class for quaternion operations.
+    """
+
     @staticmethod
     def to_xyzw(wxyz: jtp.Vector) -> jtp.Vector:
         """

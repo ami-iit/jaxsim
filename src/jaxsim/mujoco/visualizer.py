@@ -10,7 +10,9 @@ import numpy.typing as npt
 
 
 class MujocoVideoRecorder:
-    """"""
+    """
+    Video recorder for the MuJoCo passive viewer.
+    """
 
     def __init__(
         self,
@@ -117,7 +119,9 @@ class MujocoVideoRecorder:
 
 
 class MujocoVisualizer:
-    """"""
+    """
+    Visualizer for the MuJoCo passive viewer.
+    """
 
     def __init__(
         self, model: mj.MjModel | None = None, data: mj.MjData | None = None

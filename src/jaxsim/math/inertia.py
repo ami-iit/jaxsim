@@ -6,6 +6,10 @@ from .skew import Skew
 
 
 class Inertia:
+    """
+    A utility class for inertia matrix operations.
+    """
+
     @staticmethod
     def to_sixd(mass: jtp.Float, com: jtp.Vector, I: jtp.Matrix) -> jtp.Matrix:
         """

@@ -160,6 +160,7 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         )
 
     def valid(self) -> jtp.BoolLike:
+        """Check if the parameters are valid."""
 
         return bool(
             jnp.all(self.time_constant >= 0.0)
@@ -187,6 +188,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
     @property
     def solver_options(self) -> dict[str, Any]:
+        """Get the solver options."""
 
         return dict(
             zip(
@@ -207,6 +209,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         Args:
             solver_options: The options to pass to the L-BFGS solver.
+            **kwargs: The parameters of the relaxed rigid contacts model.
 
         Returns:
             The `RelaxedRigidContacts` instance.
@@ -483,8 +486,8 @@ class RelaxedRigidContacts(common.ContactModel):
 
         Args:
             model: The jaxsim model.
-            penetration: The point position in the constraint frame.
-            velocity: The point velocity in the constraint frame.
+            position_constraint: The position of the collidable points in the constraint frame.
+            velocity_constraint: The velocity of the collidable points in the constraint frame.
             parameters: The parameters of the relaxed rigid contacts model.
 
         Returns:

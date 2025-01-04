@@ -6,6 +6,10 @@ from .skew import Skew
 
 
 class Cross:
+    """
+    A utility class for cross product matrix operations.
+    """
+
     @staticmethod
     def vx(velocity_sixd: jtp.Vector) -> jtp.Matrix:
         """

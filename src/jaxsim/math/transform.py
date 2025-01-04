@@ -5,6 +5,9 @@ import jaxsim.typing as jtp
 
 
 class Transform:
+    """
+    A utility class for transformation matrix operations.
+    """
 
     @staticmethod
     def from_quaternion_and_translation(

@@ -7,6 +7,10 @@ from .skew import Skew
 
 
 class Adjoint:
+    """
+    A utility class for adjoint matrix operations.
+    """
+
     @staticmethod
     def from_quaternion_and_translation(
         quaternion: jtp.Vector = jnp.array([1.0, 0, 0, 0]),

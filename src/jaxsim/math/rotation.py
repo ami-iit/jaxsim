@@ -8,6 +8,9 @@ from .utils import safe_norm
 
 
 class Rotation:
+    """
+    A utility class for rotation matrix operations.
+    """
 
     @staticmethod
     def x(theta: jtp.Float) -> jtp.Matrix:

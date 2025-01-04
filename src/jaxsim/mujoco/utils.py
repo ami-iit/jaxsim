@@ -133,6 +133,9 @@ class MujocoCamera:
 
     @classmethod
     def build(cls, **kwargs) -> MujocoCamera:
+        """
+        Build a Mujoco camera from a dictionary.
+        """
 
         if not all(isinstance(value, str) for value in kwargs.values()):
             raise ValueError(f"Values must be strings: {kwargs}")
@@ -219,5 +222,7 @@ class MujocoCamera:
         )
 
     def asdict(self) -> dict[str, str]:
-
+        """
+        Convert the camera to a dictionary.
+        """
         return {k: v for k, v in dataclasses.asdict(self).items() if v is not None}

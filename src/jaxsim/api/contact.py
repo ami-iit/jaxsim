@@ -293,6 +293,9 @@ def in_contact(
 def estimate_good_soft_contacts_parameters(
     *args, **kwargs
 ) -> jaxsim.rbda.contacts.ContactParamsTypes:
+    """
+    Estimate good soft contacts parameters. Deprecated, use `estimate_good_contact_parameters` instead.
+    """
 
     msg = "This method is deprecated, please use `{}`."
     logging.warning(msg.format(estimate_good_contact_parameters.__name__))

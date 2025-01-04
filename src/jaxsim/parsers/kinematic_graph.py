@@ -97,20 +97,32 @@ class KinematicGraph(Sequence[LinkDescription]):
 
     @functools.cached_property
     def links_dict(self) -> dict[str, LinkDescription]:
+        """
+        Get a dictionary of links indexed by their name.
+        """
         return {l.name: l for l in iter(self)}
 
     @functools.cached_property
     def frames_dict(self) -> dict[str, LinkDescription]:
+        """
+        Get a dictionary of frames indexed by their name.
+        """
         return {f.name: f for f in self.frames}
 
     @functools.cached_property
     def joints_dict(self) -> dict[str, JointDescription]:
+        """
+        Get a dictionary of joints indexed by their name.
+        """
         return {j.name: j for j in self.joints}
 
     @functools.cached_property
     def joints_connection_dict(
         self,
     ) -> dict[tuple[str, str], JointDescription]:
+        """
+        Get a dictionary of joints indexed by the tuple (parent, child) link names.
+        """
         return {(j.parent.name, j.child.name): j for j in self.joints}
 
     def __post_init__(self) -> None:
@@ -734,9 +746,15 @@ class KinematicGraph(Sequence[LinkDescription]):
         raise TypeError(type(key).__name__)
 
     def count(self, value: LinkDescription) -> int:
+        """
+        Count the occurrences of a link in the kinematic graph.
+        """
         return list(iter(self)).count(value)
 
     def index(self, value: LinkDescription, start: int = 0, stop: int = -1) -> int:
+        """
+        Find the index of a link in the kinematic graph.
+        """
         return list(iter(self)).index(value, start, stop)
 
 
@@ -747,6 +765,12 @@ class KinematicGraph(Sequence[LinkDescription]):
 
 @dataclasses.dataclass(frozen=True)
 class KinematicGraphTransforms:
+    """
+    Class to compute forward kinematics on a kinematic graph.
+
+    Attributes:
+        graph: The kinematic graph on which to compute forward kinematics.
+    """
 
     graph: KinematicGraph
 
@@ -767,6 +791,9 @@ class KinematicGraphTransforms:
 
     @property
     def initial_joint_positions(self) -> npt.NDArray:
+        """
+        Get the initial joint positions of the kinematic graph.
+        """
 
         return np.atleast_1d(
             np.array(list(self._initial_joint_positions.values()))
@@ -910,6 +937,17 @@ class KinematicGraphTransforms:
         joint_axis: npt.NDArray,
         joint_position: float | None = None,
     ) -> npt.NDArray:
+        """
+        Compute the SE(3) transform from the predecessor to the successor frame.
+
+        Args:
+            joint_type: The type of the joint.
+            joint_axis: The axis of the joint.
+            joint_position: The position of the joint.
+
+        Returns:
+            The 4x4 transform matrix from the predecessor to the successor frame.
+        """
 
         import jaxsim.math
 

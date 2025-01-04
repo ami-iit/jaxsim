@@ -62,7 +62,9 @@ def load_rod_model(
 
 
 class RodModelToMjcf:
-    """"""
+    """
+    Class to convert a ROD model to a Mujoco MJCF string.
+    """
 
     @staticmethod
     def assets_from_rod_model(
@@ -522,6 +524,10 @@ class RodModelToMjcf:
 
 
 class UrdfToMjcf:
+    """
+    Class to convert a URDF file to a Mujoco MJCF string.
+    """
+
     @staticmethod
     def convert(
         urdf: str | pathlib.Path,
@@ -564,6 +570,10 @@ class UrdfToMjcf:
 
 
 class SdfToMjcf:
+    """
+    Class to convert a SDF file to a Mujoco MJCF string.
+    """
+
     @staticmethod
     def convert(
         sdf: str | pathlib.Path,

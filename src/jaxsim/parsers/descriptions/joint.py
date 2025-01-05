@@ -3,11 +3,8 @@ from __future__ import annotations
 import dataclasses
 from typing import ClassVar
 
-import jax_dataclasses
 import numpy as np
-
-import jaxsim.typing as jtp
-from jaxsim.utils import JaxsimDataclass, Mutability
+import numpy.typing as npt
 
 from .link import LinkDescription
 
@@ -23,31 +20,10 @@ class JointType:
     Prismatic: ClassVar[int] = 2
 
 
-@jax_dataclasses.pytree_dataclass
-class JointGenericAxis:
+@dataclasses.dataclass(eq=False)
+class JointDescription:
     """
-    A joint requiring the specification of a 3D axis.
-    """
-
-    # The axis of rotation or translation of the joint (must have norm 1).
-    axis: jtp.Vector
-
-    def __hash__(self) -> int:
-
-        return hash(tuple(self.axis.tolist()))
-
-    def __eq__(self, other: JointGenericAxis) -> bool:
-
-        if not isinstance(other, JointGenericAxis):
-            return False
-
-        return hash(self) == hash(other)
-
-
-@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
-class JointDescription(JaxsimDataclass):
-    """
-    In-memory description of a robot link.
+    In-memory description of a robot joint.
 
     Attributes:
         name: The name of the joint.
@@ -65,66 +41,101 @@ class JointDescription(JaxsimDataclass):
         initial_position: The initial position of the joint.
     """
 
-    name: jax_dataclasses.Static[str]
-    axis: jtp.Vector
-    pose: jtp.Matrix
-    jtype: jax_dataclasses.Static[jtp.IntLike]
-    child: LinkDescription = dataclasses.dataclass(repr=False)
-    parent: LinkDescription = dataclasses.dataclass(repr=False)
+    name: str
+    _axis: tuple[float]
+    _pose: tuple[float]
+    jtype: int
+    child: LinkDescription = dataclasses.field(
+        default_factory=LinkDescription, repr=False
+    )
+    parent: LinkDescription = dataclasses.field(
+        default_factory=LinkDescription, repr=False
+    )
 
-    index: jtp.IntLike | None = None
+    index: int | None = None
 
-    friction_static: jtp.FloatLike = 0.0
-    friction_viscous: jtp.FloatLike = 0.0
+    friction_static: float = 0.0
+    friction_viscous: float = 0.0
 
-    position_limit_damper: jtp.FloatLike = 0.0
-    position_limit_spring: jtp.FloatLike = 0.0
+    position_limit_damper: float = 0.0
+    position_limit_spring: float = 0.0
 
-    position_limit: tuple[jtp.FloatLike, jtp.FloatLike] = (0.0, 0.0)
-    initial_position: jtp.FloatLike | jtp.VectorLike = 0.0
+    position_limit: tuple[float, float] = (0.0, 0.0)
+    _initial_position: float | tuple[float] = 0.0
 
-    motor_inertia: jtp.FloatLike = 0.0
-    motor_viscous_friction: jtp.FloatLike = 0.0
-    motor_gear_ratio: jtp.FloatLike = 1.0
+    motor_inertia: float = 0.0
+    motor_viscous_friction: float = 0.0
+    motor_gear_ratio: float = 1.0
 
     def __post_init__(self) -> None:
 
-        if self.axis is not None:
+        if self._axis is not None:
 
-            with self.mutable_context(
-                mutability=Mutability.MUTABLE, restore_after_exception=False
-            ):
-                norm_of_axis = np.linalg.norm(self.axis)
-                self.axis = self.axis / norm_of_axis
+            self._axis = self.axis / np.linalg.norm(self.axis)
 
-    def __eq__(self, other: JointDescription) -> bool:
+    @property
+    def axis(self) -> npt.NDArray:
+        """
+        Get the axis of the joint.
 
-        if not isinstance(other, JointDescription):
-            return False
+        Returns:
+            npt.NDArray: The axis of the joint.
+        """
 
-        return hash(self) == hash(other)
+        return np.array(self._axis)
 
-    def __hash__(self) -> int:
+    @axis.setter
+    def axis(self, value: npt.NDArray) -> None:
+        """
+        Set the axis of the joint.
 
-        from jaxsim.utils.wrappers import HashedNumpyArray
+        Args:
+            value (npt.NDArray): The new axis of the joint.
+        """
 
-        return hash(
-            (
-                hash(self.name),
-                HashedNumpyArray.hash_of_array(self.axis),
-                HashedNumpyArray.hash_of_array(self.pose),
-                hash(int(self.jtype)),
-                hash(self.child),
-                hash(self.parent),
-                hash(int(self.index)) if self.index is not None else 0,
-                HashedNumpyArray.hash_of_array(self.friction_static),
-                HashedNumpyArray.hash_of_array(self.friction_viscous),
-                HashedNumpyArray.hash_of_array(self.position_limit_damper),
-                HashedNumpyArray.hash_of_array(self.position_limit_spring),
-                HashedNumpyArray.hash_of_array(self.position_limit),
-                HashedNumpyArray.hash_of_array(self.initial_position),
-                HashedNumpyArray.hash_of_array(self.motor_inertia),
-                HashedNumpyArray.hash_of_array(self.motor_viscous_friction),
-                HashedNumpyArray.hash_of_array(self.motor_gear_ratio),
-            ),
-        )
+        norm_of_axis = np.linalg.norm(value)
+        self._axis = tuple((value / norm_of_axis).tolist())
+
+    @property
+    def pose(self) -> npt.NDArray:
+        """
+        Get the pose of the joint.
+
+        Returns:
+            The pose of the joint.
+        """
+
+        return np.array(self._pose, dtype=float)
+
+    @pose.setter
+    def pose(self, value: npt.NDArray) -> None:
+        """
+        Set the pose of the joint.
+
+        Args:
+            value: The new pose of the joint.
+        """
+
+        self._pose = tuple(np.array(value).tolist())
+
+    @property
+    def initial_position(self) -> float | npt.NDArray:
+        """
+        Get the initial position of the joint.
+
+        Returns:
+            The initial position of the joint.
+        """
+
+        return np.array(self._initial_position, dtype=float)
+
+    @initial_position.setter
+    def initial_position(self, value: float | npt.NDArray) -> None:
+        """
+        Set the initial position of the joint.
+
+        Args:
+            value: The new initial position of the joint.
+        """
+
+        self._initial_position = tuple(np.array(value).tolist())

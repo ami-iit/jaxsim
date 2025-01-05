@@ -24,6 +24,11 @@ def _jnp_options() -> None:
         logging.warning(msg)
         use_x64 = False
 
+        if is_metal:
+            logging.warning(
+                "JAX Metal backend is experimental. Some functionalities may not be available."
+            )
+
     # Enable 64-bit precision in JAX.
     if use_x64:
         logging.info("Enabling JAX to use 64-bit precision")

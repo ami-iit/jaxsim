@@ -51,23 +51,6 @@ class CollidablePoint:
             enabled=self.enabled,
         )
 
-    def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.parent_link),
-                hash(tuple(self.position.tolist())),
-                hash(self.enabled),
-            )
-        )
-
-    def __eq__(self, other: CollidablePoint) -> bool:
-
-        if not isinstance(other, CollidablePoint):
-            return False
-
-        return hash(self) == hash(other)
-
     def __str__(self) -> str:
         return (
             f"{self.__class__.__name__}("
@@ -109,21 +92,6 @@ class BoxCollision(CollisionShape):
 
     center: jtp.VectorLike
 
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(super()),
-                hash(tuple(self.center.tolist())),
-            )
-        )
-
-    def __eq__(self, other: BoxCollision) -> bool:
-
-        if not isinstance(other, BoxCollision):
-            return False
-
-        return hash(self) == hash(other)
-
 
 @dataclasses.dataclass
 class SphereCollision(CollisionShape):
@@ -136,21 +104,6 @@ class SphereCollision(CollisionShape):
 
     center: jtp.VectorLike
 
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(super()),
-                hash(tuple(self.center.tolist())),
-            )
-        )
-
-    def __eq__(self, other: BoxCollision) -> bool:
-
-        if not isinstance(other, BoxCollision):
-            return False
-
-        return hash(self) == hash(other)
-
 
 @dataclasses.dataclass
 class MeshCollision(CollisionShape):
@@ -162,17 +115,3 @@ class MeshCollision(CollisionShape):
     """
 
     center: jtp.VectorLike
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(tuple(self.center.tolist())),
-                hash(self.collidable_points),
-            )
-        )
-
-    def __eq__(self, other: MeshCollision) -> bool:
-        if not isinstance(other, MeshCollision):
-            return False
-
-        return hash(self) == hash(other)

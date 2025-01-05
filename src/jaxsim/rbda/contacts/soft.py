@@ -46,27 +46,6 @@ class SoftContactsParams(common.ContactsParams):
         default_factory=lambda: jnp.array(0.5, dtype=float)
     )
 
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.K),
-                HashedNumpyArray.hash_of_array(self.D),
-                HashedNumpyArray.hash_of_array(self.mu),
-                HashedNumpyArray.hash_of_array(self.p),
-                HashedNumpyArray.hash_of_array(self.q),
-            )
-        )
-
-    def __eq__(self, other: SoftContactsParams) -> bool:
-
-        if not isinstance(other, SoftContactsParams):
-            return NotImplemented
-
-        return hash(self) == hash(other)
-
     @classmethod
     def build(
         cls: type[Self],

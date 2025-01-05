@@ -19,7 +19,7 @@ import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
-from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
+from jaxsim.utils import JaxsimDataclass, Mutability
 
 from .common import VelRepr
 
@@ -41,7 +41,7 @@ class JaxSimModel(JaxsimDataclass):
     )
 
     # Note that this is the default contact model.
-    contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
+    contact_model: jaxsim.rbda.contacts.ContactModel | None = dataclasses.field(
         default=None, repr=False
     )
 
@@ -53,47 +53,11 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
+    integrator: jaxsim.integrators.Integrator | None = dataclasses.field(
         default=None, repr=False
     )
 
-    _description: Static[wrappers.HashlessObject[ModelDescription | None]] = (
-        dataclasses.field(default=None, repr=False)
-    )
-
-    @property
-    def description(self) -> ModelDescription:
-        """
-        Return the model description.
-        """
-        return self._description.get()
-
-    def __eq__(self, other: JaxSimModel) -> bool:
-
-        if not isinstance(other, JaxSimModel):
-            return False
-
-        if self.model_name != other.model_name:
-            return False
-
-        if self.time_step != other.time_step:
-            return False
-
-        if self.kin_dyn_parameters != other.kin_dyn_parameters:
-            return False
-
-        return True
-
-    def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.model_name),
-                hash(float(self.time_step)),
-                hash(self.kin_dyn_parameters),
-                hash(self.contact_model),
-            )
-        )
+    _description: Static[ModelDescription] = dataclasses.field(default=None, repr=False)
 
     # ========================
     # Initialization and state
@@ -285,7 +249,7 @@ class JaxSimModel(JaxsimDataclass):
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the
             # kin_dyn_parameters attribute.
-            _description=wrappers.HashlessObject(obj=model_description),
+            _description=model_description,
         )
 
         return model
@@ -456,15 +420,16 @@ def reduce(
 
     # Operate on a deep copy of the model description in order to prevent problems
     # when mutable attributes are updated.
-    intermediate_description = copy.deepcopy(model.description)
+    intermediate_description = copy.deepcopy(model._description)
 
     # Update the initial position of the joints.
     # This is necessary to compute the correct pose of the link pairs connected
     # to removed joints.
     for joint_name in set(model.joint_names()) - set(considered_joints):
-        j = intermediate_description.joints_dict[joint_name]
-        with j.mutable_context():
-            j.initial_position = float(locked_joint_positions.get(joint_name, 0.0))
+        intermediate_description.joints_dict[joint_name] = dataclasses.replace(
+            intermediate_description.joints_dict[joint_name],
+            initial_position=float(locked_joint_positions.get(joint_name, 0.0)),
+        )
 
     # Reduce the model description.
     # If `considered_joints` contains joints not existing in the model,

@@ -40,20 +40,6 @@ class RigidContactsParams(ContactsParams):
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
-    def __hash__(self) -> int:
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.mu),
-                HashedNumpyArray.hash_of_array(self.K),
-                HashedNumpyArray.hash_of_array(self.D),
-            )
-        )
-
-    def __eq__(self, other: RigidContactsParams) -> bool:
-        return hash(self) == hash(other)
-
     @classmethod
     def build(
         cls: type[Self],

@@ -12,7 +12,7 @@ from jax_dataclasses import Static
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, ModelDescription
-from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
+from jaxsim.utils import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -34,8 +34,8 @@ class KinDynParameters(JaxsimDataclass):
 
     # Static
     link_names: Static[tuple[str]]
-    _parent_array: Static[HashedNumpyArray]
-    _support_body_array_bool: Static[HashedNumpyArray]
+    _parent_array: Static[tuple[int]]
+    _support_body_array_bool: Static[tuple[int]]
 
     # Links
     link_parameters: LinkParameters
@@ -52,17 +52,11 @@ class KinDynParameters(JaxsimDataclass):
 
     @property
     def parent_array(self) -> jtp.Vector:
-        r"""
-        Return the parent array :math:`\lambda(i)` of the model.
-        """
-        return self._parent_array.get()
+        return jnp.array(self._parent_array, dtype=int)
 
     @property
     def support_body_array_bool(self) -> jtp.Matrix:
-        r"""
-        Return the boolean support parent array :math:`\kappa_{b}(i)` of the model.
-        """
-        return self._support_body_array_bool.get()
+        return jnp.array(self._support_body_array_bool, dtype=int)
 
     @staticmethod
     def build(model_description: ModelDescription) -> KinDynParameters:
@@ -221,33 +215,13 @@ class KinDynParameters(JaxsimDataclass):
 
         return KinDynParameters(
             link_names=tuple(l.name for l in ordered_links),
-            _parent_array=HashedNumpyArray(array=parent_array),
-            _support_body_array_bool=HashedNumpyArray(array=support_body_array_bool),
+            _parent_array=tuple(parent_array.tolist()),
+            _support_body_array_bool=tuple(support_body_array_bool.tolist()),
             link_parameters=link_parameters,
             joint_model=joint_model,
             joint_parameters=joint_parameters,
             contact_parameters=contact_parameters,
             frame_parameters=frame_parameters,
-        )
-
-    def __eq__(self, other: KinDynParameters) -> bool:
-
-        if not isinstance(other, KinDynParameters):
-            return False
-
-        return hash(self) == hash(other)
-
-    def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.number_of_links()),
-                hash(self.number_of_joints()),
-                hash(self.frame_parameters.name),
-                hash(self.frame_parameters.body),
-                hash(self._parent_array),
-                hash(self._support_body_array_bool),
-            )
         )
 
     # =============================
@@ -425,7 +399,7 @@ class KinDynParameters(JaxsimDataclass):
             pre_H_suc_J, S_J = jax.vmap(supported_joint_motion)(
                 jnp.array(self.joint_model.joint_types[1:]).astype(int),
                 jnp.array(joint_positions),
-                jnp.array([j.axis for j in self.joint_model.joint_axis]),
+                jnp.array(self.joint_model.joint_axis),
             )
 
         # Extract the transforms and motion subspaces of the joints.

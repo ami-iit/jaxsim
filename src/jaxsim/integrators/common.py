@@ -189,7 +189,7 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
 
     # Attributes of FSAL (first-same-as-last) property.
     fsal_enabled_if_supported: Static[bool] = dataclasses.field(repr=False)
-    index_of_fsal: Static[jtp.IntLike | None] = dataclasses.field(repr=False)
+    index_of_fsal: Static[int | None] = dataclasses.field(repr=False)
 
     @property
     def has_fsal(self) -> bool:

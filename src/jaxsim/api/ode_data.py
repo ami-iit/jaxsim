@@ -203,28 +203,6 @@ class PhysicsModelState(JaxsimDataclass):
         default_factory=lambda: jnp.zeros(3)
     )
 
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.joint_positions),
-                HashedNumpyArray.hash_of_array(self.joint_velocities),
-                HashedNumpyArray.hash_of_array(self.base_position),
-                HashedNumpyArray.hash_of_array(self.base_quaternion),
-                HashedNumpyArray.hash_of_array(self.base_linear_velocity),
-                HashedNumpyArray.hash_of_array(self.base_angular_velocity),
-            )
-        )
-
-    def __eq__(self, other: PhysicsModelState) -> bool:
-
-        if not isinstance(other, PhysicsModelState):
-            return False
-
-        return hash(self) == hash(other)
-
     @staticmethod
     def build_from_jaxsim_model(
         model: js.model.JaxSimModel | None = None,

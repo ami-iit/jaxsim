@@ -243,33 +243,3 @@ class ModelDescription(KinematicGraph):
 
         # Return enabled collidable points
         return [cp for cp in all_collidable_points if cp.enabled]
-
-    def __eq__(self, other: ModelDescription) -> bool:
-
-        if not isinstance(other, ModelDescription):
-            return False
-
-        if not (
-            self.name == other.name
-            and self.fixed_base == other.fixed_base
-            and self.root == other.root
-            and self.joints == other.joints
-            and self.frames == other.frames
-            and self.root_pose == other.root_pose
-        ):
-            return False
-
-        return True
-
-    def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.name),
-                hash(self.fixed_base),
-                hash(self.root),
-                hash(tuple(self.joints)),
-                hash(tuple(self.frames)),
-                hash(self.root_pose),
-            )
-        )

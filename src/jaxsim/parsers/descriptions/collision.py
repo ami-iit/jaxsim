@@ -3,11 +3,9 @@ from __future__ import annotations
 import abc
 import dataclasses
 
-import jax.numpy as jnp
 import numpy as np
 import numpy.typing as npt
 
-import jaxsim.typing as jtp
 from jaxsim import logging
 
 from .link import LinkDescription
@@ -25,8 +23,28 @@ class CollidablePoint:
     """
 
     parent_link: LinkDescription
-    position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
     enabled: bool = True
+    _position: tuple[float] = dataclasses.field(default=(0.0, 0.0, 0.0))
+
+    @property
+    def position(self) -> npt.NDArray:
+        """
+        Get the position of the collidable point.
+
+        Returns:
+            The position of the collidable point.
+        """
+        return np.array(self._position)
+
+    @position.setter
+    def position(self, value: npt.NDArray) -> None:
+        """
+        Set the position of the collidable point.
+
+        Args:
+            value: The new position of the collidable point.
+        """
+        self._position = tuple(value.tolist())
 
     def change_link(
         self, new_link: LinkDescription, new_H_old: npt.NDArray
@@ -35,8 +53,8 @@ class CollidablePoint:
         Move the collidable point to a new parent link.
 
         Args:
-            new_link (LinkDescription): The new parent link to which the collidable point is moved.
-            new_H_old (npt.NDArray): The transformation matrix from the new link's frame to the old link's frame.
+            new_link: The new parent link to which the collidable point is moved.
+            new_H_old: The transformation matrix from the new link's frame to the old link's frame.
 
         Returns:
             CollidablePoint: A new collidable point associated with the new parent link.
@@ -47,26 +65,11 @@ class CollidablePoint:
 
         return CollidablePoint(
             parent_link=new_link,
-            position=(new_H_old @ jnp.hstack([self.position, 1.0])).squeeze()[0:3],
+            _position=tuple(
+                (new_H_old @ np.hstack([self.position, 1.0])).squeeze()[0:3].tolist()
+            ),
             enabled=self.enabled,
         )
-
-    def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.parent_link),
-                hash(tuple(self.position.tolist())),
-                hash(self.enabled),
-            )
-        )
-
-    def __eq__(self, other: CollidablePoint) -> bool:
-
-        if not isinstance(other, CollidablePoint):
-            return False
-
-        return hash(self) == hash(other)
 
     def __str__(self) -> str:
         return (
@@ -107,22 +110,7 @@ class BoxCollision(CollisionShape):
         center: The center of the box in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(super()),
-                hash(tuple(self.center.tolist())),
-            )
-        )
-
-    def __eq__(self, other: BoxCollision) -> bool:
-
-        if not isinstance(other, BoxCollision):
-            return False
-
-        return hash(self) == hash(other)
+    center: tuple[float, float, float]
 
 
 @dataclasses.dataclass
@@ -134,22 +122,7 @@ class SphereCollision(CollisionShape):
         center: The center of the sphere in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(super()),
-                hash(tuple(self.center.tolist())),
-            )
-        )
-
-    def __eq__(self, other: BoxCollision) -> bool:
-
-        if not isinstance(other, BoxCollision):
-            return False
-
-        return hash(self) == hash(other)
+    center: tuple[float, float, float]
 
 
 @dataclasses.dataclass
@@ -161,18 +134,4 @@ class MeshCollision(CollisionShape):
         center: The center of the mesh in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(tuple(self.center.tolist())),
-                hash(self.collidable_points),
-            )
-        )
-
-    def __eq__(self, other: MeshCollision) -> bool:
-        if not isinstance(other, MeshCollision):
-            return False
-
-        return hash(self) == hash(other)
+    center: tuple[float, float, float]

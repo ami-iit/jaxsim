@@ -8,7 +8,7 @@ from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
 from jaxsim.math import Rotation
-from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
+from jaxsim.parsers.descriptions import JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
 
 
@@ -39,7 +39,7 @@ class JointModel:
     joint_dofs: Static[tuple[int, ...]]
     joint_names: Static[tuple[str, ...]]
     joint_types: Static[tuple[int, ...]]
-    joint_axis: Static[tuple[JointGenericAxis, ...]]
+    joint_axis: Static[tuple[tuple[int]]]
 
     @staticmethod
     def build(description: ModelDescription) -> JointModel:
@@ -108,7 +108,7 @@ class JointModel:
             joint_dofs=tuple([base_dofs] + [1 for _ in ordered_joints]),
             joint_names=tuple(["world_to_base"] + [j.name for j in ordered_joints]),
             joint_types=tuple([JointType.Fixed] + [j.jtype for j in ordered_joints]),
-            joint_axis=tuple(JointGenericAxis(axis=j.axis) for j in ordered_joints),
+            joint_axis=tuple(tuple(j.axis.tolist()) for j in ordered_joints),
         )
 
     def parent_H_predecessor(self, joint_index: jtp.IntLike) -> jtp.Matrix:

@@ -806,11 +806,11 @@ class ViscoElasticContacts(common.ContactModel):
             The data object storing the system state at the final time.
         """
 
-        s_t0 = data.joint_positions()
+        s_t0 = data.joint_positions
         W_p_B_t0 = data.base_position
         W_Q_B_t0 = data.base_orientation(dcm=False)
 
-        ṡ_t0 = data.joint_velocities()
+        ṡ_t0 = data.joint_velocities
         with data.switch_velocity_representation(jaxsim.VelRepr.Mixed):
             W_ṗ_B_t0 = data.base_velocity()[0:3]
             W_ω_WB_t0 = data.base_velocity()[3:6]

@@ -481,8 +481,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return -self.gravity[2]
 
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["joint_names"])
+    @property
     def joint_positions(
         self,
         model: js.model.JaxSimModel | None = None,
@@ -491,79 +490,26 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
         Get the joint positions.
 
-        Args:
-            model: The model to consider.
-            joint_names:
-                The names of the joints for which to get the positions. If `None`,
-                the positions of all joints are returned.
-
         Returns:
-            If no model and no joint names are provided, the joint positions as a
-            `(DoFs,)` vector corresponding to the serialization of the original
-            model used to build the data object.
-            If a model is provided and no joint names are provided, the joint positions
-            as a `(DoFs,)` vector corresponding to the serialization of the
-            provided model.
-            If a model and joint names are provided, the joint positions as a
-            `(len(joint_names),)` vector corresponding to the serialization of
-            the passed joint names vector.
+            The joint positions as a `(DoFs,)` vector corresponding to the serialization
+            of the original model used to build the data object.
         """
 
-        if model is None:
-            if joint_names is not None:
-                raise ValueError("Joint names cannot be provided without a model")
+        return self.state.physics_model.joint_positions
 
-            return self.state.physics_model.joint_positions
-
-        joint_idxs = (
-            js.joint.names_to_idxs(joint_names=joint_names, model=model)
-            if joint_names is not None
-            else jnp.arange(model.number_of_joints())
-        )
-
-        return self.state.physics_model.joint_positions[joint_idxs]
-
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["joint_names"])
+    @property
     def joint_velocities(
         self,
-        model: js.model.JaxSimModel | None = None,
-        joint_names: tuple[str, ...] | None = None,
     ) -> jtp.Vector:
         """
         Get the joint velocities.
 
-        Args:
-            model: The model to consider.
-            joint_names:
-                The names of the joints for which to get the velocities. If `None`,
-                the velocities of all joints are returned.
-
         Returns:
-            If no model and no joint names are provided, the joint velocities as a
-            `(DoFs,)` vector corresponding to the serialization of the original
-            model used to build the data object.
-            If a model is provided and no joint names are provided, the joint velocities
-            as a `(DoFs,)` vector corresponding to the serialization of the
-            provided model.
-            If a model and joint names are provided, the joint velocities as a
-            `(len(joint_names),)` vector corresponding to the serialization of
-            the passed joint names vector.
+            The joint velocities as a `(DoFs,)` vector corresponding to the serialization
+            of the original model used to build the data object.
         """
 
-        if model is None:
-            if joint_names is not None:
-                raise ValueError("Joint names cannot be provided without a model")
-
-            return self.state.physics_model.joint_velocities
-
-        joint_idxs = (
-            js.joint.names_to_idxs(joint_names=joint_names, model=model)
-            if joint_names is not None
-            else jnp.arange(model.number_of_joints())
-        )
-
-        return self.state.physics_model.joint_velocities[joint_idxs]
+        return self.state.physics_model.joint_velocities
 
     @property
     def base_position(self) -> jtp.Vector:
@@ -676,7 +622,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         return (
-            jnp.hstack([self.base_velocity(), self.joint_velocities()])
+            jnp.hstack([self.base_velocity(), self.joint_velocities])
             .squeeze()
             .astype(float)
         )
@@ -987,8 +933,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         base_quaternion = self.base_orientation(dcm=False)
         base_transform = self.base_transform()
-        joint_positions = self.joint_positions()
-        joint_velocities = self.joint_velocities()
+        joint_positions = self.joint_positions
+        joint_velocities = self.joint_velocities
 
         i_X_λ, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
             joint_positions=joint_positions, base_transform=base_transform

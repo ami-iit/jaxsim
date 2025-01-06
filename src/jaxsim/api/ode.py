@@ -257,7 +257,7 @@ def system_acceleration(
     τ_references = (
         jnp.atleast_1d(joint_force_references.squeeze())
         if joint_force_references is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     ).astype(float)
 
     # ====================
@@ -373,7 +373,7 @@ def system_position_dynamics(
         base quaternion, and the derivative of the joint positions.
     """
 
-    ṡ = data.joint_velocities(model=model)
+    ṡ = data.joint_velocities
     W_Q_B = data.base_orientation(dcm=False)
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Mixed):

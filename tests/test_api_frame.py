@@ -254,7 +254,7 @@ def test_frame_jacobian_derivative(
             [
                 data.base_position,
                 data.base_orientation(),
-                data.joint_positions(),
+                data.joint_positions,
             ]
         )
 
@@ -274,7 +274,7 @@ def test_frame_jacobian_derivative(
             K=0.0,
         ).squeeze()
 
-        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities()])
+        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities])
 
         return q̇
 

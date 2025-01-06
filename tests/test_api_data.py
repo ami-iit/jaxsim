@@ -19,36 +19,6 @@ def test_data_valid(
     assert data.valid(model=model)
 
 
-def test_data_joint_indexing(
-    jaxsim_models_types: js.model.JaxSimModel,
-    velocity_representation: VelRepr,
-    prng_key: jax.Array,
-):
-
-    model = jaxsim_models_types
-
-    _, subkey = jax.random.split(prng_key, num=2)
-    data = js.data.random_model_data(
-        model=model, key=subkey, velocity_representation=velocity_representation
-    )
-
-    assert data.joint_positions(
-        model=model, joint_names=model.joint_names()
-    ) == pytest.approx(data.joint_positions())
-
-    assert data.joint_positions() == pytest.approx(
-        data.state.physics_model.joint_positions
-    )
-
-    assert data.joint_velocities(
-        model=model, joint_names=model.joint_names()
-    ) == pytest.approx(data.joint_velocities())
-
-    assert data.joint_velocities() == pytest.approx(
-        data.state.physics_model.joint_velocities
-    )
-
-
 def test_data_switch_velocity_representation(
     jaxsim_models_types: js.model.JaxSimModel,
     prng_key: jax.Array,

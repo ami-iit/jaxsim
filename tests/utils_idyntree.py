@@ -102,13 +102,13 @@ def store_jaxsim_data_in_kindyncomputations(
 
     """
 
-    if kin_dyn.dofs() != data.joint_positions().size:
+    if kin_dyn.dofs() != data.joint_positions.size:
         raise ValueError(data)
 
     with data.switch_velocity_representation(kin_dyn.vel_repr):
         kin_dyn.set_robot_state(
-            joint_positions=np.array(data.joint_positions()),
-            joint_velocities=np.array(data.joint_velocities()),
+            joint_positions=np.array(data.joint_positions),
+            joint_velocities=np.array(data.joint_velocities),
             base_transform=np.array(data.base_transform()),
             base_velocity=np.array(data.base_velocity()),
         )

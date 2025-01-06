@@ -909,7 +909,7 @@ def forward_dynamics_aba(
     τ = (
         jnp.atleast_1d(joint_forces.squeeze())
         if joint_forces is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     )
 
     # Build link forces, if not provided.
@@ -928,22 +928,18 @@ def forward_dynamics_aba(
         velocity_representation=data.velocity_representation,
     )
 
-    # Extract the link and joint serializations.
-    link_names = model.link_names()
-    joint_names = model.joint_names()
-
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
         W_p_B = data.base_position
         W_v_WB = data.base_velocity()
         W_Q_B = data.base_orientation(dcm=False)
-        s = data.joint_positions(model=model, joint_names=joint_names)
-        ṡ = data.joint_velocities(model=model, joint_names=joint_names)
+        s = data.joint_positions
+        ṡ = data.joint_velocities
 
     # Extract the inputs in inertial-fixed representation.
     with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(model=model, data=data, link_names=link_names)
-        τ = references.joint_force_references(model=model, joint_names=joint_names)
+        W_f_L = references.link_forces(model=model)
+        τ = references.joint_force_references(model=model)
 
     # ========================
     # Compute forward dynamics
@@ -1060,7 +1056,7 @@ def forward_dynamics_crb(
     τ = (
         jnp.atleast_1d(joint_forces)
         if joint_forces is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     )
 
     # Build external forces if not provided.
@@ -1311,7 +1307,7 @@ def inverse_dynamics(
     s̈ = (
         jnp.atleast_1d(jnp.array(joint_accelerations).squeeze())
         if joint_accelerations is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     )
 
     # Build base acceleration, if not provided.
@@ -1849,7 +1845,7 @@ def link_bias_accelerations(
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
     i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=data.joint_positions(), base_transform=W_H_B
+        joint_positions=data.joint_positions, base_transform=W_H_B
     )
 
     # Allocate the buffer to store the body-fixed link velocities.

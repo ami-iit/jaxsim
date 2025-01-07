@@ -23,14 +23,14 @@ class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     """
 
     A: jtp.Matrix = dataclasses.field(
-        default_factory=lambda: jnp.atleast_2d(0).astype(float)
+        default_factory=lambda: jnp.atleast_2d(0).astype(float), compare=False
     )
     b: jtp.Matrix = dataclasses.field(
-        default_factory=lambda: jnp.atleast_2d(1).astype(float)
+        default_factory=lambda: jnp.atleast_2d(1).astype(float), compare=False
     )
 
     c: jtp.Vector = dataclasses.field(
-        default_factory=lambda: jnp.atleast_1d(0).astype(float)
+        default_factory=lambda: jnp.atleast_1d(0).astype(float), compare=False
     )
 
     row_index_of_solution: int = 0
@@ -51,7 +51,8 @@ class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                 [0, 0],
                 [1, 0],
             ]
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     b: jtp.Matrix = dataclasses.field(
@@ -61,13 +62,15 @@ class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             )
             .astype(float)
             .transpose()
-        )
+        ),
+        compare=False,
     )
 
     c: jtp.Vector = dataclasses.field(
         default_factory=lambda: jnp.array(
             [0, 1],
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     row_index_of_solution: ClassVar[int] = 0
@@ -90,7 +93,8 @@ class RungeKutta4(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
                 [0, 1 / 2, 0, 0],
                 [0, 0, 1, 0],
             ]
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     b: jtp.Matrix = dataclasses.field(
@@ -100,13 +104,15 @@ class RungeKutta4(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             )
             .astype(float)
             .transpose()
-        )
+        ),
+        compare=False,
     )
 
     c: jtp.Vector = dataclasses.field(
         default_factory=lambda: jnp.array(
             [0, 1 / 2, 1 / 2, 1],
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     row_index_of_solution: ClassVar[int] = 0

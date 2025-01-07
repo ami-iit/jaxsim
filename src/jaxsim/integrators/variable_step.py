@@ -238,8 +238,8 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     row_index_of_solution_estimate: ClassVar[int | None] = None
 
     # Bounds of the adaptive Δt.
-    dt_max: Static[jtp.FloatLike] = dataclasses.field(default_factory=lambda: jnp.inf)
-    dt_min: Static[jtp.FloatLike] = dataclasses.field(default_factory=lambda: -jnp.inf)
+    dt_max: Static[jtp.FloatLike] = jnp.inf
+    dt_min: Static[jtp.FloatLike] = -jnp.inf
 
     # Tolerances used to scale the two states corresponding to the high-order solution
     # and the low-order estimate during the computation of the local integration error.
@@ -623,7 +623,8 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
                 [0, 0],
                 [1, 0],
             ]
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     b: jtp.Matrix = dataclasses.field(
@@ -638,13 +639,15 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
             )
             .astype(float)
             .transpose()
-        )
+        ),
+        compare=False,
     )
 
     c: jtp.Vector = dataclasses.field(
         default_factory=lambda: jnp.array(
             [0, 1],
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     row_index_of_solution: ClassVar[int] = 0
@@ -670,7 +673,8 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
                 [0, 3 / 4, 0, 0],
                 [2 / 9, 1 / 3, 4 / 9, 0],
             ]
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     b: jtp.Matrix = dataclasses.field(
@@ -685,13 +689,15 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
             )
             .astype(float)
             .transpose()
-        )
+        ),
+        compare=False,
     )
 
     c: jtp.Vector = dataclasses.field(
         default_factory=lambda: jnp.array(
             [0, 1 / 2, 3 / 4, 1],
-        ).astype(float)
+        ).astype(float),
+        compare=False,
     )
 
     row_index_of_solution: ClassVar[int] = 0

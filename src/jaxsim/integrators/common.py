@@ -170,14 +170,14 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     """
 
     # The Runge-Kutta matrix.
-    A: ClassVar[jtp.Matrix]
+    A: jtp.Matrix
 
     # The weights coefficients.
     # Note that in practice we typically use its transpose `b.transpose()`.
-    b: ClassVar[jtp.Matrix]
+    b: jtp.Matrix
 
     # The nodes coefficients.
-    c: ClassVar[jtp.Vector]
+    c: jtp.Vector
 
     # Define the order of the solution.
     # It should have as many elements as the number of rows of `b.transpose()`.

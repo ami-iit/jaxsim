@@ -11,8 +11,8 @@ class Transform:
 
     @staticmethod
     def from_quaternion_and_translation(
-        quaternion: jtp.VectorLike = jnp.array([1.0, 0, 0, 0]),
-        translation: jtp.VectorLike = jnp.zeros(3),
+        quaternion: jtp.VectorLike | None = None,
+        translation: jtp.VectorLike | None = None,
         inverse: jtp.BoolLike = False,
         normalize_quaternion: jtp.BoolLike = False,
     ) -> jtp.Matrix:
@@ -29,6 +29,9 @@ class Transform:
         Returns:
             The 4x4 transformation matrix representing the SE(3) transformation.
         """
+
+        quaternion = quaternion if quaternion is not None else jnp.array([1.0, 0, 0, 0])
+        translation = translation if translation is not None else jnp.zeros(3)
 
         W_Q_B = jnp.array(quaternion).astype(float)
         W_p_B = jnp.array(translation).astype(float)
@@ -47,8 +50,8 @@ class Transform:
 
     @staticmethod
     def from_rotation_and_translation(
-        rotation: jtp.MatrixLike = jnp.eye(3),
-        translation: jtp.VectorLike = jnp.zeros(3),
+        rotation: jtp.MatrixLike | None = None,
+        translation: jtp.VectorLike | None = None,
         inverse: jtp.BoolLike = False,
     ) -> jtp.Matrix:
         """
@@ -62,6 +65,8 @@ class Transform:
         Returns:
             The 4x4 transformation matrix representing the SE(3) transformation.
         """
+        rotation = rotation if rotation is not None else jnp.eye(3)
+        translation = translation if translation is not None else jnp.zeros(3)
 
         A_R_B = jnp.array(rotation).astype(float)
         W_p_B = jnp.array(translation).astype(float)

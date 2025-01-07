@@ -13,8 +13,8 @@ class Adjoint:
 
     @staticmethod
     def from_quaternion_and_translation(
-        quaternion: jtp.Vector = jnp.array([1.0, 0, 0, 0]),
-        translation: jtp.Vector = jnp.zeros(3),
+        quaternion: jtp.Vector | None = None,
+        translation: jtp.Vector | None = None,
         inverse: bool = False,
         normalize_quaternion: bool = False,
     ) -> jtp.Matrix:
@@ -30,6 +30,8 @@ class Adjoint:
         Returns:
             jtp.Matrix: The adjoint matrix.
         """
+        quaternion = quaternion if quaternion is not None else jnp.array([1.0, 0, 0, 0])
+        translation = translation if translation is not None else jnp.zeros(3)
         assert quaternion.size == 4
         assert translation.size == 3
 
@@ -64,8 +66,8 @@ class Adjoint:
 
     @staticmethod
     def from_rotation_and_translation(
-        rotation: jtp.Matrix = jnp.eye(3),
-        translation: jtp.Vector = jnp.zeros(3),
+        rotation: jtp.Matrix | None = None,
+        translation: jtp.Vector | None = None,
         inverse: bool = False,
     ) -> jtp.Matrix:
         """
@@ -79,6 +81,9 @@ class Adjoint:
         Returns:
             jtp.Matrix: The adjoint matrix.
         """
+        rotation = rotation if rotation is not None else jnp.eye(3)
+        translation = translation if translation is not None else jnp.zeros(3)
+
         assert rotation.shape == (3, 3)
         assert translation.size == 3
 

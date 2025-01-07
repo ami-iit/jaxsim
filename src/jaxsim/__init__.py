@@ -34,13 +34,6 @@ def _jnp_options() -> None:
         logging.info("Enabling JAX to use 64-bit precision")
         jax.config.update("jax_enable_x64", True)
 
-        import jax.numpy as jnp
-        import numpy as np
-
-        # Verify that 64-bit precision is correctly set.
-        if jnp.empty(0, dtype=float).dtype != jnp.empty(0, dtype=np.float64).dtype:
-            logging.warning("Failed to enable 64-bit precision in JAX")
-
     # Warn about experimental usage of 32-bit precision.
     else:
         logging.warning(

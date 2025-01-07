@@ -225,15 +225,15 @@ def create_mesh_collision(
 ) -> descriptions.MeshCollision:
 
     file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
-    _file_type = file.suffix.replace(".", "")
-    mesh = trimesh.load_mesh(file, file_type=_file_type)
+    file_type = file.suffix.replace(".", "")
+    mesh = trimesh.load_mesh(file, file_type=file_type)
 
     if mesh.is_empty:
         raise RuntimeError(f"Failed to process '{file}' with trimesh")
 
     mesh.apply_scale(collision.geometry.mesh.scale)
     logging.info(
-        msg=f"Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{_file_type}'"
+        msg=f"Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{file_type}'"
     )
 
     if method is None:

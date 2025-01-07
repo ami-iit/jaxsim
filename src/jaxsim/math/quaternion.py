@@ -4,6 +4,8 @@ import jaxlie
 
 import jaxsim.typing as jtp
 
+from .utils import safe_norm
+
 
 class Quaternion:
     @staticmethod
@@ -111,18 +113,13 @@ class Quaternion:
             operand=quaternion,
         )
 
-        norm_ω = jax.lax.cond(
-            pred=ω.dot(ω) < (1e-6) ** 2,
-            true_fun=lambda _: 1e-6,
-            false_fun=lambda _: jnp.linalg.norm(ω),
-            operand=None,
-        )
+        norm_ω = safe_norm(ω)
 
         qd = 0.5 * (
             Q
             @ jnp.hstack(
                 [
-                    K * norm_ω * (1 - jnp.linalg.norm(quaternion)),
+                    K * norm_ω * (1 - safe_norm(quaternion)),
                     ω,
                 ]
             )

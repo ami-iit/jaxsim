@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import jax_dataclasses
 import numpy as np
 
+import jaxsim.math
 import jaxsim.typing as jtp
 from jaxsim import exceptions
 
@@ -41,7 +42,7 @@ class Terrain(abc.ABC):
             [(h_xm - h_xp) / (2 * self.delta), (h_ym - h_yp) / (2 * self.delta), 1.0]
         )
 
-        return n / jnp.linalg.norm(n)
+        return n / jaxsim.math.safe_norm(n)
 
 
 @jax_dataclasses.pytree_dataclass

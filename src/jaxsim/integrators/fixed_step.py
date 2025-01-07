@@ -1,3 +1,4 @@
+import dataclasses
 from typing import ClassVar, Generic
 
 import jax.numpy as jnp
@@ -21,14 +22,21 @@ class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     Forward Euler integrator.
     """
 
-    A: ClassVar[jtp.Matrix] = jnp.atleast_2d(0).astype(float)
+    A: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: jnp.atleast_2d(0).astype(float)
+    )
+    b: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: jnp.atleast_2d(1).astype(float)
+    )
 
-    b: ClassVar[jtp.Matrix] = jnp.atleast_2d(1).astype(float).transpose()
+    c: jtp.Vector = dataclasses.field(
+        default_factory=lambda: jnp.atleast_1d(0).astype(float)
+    )
 
-    c: ClassVar[jtp.Vector] = jnp.atleast_1d(0).astype(float)
-
-    row_index_of_solution: ClassVar[int] = 0
-    order_of_bT_rows: ClassVar[tuple[int, ...]] = (1,)
+    row_index_of_solution: int = 0
+    order_of_bT_rows: tuple[int, ...] = (1,)
+    index_of_fsal: jtp.IntLike | None = None
+    fsal_enabled_if_supported: bool = False
 
 
 @jax_dataclasses.pytree_dataclass
@@ -37,27 +45,35 @@ class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     Heun's second-order integrator.
     """
 
-    A: ClassVar[jtp.Matrix] = jnp.array(
-        [
-            [0, 0],
-            [1, 0],
-        ]
-    ).astype(float)
-
-    b: ClassVar[jtp.Matrix] = (
-        jnp.atleast_2d(
-            jnp.array([1 / 2, 1 / 2]),
-        )
-        .astype(float)
-        .transpose()
+    A: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [
+                [0, 0],
+                [1, 0],
+            ]
+        ).astype(float)
     )
 
-    c: ClassVar[jtp.Vector] = jnp.array(
-        [0, 1],
-    ).astype(float)
+    b: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: (
+            jnp.atleast_2d(
+                jnp.array([1 / 2, 1 / 2]),
+            )
+            .astype(float)
+            .transpose()
+        )
+    )
+
+    c: jtp.Vector = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [0, 1],
+        ).astype(float)
+    )
 
     row_index_of_solution: ClassVar[int] = 0
     order_of_bT_rows: ClassVar[tuple[int, ...]] = (2,)
+    index_of_fsal: jtp.IntLike | None = None
+    fsal_enabled_if_supported: bool = False
 
 
 @jax_dataclasses.pytree_dataclass
@@ -66,29 +82,37 @@ class RungeKutta4(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     Fourth-order Runge-Kutta integrator.
     """
 
-    A: ClassVar[jtp.Matrix] = jnp.array(
-        [
-            [0, 0, 0, 0],
-            [1 / 2, 0, 0, 0],
-            [0, 1 / 2, 0, 0],
-            [0, 0, 1, 0],
-        ]
-    ).astype(float)
-
-    b: ClassVar[jtp.Matrix] = (
-        jnp.atleast_2d(
-            jnp.array([1 / 6, 1 / 3, 1 / 3, 1 / 6]),
-        )
-        .astype(float)
-        .transpose()
+    A: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [
+                [0, 0, 0, 0],
+                [1 / 2, 0, 0, 0],
+                [0, 1 / 2, 0, 0],
+                [0, 0, 1, 0],
+            ]
+        ).astype(float)
     )
 
-    c: ClassVar[jtp.Vector] = jnp.array(
-        [0, 1 / 2, 1 / 2, 1],
-    ).astype(float)
+    b: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: (
+            jnp.atleast_2d(
+                jnp.array([1 / 6, 1 / 3, 1 / 3, 1 / 6]),
+            )
+            .astype(float)
+            .transpose()
+        )
+    )
+
+    c: jtp.Vector = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [0, 1 / 2, 1 / 2, 1],
+        ).astype(float)
+    )
 
     row_index_of_solution: ClassVar[int] = 0
     order_of_bT_rows: ClassVar[tuple[int, ...]] = (4,)
+    index_of_fsal: jtp.IntLike | None = None
+    fsal_enabled_if_supported: bool = False
 
 
 # ===============================================================================

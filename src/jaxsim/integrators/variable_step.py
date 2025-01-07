@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 from typing import Any, ClassVar, Generic
 
@@ -237,8 +238,8 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
     row_index_of_solution_estimate: ClassVar[int | None] = None
 
     # Bounds of the adaptive Δt.
-    dt_max: Static[jtp.FloatLike] = jnp.inf
-    dt_min: Static[jtp.FloatLike] = -jnp.inf
+    dt_max: Static[jtp.FloatLike] = dataclasses.field(default_factory=lambda: jnp.inf)
+    dt_min: Static[jtp.FloatLike] = dataclasses.field(default_factory=lambda: -jnp.inf)
 
     # Tolerances used to scale the two states corresponding to the high-order solution
     # and the low-order estimate during the computation of the local integration error.
@@ -253,6 +254,9 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
     # Maximum number of rejected steps when the Δt needs to be reduced.
     max_step_rejections: Static[jtp.IntLike] = MAX_STEP_REJECTIONS_DEFAULT
+
+    index_of_fsal: jtp.IntLike | None = None
+    fsal_enabled_if_supported: bool = False
 
     def init(
         self,
@@ -573,16 +577,18 @@ class EmbeddedRungeKutta(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
             **kwargs: Additional parameters.
         """
 
+        b = cls.__dataclass_fields__["b"].default_factory()
+
         # Check that b.T has enough rows based on the configured index of the
         # solution estimate. This is necessary for embedded methods.
         if (
             cls.row_index_of_solution_estimate is not None
-            and cls.row_index_of_solution_estimate >= cls.b.T.shape[0]
+            and cls.row_index_of_solution_estimate >= b.T.shape[0]
         ):
             msg = "The index of the solution estimate ({}-th row of `b.T`) "
             msg += "is out of range ({})."
             raise ValueError(
-                msg.format(cls.row_index_of_solution_estimate, cls.b.T.shape[0])
+                msg.format(cls.row_index_of_solution_estimate, b.T.shape[0])
             )
 
         integrator = super().build(
@@ -611,34 +617,43 @@ class HeunEulerSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mixin):
     The Heun-Euler integrator for SO(3) dynamics.
     """
 
-    A: ClassVar[jtp.Matrix] = jnp.array(
-        [
-            [0, 0],
-            [1, 0],
-        ]
-    ).astype(float)
-
-    b: ClassVar[jtp.Matrix] = (
-        jnp.atleast_2d(
-            jnp.array(
-                [
-                    [1 / 2, 1 / 2],
-                    [1, 0],
-                ]
-            ),
-        )
-        .astype(float)
-        .transpose()
+    A: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [
+                [0, 0],
+                [1, 0],
+            ]
+        ).astype(float)
     )
 
-    c: ClassVar[jtp.Vector] = jnp.array(
-        [0, 1],
-    ).astype(float)
+    b: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: (
+            jnp.atleast_2d(
+                jnp.array(
+                    [
+                        [1 / 2, 1 / 2],
+                        [1, 0],
+                    ]
+                ),
+            )
+            .astype(float)
+            .transpose()
+        )
+    )
+
+    c: jtp.Vector = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [0, 1],
+        ).astype(float)
+    )
 
     row_index_of_solution: ClassVar[int] = 0
     row_index_of_solution_estimate: ClassVar[int | None] = 1
 
     order_of_bT_rows: ClassVar[tuple[int, ...]] = (2, 1)
+
+    index_of_fsal: jtp.IntLike | None = None
+    fsal_enabled_if_supported: bool = False
 
 
 @jax_dataclasses.pytree_dataclass
@@ -647,31 +662,37 @@ class BogackiShampineSO3(EmbeddedRungeKutta[PyTreeType], ExplicitRungeKuttaSO3Mi
     The Bogacki-Shampine integrator for SO(3) dynamics.
     """
 
-    A: ClassVar[jtp.Matrix] = jnp.array(
-        [
-            [0, 0, 0, 0],
-            [1 / 2, 0, 0, 0],
-            [0, 3 / 4, 0, 0],
-            [2 / 9, 1 / 3, 4 / 9, 0],
-        ]
-    ).astype(float)
-
-    b: ClassVar[jtp.Matrix] = (
-        jnp.atleast_2d(
-            jnp.array(
-                [
-                    [2 / 9, 1 / 3, 4 / 9, 0],
-                    [7 / 24, 1 / 4, 1 / 3, 1 / 8],
-                ]
-            ),
-        )
-        .astype(float)
-        .transpose()
+    A: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [
+                [0, 0, 0, 0],
+                [1 / 2, 0, 0, 0],
+                [0, 3 / 4, 0, 0],
+                [2 / 9, 1 / 3, 4 / 9, 0],
+            ]
+        ).astype(float)
     )
 
-    c: ClassVar[jtp.Vector] = jnp.array(
-        [0, 1 / 2, 3 / 4, 1],
-    ).astype(float)
+    b: jtp.Matrix = dataclasses.field(
+        default_factory=lambda: (
+            jnp.atleast_2d(
+                jnp.array(
+                    [
+                        [2 / 9, 1 / 3, 4 / 9, 0],
+                        [7 / 24, 1 / 4, 1 / 3, 1 / 8],
+                    ]
+                ),
+            )
+            .astype(float)
+            .transpose()
+        )
+    )
+
+    c: jtp.Vector = dataclasses.field(
+        default_factory=lambda: jnp.array(
+            [0, 1 / 2, 3 / 4, 1],
+        ).astype(float)
+    )
 
     row_index_of_solution: ClassVar[int] = 0
     row_index_of_solution_estimate: ClassVar[int | None] = 1

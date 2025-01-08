@@ -28,7 +28,6 @@
 
 
 ```python
-import jax
 import jax.numpy as jnp
 import jaxsim.api as js
 import icub_models

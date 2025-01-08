@@ -182,7 +182,11 @@ class RigidContacts(ContactModel):
             inactive_collidable_points: The activation state of the collidable points.
             M: The mass matrix of the system (in mixed representation).
             J_WC: The Jacobian matrix of the collidable points (in mixed representation).
-            data: The `JaxSimModelData` instance.
+            generalized_velocity: The generalized velocity of the system.
+
+        Note:
+            The mass matrix `M`, the Jacobian `J_WC`, and the generalized velocity `generalized_velocity`
+            must be expressed in the same velocity representation.
         """
 
         # Compute system velocity after impact maintaining zero linear velocity of active points.

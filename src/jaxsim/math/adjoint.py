@@ -22,10 +22,11 @@ class Adjoint:
         Create an adjoint matrix from a quaternion and a translation.
 
         Args:
-            quaternion: A quaternion vector (4D) representing orientation.
-            translation: A translation vector (3D).
-            inverse: Whether to compute the inverse adjoint.
-            normalize_quaternion: Whether to normalize the quaternion before creating the adjoint.
+            quaternion (jtp.Vector): A quaternion vector (4D) representing orientation. Default is [1, 0, 0, 0].
+            translation (jtp.Vector): A translation vector (3D). Default is [0, 0, 0].
+            inverse (bool): Whether to compute the inverse adjoint. Default is False.
+            normalize_quaternion (bool): Whether to normalize the quaternion before creating the adjoint.
+                                         Default is False.
 
         Returns:
             jtp.Matrix: The adjoint matrix.
@@ -74,9 +75,9 @@ class Adjoint:
         Create an adjoint matrix from a rotation matrix and a translation vector.
 
         Args:
-            rotation: A 3x3 rotation matrix.
-            translation: A translation vector (3D).
-            inverse: Whether to compute the inverse adjoint. Default is False.
+            rotation (jtp.Matrix): A 3x3 rotation matrix. Default is identity.
+            translation (jtp.Vector): A translation vector (3D). Default is [0, 0, 0].
+            inverse (bool): Whether to compute the inverse adjoint. Default is False.
 
         Returns:
             jtp.Matrix: The adjoint matrix.

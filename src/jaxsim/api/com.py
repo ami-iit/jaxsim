@@ -27,7 +27,7 @@ def com_position(
     m = js.model.total_mass(model=model)
 
     W_H_L = data.kyn_dyn.forward_kinematics
-    W_H_B = data.base_transform()
+    W_H_B = data.kyn_dyn.base_transform
     B_H_W = jaxsim.math.Transform.inverse(transform=W_H_B)
 
     def B_p̃_LCoM(i) -> jtp.Vector:
@@ -134,7 +134,7 @@ def centroidal_momentum_jacobian(
         model=model, data=data, output_vel_repr=VelRepr.Body
     )
 
-    W_H_B = data.base_transform()
+    W_H_B = data.kyn_dyn.base_transform
     B_H_W = jaxsim.math.Transform.inverse(W_H_B)
 
     W_p_CoM = com_position(model=model, data=data)
@@ -172,7 +172,7 @@ def locked_centroidal_spatial_inertia(
     with data.switch_velocity_representation(VelRepr.Body):
         B_Mbb_B = js.model.locked_spatial_inertia(model=model, data=data)
 
-    W_H_B = data.base_transform()
+    W_H_B = data.kyn_dyn.base_transform
     W_p_CoM = com_position(model=model, data=data)
 
     match data.velocity_representation:
@@ -411,7 +411,7 @@ def bias_acceleration(
         case VelRepr.Body:
 
             GB_Xf_W = jaxsim.math.Adjoint.from_transform(
-                transform=data.base_transform().at[0:3].set(W_p_CoM)
+                transform=data.kyn_dyn.base_transform.at[0:3].set(W_p_CoM)
             ).T
 
             GB_ḣ_bias = GB_Xf_W @ W_ḣ_bias

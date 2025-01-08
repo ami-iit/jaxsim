@@ -80,7 +80,7 @@ def test_box_with_external_forces(
 
     # Check that the box didn't move.
     assert data.base_position == pytest.approx(data0.base_position)
-    assert data.base_orientation() == pytest.approx(data0.base_orientation())
+    assert data.base_orientation == pytest.approx(data0.base_orientation)
 
 
 def test_box_with_zero_gravity(
@@ -461,7 +461,7 @@ def test_joint_limits(
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
 
     assert (
-        np.min(np.array(data_tf.joint_positions()), axis=0) + tolerance
+        np.min(np.array(data_tf.joint_positions), axis=0) + tolerance
         >= position_limits_min
     )
 
@@ -474,6 +474,6 @@ def test_joint_limits(
     data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
 
     assert (
-        np.max(np.array(data_tf.joint_positions()), axis=0) - tolerance
+        np.max(np.array(data_tf.joint_positions), axis=0) - tolerance
         <= position_limits_max
     )

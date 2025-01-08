@@ -808,12 +808,12 @@ class ViscoElasticContacts(common.ContactModel):
 
         s_t0 = data.joint_positions
         W_p_B_t0 = data.base_position
-        W_Q_B_t0 = data.base_orientation(dcm=False)
+        W_Q_B_t0 = data.base_orientation
 
         ṡ_t0 = data.joint_velocities
         with data.switch_velocity_representation(jaxsim.VelRepr.Mixed):
-            W_ṗ_B_t0 = data.base_velocity()[0:3]
-            W_ω_WB_t0 = data.base_velocity()[3:6]
+            W_ṗ_B_t0 = data.kyn_dyn.base_velocity[0:3]
+            W_ω_WB_t0 = data.kyn_dyn.base_velocity[3:6]
 
         with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
             W_ν_t0 = data.generalized_velocity()

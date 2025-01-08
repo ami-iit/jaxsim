@@ -134,10 +134,10 @@ def test_contact_jacobian_derivative(
     data_with_frames = js.data.JaxSimModelData.build(
         model=model_with_frames,
         base_position=data.base_position,
-        base_quaternion=data.base_orientation(dcm=False),
+        base_quaternion=data.base_orientation,
         joint_positions=data.joint_positions,
-        base_linear_velocity=data.base_velocity()[0:3],
-        base_angular_velocity=data.base_velocity()[3:6],
+        base_linear_velocity=data.kyn_dyn.base_velocity[0:3],
+        base_angular_velocity=data.kyn_dyn.base_velocity[3:6],
         joint_velocities=data.joint_velocities,
         velocity_representation=velocity_representation,
     )

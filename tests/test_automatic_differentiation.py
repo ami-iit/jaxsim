@@ -77,9 +77,9 @@ def test_ad_aba(
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position
-    W_Q_B = data.base_orientation(dcm=False)
+    W_Q_B = data.base_orientation
     s = data.joint_positions
-    W_v_WB = data.base_velocity()
+    W_v_WB = data.kyn_dyn.base_velocity
     ṡ = data.joint_velocities
     i_X_λ = data.kyn_dyn.joint_transforms
     S = data.kyn_dyn.motion_subspaces
@@ -135,9 +135,9 @@ def test_ad_rnea(
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position
-    W_Q_B = data.base_orientation(dcm=False)
+    W_Q_B = data.base_orientation
     s = data.joint_positions
-    W_v_WB = data.base_velocity()
+    W_v_WB = data.kyn_dyn.base_velocity
     ṡ = data.joint_velocities
     i_X_λ = data.kyn_dyn.joint_transforms
     S = data.kyn_dyn.motion_subspaces
@@ -204,7 +204,7 @@ def test_ad_crba(
     )
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
     i_X_λ = data.kyn_dyn.joint_transforms
     S = data.kyn_dyn.motion_subspaces
 
@@ -244,8 +244,8 @@ def test_ad_fk(
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position
-    W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
+    W_Q_B = data.base_orientation
+    s = data.joint_positions
     i_X_λ = data.kyn_dyn.joint_transforms
 
     # ====
@@ -284,7 +284,7 @@ def test_ad_jacobian(
     )
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
     i_X_λ = data.kyn_dyn.joint_transforms
     S = data.kyn_dyn.motion_subspaces
 
@@ -379,9 +379,9 @@ def test_ad_integration(
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position
-    W_Q_B = data.base_orientation(dcm=False)
+    W_Q_B = data.base_orientation
     s = data.joint_positions
-    W_v_WB = data.base_velocity()
+    W_v_WB = data.kyn_dyn.base_velocity
     ṡ = data.joint_velocities
     m = data.state.extended["tangential_deformation"]
 
@@ -434,10 +434,10 @@ def test_ad_integration(
         )
 
         xf_W_p_B = data_xf.base_position
-        xf_W_Q_B = data_xf.base_orientation(dcm=False)
-        xf_s = data_xf.joint_positions(model=model)
-        xf_W_v_WB = data_xf.base_velocity()
-        xf_ṡ = data_xf.joint_velocities(model=model)
+        xf_W_Q_B = data_xf.state.physics_model.base_quaternion
+        xf_s = data_xf.joint_positions
+        xf_W_v_WB = data_xf.kyn_dyn.base_velocity
+        xf_ṡ = data_xf.joint_velocities
         xf_m = data_xf.state.extended["tangential_deformation"]
 
         return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ, xf_m

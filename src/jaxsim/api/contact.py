@@ -636,9 +636,9 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_W)
 
         case VelRepr.Body:
-            W_H_B = data.base_transform()
+            W_H_B = data.kyn_dyn.base_transform
             W_X_B = Adjoint.from_transform(transform=W_H_B)
-            B_v_WB = data.base_velocity()
+            B_v_WB = data.kyn_dyn.base_velocity
             B_vx_WB = Cross.vx(B_v_WB)
             W_Ẋ_B = W_X_B @ B_vx_WB
 
@@ -646,10 +646,10 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_B)
 
         case VelRepr.Mixed:
-            W_H_B = data.base_transform()
+            W_H_B = data.kyn_dyn.base_transform
             W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
             W_X_BW = Adjoint.from_transform(transform=W_H_BW)
-            BW_v_WB = data.base_velocity()
+            BW_v_WB = data.kyn_dyn.base_velocity
             BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
             BW_vx_W_BW = Cross.vx(BW_v_W_BW)
             W_Ẋ_BW = W_X_BW @ BW_vx_W_BW

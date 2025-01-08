@@ -93,25 +93,27 @@ def test_data_change_velocity_representation(
             model=model, data=data
         )
 
-    assert data.base_velocity() == pytest.approx(kin_dyn_inertial.base_velocity())
+    assert data.kyn_dyn.base_velocity == pytest.approx(kin_dyn_inertial.base_velocity())
 
     if not model.floating_base():
         return
 
     with data.switch_velocity_representation(VelRepr.Mixed):
-        assert data.base_velocity() == pytest.approx(kin_dyn_mixed.base_velocity())
-        assert data.base_velocity()[0:3] != pytest.approx(
+        assert data.kyn_dyn.base_velocity == pytest.approx(
+            kin_dyn_mixed.base_velocity()
+        )
+        assert data.kyn_dyn.base_velocity[0:3] != pytest.approx(
             data.state.physics_model.base_linear_velocity
         )
-        assert data.base_velocity()[3:6] == pytest.approx(
+        assert data.kyn_dyn.base_velocity[3:6] == pytest.approx(
             data.state.physics_model.base_angular_velocity
         )
 
     with data.switch_velocity_representation(VelRepr.Body):
-        assert data.base_velocity() == pytest.approx(kin_dyn_body.base_velocity())
-        assert data.base_velocity()[0:3] != pytest.approx(
+        assert data.kyn_dyn.base_velocity == pytest.approx(kin_dyn_body.base_velocity())
+        assert data.kyn_dyn.base_velocity[0:3] != pytest.approx(
             data.state.physics_model.base_linear_velocity
         )
-        assert data.base_velocity()[3:6] != pytest.approx(
+        assert data.kyn_dyn.base_velocity[3:6] != pytest.approx(
             data.state.physics_model.base_angular_velocity
         )

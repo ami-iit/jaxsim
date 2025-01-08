@@ -374,13 +374,13 @@ def system_position_dynamics(
     """
 
     ṡ = data.joint_velocities
-    W_Q_B = data.base_orientation(dcm=False)
+    W_Q_B = data.base_orientation
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Mixed):
-        W_ṗ_B = data.base_velocity()[0:3]
+        W_ṗ_B = data.kyn_dyn.base_velocity[0:3]
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        W_ω_WB = data.base_velocity()[3:6]
+        W_ω_WB = data.kyn_dyn.base_velocity[3:6]
 
     W_Q̇_B = Quaternion.derivative(
         quaternion=W_Q_B,

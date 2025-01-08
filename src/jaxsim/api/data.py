@@ -53,28 +53,17 @@ class KynDynProxy:
             "link_body_transforms",
             "collidable_point_positions",
             "collidable_point_velocities",
+            "base_transform",
+            "base_orientation",
         ]:
             return value
 
-        W_R_B = jaxsim.math.Quaternion.to_dcm(
-            self._data.state.physics_model.base_quaternion
-        )
-        W_p_B = jnp.vstack(self._data.state.physics_model.base_position)
-
-        W_H_B = jnp.vstack(
-            [
-                jnp.block([W_R_B, W_p_B]),
-                jnp.array([0, 0, 0, 1]),
-            ]
-        )
+        W_H_B = self._data.kyn_dyn.base_transform
 
         match name:
 
             case "jacobian_full_doubly_left":
-                if (
-                    self._data.velocity_representation
-                    != self._kyn_dyn.velocity_representation
-                ):
+                if self._data.velocity_representation != VelRepr.Body:
                     value = convert_jacobian(
                         J=value,
                         dofs=len(self._data.state.physics_model.joint_positions),
@@ -83,10 +72,7 @@ class KynDynProxy:
                     )
 
             case "jacobian_derivative_full_doubly_left":
-                if (
-                    self._data.velocity_representation
-                    != self._kyn_dyn.velocity_representation
-                ):
+                if self._data.velocity_representation != VelRepr.Body:
                     value = convert_jacobian_derivative(
                         Jd=value,
                         dofs=len(self._data.state.physics_model.joint_positions),
@@ -95,15 +81,21 @@ class KynDynProxy:
                     )
 
             case "mass_matrix":
-                if (
-                    self._data.velocity_representation
-                    != self._kyn_dyn.velocity_representation
-                ):
+                if self._data.velocity_representation != VelRepr.Body:
                     value = convert_mass_matrix(
                         M=value,
                         dofs=len(self._data.state.physics_model.joint_positions),
                         base_transform=W_H_B,
                         velocity_representation=self._data.velocity_representation,
+                    )
+
+            case "base_velocity":
+                if self._data.velocity_representation != VelRepr.Inertial:
+                    value = JaxSimModelData.inertial_to_other_representation(
+                        array=value,
+                        other_representation=self._data.velocity_representation,
+                        transform=W_H_B,
+                        is_force=False,
                     )
 
             case _:
@@ -126,8 +118,6 @@ class KynDynProxy:
 
         if name in ["_data", "_kyn_dyn"]:
             return super().__setattr__(name, value)
-
-        value = self.__convert_attribute(value=value, name=name)
 
         # Push the update to JaxSimModelData.
         self._data._update_kyn_dyn(name, value)
@@ -153,6 +143,12 @@ class KynDynComputation(common.ModelDataWithVelocityRepresentation):
 
     mass_matrix: jtp.Matrix
 
+    base_transform: jtp.Matrix
+
+    base_orientation: jtp.Vector
+
+    base_velocity: jtp.Vector
+
 
 @jax_dataclasses.pytree_dataclass
 class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
@@ -173,7 +169,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     )
 
     @property
-    def kyn_dyn(self):
+    def kyn_dyn(self) -> KynDynComputation | KynDynProxy:
 
         jaxsim.exceptions.raise_runtime_error_if(
             self._kyn_dyn_stale,
@@ -457,6 +453,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             forward_kinematics=W_H_LL,
             collidable_point_positions=W_p_Ci,
             collidable_point_velocities=W_ṗ_Ci,
+            base_transform=base_transform,
+            base_orientation=jaxsim.math.Quaternion.to_dcm(base_quaternion),
+            base_velocity=v_WB,
         )
 
         return JaxSimModelData(
@@ -522,9 +521,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.state.physics_model.base_position
 
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["dcm"])
-    def base_orientation(self, dcm: jtp.BoolLike = False) -> jtp.Vector | jtp.Matrix:
+    @property
+    def base_orientation(self) -> jtp.Vector | jtp.Matrix:
         """
         Get the base orientation.
 
@@ -536,39 +534,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         # Extract the base quaternion.
-        W_Q_B = self.state.physics_model.base_quaternion.squeeze()
-
-        # Always normalize the quaternion to avoid numerical issues.
-        # If the active scheme does not integrate the quaternion on its manifold,
-        # we introduce a Baumgarte stabilization to let the quaternion converge to
-        # a unit quaternion. In this case, it is not guaranteed that the quaternion
-        # stored in the state is a unit quaternion.
-        norm = jaxsim.math.safe_norm(W_Q_B)
-        W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
-
-        return (W_Q_B if not dcm else jaxsim.math.Quaternion.to_dcm(W_Q_B)).astype(
-            float
-        )
-
-    @js.common.named_scope
-    @jax.jit
-    def base_transform(self) -> jtp.Matrix:
-        """
-        Get the base transform.
-
-        Returns:
-            The base transform as an SE(3) matrix.
-        """
-
-        W_R_B = self.base_orientation(dcm=True)
-        W_p_B = jnp.vstack(self.base_position)
-
-        return jnp.vstack(
-            [
-                jnp.block([W_R_B, W_p_B]),
-                jnp.array([0, 0, 0, 1]),
-            ]
-        )
+        W_Q_B = self.state.physics_model.base_quaternion
+        return W_Q_B
 
     @js.common.named_scope
     @jax.jit
@@ -587,7 +554,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ]
         )
 
-        W_H_B = self.base_transform()
+        W_H_B = self.kyn_dyn.base_transform
 
         return JaxSimModelData.inertial_to_other_representation(
             array=W_v_WB,
@@ -607,7 +574,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             A tuple containing the base transform and the joint positions.
         """
 
-        return self.base_transform(), self.joint_positions()
+        return self.kyn_dyn.base_transform, self.joint_positions
 
     @js.common.named_scope
     @jax.jit
@@ -622,7 +589,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         return (
-            jnp.hstack([self.base_velocity(), self.joint_velocities])
+            jnp.hstack([self.kyn_dyn.base_velocity, self.joint_velocities])
             .squeeze()
             .astype(float)
         )
@@ -831,7 +798,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_velocity=jnp.hstack(
                 [
                     linear_velocity.squeeze(),
-                    self.base_velocity()[3:6],
+                    self.kyn_dyn.base_velocity[3:6],
                 ]
             ),
             velocity_representation=velocity_representation,
@@ -862,7 +829,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         return self.reset_base_velocity(
             base_velocity=jnp.hstack(
                 [
-                    self.base_velocity()[0:3],
+                    self.kyn_dyn.base_velocity[0:3],
                     angular_velocity.squeeze(),
                 ]
             ),
@@ -897,10 +864,25 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             else self.velocity_representation
         )
 
+        # Recompute the base transform since we cannot rely on the cached value.
+        W_H_B = jnp.vstack(
+            [
+                jnp.block(
+                    [
+                        jaxsim.math.Quaternion.to_dcm(
+                            self.state.physics_model.base_quaternion
+                        ),
+                        jnp.vstack(self.state.physics_model.base_position),
+                    ]
+                ),
+                jnp.array([0, 0, 0, 1]),
+            ]
+        )
+
         W_v_WB = self.other_representation_to_inertial(
             array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
             other_representation=velocity_representation,
-            transform=self.base_transform(),
+            transform=W_H_B,
             is_force=False,
         )
 
@@ -931,10 +913,21 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             An instance of `JaxSimModelData` with the updated `kyn_dyn` attribute.
         """
 
-        base_quaternion = self.base_orientation(dcm=False)
-        base_transform = self.base_transform()
+        base_quaternion = self.state.physics_model.base_quaternion
         joint_positions = self.joint_positions
         joint_velocities = self.joint_velocities
+
+        base_transform = jnp.vstack(
+            [
+                jnp.block(
+                    [
+                        jaxsim.math.Quaternion.to_dcm(base_quaternion),
+                        jnp.vstack(self.state.physics_model.base_position),
+                    ]
+                ),
+                jnp.array([0, 0, 0, 1]),
+            ]
+        )
 
         i_X_λ, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
             joint_positions=joint_positions, base_transform=base_transform
@@ -968,20 +961,24 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             joint_transforms=i_X_λ,
         )
 
-        with self.switch_velocity_representation(VelRepr.Inertial) as data:
-            base_velocity = data.base_velocity()
+        base_velocity = jnp.hstack(
+            [
+                self.state.physics_model.base_linear_velocity,
+                self.state.physics_model.base_angular_velocity,
+            ]
+        )
 
-            W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
-                model=model,
-                base_position=base_transform[:3, 3],
-                base_quaternion=base_quaternion,
-                joint_positions=joint_positions,
-                base_linear_velocity=base_velocity[0:3],
-                base_angular_velocity=base_velocity[3:6],
-                joint_velocities=joint_velocities,
-                joint_transforms=i_X_λ,
-                motion_subspaces=S,
-            )
+        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+            model=model,
+            base_position=base_transform[:3, 3],
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            base_linear_velocity=base_velocity[0:3],
+            base_angular_velocity=base_velocity[3:6],
+            joint_velocities=joint_velocities,
+            joint_transforms=i_X_λ,
+            motion_subspaces=S,
+        )
 
         data = self.replace(_kyn_dyn_stale=jnp.array(0, dtype=bool))
 
@@ -994,6 +991,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         data.kyn_dyn.forward_kinematics = W_H_LL
         data.kyn_dyn.collidable_point_positions = W_p_Ci
         data.kyn_dyn.collidable_point_velocities = W_ṗ_Ci
+        data.kyn_dyn.base_transform = base_transform
+        data.kyn_dyn.base_orientation = jaxsim.math.Quaternion.to_dcm(base_quaternion)
+        data.kyn_dyn.base_velocity = base_velocity
 
         return data
 

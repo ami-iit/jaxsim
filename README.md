@@ -41,7 +41,6 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
           'l_hip_roll', 'l_hip_yaw', 'l_knee', 'l_ankle_pitch', 'l_ankle_roll',
           'r_hip_pitch', 'r_hip_roll', 'r_hip_yaw', 'r_knee', 'r_ankle_pitch',
           'r_ankle_roll')
-ndof = len(joints)
 
 # Build and reduce the model
 model_description = pathlib.Path(model_path)
@@ -50,6 +49,7 @@ full_model = js.model.JaxSimModel.build_from_model_description(
 )
 model = js.model.reduce(model=full_model, considered_joints=joints)
 
+ndof = model.dofs()
 # Initialize data and simulation
 data = js.data.JaxSimModelData.zero(model=model).reset_base_position(
     base_position=jnp.array([0.0, 0.0, 1.0])

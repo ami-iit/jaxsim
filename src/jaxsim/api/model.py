@@ -736,16 +736,13 @@ def generalized_free_floating_jacobian_derivative(
     # Compute the base transform.
     W_H_B = data.base_transform()
 
-    B_J_WL_B = jnp.where(
-        jnp.hstack([jnp.ones((κb.shape[0], 5)), κb])[:, jnp.newaxis],
-        B_J_full_WL_B[jnp.newaxis, :],
-        0.0,
+    # We add the 5 columns of ones to the Jacobian derivative to account for the
+    # base velocity and acceleration (5 + number of links = 6 + number of joints).
+    B_J̇_WL_B = (
+        jnp.hstack([jnp.ones((κb.shape[0], 5)), κb])[:, jnp.newaxis] * B_J̇_full_WX_B
     )
-
-    B_J̇_WL_B = jnp.where(
-        jnp.hstack([jnp.ones((κb.shape[0], 5)), κb])[:, jnp.newaxis],
-        B_J̇_full_WX_B[jnp.newaxis, :],
-        0.0,
+    B_J_WL_B = (
+        jnp.hstack([jnp.ones((κb.shape[0], 5)), κb])[:, jnp.newaxis] * B_J_full_WL_B
     )
 
     # =====================================================

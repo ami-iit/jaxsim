@@ -148,13 +148,27 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 > [!NOTE]
 > The minimum version of `pixi` required is `0.39.0`.
 
-You can install the default dependencies of the project using [`pixi`][pixi] as follows:
+You can add the jaxsim depedency in [`pixi`][pixi] project as follows:
 
 ```bash
-pixi install
+pixi add jaxsim
 ```
 
-See `pixi task list` for a list of available tasks.
+If you are on Linux and you want to use a `cuda`-powered version of `jax`, remember to add the appropriate line in the [`system-requirements`](https://pixi.sh/latest/reference/pixi_manifest/#the-system-requirements-table) table, i.e. adding
+
+~~~toml
+[system-requirements]
+cuda = "12"
+~~~
+
+if you are using a `pixi.toml` file or
+
+~~~toml
+[tool.pixi.system-requirements]
+cuda = "12"
+~~~
+
+if you are using a `pyproject.toml` file.
 
 </details>
 
@@ -175,7 +189,7 @@ If you need GPU support, follow the official [installation instructions][jax_gpu
 </details>
 
 <details>
-<summary>Contributors installation</summary>
+<summary>Contributors installation (with <code>conda</code>)</summary>
 
 If you want to contribute to the project, we recommend creating the following `jaxsim` conda environment first:
 
@@ -189,6 +203,22 @@ Then, activate the environment and install the project in editable mode:
 conda activate jaxsim
 pip install --no-deps -e .
 ```
+
+</details>
+
+<details>
+<summary>Contributors installation (with <code>pixi</code>)</summary>
+
+> [!NOTE]
+> The minimum version of `pixi` required is `0.39.0`.
+
+You can install the default dependencies of the project using [`pixi`][pixi] as follows:
+
+```bash
+pixi install
+```
+
+See `pixi task list` for a list of available tasks.
 
 </details>
 

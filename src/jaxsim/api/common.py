@@ -26,7 +26,7 @@ _R = TypeVar("_R")
 
 
 def named_scope(fn, name: str | None = None) -> Callable[_P, _R]:
-    """Applies a JAX named scope to a function for improved profiling and clarity."""
+    """Apply a JAX named scope to a function for improved profiling and clarity."""
 
     @functools.wraps(fn)
     def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:

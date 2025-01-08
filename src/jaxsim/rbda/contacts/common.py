@@ -125,6 +125,7 @@ class ContactModel(JaxsimDataclass):
         Args:
             model: The robot model considered by the contact model.
             data: The data of the considered model.
+            **kwargs: Optional additional arguments, specific to the contact model.
 
         Returns:
             A tuple containing as first element the computed 6D contact force applied to
@@ -146,6 +147,7 @@ class ContactModel(JaxsimDataclass):
         Args:
             model: The robot model considered by the contact model.
             data: The data of the considered model.
+            **kwargs: Optional additional arguments, specific to the contact model.
 
         Returns:
             A tuple containing as first element the 6D contact force applied to the

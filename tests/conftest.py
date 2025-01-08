@@ -149,7 +149,7 @@ def build_jaxsim_model(
     model_description: str | pathlib.Path | rod.Model,
 ) -> js.model.JaxSimModel:
     """
-    Helper to build a JaxSim model from a model description.
+    Build a JaxSim model from a model description.
 
     Args:
         model_description: A model description provided by any fixture provider.
@@ -243,6 +243,7 @@ def ergocub_model_description_path() -> pathlib.Path:
 
     Returns:
         The path to the URDF model description of the ErgoCub robot.
+
     """
 
     try:
@@ -271,6 +272,7 @@ def jaxsim_model_ergocub(
 
     Returns:
         The JaxSim model of the ErgoCub robot.
+
     """
 
     return build_jaxsim_model(model_description=ergocub_model_description_path)
@@ -283,6 +285,7 @@ def jaxsim_model_ergocub_reduced(jaxsim_model_ergocub) -> js.model.JaxSimModel:
 
     Returns:
         The JaxSim model of the ErgoCub robot with only locomotion joints.
+
     """
 
     model_full = jaxsim_model_ergocub
@@ -316,6 +319,7 @@ def jaxsim_model_ur10() -> js.model.JaxSimModel:
 
     Returns:
         The JaxSim model of the UR10 robot.
+
     """
 
     import robot_descriptions.ur10_description
@@ -329,6 +333,7 @@ def jaxsim_model_ur10() -> js.model.JaxSimModel:
 def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
     """
     Fixture providing the JaxSim model of a single pendulum.
+
     Returns:
         The JaxSim model of a single pendulum.
     """
@@ -444,7 +449,7 @@ def get_jaxsim_model_fixture(
     model_name: str, request: pytest.FixtureRequest
 ) -> str | pathlib.Path:
     """
-    Factory to get the fixture providing the JaxSim model of a robot.
+    Get the fixture providing the JaxSim model of a robot.
 
     Args:
         model_name: The name of the model.
@@ -452,6 +457,7 @@ def get_jaxsim_model_fixture(
 
     Returns:
         The JaxSim model of the robot.
+
     """
 
     match model_name:
@@ -507,6 +513,7 @@ def jaxsim_models_types(request) -> pathlib.Path | str:
         - A robot with no joints.
         - A fixed-base robot.
         - A floating-base robot.
+
     """
 
     model_name: str = request.param
@@ -580,6 +587,7 @@ def jaxsim_model_box_32bit(set_jax_32bit, request) -> js.model.JaxSimModel:
 
     Returns:
         The JaxSim model of a box with 32-bit precision.
+
     """
 
     return get_jaxsim_model_fixture(model_name="box", request=request)

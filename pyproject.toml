@@ -150,6 +150,7 @@ preview = true
 # https://docs.astral.sh/ruff/rules/
 select = [
     "B",
+    "D",
     "E",
     "F",
     "I",
@@ -162,6 +163,15 @@ select = [
 ignore = [
     "B008", # Function call in default argument
     "B024", # Abstract base class without abstract methods
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D105", # Missing docstring in magic method
+    "D200", # One-line docstring should fit on one line with quotes
+    "D202", # No blank lines allowed after function docstring
+    "D205", # 1 blank line required between summary line and description
+    "D212", # Multi-line docstring summary should start at the first line
+    "D411", # Missing blank line before section
+    "D413", # Missing blank line after last section
     "E402", # Module level import not at top of file
     "E501", # Line too long
     "E731", # Do not assign a `lambda` expression, use a `def`
@@ -173,9 +183,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Ignore `E402` (import violations) in all `__init__.py` files
 "**/{tests,docs,tools}/*" = ["E402"]
-"**/{tests}/*" = ["B007"]
+"**/{tests,examples}/*" = ["B007", "D100", "D102", "D103"]
 "__init__.py" = ["F401"]
 "docs/conf.py" = ["F401"]
+"src/jaxsim/exceptions.py" = ["D401"]
+"src/jaxsim/logging.py" = ["D101", "D103"]
 
 # ==================
 # Pixi configuration

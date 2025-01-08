@@ -254,17 +254,17 @@ class MujocoModelHelper:
     # ==================
 
     def number_of_joints(self) -> int:
-        """Returns the number of joints in the model."""
+        """Return the number of joints in the model."""
 
         return self.model.njnt
 
     def number_of_dofs(self) -> int:
-        """Returns the number of DoFs in the model."""
+        """Return the number of DoFs in the model."""
 
         return self.model.nq
 
     def joint_names(self) -> list[str]:
-        """Returns the names of the joints in the model."""
+        """Return the names of the joints in the model."""
 
         return [
             mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_JOINT, idx)
@@ -272,7 +272,7 @@ class MujocoModelHelper:
         ]
 
     def joint_dofs(self, joint_name: str) -> int:
-        """Returns the number of DoFs of a joint."""
+        """Return the number of DoFs of a joint."""
 
         if joint_name not in self.joint_names():
             raise ValueError(f"Joint '{joint_name}' not found")
@@ -280,7 +280,7 @@ class MujocoModelHelper:
         return self.data.joint(joint_name).qpos.size
 
     def joint_position(self, joint_name: str) -> npt.NDArray:
-        """Returns the position of a joint."""
+        """Return the position of a joint."""
 
         if joint_name not in self.joint_names():
             raise ValueError(f"Joint '{joint_name}' not found")
@@ -288,7 +288,7 @@ class MujocoModelHelper:
         return self.data.joint(joint_name).qpos
 
     def joint_positions(self, joint_names: list[str] | None = None) -> npt.NDArray:
-        """Returns the positions of the joints."""
+        """Return the positions of the joints."""
 
         joint_names = joint_names if joint_names is not None else self.joint_names()
 
@@ -299,7 +299,7 @@ class MujocoModelHelper:
     def set_joint_position(
         self, joint_name: str, position: npt.NDArray | float
     ) -> None:
-        """Sets the position of a joint."""
+        """Set the position of a joint."""
 
         position = np.atleast_1d(np.array(position).squeeze())
 
@@ -328,12 +328,12 @@ class MujocoModelHelper:
     # ==================
 
     def number_of_bodies(self) -> int:
-        """Returns the number of bodies in the model."""
+        """Return the number of bodies in the model."""
 
         return self.model.nbody
 
     def body_names(self) -> list[str]:
-        """Returns the names of the bodies in the model."""
+        """Return the names of the bodies in the model."""
 
         return [
             mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, idx)
@@ -341,7 +341,7 @@ class MujocoModelHelper:
         ]
 
     def body_position(self, body_name: str) -> npt.NDArray:
-        """Returns the position of a body."""
+        """Return the position of a body."""
 
         if body_name not in self.body_names():
             raise ValueError(f"Body '{body_name}' not found")
@@ -349,7 +349,7 @@ class MujocoModelHelper:
         return self.data.body(body_name).xpos
 
     def body_orientation(self, body_name: str, dcm: bool = False) -> npt.NDArray:
-        """Returns the orientation of a body."""
+        """Return the orientation of a body."""
 
         if body_name not in self.body_names():
             raise ValueError(f"Body '{body_name}' not found")
@@ -363,12 +363,12 @@ class MujocoModelHelper:
     # ======================
 
     def number_of_geometries(self) -> int:
-        """Returns the number of geometries in the model."""
+        """Return the number of geometries in the model."""
 
         return self.model.ngeom
 
     def geometry_names(self) -> list[str]:
-        """Returns the names of the geometries in the model."""
+        """Return the names of the geometries in the model."""
 
         return [
             mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_GEOM, idx)
@@ -376,7 +376,7 @@ class MujocoModelHelper:
         ]
 
     def geometry_position(self, geometry_name: str) -> npt.NDArray:
-        """Returns the position of a geometry."""
+        """Return the position of a geometry."""
 
         if geometry_name not in self.geometry_names():
             raise ValueError(f"Geometry '{geometry_name}' not found")
@@ -386,7 +386,7 @@ class MujocoModelHelper:
     def geometry_orientation(
         self, geometry_name: str, dcm: bool = False
     ) -> npt.NDArray:
-        """Returns the orientation of a geometry."""
+        """Return the orientation of a geometry."""
 
         if geometry_name not in self.geometry_names():
             raise ValueError(f"Geometry '{geometry_name}' not found")

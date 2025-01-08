@@ -456,7 +456,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     @jax.jit
     def generalized_velocity(self) -> jtp.Vector:
         r"""
-        Get the generalized velocity
+        Get the generalized velocity.
+
         :math:`\boldsymbol{\nu} = (\boldsymbol{v}_{W,B};\, \boldsymbol{\omega}_{W,B};\, \mathbf{s}) \in \mathbb{R}^{6+n}`
 
         Returns:

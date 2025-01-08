@@ -15,12 +15,32 @@ from .ode_data import ODEState
 
 
 class SystemDynamicsFromModelAndData(Protocol):
+    """
+    Protocol defining the signature of a function computing the system dynamics
+    given a model and data object.
+    """
+
     def __call__(
         self,
         model: js.model.JaxSimModel,
         data: js.data.JaxSimModelData,
         **kwargs: dict[str, Any],
-    ) -> tuple[ODEState, dict[str, Any]]: ...
+    ) -> tuple[ODEState, dict[str, Any]]:
+        """
+        Compute the system dynamics given a model and data object.
+
+        Args:
+            model: The model to consider.
+            data: The data of the considered model.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A tuple with an `ODEState` object storing in each of its attributes the
+            corresponding derivative, and the dictionary of auxiliary data returned
+            by the system dynamics evaluation.
+        """
+
+        pass
 
 
 def wrap_system_dynamics_for_integration(

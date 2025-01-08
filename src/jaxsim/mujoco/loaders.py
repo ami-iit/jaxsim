@@ -22,7 +22,7 @@ def load_rod_model(
     model_name: str | None = None,
 ) -> rod.Model:
     """
-    Loads a ROD model from a URDF/SDF file or a ROD model.
+    Load a ROD model from a URDF/SDF file or a ROD model.
 
     Args:
         model_description: The URDF/SDF file or ROD model to load.
@@ -62,14 +62,16 @@ def load_rod_model(
 
 
 class RodModelToMjcf:
-    """"""
+    """
+    Class to convert a ROD model to a Mujoco MJCF string.
+    """
 
     @staticmethod
     def assets_from_rod_model(
         rod_model: rod.Model,
     ) -> dict[str, bytes]:
         """
-        Generates a dictionary of assets from a ROD model.
+        Generate a dictionary of assets from a ROD model.
 
         Args:
             rod_model: The ROD model to extract the assets from.
@@ -112,7 +114,7 @@ class RodModelToMjcf:
         floating_joint_name: str = "world_to_base",
     ) -> str:
         """
-        Adds a floating joint to a URDF string.
+        Add a floating joint to a URDF string.
 
         Args:
             urdf_string: The URDF string to modify.
@@ -171,7 +173,7 @@ class RodModelToMjcf:
         cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
-        Converts a ROD model to a Mujoco MJCF string.
+        Convert a ROD model to a Mujoco MJCF string.
 
         Args:
             rod_model: The ROD model to convert.
@@ -522,6 +524,10 @@ class RodModelToMjcf:
 
 
 class UrdfToMjcf:
+    """
+    Class to convert a URDF file to a Mujoco MJCF string.
+    """
+
     @staticmethod
     def convert(
         urdf: str | pathlib.Path,
@@ -532,7 +538,7 @@ class UrdfToMjcf:
         cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
-        Converts a URDF file to a Mujoco MJCF string.
+        Convert a URDF file to a Mujoco MJCF string.
 
         Args:
             urdf: The URDF file to convert.
@@ -564,6 +570,10 @@ class UrdfToMjcf:
 
 
 class SdfToMjcf:
+    """
+    Class to convert a SDF file to a Mujoco MJCF string.
+    """
+
     @staticmethod
     def convert(
         sdf: str | pathlib.Path,
@@ -574,7 +584,7 @@ class SdfToMjcf:
         cameras: MujocoCameraType = (),
     ) -> tuple[str, dict[str, Any]]:
         """
-        Converts a SDF file to a Mujoco MJCF string.
+        Convert a SDF file to a Mujoco MJCF string.
 
         Args:
             sdf: The SDF file to convert.

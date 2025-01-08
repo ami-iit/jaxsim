@@ -33,6 +33,7 @@ def build_kindyncomputations_from_jaxsim_model(
 
     Note:
         Only `JaxSimModel` built from URDF files are supported.
+
     """
 
     if (
@@ -98,6 +99,7 @@ def store_jaxsim_data_in_kindyncomputations(
 
     Returns:
         The updated `KinDynComputations` with the state of `JaxSimModelData`.
+
     """
 
     if kin_dyn.dofs() != data.joint_positions().size:

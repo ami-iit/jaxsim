@@ -207,6 +207,7 @@ class SoftContacts(common.ContactModel):
             model:
                 The robot model considered by the contact model.
                 If passed, it is used to estimate good default parameters.
+            **kwargs: Additional parameters to pass to the contact model.
 
         Returns:
             The `SoftContacts` instance.
@@ -244,6 +245,28 @@ class SoftContacts(common.ContactModel):
         p: jtp.FloatLike = 0.5,
         q: jtp.FloatLike = 0.5,
     ) -> tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact force using the Hunt/Crossley model.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The velocity of the collidable point.
+            tangential_deformation: The material deformation of the collidable point.
+            terrain: The terrain model.
+            K: The stiffness parameter.
+            D: The damping parameter of the soft contacts model.
+            mu: The static friction coefficient.
+            p:
+                The exponent p corresponding to the damping-related non-linearity
+                of the Hunt/Crossley model.
+            q:
+                The exponent q corresponding to the spring-related non-linearity
+                of the Hunt/Crossley model
+
+        Returns:
+            A tuple containing the computed contact force and the derivative of the
+            material deformation.
+        """
 
         # Convert the input vectors to arrays.
         W_p_C = jnp.array(position, dtype=float).squeeze()
@@ -364,6 +387,20 @@ class SoftContacts(common.ContactModel):
         parameters: SoftContactsParams,
         terrain: Terrain,
     ) -> tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact force.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The velocity of the collidable point.
+            tangential_deformation: The material deformation of the collidable point.
+            parameters: The parameters of the soft contacts model.
+            terrain: The terrain model.
+
+        Returns:
+            A tuple containing the computed contact force and the derivative of the
+            material deformation.
+        """
 
         CW_fl, ṁ = SoftContacts.hunt_crossley_contact_model(
             position=position,

@@ -364,7 +364,7 @@ def build_model_description(
     is_urdf: bool | None = None,
 ) -> descriptions.ModelDescription:
     """
-    Builds a model description from an SDF/URDF resource.
+    Build a model description from an SDF/URDF resource.
 
     Args:
         model_description: A path to an SDF/URDF file, a string containing its content,

@@ -124,7 +124,7 @@ class JaxsimDataclass(abc.ABC):
     @staticmethod
     def get_leaf_shapes(tree: jtp.PyTree) -> tuple[tuple[int, ...] | None]:
         """
-        Helper method to get the leaf shapes of a PyTree.
+        Get the leaf shapes of a PyTree.
 
         Args:
             tree: The PyTree to consider.
@@ -144,7 +144,7 @@ class JaxsimDataclass(abc.ABC):
     @staticmethod
     def get_leaf_dtypes(tree: jtp.PyTree) -> tuple:
         """
-        Helper method to get the leaf dtypes of a PyTree.
+        Get the leaf dtypes of a PyTree.
 
         Args:
             tree: The PyTree to consider.
@@ -164,7 +164,7 @@ class JaxsimDataclass(abc.ABC):
     @staticmethod
     def get_leaf_weak_types(tree: jtp.PyTree) -> tuple[bool, ...]:
         """
-        Helper method to get the leaf weak types of a PyTree.
+        Get the leaf weak types of a PyTree.
 
         Args:
             tree: The PyTree to consider.

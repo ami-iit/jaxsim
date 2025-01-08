@@ -10,7 +10,9 @@ import numpy.typing as npt
 
 
 class MujocoVideoRecorder:
-    """"""
+    """
+    Video recorder for the MuJoCo passive viewer.
+    """
 
     def __init__(
         self,
@@ -64,7 +66,7 @@ class MujocoVideoRecorder:
         self.model = model if model is not None else self.model
 
     def render_frame(self, camera_name: str = "track") -> npt.NDArray:
-        """Renders a frame."""
+        """Render a frame."""
 
         mujoco.mj_forward(self.model, self.data)
         self.renderer.update_scene(data=self.data, camera=camera_name)
@@ -72,13 +74,13 @@ class MujocoVideoRecorder:
         return self.renderer.render()
 
     def record_frame(self, camera_name: str = "track") -> None:
-        """Stores a frame in the buffer."""
+        """Store a frame in the buffer."""
 
         frame = self.render_frame(camera_name=camera_name)
         self.frames.append(frame)
 
     def write_video(self, path: pathlib.Path, exist_ok: bool = False) -> None:
-        """Writes the video to a file."""
+        """Write the video to a file."""
 
         # Resolve the path to the video.
         path = path.expanduser().resolve()
@@ -117,7 +119,9 @@ class MujocoVideoRecorder:
 
 
 class MujocoVisualizer:
-    """"""
+    """
+    Visualizer for the MuJoCo passive viewer.
+    """
 
     def __init__(
         self, model: mj.MjModel | None = None, data: mj.MjData | None = None
@@ -139,7 +143,7 @@ class MujocoVisualizer:
         model: mj.MjModel | None = None,
         data: mj.MjData | None = None,
     ) -> None:
-        """Updates the viewer with the current model and data."""
+        """Update the viewer with the current model and data."""
 
         data = data if data is not None else self.data
         model = model if model is not None else self.model
@@ -150,7 +154,7 @@ class MujocoVisualizer:
     def open_viewer(
         self, model: mj.MjModel | None = None, data: mj.MjData | None = None
     ) -> mj.viewer.Handle:
-        """Opens a viewer."""
+        """Open a viewer."""
 
         data = data if data is not None else self.data
         model = model if model is not None else self.model

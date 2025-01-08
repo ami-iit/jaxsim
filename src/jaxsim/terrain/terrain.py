@@ -13,11 +13,28 @@ from jaxsim import exceptions
 
 
 class Terrain(abc.ABC):
+    """
+    Base class for terrain models.
+
+    Attributes:
+        delta: The delta value used for numerical differentiation.
+    """
 
     delta = 0.010
 
     @abc.abstractmethod
     def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+        """
+        Compute the height of the terrain at a specific (x, y) location.
+
+        Args:
+            x: The x-coordinate of the location.
+            y: The y-coordinate of the location.
+
+        Returns:
+            The height of the terrain at the specified location.
+        """
+
         pass
 
     def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
@@ -47,19 +64,51 @@ class Terrain(abc.ABC):
 
 @jax_dataclasses.pytree_dataclass
 class FlatTerrain(Terrain):
+    """
+    Represents a terrain model with a flat surface and a constant height.
+    """
 
     _height: float = dataclasses.field(default=0.0, kw_only=True)
 
     @staticmethod
     def build(height: jtp.FloatLike = 0.0) -> FlatTerrain:
+        """
+        Create a FlatTerrain instance with a specified height.
+
+        Args:
+            height: The height of the flat terrain.
+
+        Returns:
+            FlatTerrain: A FlatTerrain instance.
+        """
 
         return FlatTerrain(_height=float(height))
 
     def height(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Float:
+        """
+        Compute the height of the terrain at a specific (x, y) location.
+
+        Args:
+            x: The x-coordinate of the location.
+            y: The y-coordinate of the location.
+
+        Returns:
+            The height of the terrain at the specified location.
+        """
 
         return jnp.array(self._height, dtype=float)
 
     def normal(self, x: jtp.FloatLike, y: jtp.FloatLike) -> jtp.Vector:
+        """
+        Compute the normal vector of the terrain at a specific (x, y) location.
+
+        Args:
+            x: The x-coordinate of the location.
+            y: The y-coordinate of the location.
+
+        Returns:
+            The normal vector of the terrain surface at the specified location.
+        """
 
         return jnp.array([0.0, 0.0, 1.0], dtype=float)
 
@@ -77,6 +126,9 @@ class FlatTerrain(Terrain):
 
 @jax_dataclasses.pytree_dataclass
 class PlaneTerrain(FlatTerrain):
+    """
+    Represents a terrain model with a flat surface defined by a normal vector.
+    """
 
     _normal: tuple[float, float, float] = jax_dataclasses.field(
         default=(0.0, 0.0, 1.0), kw_only=True

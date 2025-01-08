@@ -62,7 +62,7 @@ class RigidContactsParams(ContactsParams):
         K: jtp.FloatLike | None = None,
         D: jtp.FloatLike | None = None,
     ) -> Self:
-        """Create a `RigidContactParams` instance"""
+        """Create a `RigidContactParams` instance."""
 
         return cls(
             mu=jnp.array(
@@ -79,7 +79,7 @@ class RigidContactsParams(ContactsParams):
         )
 
     def valid(self) -> jtp.BoolLike:
-
+        """Check if the parameters are valid."""
         return bool(
             jnp.all(self.mu >= 0.0)
             and jnp.all(self.K >= 0.0)
@@ -104,6 +104,7 @@ class RigidContacts(ContactModel):
 
     @property
     def solver_options(self) -> dict[str, Any]:
+        """Get the solver options as a dictionary."""
 
         return dict(
             zip(
@@ -127,6 +128,7 @@ class RigidContacts(ContactModel):
             regularization_delassus:
                 The regularization term to add to the diagonal of the Delassus matrix.
             solver_options: The options to pass to the QP solver.
+            **kwargs: Extra arguments which are ignored.
 
         Returns:
             The `RigidContacts` instance.
@@ -173,7 +175,8 @@ class RigidContacts(ContactModel):
         J_WC: jtp.MatrixLike,
         data: js.data.JaxSimModelData,
     ) -> jtp.Vector:
-        """Returns the new velocity of the system after a potential impact.
+        """
+        Return the new velocity of the system after a potential impact.
 
         Args:
             inactive_collidable_points: The activation state of the collidable points.
@@ -413,7 +416,8 @@ class RigidContacts(ContactModel):
         inactive_collidable_points: jtp.Vector, mu: jtp.FloatLike
     ) -> jtp.Matrix:
         """
-        Compute the inequality constraint matrix for a single collidable point
+        Compute the inequality constraint matrix for a single collidable point.
+
         Rows 0-3: enforce the friction pyramid constraint,
         Row 4: last one is for the non negativity of the vertical force
         Row 5: contact complementarity condition

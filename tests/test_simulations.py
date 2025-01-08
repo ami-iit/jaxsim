@@ -15,7 +15,8 @@ def test_box_with_external_forces(
     velocity_representation: VelRepr,
 ):
     """
-    This test simulates a box falling due to gravity.
+    Simulate a box falling due to gravity.
+
     We apply to its CoM a 6D force that balances exactly the gravitational force.
     The box should not fall.
     """

@@ -25,6 +25,9 @@ class HashlessObject(Generic[T]):
     obj: T
 
     def get(self: HashlessObject[T]) -> T:
+        """
+        Get the wrapped object.
+        """
         return self.obj
 
     def __hash__(self) -> int:
@@ -52,6 +55,9 @@ class CustomHashedObject(Generic[T]):
     hash_function: Callable[[T], int] = hash
 
     def get(self: CustomHashedObject[T]) -> T:
+        """
+        Get the wrapped object.
+        """
         return self.obj
 
     def __hash__(self) -> int:
@@ -93,6 +99,9 @@ class HashedNumpyArray:
     )
 
     def get(self) -> jax.Array | npt.NDArray:
+        """
+        Get the wrapped array.
+        """
         return self.array
 
     def __hash__(self) -> int:

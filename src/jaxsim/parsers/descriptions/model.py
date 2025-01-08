@@ -158,7 +158,7 @@ class ModelDescription(KinematicGraph):
         Reduce the model by removing specified joints.
 
         Args:
-            The joint names to consider.
+            considered_joints: Sequence of joint names to consider.
 
         Returns:
             A `ModelDescription` instance that only includes the considered joints.

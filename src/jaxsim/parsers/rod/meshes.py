@@ -6,14 +6,14 @@ VALID_AXIS = {"x": 0, "y": 1, "z": 2}
 
 def extract_points_vertices(mesh: trimesh.Trimesh) -> np.ndarray:
     """
-    Extracts the vertices of a mesh as points.
+    Extract the vertices of a mesh as points.
     """
     return mesh.vertices
 
 
 def extract_points_random_surface_sampling(mesh: trimesh.Trimesh, n) -> np.ndarray:
     """
-    Extracts N random points from the surface of a mesh.
+    Extract N random points from the surface of a mesh.
 
     Args:
         mesh: The mesh from which to extract points.
@@ -30,7 +30,7 @@ def extract_points_uniform_surface_sampling(
     mesh: trimesh.Trimesh, n: int
 ) -> np.ndarray:
     """
-    Extracts N uniformly sampled points from the surface of a mesh.
+    Extract N uniformly sampled points from the surface of a mesh.
 
     Args:
         mesh: The mesh from which to extract points.
@@ -47,7 +47,7 @@ def extract_points_select_points_over_axis(
     mesh: trimesh.Trimesh, axis: str, direction: str, n: int
 ) -> np.ndarray:
     """
-    Extracts N points from a mesh along a specified axis. The points are selected based on their position along the axis.
+    Extract N points from a mesh along a specified axis. The points are selected based on their position along the axis.
 
     Args:
         mesh: The mesh from which to extract points.
@@ -75,7 +75,7 @@ def extract_points_aap(
     lower: float | None = None,
 ) -> np.ndarray:
     """
-    Extracts points from a mesh along a specified axis within a specified range. The points are selected based on their position along the axis.
+    Extract points from a mesh along a specified axis within a specified range. The points are selected based on their position along the axis.
 
     Args:
         mesh: The mesh from which to extract points.

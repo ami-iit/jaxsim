@@ -17,6 +17,8 @@ def raise_if(
         msg:
             The message to display when the exception is raised. The message can be a
             format string (fmt), whose fields are filled with the args and kwargs.
+        *args: The arguments to fill the format string.
+        **kwargs: The keyword arguments to fill the format string
     """
 
     # Disable host callback if running on unsupported hardware or if the user
@@ -61,6 +63,9 @@ def raise_if(
 def raise_runtime_error_if(
     condition: bool | jax.Array, msg: str, *args, **kwargs
 ) -> None:
+    """
+    Raise a RuntimeError if a condition is met. Useful in jit-compiled functions.
+    """
 
     return raise_if(condition, RuntimeError, msg, *args, **kwargs)
 
@@ -68,5 +73,8 @@ def raise_runtime_error_if(
 def raise_value_error_if(
     condition: bool | jax.Array, msg: str, *args, **kwargs
 ) -> None:
+    """
+    Raise a ValueError if a condition is met. Useful in jit-compiled functions.
+    """
 
     return raise_if(condition, ValueError, msg, *args, **kwargs)

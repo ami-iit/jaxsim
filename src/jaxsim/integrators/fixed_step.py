@@ -17,6 +17,9 @@ ODEStateDerivative = js.ode_data.ODEState
 
 @jax_dataclasses.pytree_dataclass
 class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
+    """
+    Forward Euler integrator.
+    """
 
     A: ClassVar[jtp.Matrix] = jnp.atleast_2d(0).astype(float)
 
@@ -30,6 +33,9 @@ class ForwardEuler(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
 @jax_dataclasses.pytree_dataclass
 class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
+    """
+    Heun's second-order integrator.
+    """
 
     A: ClassVar[jtp.Matrix] = jnp.array(
         [
@@ -56,6 +62,9 @@ class Heun2(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
 @jax_dataclasses.pytree_dataclass
 class RungeKutta4(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
+    """
+    Fourth-order Runge-Kutta integrator.
+    """
 
     A: ClassVar[jtp.Matrix] = jnp.array(
         [
@@ -89,14 +98,26 @@ class RungeKutta4(ExplicitRungeKutta[PyTreeType], Generic[PyTreeType]):
 
 @jax_dataclasses.pytree_dataclass
 class ForwardEulerSO3(ExplicitRungeKuttaSO3Mixin, ForwardEuler[js.ode_data.ODEState]):
+    """
+    Forward Euler integrator for SO(3) states.
+    """
+
     pass
 
 
 @jax_dataclasses.pytree_dataclass
 class Heun2SO3(ExplicitRungeKuttaSO3Mixin, Heun2[js.ode_data.ODEState]):
+    """
+    Heun's second-order integrator for SO(3) states.
+    """
+
     pass
 
 
 @jax_dataclasses.pytree_dataclass
 class RungeKutta4SO3(ExplicitRungeKuttaSO3Mixin, RungeKutta4[js.ode_data.ODEState]):
+    """
+    Fourth-order Runge-Kutta integrator for SO(3) states.
+    """
+
     pass

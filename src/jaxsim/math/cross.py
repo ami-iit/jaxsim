@@ -6,13 +6,17 @@ from .skew import Skew
 
 
 class Cross:
+    """
+    A utility class for cross product matrix operations.
+    """
+
     @staticmethod
     def vx(velocity_sixd: jtp.Vector) -> jtp.Matrix:
         """
         Compute the cross product matrix for 6D velocities.
 
         Args:
-            velocity_sixd (jtp.Vector): A 6D velocity vector [v, ω].
+            velocity_sixd: A 6D velocity vector [v, ω].
 
         Returns:
             jtp.Matrix: The cross product matrix (6x6).
@@ -37,7 +41,7 @@ class Cross:
         Compute the negative transpose of the cross product matrix for 6D velocities.
 
         Args:
-            velocity_sixd (jtp.Vector): A 6D velocity vector [v, ω].
+            velocity_sixd: A 6D velocity vector [v, ω].
 
         Returns:
             jtp.Matrix: The negative transpose of the cross product matrix (6x6).

@@ -63,6 +63,9 @@ class JaxSimModel(JaxsimDataclass):
 
     @property
     def description(self) -> ModelDescription:
+        """
+        Return the model description.
+        """
         return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:
@@ -1015,7 +1018,7 @@ def forward_dynamics_aba(
         W_v̇_WB: jtp.Vector, W_H_C: jtp.Matrix, W_v_WB: jtp.Vector, W_v_WC: jtp.Vector
     ) -> jtp.Vector:
         """
-        Helper to convert the inertial-fixed apparent base acceleration W_v̇_WB to
+        Convert the inertial-fixed apparent base acceleration W_v̇_WB to
         another representation C_v̇_WB expressed in a generic frame C.
         """
 
@@ -1376,7 +1379,7 @@ def inverse_dynamics(
 
     def to_inertial(C_v̇_WB, W_H_C, C_v_WB, W_v_WC):
         """
-        Helper to convert the active representation of the base acceleration C_v̇_WB
+        Convert the active representation of the base acceleration C_v̇_WB
         expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
         """
 
@@ -1825,7 +1828,7 @@ def link_bias_accelerations(
         C_v̇_WB: jtp.Vector, C_v_WB: jtp.Vector, W_H_C: jtp.Matrix, W_v_WC: jtp.Vector
     ) -> jtp.Vector:
         """
-        Helper to convert the active representation of the base acceleration C_v̇_WB
+        Convert the active representation of the base acceleration C_v̇_WB
         expressed in a generic frame C to the inertial-fixed representation W_v̇_WB.
         """
 
@@ -1961,7 +1964,7 @@ def link_bias_accelerations(
         L_v̇_WL: jtp.Vector, L_v_WL: jtp.Vector, C_H_L: jtp.Matrix, L_v_CL: jtp.Vector
     ) -> jtp.Vector:
         """
-        Helper to convert the body-fixed apparent acceleration L_v̇_WL to
+        Convert the body-fixed apparent acceleration L_v̇_WL to
         another representation C_v̇_WL expressed in a generic frame C.
         """
 

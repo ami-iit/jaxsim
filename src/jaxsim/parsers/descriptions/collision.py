@@ -22,7 +22,6 @@ class CollidablePoint:
         parent_link: The parent link to which the collidable point is attached.
         position: The position of the collidable point relative to the parent link.
         enabled: A flag indicating whether the collidable point is enabled for collision detection.
-
     """
 
     parent_link: LinkDescription
@@ -86,7 +85,6 @@ class CollisionShape(abc.ABC):
 
     Attributes:
         collidable_points: A list of collidable points associated with the collision shape.
-
     """
 
     collidable_points: tuple[CollidablePoint]
@@ -107,7 +105,6 @@ class BoxCollision(CollisionShape):
 
     Attributes:
         center: The center of the box in the local frame of the collision shape.
-
     """
 
     center: jtp.VectorLike
@@ -135,7 +132,6 @@ class SphereCollision(CollisionShape):
 
     Attributes:
         center: The center of the sphere in the local frame of the collision shape.
-
     """
 
     center: jtp.VectorLike
@@ -158,6 +154,13 @@ class SphereCollision(CollisionShape):
 
 @dataclasses.dataclass
 class MeshCollision(CollisionShape):
+    """
+    Represents a mesh-shaped collision shape.
+
+    Attributes:
+        center: The center of the mesh in the local frame of the collision shape.
+    """
+
     center: jtp.VectorLike
 
     def __hash__(self) -> int:

@@ -6,8 +6,9 @@ from jaxsim.parsers.rod import meshes
 def test_mesh_wrapping_vertex_extraction():
     """
     Test the vertex extraction method on different meshes.
-    1. A simple box
-    2. A sphere
+
+    1. A simple box.
+    2. A sphere.
     """
 
     # Test 1: A simple box.
@@ -29,6 +30,7 @@ def test_mesh_wrapping_vertex_extraction():
 def test_mesh_wrapping_aap():
     """
     Test the AAP wrapping method on different meshes.
+
     1. A simple box
         1.1: Remove all points above x=0.0
         1.2: Remove all points below y=0.0
@@ -64,6 +66,7 @@ def test_mesh_wrapping_aap():
 def test_mesh_wrapping_points_over_axis():
     """
     Test the points over axis method on different meshes.
+
     1. A simple box
         1.1: Select 10 points from the lower end of the x-axis
         1.2: Select 10 points from the higher end of the y-axis

@@ -52,10 +52,16 @@ class KinDynParameters(JaxsimDataclass):
 
     @property
     def parent_array(self) -> jtp.Vector:
+        r"""
+        Return the parent array :math:`\lambda(i)` of the model.
+        """
         return self._parent_array.get()
 
     @property
     def support_body_array_bool(self) -> jtp.Matrix:
+        r"""
+        Return the boolean support parent array :math:`\kappa_{b}(i)` of the model.
+        """
         return self._support_body_array_bool.get()
 
     @staticmethod
@@ -648,7 +654,16 @@ class LinkParameters(JaxsimDataclass):
     def build_from_flat_parameters(
         index: jtp.IntLike, parameters: jtp.VectorLike
     ) -> LinkParameters:
+        """
+        Build a LinkParameters object from a flat vector of parameters.
 
+        Args:
+            index: The index of the link.
+            parameters: The flat vector of parameters.
+
+        Returns:
+            The LinkParameters object.
+        """
         index = jnp.array(index).squeeze().astype(int)
 
         m = jnp.array(parameters[0]).squeeze().astype(float)
@@ -772,7 +787,9 @@ class ContactParameters(JaxsimDataclass):
 
     @property
     def indices_of_enabled_collidable_points(self) -> npt.NDArray:
-
+        """
+        Return the indices of the enabled collidable points.
+        """
         return np.where(np.array(self.enabled))[0]
 
     @staticmethod

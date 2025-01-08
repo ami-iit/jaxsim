@@ -7,6 +7,10 @@ from .skew import Skew
 
 
 class Adjoint:
+    """
+    A utility class for adjoint matrix operations.
+    """
+
     @staticmethod
     def from_quaternion_and_translation(
         quaternion: jtp.Vector = jnp.array([1.0, 0, 0, 0]),
@@ -18,11 +22,10 @@ class Adjoint:
         Create an adjoint matrix from a quaternion and a translation.
 
         Args:
-            quaternion (jtp.Vector): A quaternion vector (4D) representing orientation.
-            translation (jtp.Vector): A translation vector (3D).
-            inverse (bool): Whether to compute the inverse adjoint. Default is False.
-            normalize_quaternion (bool): Whether to normalize the quaternion before creating the adjoint.
-                                         Default is False.
+            quaternion: A quaternion vector (4D) representing orientation.
+            translation: A translation vector (3D).
+            inverse: Whether to compute the inverse adjoint.
+            normalize_quaternion: Whether to normalize the quaternion before creating the adjoint.
 
         Returns:
             jtp.Matrix: The adjoint matrix.
@@ -69,9 +72,9 @@ class Adjoint:
         Create an adjoint matrix from a rotation matrix and a translation vector.
 
         Args:
-            rotation (jtp.Matrix): A 3x3 rotation matrix.
-            translation (jtp.Vector): A translation vector (3D).
-            inverse (bool): Whether to compute the inverse adjoint. Default is False.
+            rotation: A 3x3 rotation matrix.
+            translation: A translation vector (3D).
+            inverse: Whether to compute the inverse adjoint. Default is False.
 
         Returns:
             jtp.Matrix: The adjoint matrix.
@@ -105,7 +108,7 @@ class Adjoint:
         Convert an adjoint matrix to a transformation matrix.
 
         Args:
-            adjoint (jtp.Matrix): The adjoint matrix (6x6).
+            adjoint: The adjoint matrix (6x6).
 
         Returns:
             jtp.Matrix: The transformation matrix (4x4).
@@ -131,7 +134,7 @@ class Adjoint:
         Compute the inverse of an adjoint matrix.
 
         Args:
-            adjoint (jtp.Matrix): The adjoint matrix.
+            adjoint: The adjoint matrix.
 
         Returns:
             jtp.Matrix: The inverse adjoint matrix.

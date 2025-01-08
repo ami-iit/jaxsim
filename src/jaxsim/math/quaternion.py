@@ -8,13 +8,17 @@ from .utils import safe_norm
 
 
 class Quaternion:
+    """
+    A utility class for quaternion operations.
+    """
+
     @staticmethod
     def to_xyzw(wxyz: jtp.Vector) -> jtp.Vector:
         """
         Convert a quaternion from WXYZ to XYZW representation.
 
         Args:
-            wxyz (jtp.Vector): Quaternion in WXYZ representation.
+            wxyz: Quaternion in WXYZ representation.
 
         Returns:
             jtp.Vector: Quaternion in XYZW representation.
@@ -27,7 +31,7 @@ class Quaternion:
         Convert a quaternion from XYZW to WXYZ representation.
 
         Args:
-            xyzw (jtp.Vector): Quaternion in XYZW representation.
+            xyzw: Quaternion in XYZW representation.
 
         Returns:
             jtp.Vector: Quaternion in WXYZ representation.
@@ -40,7 +44,7 @@ class Quaternion:
         Convert a quaternion to a direction cosine matrix (DCM).
 
         Args:
-            quaternion (jtp.Vector): Quaternion in XYZW representation.
+            quaternion: Quaternion in XYZW representation.
 
         Returns:
             jtp.Matrix: Direction cosine matrix (DCM).
@@ -53,7 +57,7 @@ class Quaternion:
         Convert a direction cosine matrix (DCM) to a quaternion.
 
         Args:
-            dcm (jtp.Matrix): Direction cosine matrix (DCM).
+            dcm: Direction cosine matrix (DCM).
 
         Returns:
             jtp.Vector: Quaternion in XYZW representation.
@@ -71,8 +75,8 @@ class Quaternion:
         Compute the derivative of a quaternion given angular velocity.
 
         Args:
-            quaternion (jtp.Vector): Quaternion in XYZW representation.
-            omega (jtp.Vector): Angular velocity vector.
+            quaternion: Quaternion in XYZW representation.
+            omega: Angular velocity vector.
             omega_in_body_fixed (bool): Whether the angular velocity is in the body-fixed frame.
             K (float): A scaling factor.
 

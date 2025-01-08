@@ -13,8 +13,8 @@ class Adjoint:
 
     @staticmethod
     def from_quaternion_and_translation(
-        quaternion: jtp.Vector = jnp.array([1.0, 0, 0, 0]),
-        translation: jtp.Vector = jnp.zeros(3),
+        quaternion: jtp.Vector | None = None,
+        translation: jtp.Vector | None = None,
         inverse: bool = False,
         normalize_quaternion: bool = False,
     ) -> jtp.Matrix:
@@ -22,14 +22,17 @@ class Adjoint:
         Create an adjoint matrix from a quaternion and a translation.
 
         Args:
-            quaternion: A quaternion vector (4D) representing orientation.
-            translation: A translation vector (3D).
-            inverse: Whether to compute the inverse adjoint.
-            normalize_quaternion: Whether to normalize the quaternion before creating the adjoint.
+            quaternion (jtp.Vector): A quaternion vector (4D) representing orientation. Default is [1, 0, 0, 0].
+            translation (jtp.Vector): A translation vector (3D). Default is [0, 0, 0].
+            inverse (bool): Whether to compute the inverse adjoint. Default is False.
+            normalize_quaternion (bool): Whether to normalize the quaternion before creating the adjoint.
+                                         Default is False.
 
         Returns:
             jtp.Matrix: The adjoint matrix.
         """
+        quaternion = quaternion if quaternion is not None else jnp.array([1.0, 0, 0, 0])
+        translation = translation if translation is not None else jnp.zeros(3)
         assert quaternion.size == 4
         assert translation.size == 3
 
@@ -64,21 +67,24 @@ class Adjoint:
 
     @staticmethod
     def from_rotation_and_translation(
-        rotation: jtp.Matrix = jnp.eye(3),
-        translation: jtp.Vector = jnp.zeros(3),
+        rotation: jtp.Matrix | None = None,
+        translation: jtp.Vector | None = None,
         inverse: bool = False,
     ) -> jtp.Matrix:
         """
         Create an adjoint matrix from a rotation matrix and a translation vector.
 
         Args:
-            rotation: A 3x3 rotation matrix.
-            translation: A translation vector (3D).
-            inverse: Whether to compute the inverse adjoint. Default is False.
+            rotation (jtp.Matrix): A 3x3 rotation matrix. Default is identity.
+            translation (jtp.Vector): A translation vector (3D). Default is [0, 0, 0].
+            inverse (bool): Whether to compute the inverse adjoint. Default is False.
 
         Returns:
             jtp.Matrix: The adjoint matrix.
         """
+        rotation = rotation if rotation is not None else jnp.eye(3)
+        translation = translation if translation is not None else jnp.zeros(3)
+
         assert rotation.shape == (3, 3)
         assert translation.size == 3
 

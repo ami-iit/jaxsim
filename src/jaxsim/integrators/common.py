@@ -170,14 +170,14 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
     """
 
     # The Runge-Kutta matrix.
-    A: ClassVar[jtp.Matrix]
+    A: jtp.Matrix
 
     # The weights coefficients.
     # Note that in practice we typically use its transpose `b.transpose()`.
-    b: ClassVar[jtp.Matrix]
+    b: jtp.Matrix
 
     # The nodes coefficients.
-    c: ClassVar[jtp.Vector]
+    c: jtp.Vector
 
     # Define the order of the solution.
     # It should have as many elements as the number of rows of `b.transpose()`.
@@ -226,28 +226,31 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         Returns:
             The integrator object.
         """
+        A = cls.__dataclass_fields__["A"].default_factory()
+        b = cls.__dataclass_fields__["b"].default_factory()
+        c = cls.__dataclass_fields__["c"].default_factory()
 
         # Check validity of the Butcher tableau.
-        if not ExplicitRungeKutta.butcher_tableau_is_valid(A=cls.A, b=cls.b, c=cls.c):
+        if not ExplicitRungeKutta.butcher_tableau_is_valid(A=A, b=b, c=c):
             raise ValueError("The Butcher tableau of this class is not valid.")
 
         # Check that b.T has enough rows based on the configured index of the solution.
-        if cls.row_index_of_solution >= cls.b.T.shape[0]:
+        if cls.row_index_of_solution >= b.T.shape[0]:
             msg = "The index of the solution ({}-th row of `b.T`) is out of range ({})."
-            raise ValueError(msg.format(cls.row_index_of_solution, cls.b.T.shape[0]))
+            raise ValueError(msg.format(cls.row_index_of_solution, b.T.shape[0]))
 
         # Check that the tuple containing the order of the b.T rows matches the number
         # of the b.T rows.
-        if len(cls.order_of_bT_rows) != cls.b.T.shape[0]:
+        if len(cls.order_of_bT_rows) != b.T.shape[0]:
             msg = "Wrong size of 'order_of_bT_rows' ({}), should be {}."
-            raise ValueError(msg.format(len(cls.order_of_bT_rows), cls.b.T.shape[0]))
+            raise ValueError(msg.format(len(cls.order_of_bT_rows), b.T.shape[0]))
 
         # Check if the Butcher tableau supports FSAL (first-same-as-last).
         # If it does, store the index of the intermediate derivative to be used as the
         # first derivative of the next iteration.
         has_fsal, index_of_fsal = (  # noqa: F841
             ExplicitRungeKutta.butcher_tableau_supports_fsal(
-                A=cls.A, b=cls.b, c=cls.c, index_of_solution=cls.row_index_of_solution
+                A=A, b=b, c=c, index_of_solution=cls.row_index_of_solution
             )
         )
 

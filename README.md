@@ -1,8 +1,6 @@
 # JaxSim
 
-JaxSim is a **differentiable physics engine** and **multibody dynamics library** designed for applications in control and robot learning, implemented with JAX.
-
-Its design facilitates research and accelerates prototyping in the intersection of robotics and artificial intelligence.
+**JaxSim** is a **differentiable physics engine** and **multibody dynamics library** built with JAX, tailored for control and robotic learning applications.
 
 <div align="center">
 <br/>
@@ -17,41 +15,105 @@ Its design facilitates research and accelerates prototyping in the intersection 
 </div>
 
 ## Features
+- Reduced-coordinate physics engine for **fixed-base** and **floating-base** robots.
+- Multibody dynamics library for model-based control algorithms.
+- Fully Python-based, leveraging [jax][jax] following a functional programming paradigm.
+- Seamless execution on CPUs, GPUs, and TPUs.
+- Supports JIT compilation and automatic vectorization for high performance.
+- Compatible with SDF models and URDF (via [sdformat][sdformat] conversion).
 
-- Physics engine in reduced coordinates supporting fixed-base and floating-base robots.
-- Multibody dynamics library providing all the necessary components for developing model-based control algorithms.
-- Completely developed in Python with [`google/jax`][jax] following a functional programming paradigm.
-- Transparent support for running on CPUs, GPUs, and TPUs.
-- Full support for JIT compilation for increased performance.
-- Full support for automatic vectorization for massive parallelization of open-loop and closed-loop architectures.
-- Support for SDF models and, upon conversion with [sdformat][sdformat], URDF models.
-- Visualization based on the [passive viewer][passive_viewer_mujoco] of Mujoco.
+## Usage
 
-### JaxSim as a simulator
+### Using JaxSim as simulator
 
-- Wide range of fixed-step explicit Runge-Kutta integrators.
-- Support for variable-step integrators implemented as embedded Runge-Kutta schemes.
-- Improved stability by optionally integrating the base orientation on the $\text{SO}(3)$ manifold.
-- Soft contacts model supporting full friction cone and sticking-slipping transition.
-- Collision detection between points rigidly attached to bodies and uneven ground surfaces.
 
-### JaxSim as a multibody dynamics library
+```python
+import jax.numpy as jnp
+import jaxsim.api as js
+import icub_models
+import pathlib
 
-- Provides rigid body dynamics algorithms (RBDAs) like RNEA, ABA, CRBA, and Jacobians.
-- Provides all the quantities included in the Euler-Poincarè formulation of the equations of motion.
-- Supports body-fixed, inertial-fixed, and mixed [velocity representations][notation].
-- Exposes all the necessary quantities to develop controllers in centroidal coordinates.
-- Supports running open-loop and full closed-loop control architectures on hardware accelerators.
+# Load the iCub model
+model_path = icub_models.get_model_file("iCubGazeboV2_5")
+joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
+          'l_shoulder_roll', 'l_shoulder_yaw', 'l_elbow', 'r_shoulder_pitch',
+          'r_shoulder_roll', 'r_shoulder_yaw', 'r_elbow', 'l_hip_pitch',
+          'l_hip_roll', 'l_hip_yaw', 'l_knee', 'l_ankle_pitch', 'l_ankle_roll',
+          'r_hip_pitch', 'r_hip_roll', 'r_hip_yaw', 'r_knee', 'r_ankle_pitch',
+          'r_ankle_roll')
 
-### JaxSim for robot learning
+# Build and reduce the model
+model_description = pathlib.Path(model_path)
+full_model = js.model.JaxSimModel.build_from_model_description(
+    model_description=model_description, time_step=0.0001, is_urdf=True
+)
+model = js.model.reduce(model=full_model, considered_joints=joints)
 
-- Being developed with JAX, all the RBDAs support automatic differentiation both in forward and reverse modes.
+ndof = model.dofs()
+# Initialize data and simulation
+data = js.data.JaxSimModelData.zero(model=model).reset_base_position(
+    base_position=jnp.array([0.0, 0.0, 1.0])
+)
+T = jnp.arange(start=0, stop=1.0, step=model.time_step)
+tau = jnp.zeros(ndof)
+
+# Simulate
+for t in T:
+    data, _ = js.model.step(model=model, data=data, link_forces=None, joint_force_references=tau)
+
+```
+
+### Using JaxSim as a multibody dynamics library
+``` python
+import jax.numpy as jnp
+import jaxsim.api as js
+import icub_models
+import pathlib
+
+# Load the iCub model
+model_path = icub_models.get_model_file("iCubGazeboV2_5")
+joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
+          'l_shoulder_roll', 'l_shoulder_yaw', 'l_elbow', 'r_shoulder_pitch',
+          'r_shoulder_roll', 'r_shoulder_yaw', 'r_elbow', 'l_hip_pitch',
+          'l_hip_roll', 'l_hip_yaw', 'l_knee', 'l_ankle_pitch', 'l_ankle_roll',
+          'r_hip_pitch', 'r_hip_roll', 'r_hip_yaw', 'r_knee', 'r_ankle_pitch',
+          'r_ankle_roll')
+
+# Build and reduce the model
+model_description = pathlib.Path(model_path)
+full_model = js.model.JaxSimModel.build_from_model_description(
+    model_description=model_description, time_step=0.0001, is_urdf=True
+)
+model = js.model.reduce(model=full_model, considered_joints=joints)
+
+# Initialize model data
+data = js.data.JaxSimModelData.build(
+    model=model,
+    base_position=jnp.array([0.0, 0.0, 1.0],
+)
+
+# Frame and dynamics computations
+frame_index = js.frame.name_to_idx(model=model, frame_name="l_foot")
+W_H_F = js.frame.transform(model=model, data=data, frame_index=frame_index)  # Frame transformation
+W_J_F = js.frame.jacobian(model=model, data=data, frame_index=frame_index)  # Frame Jacobian
+
+# Dynamics properties
+M = js.model.free_floating_mass_matrix(model=model, data=data)  # Mass matrix
+h = js.model.free_floating_bias_forces(model=model, data=data)  # Bias forces
+g = js.model.free_floating_gravity_forces(model=model, data=data)  # Gravity forces
+C = js.model.free_floating_coriolis_matrix(model=model, data=data)  # Coriolis matrix
+
+# Print dynamics results
+print(f"M: shape={M.shape}, h: shape={h.shape}, g: shape={g.shape}, C: shape={C.shape}")
+
+```
+### Additional features
+
+- Full support for automatic differentiation of RBDAs (forward and reverse modes) with JAX.
 - Support for automatically differentiating against kinematics and dynamics parameters.
 - All fixed-step integrators are forward and reverse differentiable.
 - All variable-step integrators are forward differentiable.
-- Ideal for sampling synthetic data for reinforcement learning (RL).
-- Ideal for designing physics-informed neural networks (PINNs) with loss functions requiring model-based quantities.
-- Ideal for combining model-based control with learning-based components.
+- Check the example folder for additional usecase !
 
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat
@@ -64,12 +126,6 @@ Its design facilitates research and accelerates prototyping in the intersection 
 > [!NOTE]
 > JaxSim currently focuses on locomotion applications.
 > Only contacts between bodies and smooth ground surfaces are supported.
-
-## Documentation
-
-The JaxSim API documentation is available at [jaxsim.readthedocs.io][readthedocs].
-
-[readthedocs]: https://jaxsim.readthedocs.io/
 
 ## Installation
 
@@ -141,6 +197,13 @@ pip install --no-deps -e .
 [pixi]: https://pixi.sh/
 [venv]: https://docs.python.org/3/tutorial/venv.html
 [jax_gpu]: https://github.com/google/jax/#installation
+
+## Documentation
+
+The JaxSim API documentation is available at [jaxsim.readthedocs.io][readthedocs].
+
+[readthedocs]: https://jaxsim.readthedocs.io/
+
 
 ## Overview
 

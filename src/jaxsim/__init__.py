@@ -8,18 +8,26 @@ def _jnp_options() -> None:
 
     import jax
 
-    # Check if running on TPU
+    # Check if running on TPU.
     is_tpu = jax.devices()[0].platform == "tpu"
+
+    # Check if running on Metal.
+    is_metal = jax.devices()[0].platform == "METAL"
 
     # Enable by default 64-bit precision to get accurate physics.
     # Users can enforce 32-bit precision by setting the following variable to 0.
     use_x64 = os.environ.get("JAX_ENABLE_X64", "1") != "0"
 
     # Notify the user if unsupported 64-bit precision was enforced on TPU.
-    if is_tpu and use_x64:
-        msg = "64-bit precision is not allowed on TPU. Enforcing 32bit precision."
+    if (is_tpu or is_metal) and use_x64:
+        msg = f"64-bit precision is not allowed on {jax.devices()[0].platform.upper}. Enforcing 32bit precision."
         logging.warning(msg)
         use_x64 = False
+
+        if is_metal:
+            logging.warning(
+                "JAX Metal backend is experimental. Some functionalities may not be available."
+            )
 
     # Enable 64-bit precision in JAX.
     if use_x64:

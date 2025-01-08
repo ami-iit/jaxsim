@@ -19,8 +19,9 @@ def raise_if(
             format string (fmt), whose fields are filled with the args and kwargs.
     """
 
-    # Disable host callback if running on TPU.
-    if jax.devices()[0].platform == "tpu" or os.environ.get(
+    # Disable host callback if running on unsupported hardware or if the user
+    # explicitly disabled it.
+    if jax.devices()[0].platform in {"tpu", "METAL"} or os.environ.get(
         "JAXSIM_DISABLE_EXCEPTIONS", 0
     ):
         return

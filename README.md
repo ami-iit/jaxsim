@@ -145,7 +145,7 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 <details>
 <summary>With <code>pixi</code></summary>
 
-> [!NOTE]
+> ### Note
 > The minimum version of `pixi` required is `0.39.0`.
 
 You can add the jaxsim dependency in [`pixi`][pixi] project as follows:

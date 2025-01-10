@@ -184,21 +184,16 @@ def extract_model_data(
             msg = "Found more/less than one joint connecting a fixed-base model to the world"
             raise ValueError(msg + f": {[j.name for j in joints_with_world_parent]}")
 
+        base_link_name = joints_with_world_parent[0].child.name
+
         msg = "Combining the pose of base link '{}' with the pose of joint '{}'"
-        logging.info(
-            msg.format(
-                joints_with_world_parent[0].child.name, joints_with_world_parent[0].name
-            )
-        )
+        logging.info(msg.format(base_link_name, joints_with_world_parent[0].name))
 
         # Combine the pose of the base link (child of the found fixed joint)
         # with the pose of the fixed joint connecting with the world.
         # Note: we assume it's a fixed joint and ignore any joint angle.
-        links_dict[joints_with_world_parent[0].child.name].mutable(
-            validate=False
-        ).pose = (
-            joints_with_world_parent[0].pose
-            @ links_dict[joints_with_world_parent[0].child.name].pose
+        links_dict[base_link_name].mutable(validate=False).pose = (
+            joints_with_world_parent[0].pose @ links_dict[base_link_name].pose
         )
 
     # ============

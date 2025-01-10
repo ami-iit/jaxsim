@@ -438,7 +438,8 @@ class KinDynParameters(JaxsimDataclass):
         # Note that here we include also the index 0 since suc_H_child[0] stores the
         # optional pose of the base link w.r.t. the root frame of the model.
         # This is supported by SDF when the base link <pose> element is defined.
-        suc_H_i = self.joint_model.suc_H_i[jnp.arange(0, 1 + self.number_of_joints())]
+        suc_H_i = self.joint_model.suc_H_i[jnp.arange(1, 1 + self.number_of_joints())]
+        suc_H_i = jnp.vstack([W_H_B[None, :], suc_H_i])
 
         # Compute the overall transforms from the parent to the child of each joint by
         # composing all the components of our joint model.

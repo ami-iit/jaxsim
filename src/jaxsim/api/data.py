@@ -135,8 +135,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             A `JaxSimModelData` initialized with the given state.
         """
 
+        root_link_transform = model.kin_dyn_parameters.joint_model.suc_H_i[0]
+
         base_position = jnp.array(
-            base_position if base_position is not None else jnp.zeros(3),
+            base_position if base_position is not None else root_link_transform[0:3, 3],
             dtype=float,
         ).squeeze()
 
@@ -144,7 +146,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             (
                 base_quaternion
                 if base_quaternion is not None
-                else jnp.array([1.0, 0, 0, 0])
+                else jaxsim.math.Quaternion.from_dcm(dcm=root_link_transform[0:3, 0:3])
             ),
             dtype=float,
         ).squeeze()

@@ -56,14 +56,13 @@ class Adjoint:
             The 6x6 adjoint matrix.
         """
 
-        A_H_B = jnp.array(transform).astype(float)
-        assert transform.shape == (4, 4)
+        A_H_B = jnp.reshape(transform, (-1, 4, 4))
 
         return (
             jaxlie.SE3.from_matrix(matrix=A_H_B).adjoint()
             if not inverse
             else jaxlie.SE3.from_matrix(matrix=A_H_B).inverse().adjoint()
-        )
+        ).reshape(transform.shape[:-2] + (6, 6))
 
     @staticmethod
     def from_rotation_and_translation(
@@ -145,13 +144,18 @@ class Adjoint:
         Returns:
             jtp.Matrix: The inverse adjoint matrix.
         """
-        A_X_B = adjoint
+        A_X_B = adjoint.reshape(-1, 6, 6)
 
-        A_R_B = A_X_B[0:3, 0:3]
+        A_R_B_T = jnp.swapaxes(A_X_B[..., 0:3, 0:3], -2, -1)
+        A_T_B = A_X_B[..., 0:3, 3:6]
 
-        return jnp.vstack(
+        return jnp.concatenate(
             [
-                jnp.block([A_R_B.T, -A_R_B.T @ A_X_B[0:3, 3:6] @ A_R_B.T]),
-                jnp.block([jnp.zeros(shape=(3, 3)), A_R_B.T]),
-            ]
-        )
+                jnp.concatenate(
+                    [A_R_B_T, -A_R_B_T @ A_T_B @ A_R_B_T],
+                    axis=-1,
+                ),
+                jnp.concatenate([jnp.zeros_like(A_R_B_T), A_R_B_T], axis=-1),
+            ],
+            axis=-2,
+        ).reshape(adjoint.shape)

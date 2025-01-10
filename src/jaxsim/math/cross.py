@@ -24,13 +24,18 @@ class Cross:
         Raises:
             ValueError: If the input vector does not have a size of 6.
         """
-        v, ω = jnp.split(velocity_sixd.squeeze(), 2)
+        velocity_sixd = velocity_sixd.reshape(-1, 6)
 
-        v_cross = jnp.vstack(
+        v, ω = jnp.split(velocity_sixd, 2, axis=-1)
+
+        v_cross = jnp.concatenate(
             [
-                jnp.block([Skew.wedge(vector=ω), Skew.wedge(vector=v)]),
-                jnp.block([jnp.zeros(shape=(3, 3)), Skew.wedge(vector=ω)]),
-            ]
+                jnp.concatenate(
+                    [Skew.wedge(ω), jnp.zeros((ω.shape[0], 3, 3)).squeeze()], axis=-2
+                ),
+                jnp.concatenate([Skew.wedge(v), Skew.wedge(ω)], axis=-2),
+            ],
+            axis=-1,
         )
 
         return v_cross

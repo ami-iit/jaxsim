@@ -9,6 +9,8 @@ import numpy as np
 import rod.urdf.exporter
 from lxml import etree as ET
 
+from jaxsim import logging
+
 from .utils import MujocoCamera
 
 MujocoCameraType = (
@@ -59,6 +61,59 @@ def load_rod_model(
         raise ValueError(f"Model '{model_name}' not found in the resource")
 
     return models[model_name]
+
+
+class ModelToMjcf:
+    """
+    Class to convert a URDF/SDF file or a ROD model to a Mujoco MJCF string.
+    """
+
+    @staticmethod
+    def convert(
+        model: str | pathlib.Path | rod.Model,
+        considered_joints: list[str] | None = None,
+        plane_normal: tuple[float, float, float] = (0, 0, 1),
+        heightmap: bool | None = None,
+        heightmap_samples_xy: tuple[int, int] = (101, 101),
+        cameras: MujocoCameraType = (),
+    ) -> tuple[str, dict[str, Any]]:
+        """
+        Convert a model to a Mujoco MJCF string.
+
+        Args:
+            model: The URDF/SDF file or ROD model to convert.
+            considered_joints: The list of joint names to consider in the conversion.
+            plane_normal: The normal vector of the plane.
+            heightmap: Whether to generate a heightmap.
+            heightmap_samples_xy: The number of points in the heightmap grid.
+            cameras: The custom cameras to add to the scene.
+
+        Returns:
+            A tuple containing the MJCF string and the dictionary of assets.
+        """
+
+        match model:
+            case rod.Model():
+                rod_model = model
+            case str() | pathlib.Path():
+                # Convert the JaxSim model to a ROD model.
+                rod_model = load_rod_model(
+                    model_description=model,
+                    is_urdf=None,
+                    model_name=None,
+                )
+            case _:
+                raise TypeError(f"Unsupported type for 'model': {type(model)}")
+
+        # Convert the ROD model to MJCF.
+        return RodModelToMjcf.convert(
+            rod_model=rod_model,
+            considered_joints=considered_joints,
+            plane_normal=plane_normal,
+            heightmap=heightmap,
+            heightmap_samples_xy=heightmap_samples_xy,
+            cameras=cameras,
+        )
 
 
 class RodModelToMjcf:
@@ -552,6 +607,8 @@ class UrdfToMjcf:
             tuple: A tuple containing the MJCF string and the assets dictionary.
         """
 
+        logging.warning("This method is deprecated. Use 'ModelToMjcf.convert' instead.")
+
         # Get the ROD model.
         rod_model = load_rod_model(
             model_description=urdf,
@@ -597,6 +654,8 @@ class SdfToMjcf:
         Returns:
             tuple: A tuple containing the MJCF string and the assets dictionary.
         """
+
+        logging.warning("This method is deprecated. Use 'ModelToMjcf.convert' instead.")
 
         # Get the ROD model.
         rod_model = load_rod_model(

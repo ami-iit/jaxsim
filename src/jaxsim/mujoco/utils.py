@@ -147,7 +147,7 @@ class MujocoCamera:
         camera_name: str,
         lookat: Sequence[float | int] | npt.NDArray = (0, 0, 0),
         distance: float | int | npt.NDArray = 3,
-        azimut: float | int | npt.NDArray = 90,
+        azimuth: float | int | npt.NDArray = 90,
         elevation: float | int | npt.NDArray = -45,
         fovy: float | int | npt.NDArray = 45,
         degrees: bool = True,
@@ -170,7 +170,7 @@ class MujocoCamera:
             distance:
                 The distance from the target point (displacement between the origins
                 of `T` and `C`).
-            azimut:
+            azimuth:
                 The rotation around z of the camera. With an angle of 0, the camera
                 would loot at the target point towards the positive x-axis of `T`.
             elevation:
@@ -193,8 +193,8 @@ class MujocoCamera:
             seq="ZX", angles=[-90, 90], degrees=True
         ).as_matrix()
 
-        # Process the azimut.
-        R_az = Rotation.from_euler(seq="Y", angles=azimut, degrees=degrees).as_matrix()
+        # Process the azimuth.
+        R_az = Rotation.from_euler(seq="Y", angles=azimuth, degrees=degrees).as_matrix()
         W_H_C[0:3, 0:3] = W_H_C[0:3, 0:3] @ R_az
 
         # Process elevation.

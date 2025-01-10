@@ -178,7 +178,7 @@ class MujocoVisualizer:
         close_on_exit: bool = True,
         lookat: Sequence[float | int] | npt.NDArray | None = None,
         distance: float | int | npt.NDArray | None = None,
-        azimut: float | int | npt.NDArray | None = None,
+        azimuth: float | int | npt.NDArray | None = None,
         elevation: float | int | npt.NDArray | None = None,
     ) -> contextlib.AbstractContextManager[mujoco.viewer.Handle]:
         """
@@ -195,7 +195,7 @@ class MujocoVisualizer:
             viewer=handle,
             lookat=lookat,
             distance=distance,
-            azimut=azimut,
+            azimuth=azimuth,
             elevation=elevation,
         )
 
@@ -210,7 +210,7 @@ class MujocoVisualizer:
         *,
         lookat: Sequence[float | int] | npt.NDArray | None,
         distance: float | int | npt.NDArray | None = None,
-        azimut: float | int | npt.NDArray | None = None,
+        azimuth: float | int | npt.NDArray | None = None,
         elevation: float | int | npt.NDArray | None = None,
     ) -> mj.viewer.Handle:
         """
@@ -236,8 +236,8 @@ class MujocoVisualizer:
         if distance is not None:
             viewer.cam.distance = float(distance)
 
-        if azimut is not None:
-            viewer.cam.azimuth = float(azimut) % 360
+        if azimuth is not None:
+            viewer.cam.azimuth = float(azimuth) % 360
 
         if elevation is not None:
             viewer.cam.elevation = float(elevation)

@@ -152,7 +152,10 @@ class MujocoVisualizer:
         viewer.sync()
 
     def open_viewer(
-        self, model: mj.MjModel | None = None, data: mj.MjData | None = None
+        self,
+        model: mj.MjModel | None = None,
+        data: mj.MjData | None = None,
+        show_left_ui: bool = False,
     ) -> mj.viewer.Handle:
         """Open a viewer."""
 
@@ -160,7 +163,7 @@ class MujocoVisualizer:
         model = model if model is not None else self.model
 
         handle = mj.viewer.launch_passive(
-            model, data, show_left_ui=False, show_right_ui=False
+            model, data, show_left_ui=show_left_ui, show_right_ui=False
         )
 
         return handle
@@ -171,6 +174,7 @@ class MujocoVisualizer:
         model: mj.MjModel | None = None,
         data: mj.MjData | None = None,
         *,
+        show_left_ui: bool = False,
         close_on_exit: bool = True,
         lookat: Sequence[float | int] | npt.NDArray | None = None,
         distance: float | int | npt.NDArray | None = None,
@@ -185,7 +189,7 @@ class MujocoVisualizer:
             https://mujoco.readthedocs.io/en/stable/XMLreference.html#visual-global
         """
 
-        handle = self.open_viewer(model=model, data=data)
+        handle = self.open_viewer(model=model, data=data, show_left_ui=show_left_ui)
 
         handle = MujocoVisualizer.setup_viewer_camera(
             viewer=handle,

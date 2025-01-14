@@ -2,8 +2,6 @@
 import os
 import sys
 
-from pkg_resources import get_distribution
-
 if os.environ.get("READTHEDOCS"):
     checkout_name = os.path.basename(os.path.dirname(os.path.realpath(__file__)))
     os.environ["CONDA_PREFIX"] = os.path.realpath(
@@ -21,7 +19,7 @@ sys.path.insert(0, os.path.abspath("../../"))
 module_path = os.path.abspath("../src/")
 sys.path.insert(0, module_path)
 
-__version__ = get_distribution("jaxsim").version
+__version__ = jaxsim._version.__version__
 
 # -- Project information
 
@@ -29,8 +27,7 @@ project = "JAXsim"
 copyright = "2022, Artificial and Mechanical Intelligence"
 author = "Artificial and Mechanical Intelligence"
 
-release = f"{__version__}"
-version = f"main ({__version__})"
+release = version = __version__
 
 # -- General configuration
 

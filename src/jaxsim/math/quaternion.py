@@ -21,7 +21,7 @@ class Quaternion:
             wxyz: Quaternion in WXYZ representation.
 
         Returns:
-            jtp.Vector: Quaternion in XYZW representation.
+            Quaternion in XYZW representation.
         """
         return wxyz.squeeze()[jnp.array([1, 2, 3, 0])]
 
@@ -34,7 +34,7 @@ class Quaternion:
             xyzw: Quaternion in XYZW representation.
 
         Returns:
-            jtp.Vector: Quaternion in WXYZ representation.
+            Quaternion in WXYZ representation.
         """
         return xyzw.squeeze()[jnp.array([3, 0, 1, 2])]
 
@@ -47,7 +47,7 @@ class Quaternion:
             quaternion: Quaternion in XYZW representation.
 
         Returns:
-            jtp.Matrix: Direction cosine matrix (DCM).
+            The Direction cosine matrix (DCM).
         """
         return jaxlie.SO3(wxyz=quaternion).as_matrix()
 
@@ -60,7 +60,7 @@ class Quaternion:
             dcm: Direction cosine matrix (DCM).
 
         Returns:
-            jtp.Vector: Quaternion in XYZW representation.
+            Quaternion in WXYZ representation.
         """
         return jaxlie.SO3.from_matrix(matrix=dcm).wxyz
 
@@ -81,7 +81,7 @@ class Quaternion:
             K (float): A scaling factor.
 
         Returns:
-            jtp.Vector: The derivative of the quaternion.
+            The derivative of the quaternion.
         """
         ω = omega.squeeze()
         quaternion = quaternion.squeeze()

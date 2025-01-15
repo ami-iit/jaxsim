@@ -17,7 +17,7 @@ class Skew:
             vector: A 3D vector.
 
         Returns:
-            jtp.Matrix: The skew-symmetric matrix corresponding to the input vector.
+            The skew-symmetric matrix corresponding to the input vector.
 
         """
 
@@ -45,7 +45,7 @@ class Skew:
             matrix: A 3x3 skew-symmetric matrix.
 
         Returns:
-            jtp.Vector: The 3D vector extracted from the input matrix.
+            The 3D vector extracted from the input matrix.
 
         """
         vector = 0.5 * jnp.vstack(

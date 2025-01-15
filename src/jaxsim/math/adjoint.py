@@ -28,7 +28,7 @@ class Adjoint:
             normalize_quaternion: Whether to normalize the quaternion before creating the adjoint.
 
         Returns:
-            jtp.Matrix: The adjoint matrix.
+            The adjoint matrix.
         """
         quaternion = quaternion if quaternion is not None else jnp.array([1.0, 0, 0, 0])
         translation = translation if translation is not None else jnp.zeros(3)
@@ -78,7 +78,7 @@ class Adjoint:
             inverse: Whether to compute the inverse adjoint. Default is False.
 
         Returns:
-            jtp.Matrix: The adjoint matrix.
+            The adjoint matrix.
         """
         rotation = rotation if rotation is not None else jnp.eye(3)
         translation = translation if translation is not None else jnp.zeros(3)
@@ -115,7 +115,7 @@ class Adjoint:
             adjoint: The adjoint matrix (6x6).
 
         Returns:
-            jtp.Matrix: The transformation matrix (4x4).
+            The transformation matrix (4x4).
         """
         X = adjoint.squeeze()
         assert X.shape == (6, 6)
@@ -141,7 +141,7 @@ class Adjoint:
             adjoint: The adjoint matrix.
 
         Returns:
-            jtp.Matrix: The inverse adjoint matrix.
+            The inverse adjoint matrix.
         """
         A_X_B = adjoint.reshape(-1, 6, 6)
 

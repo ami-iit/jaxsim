@@ -21,7 +21,7 @@ class Rotation:
             theta: Rotation angle in radians.
 
         Returns:
-            jtp.Matrix: 3D rotation matrix.
+            The 3D rotation matrix.
         """
 
         return jaxlie.SO3.from_x_radians(theta=theta).as_matrix()
@@ -35,7 +35,7 @@ class Rotation:
             theta: Rotation angle in radians.
 
         Returns:
-            jtp.Matrix: 3D rotation matrix.
+            The 3D rotation matrix.
         """
 
         return jaxlie.SO3.from_y_radians(theta=theta).as_matrix()
@@ -49,7 +49,7 @@ class Rotation:
             theta: Rotation angle in radians.
 
         Returns:
-            jtp.Matrix: 3D rotation matrix.
+            The 3D rotation matrix.
         """
 
         return jaxlie.SO3.from_z_radians(theta=theta).as_matrix()

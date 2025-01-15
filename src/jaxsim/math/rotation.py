@@ -78,7 +78,8 @@ class Rotation:
 
             c1 = 2 * jnp.sin(theta / 2.0) ** 2
 
-            u = v / theta
+            safe_theta = jnp.where(theta == 0, 1.0, theta)
+            u = v / safe_theta
             u = jnp.vstack(u.squeeze())
 
             R = c * jnp.eye(3) - s * Skew.wedge(u) + c1 * u @ u.T

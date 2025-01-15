@@ -19,7 +19,7 @@ class Cross:
             velocity_sixd: A 6D velocity vector [v, ω].
 
         Returns:
-            jtp.Matrix: The cross product matrix (6x6).
+            The cross product matrix (6x6).
 
         Raises:
             ValueError: If the input vector does not have a size of 6.
@@ -49,7 +49,7 @@ class Cross:
             velocity_sixd: A 6D velocity vector [v, ω].
 
         Returns:
-            jtp.Matrix: The negative transpose of the cross product matrix (6x6).
+            The negative transpose of the cross product matrix (6x6).
 
         Raises:
             ValueError: If the input vector does not have a size of 6.

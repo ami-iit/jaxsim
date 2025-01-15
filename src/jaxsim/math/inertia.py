@@ -21,7 +21,7 @@ class Inertia:
             I: The 3x3 inertia matrix.
 
         Returns:
-            jtp.Matrix: The 6x6 inertia matrix.
+            The 6x6 inertia matrix.
 
         Raises:
             ValueError: If the shape of the inertia matrix I is not (3, 3).
@@ -49,7 +49,7 @@ class Inertia:
             M: The 6x6 inertia matrix.
 
         Returns:
-            tuple[jtp.Float, jtp.Vector, jtp.Matrix]: A tuple containing mass, center of mass (3D), and inertia matrix (3x3).
+            A tuple containing mass, center of mass (3D), and inertia matrix (3x3).
 
         Raises:
             ValueError: If the input matrix M has an unexpected shape.

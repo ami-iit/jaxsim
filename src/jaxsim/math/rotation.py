@@ -81,5 +81,4 @@ class Rotation:
 
         R = c * jnp.eye(3) - s * Skew.wedge(u) + c1 * u @ u.T
         
-
         return R.transpose()

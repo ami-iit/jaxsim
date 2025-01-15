@@ -27,7 +27,10 @@ def benchmark_test_function(
 
     # Warm-up call to avoid including compilation time
     jax.vmap(func, in_axes=(None, 0))(model, data)
-    benchmark(jax.vmap(func, in_axes=(None, 0)), model, data)
+
+    # Benchmark the function call
+    # Note: jax.block_until_ready is used to ensure that the benchmark is not measuring only the asynchronous dispatch
+    benchmark(jax.block_until_ready(jax.vmap(func, in_axes=(None, 0))), model, data)
 
 
 @pytest.mark.benchmark

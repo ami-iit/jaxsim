@@ -168,6 +168,7 @@ ignore = [
     "D105", # Missing docstring in magic method
     "D200", # One-line docstring should fit on one line with quotes
     "D202", # No blank lines allowed after function docstring
+    "D203", # Incorrect blank line before class
     "D205", # 1 blank line required between summary line and description
     "D212", # Multi-line docstring summary should start at the first line
     "D411", # Missing blank line before section

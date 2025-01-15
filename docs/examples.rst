@@ -14,8 +14,6 @@ Example Notebooks
 
     <div class="sphx-glr-thumbnails">
 
-.. raw:: html
-
     <div class="sphx-glr-thumbcontainer" tooltip="JaxSim as a hardware-accelerated parallel physics engine">
 
 .. only:: html
@@ -24,25 +22,19 @@ Example Notebooks
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">JaxSim as a hardware-accelerated parallel physics engine</div>
+        <div class="sphx-glr-thumbnail-title">JaxSim as a hardware-accelerated parallel physics engine</div>
     </div>
 
-
-.. raw:: html
-
-    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim for developing closed-loop robot controllers">
+    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim as a hardware-accelerated parallel physics engine [Advanced]">
 
 .. only:: html
 
-    :doc:`_collections/examples/jaxsim_for_robot_controllers`
+    :doc:`_collections/examples/jaxsim_as_physics_engine_advanced`
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">JaxSim for developing closed-loop robot controllers</div>
+        <div class="sphx-glr-thumbnail-title">JaxSim as a hardware-accelerated parallel physics engine [Advanced]</div>
     </div>
-
-
-.. raw:: html
 
     <div class="sphx-glr-thumbcontainer" tooltip="JaxSim as a multibody dynamics library">
 
@@ -52,9 +44,18 @@ Example Notebooks
 
 .. raw:: html
 
-      <div class="sphx-glr-thumbnail-title">JaxSim as a multibody dynamics library</div>
+        <div class="sphx-glr-thumbnail-title">JaxSim as a multibody dynamics library</div>
     </div>
 
+    <div class="sphx-glr-thumbcontainer" tooltip="JaxSim for developing closed-loop robot controllers">
+
+.. only:: html
+
+    :doc:`_collections/examples/jaxsim_for_robot_controllers`
+
 .. raw:: html
+
+        <div class="sphx-glr-thumbnail-title">JaxSim for developing closed-loop robot controllers</div>
+    </div>
 
     </div>

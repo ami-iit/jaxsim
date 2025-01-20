@@ -27,6 +27,7 @@ dependencies:
   # [testing]
   - idyntree >= 12.2.1
   - pytest
+  - pytest-benchmark
   - pytest-icdiff
   - robot_descriptions
   - icub-models

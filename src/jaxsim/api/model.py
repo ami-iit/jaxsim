@@ -236,7 +236,7 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.SoftContacts.build()
+            else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
         # Build the integrator if not provided.
@@ -2029,10 +2029,6 @@ def link_contact_forces(
         expressed in the frame corresponding to the active representation.
     """
 
-    # Note: the following code should be kept in sync with the function
-    # `jaxsim.api.ode.system_velocity_dynamics`. We cannot merge them since
-    # there we need to get also aux_data.
-
     # Build link forces if not provided.
     # These forces are expressed in the frame corresponding to the velocity
     # representation of data.
@@ -2203,28 +2199,6 @@ def step(
     t0 = jnp.array(t0, dtype=float)
     dt = jnp.array(dt if dt is not None else model.time_step).astype(float)
 
-    # The visco-elastic contacts operate at best with their own integrator.
-    # They can be used with Euler-like integrators, paying the price of ignoring
-    # some of the benefits of continuous-time integration on the system position.
-    # Furthermore, the requirement to know the Δt used by the integrator is not
-    # compatible with high-order integrators, that use advanced RK stages to evaluate
-    # the dynamics at intermediate times.
-    module = jaxsim.rbda.contacts.visco_elastic.step.__module__
-    name = jaxsim.rbda.contacts.visco_elastic.step.__name__
-    msg = "You need to use the custom '{}.{}' function with this contact model."
-    jaxsim.exceptions.raise_runtime_error_if(
-        condition=(
-            isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts)
-            & (
-                ~jnp.allclose(dt, model.time_step)
-                | ~int(
-                    isinstance(integrator, jaxsim.integrators.fixed_step.ForwardEuler)
-                )
-            )
-        ),
-        msg=msg.format(module, name),
-    )
-
     # =================
     # Phase 1: pre-step
     # =================
@@ -2283,63 +2257,6 @@ def step(
     # ==================
     # Phase 3: post-step
     # ==================
-
-    # Post process the simulation state, if needed.
-    match model.contact_model:
-
-        # Rigid contact models use an impact model that produces discontinuous model velocities.
-        # Hence, here we need to reset the velocity after each impact to guarantee that
-        # the linear velocity of the active collidable points is zero.
-        case jaxsim.rbda.contacts.RigidContacts():
-
-            # Raise runtime error for not supported case in which Rigid contacts and
-            # Baumgarte stabilization are enabled and used with ForwardEuler integrator.
-            jaxsim.exceptions.raise_runtime_error_if(
-                condition=isinstance(
-                    integrator,
-                    jaxsim.integrators.fixed_step.ForwardEuler
-                    | jaxsim.integrators.fixed_step.ForwardEulerSO3,
-                )
-                & ((data_tf.contacts_params.K > 0) | (data_tf.contacts_params.D > 0)),
-                msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
-            )
-
-            # Extract the indices corresponding to the enabled collidable points.
-            indices_of_enabled_collidable_points = (
-                model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-            )
-
-            W_p_C = js.contact.collidable_point_positions(model, data_tf)[
-                indices_of_enabled_collidable_points
-            ]
-
-            # Compute the penetration depth of the collidable points.
-            δ, *_ = jax.vmap(
-                jaxsim.rbda.contacts.common.compute_penetration_data,
-                in_axes=(0, 0, None),
-            )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
-
-            with data_tf.switch_velocity_representation(VelRepr.Mixed):
-                J_WC = js.contact.jacobian(model, data_tf)[
-                    indices_of_enabled_collidable_points
-                ]
-                M = js.model.free_floating_mass_matrix(model, data_tf)
-                BW_ν_pre_impact = data_tf.generalized_velocity()
-
-                # Compute the impact velocity.
-                # It may be discontinuous in case new contacts are made.
-                BW_ν_post_impact = (
-                    jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
-                        generalized_velocity=BW_ν_pre_impact,
-                        inactive_collidable_points=(δ <= 0),
-                        M=M,
-                        J_WC=J_WC,
-                    )
-                )
-
-                # Reset the generalized velocity.
-                data_tf = data_tf.reset_base_velocity(BW_ν_post_impact[0:6])
-                data_tf = data_tf.reset_joint_velocities(BW_ν_post_impact[6:])
 
     # Restore the input velocity representation.
     data_tf = data_tf.replace(

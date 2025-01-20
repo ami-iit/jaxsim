@@ -216,7 +216,7 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.SoftContacts.build()
+            else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
         # Build the model.
@@ -1975,10 +1975,6 @@ def link_contact_forces(
         A `(nL, 6)` array containing the stacked 6D contact forces of the links,
         expressed in the frame corresponding to the active representation.
     """
-
-    # Note: the following code should be kept in sync with the function
-    # `jaxsim.api.ode.system_velocity_dynamics`. We cannot merge them since
-    # there we need to get also aux_data.
 
     # Build link forces if not provided.
     # These forces are expressed in the frame corresponding to the velocity

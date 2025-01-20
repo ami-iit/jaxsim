@@ -371,7 +371,8 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
         # Closure on metadata to either evaluate the dynamics at the initial state
         # or to use the previous state derivative (only integrators supporting FSAL).
         def get_ẋ0_and_aux_dict() -> tuple[StateDerivative, dict[str, Any]]:
-            ẋ0, aux_dict = f(x0, t0)
+            # TODO: remove the `aux_dict` from the return value.
+            ẋ0, aux_dict = f(x0, t0), {}
             return metadata.get("dxdt0", ẋ0), aux_dict
 
         # We use a `jax.lax.scan` to compile the `f` function only once.
@@ -402,7 +403,8 @@ class ExplicitRungeKutta(Integrator[PyTreeType, PyTreeType], Generic[PyTreeType]
                 ti = t0 + c[i] * Δt
 
                 # Evaluate the dynamics.
-                ki, aux_dict = f(xi, ti)
+                # TODO: remove the aux_dict from the return value.
+                ki, aux_dict = f(xi, ti), {}
                 return ki, aux_dict
 
             # This selector enables FSAL property in the first iteration (i=0).

@@ -2152,39 +2152,14 @@ def step(
         τ_references = references.joint_force_references(model=model)
 
         # Step the dynamics forward.
-        a_b, dds, _ = js.ode.system_velocity_dynamics(
-            model=model, data=data, link_forces=f_L, joint_force_references=τ_references
-        )
-        generalized_acceleration = jnp.hstack(((a_b), (dds)))
-        new_velocity = (
-            data.generalized_velocity() + generalized_acceleration * model.time_step
-        )
-        base_lin_velocity = new_velocity[:3]
-        base_ang_velocity = new_velocity[3:6]
-        joint_velocity = new_velocity[6:]
-        new_joint_position = data.joint_positions() + joint_velocity * model.time_step
-        new_base_position = data.base_position() + base_lin_velocity * model.time_step
-        new_quaternion = jaxsim.math.Quaternion.integration(
-            data.base_orientation(dcm=False), base_ang_velocity, model.time_step
-        )
-        new_position = jnp.hstack(
-            (new_base_position, new_quaternion, new_joint_position)
-        )
-        data_tf = data.replace(
-            validate=True,
-            state=data.state.replace(
-                physics_model=data.state.physics_model.replace(
-                    base_quaternion=new_position[3:7],
-                    base_position=new_position[0:3],
-                    joint_positions=new_position[7:],
-                    joint_velocities=new_velocity[6:],
-                    base_linear_velocity=new_velocity[0:3],
-                    base_angular_velocity=new_velocity[3:6],
-                )
-            ),
+        data_tf = js.integrators.heun2_integration(
+            model=model,
+            data=data,
+            link_forces=f_L,
+            joint_force_references=τ_references,
         )
 
-    # ne parliamo dopp[o ]
+    # ne parliamo dopo
     # Restore the input velocity representation.
     data_tf = data_tf.replace(
         velocity_representation=data.velocity_representation, validate=False

@@ -218,19 +218,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             raise ValueError(ode_state)
 
         if contacts_params is None:
-
-            if isinstance(
-                model.contact_model,
-                jaxsim.rbda.contacts.SoftContacts
-                | jaxsim.rbda.contacts.ViscoElasticContacts,
-            ):
-
-                contacts_params = js.contact.estimate_good_contact_parameters(
-                    model=model, standard_gravity=standard_gravity
-                )
-
-            else:
-                contacts_params = model.contact_model._parameters_class()
+            contacts_params = model.contact_model._parameters_class()
 
         return JaxSimModelData(
             state=ode_state,
@@ -902,24 +890,9 @@ def random_model_data(
         )
 
         if contacts_params is None:
-
-            if isinstance(
-                model.contact_model,
-                jaxsim.rbda.contacts.SoftContacts
-                | jaxsim.rbda.contacts.ViscoElasticContacts,
-            ):
-
-                random_data = random_data.replace(
-                    contacts_params=js.contact.estimate_good_contact_parameters(
-                        model=model, standard_gravity=random_data.gravity
-                    ),
-                    validate=False,
-                )
-
-            else:
-                random_data = random_data.replace(
-                    contacts_params=model.contact_model._parameters_class(),
-                    validate=False,
-                )
+            random_data = random_data.replace(
+                contacts_params=model.contact_model._parameters_class(),
+                validate=False,
+            )
 
     return random_data

@@ -37,18 +37,38 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
-    with data.switch_velocity_representation(VelRepr.Inertial):
+    indices_of_enabled_collidable_points = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    )
 
-        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
-            model=model,
-            base_position=data.base_position(),
-            base_quaternion=data.base_orientation(dcm=False),
-            joint_positions=data.joint_positions(model=model),
-            base_linear_velocity=data.base_velocity()[0:3],
-            base_angular_velocity=data.base_velocity()[3:6],
-            joint_velocities=data.joint_velocities(model=model),
-        )
+    parent_link_idx_of_enabled_collidable_points = jnp.array(
+        model.kin_dyn_parameters.contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
+    L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
+        indices_of_enabled_collidable_points
+    ]
+
+    W_H_L = js.model.forward_kinematics(model=model, data=data)
+
+    with data.switch_velocity_representation(VelRepr.Inertial):
+        W_J_WL_I = js.model.generalized_free_floating_jacobian(model=model, data=data)
+
+        W_v_Wi = W_J_WL_I @ data.generalized_velocity()
+
+    W_p_Ci = jnp.einsum(
+        "bij,bj->bi",
+        W_H_L[parent_link_idx_of_enabled_collidable_points],
+        jnp.hstack([L_p_Ci, jnp.ones((len(L_p_Ci), 1))]),
+    )[:, 0:3]
+
+    W_X_C = jax.vmap(Adjoint.from_rotation_and_translation)(translation=-W_p_Ci)
+
+    W_ṗ_Ci = jnp.einsum(
+        "bij,bj->bi",
+        W_X_C[:, :3],
+        W_v_Wi[parent_link_idx_of_enabled_collidable_points],
+    )[:, 0:3]
 
     return W_p_Ci, W_ṗ_Ci
 

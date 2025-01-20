@@ -2151,13 +2151,13 @@ def step(
         f_L = references.link_forces(model=model, data=data)
         τ_references = references.joint_force_references(model=model)
 
-        # Step the dynamics forward.
-        data_tf = js.integrators.heun2_integration(
-            model=model,
-            data=data,
-            link_forces=f_L,
-            joint_force_references=τ_references,
-        )
+    # Step the dynamics forward.
+    data_tf = js.integrators.heun2_integration(
+        model=model,
+        data=data,
+        link_forces=f_L,
+        joint_force_references=τ_references,
+    )
 
     # ne parliamo dopo
     # Restore the input velocity representation.

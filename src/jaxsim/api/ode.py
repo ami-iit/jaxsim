@@ -1,104 +1,15 @@
-from typing import Any, Protocol
+from typing import Any
 
 import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.integrators import Time
 from jaxsim.math import Quaternion
 from jaxsim.rbda import contacts
 
 from .common import VelRepr
 from .ode_data import ODEState
-
-
-class SystemDynamicsFromModelAndData(Protocol):
-    """
-    Protocol defining the signature of a function computing the system dynamics
-    given a model and data object.
-    """
-
-    def __call__(
-        self,
-        model: js.model.JaxSimModel,
-        data: js.data.JaxSimModelData,
-        **kwargs: dict[str, Any],
-    ) -> tuple[ODEState, dict[str, Any]]:
-        """
-        Compute the system dynamics given a model and data object.
-
-        Args:
-            model: The model to consider.
-            data: The data of the considered model.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            A tuple with an `ODEState` object storing in each of its attributes the
-            corresponding derivative, and the dictionary of auxiliary data returned
-            by the system dynamics evaluation.
-        """
-
-        pass
-
-
-def wrap_system_dynamics_for_integration(
-    *,
-    system_dynamics: SystemDynamicsFromModelAndData,
-    **kwargs: dict[str, Any],
-) -> jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]:
-    """
-    Wrap the system dynamics considered by JaxSim integrators in a generic
-    `f(x, t, **u, **parameters)` function.
-
-    Args:
-        system_dynamics: The system dynamics to wrap.
-        **kwargs: Additional kwargs to close over the system dynamics.
-
-    Returns:
-        The system dynamics closed over the additional kwargs to be used by
-        JaxSim integrators.
-    """
-
-    # Close `system_dynamics` over additional kwargs.
-    # Similarly to what done in `jaxsim.api.model.step`, to be future-proof, we use the
-    # following logic to allow the caller to close over arguments having the same name
-    # of the ones used in the `wrap_system_dynamics_for_integration` function.
-    kwargs = kwargs.copy() if kwargs is not None else {}
-    colliding_system_dynamics_kwargs = kwargs.pop("system_dynamics_kwargs", {})
-    system_dynamics_kwargs = kwargs | colliding_system_dynamics_kwargs
-
-    # Remove `model` and `data` for backward compatibility.
-    # It's no longer necessary to close over them at this stage, as this is always
-    # done in `jaxsim.api.model.step`.
-    # We can remove the following lines in a few releases.
-    _ = system_dynamics_kwargs.pop("data", None)
-    _ = system_dynamics_kwargs.pop("model", None)
-
-    # Create the function with the signature expected by our generic integrators.
-    # Note that our system dynamics is time independent.
-    def f(x: ODEState, t: Time, **kwargs_f) -> tuple[ODEState, dict[str, Any]]:
-
-        # Get the data and model objects from the kwargs.
-        data_f = kwargs_f.pop("data")
-        model_f = kwargs_f.pop("model")
-
-        # Update the state and time stored inside data.
-        with data_f.editable(validate=True) as data_rw:
-            data_rw.state = x
-
-        # Evaluate the system dynamics, allowing to override the kwargs originally
-        # passed when the closure was created.
-        return system_dynamics(
-            model=model_f,
-            data=data_rw,
-            **(system_dynamics_kwargs | kwargs_f),
-        )
-
-    f: jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]
-    return f
-
 
 # ==================================
 # Functions defining system dynamics

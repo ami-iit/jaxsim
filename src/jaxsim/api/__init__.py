@@ -4,6 +4,7 @@ from . import (
     com,
     contact,
     frame,
+    integrators,
     joint,
     kin_dyn_parameters,
     link,

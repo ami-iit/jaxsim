@@ -919,22 +919,17 @@ def forward_dynamics_aba(
         velocity_representation=data.velocity_representation,
     )
 
-    # Extract the link and joint serializations.
-    link_names = model.link_names()
-    joint_names = model.joint_names()
-
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
         W_p_B = data.base_position()
         W_v_WB = data.base_velocity()
         W_Q_B = data.base_orientation(dcm=False)
-        s = data.joint_positions(model=model, joint_names=joint_names)
-        ṡ = data.joint_velocities(model=model, joint_names=joint_names)
+        s = data.joint_positions(model=model)
+        ṡ = data.joint_velocities(model=model)
 
     # Extract the inputs in inertial-fixed representation.
-    with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(model=model, data=data, link_names=link_names)
-        τ = references.joint_force_references(model=model, joint_names=joint_names)
+    W_f_L = references._link_forces
+    τ = references._joint_force_references
 
     # ========================
     # Compute forward dynamics

@@ -5,7 +5,6 @@ import dataclasses
 import functools
 import pathlib
 from collections.abc import Sequence
-from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -32,7 +31,7 @@ class JaxSimModel(JaxsimDataclass):
 
     model_name: Static[str]
 
-    time_step: jaxsim.integrators.TimeStep = dataclasses.field(
+    time_step: jtp.FloatLike = dataclasses.field(
         default_factory=lambda: jnp.array(0.001, dtype=float),
     )
 
@@ -102,9 +101,6 @@ class JaxSimModel(JaxsimDataclass):
         *,
         model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
-        integrator: (
-            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
-        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -126,10 +122,6 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
-            integrator:
-                The integrator to use. If not specified, a default one is used.
-                This argument can either be a pre-built integrator instance or one
-                of the integrator classes defined in JaxSim.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -194,10 +186,6 @@ class JaxSimModel(JaxsimDataclass):
                 manually overridden in the function that steps the simulation.
             terrain: The terrain to consider (the default is a flat infinite plane).
                 The optional name of the model overriding the physics model name.
-            integrator:
-                The integrator to use. If not specified, a default one is used.
-                This argument can either be a pre-built integrator instance or one
-                of the integrator classes defined in JaxSim.
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
@@ -2114,26 +2102,21 @@ def step(
     *,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
-) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
+) -> js.data.JaxSimModelData:
     """
     Perform a simulation step.
 
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        integrator: The integrator to use.
-        integrator_metadata: The metadata of the integrator, if needed.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
         joint_force_references: The joint force references to consider.
-        kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
-        A tuple containing the new data of the model and a dictionary of auxiliary
-        data computed during the step. If the integrator has metadata, the dictionary
-        will contain the new metadata stored in the `integrator_metadata` key.
+        The new data of the model after the simulation step.
 
     Note:
         In order to reduce the occurrences of frame conversions performed internally,

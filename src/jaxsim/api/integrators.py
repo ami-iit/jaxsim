@@ -9,42 +9,44 @@ import jaxsim.typing as jtp
 def semi_implicit_euler_integration(model, data, link_forces, joint_force_references):
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
-    a_b, dds, _ = js.ode.system_velocity_dynamics(
-        model=model, data=data, link_forces=link_forces, joint_force_references=joint_force_references
-    )
-    generalized_acceleration = jnp.hstack(((a_b), (dds)))
-    new_velocity = (
-        data.generalized_velocity() + generalized_acceleration * model.time_step
-    )
 
-    base_lin_velocity = new_velocity[:3]
-    base_ang_velocity = new_velocity[3:6]
-    joint_velocity = new_velocity[6:]
+    with(data.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial)):
+        a_b, dds, _ = js.ode.system_velocity_dynamics(
+            model=model, data=data, link_forces=link_forces, joint_force_references=joint_force_references
+        )
+        generalized_acceleration = jnp.hstack(((a_b), (dds)))
+        new_velocity = (
+            data.generalized_velocity() + generalized_acceleration * model.time_step
+        )
 
-    quat = data.base_orientation(dcm=False)
-    velocity_norm = jnp.linalg.norm(base_ang_velocity)
-    axis_velocity= base_ang_velocity / (velocity_norm + 1e-6 *(velocity_norm==0)) 
-    angle = model.time_step* velocity_norm
-    quat_residual = axis_angle_to_quat(axis_velocity, angle)
-    q_res = quat_mul(quat, quat_residual)
-    new_quaternion = q_res / jnp.linalg.norm(q_res)
+        base_lin_velocity = new_velocity[:3]
+        base_ang_velocity = new_velocity[3:6]
+        joint_velocity = new_velocity[6:]
 
-    new_joint_position = data.joint_positions() + joint_velocity * model.time_step
-    new_base_position = data.base_position() + base_lin_velocity * model.time_step
-    
-    return data.replace(
-        validate=False,
-        state=data.state.replace(
-            physics_model=data.state.physics_model.replace(
-                base_quaternion=new_quaternion,
-                base_position=new_base_position,
-                joint_positions=new_joint_position,
-                joint_velocities=joint_velocity,
-                base_linear_velocity=base_lin_velocity,
-                base_angular_velocity=base_ang_velocity,
-            )
-        ),
-    )
+        quat = data.base_orientation(dcm=False)
+        angular_velocity_norm = jnp.linalg.norm(base_ang_velocity)
+        axis_angular_velocity= base_ang_velocity / (angular_velocity_norm + 1e-6 *(angular_velocity_norm==0)) 
+        angle_rotation = model.time_step * angular_velocity_norm
+        delta_quat = axis_angle_to_quat(axis_angular_velocity, angle_rotation)
+        new_quaternion = quat_mul(quat, delta_quat)
+        new_quaternion = new_quaternion / jnp.linalg.norm(new_quaternion)
+
+        new_joint_position = data.joint_positions() + joint_velocity * model.time_step
+        new_base_position = data.base_position() + base_lin_velocity * model.time_step
+        data = data.replace(
+            validate=False,
+            state=data.state.replace(
+                physics_model=data.state.physics_model.replace(
+                    base_quaternion=new_quaternion,
+                    base_position=new_base_position,
+                    joint_positions=new_joint_position,
+                    joint_velocities=joint_velocity,
+                    base_linear_velocity=base_lin_velocity,
+                    base_angular_velocity=base_ang_velocity,
+                )
+            ),
+        )
+    return data
 
     
 

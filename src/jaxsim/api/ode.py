@@ -6,7 +6,6 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Quaternion
-from jaxsim.rbda import contacts
 
 from .common import VelRepr
 from .ode_data import ODEState
@@ -65,36 +64,16 @@ def system_velocity_dynamics(
     # Compute contact forces
     # ======================
 
-    # Initialize the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-    # with the terrain.
-    W_f_L_terrain = jnp.zeros_like(O_f_L).astype(float)
-
-    # Initialize a dictionary of auxiliary data.
-    # This dictionary is used to store additional data computed by the contact model.
-    aux_data = {}
-
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+        with data.switch_velocity_representation(VelRepr.Inertial):
 
-        with (
-            data.switch_velocity_representation(VelRepr.Inertial),
-            references.switch_velocity_representation(VelRepr.Inertial),
-        ):
-
-            # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
-            # along with contact-specific auxiliary states.
-            W_f_C, aux_data = js.contact.collidable_point_dynamics(
+            # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+            # with the terrain.
+            W_f_L_terrain = js.model.link_contact_forces(
                 model=model,
                 data=data,
-                link_forces=references.link_forces(model=model, data=data),
-                joint_force_references=references.joint_force_references(model=model),
-            )
-
-            # Compute the 6D forces applied to the links equivalent to the forces applied
-            # to the frames associated to the collidable points.
-            W_f_L_terrain = model.contact_model.link_forces_from_contact_forces(
-                model=model,
-                data=data,
-                contact_forces=W_f_C,
+                link_forces=link_forces,
+                joint_force_references=joint_force_references,
             )
 
     # ===========================
@@ -127,7 +106,7 @@ def system_velocity_dynamics(
             link_forces=f_L_total,
         )
 
-    return W_v̇_WB, s̈, aux_data
+    return W_v̇_WB, s̈
 
 
 def system_acceleration(
@@ -312,7 +291,7 @@ def system_dynamics(
     link_forces: jtp.Vector | None = None,
     joint_force_references: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
-) -> tuple[ODEState, dict[str, Any]]:
+) -> ODEState:
     """
     Compute the dynamics of the system.
 
@@ -334,33 +313,12 @@ def system_dynamics(
     """
 
     # Compute the accelerations and the material deformation rate.
-    W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
+    W_v̇_WB, s̈ = system_velocity_dynamics(
         model=model,
         data=data,
         joint_force_references=joint_force_references,
         link_forces=link_forces,
     )
-
-    # Initialize the dictionary storing the derivative of the additional state variables
-    # that extend the state vector of the integrated ODE system.
-    extended_ode_state = {}
-
-    match model.contact_model:
-
-        case contacts.SoftContacts():
-            extended_ode_state["tangential_deformation"] = aux_dict["m_dot"]
-
-        case contacts.ViscoElasticContacts():
-
-            extended_ode_state["tangential_deformation"] = jnp.zeros_like(
-                data.state.extended["tangential_deformation"]
-            )
-
-        case contacts.RigidContacts() | contacts.RelaxedRigidContacts():
-            pass
-
-        case _:
-            raise ValueError(f"Invalid contact model: {model.contact_model}")
 
     # Extract the velocities.
     W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
@@ -380,7 +338,6 @@ def system_dynamics(
         base_linear_velocity=W_v̇_WB[0:3],
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
-        **extended_ode_state,
     )
 
-    return ode_state_derivative, aux_dict
+    return ode_state_derivative

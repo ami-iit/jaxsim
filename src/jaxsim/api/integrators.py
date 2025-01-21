@@ -51,8 +51,10 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
         new_base_position = data.base_position() + dt * base_lin_velocity_mixed
         new_base_quaternion = data.base_orientation() + dt * base_quaternion_derivative
 
-        new_base_quaternion = new_base_quaternion / jaxsim.math.safe_norm(
-            new_base_quaternion
+        base_quaternion_norm = jaxsim.math.safe_norm(new_base_quaternion)
+
+        new_base_quaternion = new_base_quaternion / jnp.where(
+            base_quaternion_norm == 0, 1.0, base_quaternion_norm
         )
 
         new_joint_position = data.joint_positions() + dt * new_joint_velocities

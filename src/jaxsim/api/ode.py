@@ -5,7 +5,7 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Quaternion
+from jaxsim.math import Quaternion, Skew
 
 from .common import VelRepr
 from .ode_data import ODEState
@@ -244,7 +244,7 @@ def system_position_dynamics(
     data: js.data.JaxSimModelData,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
 ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector]:
-    """
+    r"""
     Compute the dynamics of the system position.
 
     Args:
@@ -256,16 +256,18 @@ def system_position_dynamics(
     Returns:
         A tuple containing the derivative of the base position, the derivative of the
         base quaternion, and the derivative of the joint positions.
+
+    Note:
+        In inertial-fixed representation, the linear component of the base velocity is not
+        the derivative of the base position. In fact, the base velocity is defined as:
+        :math:`{} ^W v_{W, B} = \begin{bmatrix} {} ^W \dot{p}_B S({} ^W \omega_{W, B}) {} ^W p _B\\ {} ^W \omega_{W, B} \end{bmatrix}`.
+        Where :math:`S(\cdot)` is the skew-symmetric matrix operator.
     """
 
     ṡ = data.joint_velocities(model=model)
     W_Q_B = data.base_orientation(dcm=False)
-
-    with data.switch_velocity_representation(velocity_representation=VelRepr.Mixed):
-        W_ṗ_B = data.base_velocity()[0:3]
-
-    with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        W_ω_WB = data.base_velocity()[3:6]
+    W_ω_WB = data.base_velocity()[3:6]
+    W_ṗ_B = data.base_velocity()[0:3] + Skew.wedge(W_ω_WB) @ data.base_position()
 
     W_Q̇_B = Quaternion.derivative(
         quaternion=W_Q_B,

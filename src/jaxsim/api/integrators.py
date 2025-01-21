@@ -4,57 +4,74 @@ import jax.numpy as jnp
 import jaxsim
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math.skew import Skew
+from jaxsim.math import Adjoint, Transform
 
 
 def semi_implicit_euler_integration(model, data, link_forces, joint_force_references):
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
 
-    with data.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial):
-        a_b, dds, _ = js.ode.system_velocity_dynamics(
+    dt = model.time_step
+
+    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
+        W_v̇_WB, s̈ = js.ode.system_velocity_dynamics(
             model=model,
             data=data,
             link_forces=link_forces,
             joint_force_references=joint_force_references,
         )
-        generalized_acceleration = jnp.hstack(((a_b), (dds)))
-        new_velocity = (
-            data.generalized_velocity() + generalized_acceleration * model.time_step
+
+        with data.switch_velocity_representation(
+            velocity_representation=jaxsim.VelRepr.Mixed
+        ):
+            B_H_W = Transform.inverse(data.base_transform()).at[:3, :3].set(jnp.eye(3))
+            BW_X_W = Adjoint.from_transform(B_H_W)
+
+        new_generalized_acceleration = jnp.hstack([W_v̇_WB, s̈])
+
+        new_generalized_velocity = (
+            data.generalized_velocity() + dt * new_generalized_acceleration
         )
 
-        base_ang_velocity = new_velocity[3:6]
-        base_lin_velocity = (
-            new_velocity[0:3] + Skew.wedge(base_ang_velocity) @ data.base_position()
-        )
-        joint_velocity = new_velocity[6:]
+        new_base_velocity_inertial = new_generalized_velocity[0:6]
+        new_joint_velocities = new_generalized_velocity[6:]
 
-        quat = data.base_orientation(dcm=False)
-        angular_velocity_norm = jnp.linalg.norm(base_ang_velocity)
-        axis_angular_velocity = base_ang_velocity / (
-            angular_velocity_norm + 1e-6 * (angular_velocity_norm == 0)
-        )
-        angle_rotation = model.time_step * angular_velocity_norm
-        delta_quat = axis_angle_to_quat(axis_angular_velocity, angle_rotation)
-        new_quaternion = quat_mul(quat, delta_quat)
-        new_quaternion = new_quaternion / jnp.linalg.norm(new_quaternion)
+        base_lin_velocity_inertial = new_base_velocity_inertial[0:3]
 
-        new_joint_position = data.joint_positions() + joint_velocity * model.time_step
-        new_base_position = data.base_position() + base_lin_velocity * model.time_step
+        new_base_velocity_mixed = BW_X_W @ new_generalized_velocity[0:6]
+        base_lin_velocity_mixed = new_base_velocity_mixed[0:3]
+        base_ang_velocity_mixed = new_base_velocity_mixed[3:6]
+
+        base_quaternion_derivative = jaxsim.math.Quaternion.derivative(
+            quaternion=data.base_orientation(),
+            omega=base_ang_velocity_mixed,
+            omega_in_body_fixed=False,
+        ).squeeze()
+
+        new_base_position = data.base_position() + dt * base_lin_velocity_mixed
+        new_base_quaternion = data.base_orientation() + dt * base_quaternion_derivative
+
+        new_base_quaternion = new_base_quaternion / jaxsim.math.safe_norm(
+            new_base_quaternion
+        )
+
+        new_joint_position = data.joint_positions() + dt * new_joint_velocities
+
         data = data.replace(
-            validate=False,
+            validate=True,
             state=data.state.replace(
                 physics_model=data.state.physics_model.replace(
-                    base_quaternion=new_quaternion,
+                    base_quaternion=new_base_quaternion,
                     base_position=new_base_position,
                     joint_positions=new_joint_position,
-                    joint_velocities=joint_velocity,
-                    base_linear_velocity=base_lin_velocity,
-                    base_angular_velocity=base_ang_velocity,
+                    joint_velocities=new_joint_velocities,
+                    base_linear_velocity=base_lin_velocity_inertial,
+                    base_angular_velocity=base_ang_velocity_mixed,
                 )
             ),
         )
-    return data
+
+        return data
 
 
 def heun2_integration(model, data, link_forces, joint_force_references):
@@ -122,39 +139,3 @@ def heun2_integration(model, data, link_forces, joint_force_references):
     # The next state is the batch element located at the configured index of solution.
     next_state = jax.tree.map(lambda l: l[row_index_of_solution], z)
     return data.replace(state=next_state)
-
-
-def axis_angle_to_quat(axis: jax.Array, angle: jax.Array) -> jax.Array:
-    """
-    Provide a quaternion that describes rotating around axis by angle.
-
-    Args:
-        axis: (3,) axis (x,y,z)
-        angle: () float angle to rotate by
-
-    Returns:
-        A quaternion that rotates around axis by angle
-    """
-    s, c = jnp.sin(angle * 0.5), jnp.cos(angle * 0.5)
-    return jnp.insert(axis * s, 0, c)
-
-
-def quat_mul(u: jax.Array, v: jax.Array) -> jax.Array:
-    """
-    Multiplies two quaternions.
-
-    Args:
-        u: (4,) quaternion (w,x,y,z)
-        v: (4,) quaternion (w,x,y,z)
-
-    Returns:
-        A quaternion u * v.
-    """
-    return jnp.array(
-        [
-            u[0] * v[0] - u[1] * v[1] - u[2] * v[2] - u[3] * v[3],
-            u[0] * v[1] + u[1] * v[0] + u[2] * v[3] - u[3] * v[2],
-            u[0] * v[2] - u[1] * v[3] + u[2] * v[0] + u[3] * v[1],
-            u[0] * v[3] + u[1] * v[2] - u[2] * v[1] + u[3] * v[0],
-        ]
-    )

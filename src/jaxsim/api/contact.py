@@ -10,7 +10,6 @@ import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.api.contact_model import collidable_point_dynamics
 from jaxsim.math import Adjoint, Cross, Transform
 from jaxsim.rbda import contacts
 
@@ -94,44 +93,6 @@ def collidable_point_velocities(
     _, W_ṗ_Ci = collidable_point_kinematics(model=model, data=data)
 
     return W_ṗ_Ci
-
-
-@jax.jit
-@js.common.named_scope
-def collidable_point_forces(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> jtp.Matrix:
-    """
-    Compute the 6D forces applied to each collidable point.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-        link_forces:
-            The 6D external forces to apply to the links expressed in the same
-            representation of data.
-        joint_force_references:
-            The joint force references to apply to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model.
-
-    Returns:
-        The 6D forces applied to each collidable point expressed in the frame
-        corresponding to the active representation.
-    """
-
-    f_Ci, _ = collidable_point_dynamics(
-        model=model,
-        data=data,
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
-        **kwargs,
-    )
-
-    return f_Ci
 
 
 @functools.partial(jax.jit, static_argnames=["link_names"])

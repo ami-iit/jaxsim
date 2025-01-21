@@ -10,7 +10,7 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
 
-    with(data.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial)):
+    with (data.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial)):
         a_b, dds, _ = js.ode.system_velocity_dynamics(
             model=model, data=data, link_forces=link_forces, joint_force_references=joint_force_references
         )
@@ -25,7 +25,7 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
 
         quat = data.base_orientation(dcm=False)
         angular_velocity_norm = jnp.linalg.norm(base_ang_velocity)
-        axis_angular_velocity= base_ang_velocity / (angular_velocity_norm + 1e-6 *(angular_velocity_norm==0)) 
+        axis_angular_velocity = base_ang_velocity / (angular_velocity_norm + 1e-6 * (angular_velocity_norm == 0))
         angle_rotation = model.time_step * angular_velocity_norm
         delta_quat = axis_angle_to_quat(axis_angular_velocity, angle_rotation)
         new_quaternion = quat_mul(quat, delta_quat)
@@ -47,8 +47,6 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             ),
         )
     return data
-
-    
 
 
 def heun2_integration(model, data, link_forces, joint_force_references):
@@ -116,7 +114,8 @@ def heun2_integration(model, data, link_forces, joint_force_references):
 
 
 def axis_angle_to_quat(axis: jax.Array, angle: jax.Array) -> jax.Array:
-  """Provides a quaternion that describes rotating around axis by angle.
+  """
+  Provides a quaternion that describes rotating around axis by angle.
 
   Args:
     axis: (3,) axis (x,y,z)
@@ -128,9 +127,10 @@ def axis_angle_to_quat(axis: jax.Array, angle: jax.Array) -> jax.Array:
   s, c = jnp.sin(angle * 0.5), jnp.cos(angle * 0.5)
   return jnp.insert(axis * s, 0, c)
 
-    
-def quat_mul (u: jax.Array, v: jax.Array) -> jax.Array:
-    """Multiplies two quaternions.
+
+def quat_mul(u: jax.Array, v: jax.Array) -> jax.Array:
+    """
+    Multiplies two quaternions.
 
     Args:
         u: (4,) quaternion (w,x,y,z)

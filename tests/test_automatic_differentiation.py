@@ -390,7 +390,7 @@ def test_ad_integration(
             ),
         )
 
-        data_xf, _ = js.model.step(
+        data_xf = js.model.step(
             model=model,
             data=data_x0,
             joint_force_references=τ,

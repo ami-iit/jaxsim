@@ -334,6 +334,7 @@ def test_ad_integration(
                     base_angular_velocity=W_v_WB[3:6],
                     joint_velocities=ṡ,
                 ),
+                extended_state={},
             ),
         )
 
@@ -353,11 +354,13 @@ def test_ad_integration(
         return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ
 
     # Check derivatives against finite differences.
+    # We set forward mode only because the backward mode is not supported by the
+    # current implementation of `optax` optimizers in the relaxed rigid contact model.
     check_grads(
         f=step,
         args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L),
         order=AD_ORDER,
-        modes=["rev", "fwd"],
+        modes=["fwd"],
         eps=ε,
     )
 

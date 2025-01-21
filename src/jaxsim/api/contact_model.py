@@ -5,7 +5,6 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 
 
 @jax.jit
@@ -81,24 +80,7 @@ def link_forces_from_contact_forces(
     )
 
     # Convert the contact forces to a JAX array.
-    f_C = jnp.atleast_2d(jnp.array(contact_forces, dtype=float).squeeze())
-
-    # Get the pose of the enabled collidable points.
-    W_H_C = js.contact.transforms(model=model, data=data)[
-        indices_of_enabled_collidable_points
-    ]
-
-    # Convert the contact forces to inertial-fixed representation.
-    W_f_C = jax.vmap(
-        lambda f_C, W_H_C: (
-            ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                array=f_C,
-                other_representation=data.velocity_representation,
-                transform=W_H_C,
-                is_force=True,
-            )
-        )
-    )(f_C, W_H_C)
+    W_f_C = jnp.atleast_2d(jnp.array(contact_forces, dtype=float).squeeze())
 
     # Construct the vector defining the parent link index of each collidable point.
     # We use this vector to sum the 6D forces of all collidable points rigidly
@@ -118,23 +100,4 @@ def link_forces_from_contact_forces(
     # we don't need any coordinate transformation.
     W_f_L = mask.T @ W_f_C
 
-    # Compute the link transforms.
-    W_H_L = (
-        js.model.forward_kinematics(model=model, data=data)
-        if data.velocity_representation is not VelRepr.Inertial
-        else jnp.zeros(shape=(model.number_of_links(), 4, 4))
-    )
-
-    # Convert the inertial-fixed link forces to the velocity representation of data.
-    f_L = jax.vmap(
-        lambda W_f_L, W_H_L: (
-            ModelDataWithVelocityRepresentation.inertial_to_other_representation(
-                array=W_f_L,
-                other_representation=data.velocity_representation,
-                transform=W_H_L,
-                is_force=True,
-            )
-        )
-    )(W_f_L, W_H_L)
-
-    return f_L
+    return W_f_L

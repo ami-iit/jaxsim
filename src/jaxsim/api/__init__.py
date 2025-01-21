@@ -3,6 +3,7 @@ from . import model, data  # isort:skip
 from . import (
     com,
     contact,
+    contact_model,
     frame,
     joint,
     kin_dyn_parameters,

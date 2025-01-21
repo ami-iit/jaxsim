@@ -10,6 +10,7 @@ import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
+from jaxsim.api.contact_model import collidable_point_dynamics
 from jaxsim.math import Adjoint, Cross, Transform
 from jaxsim.rbda import contacts
 
@@ -131,93 +132,6 @@ def collidable_point_forces(
     )
 
     return f_Ci
-
-
-@jax.jit
-@js.common.named_scope
-def collidable_point_dynamics(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
-    r"""
-    Compute the 6D force applied to each enabled collidable point.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-        link_forces:
-            The 6D external forces to apply to the links expressed in the same
-            representation of data.
-        joint_force_references:
-            The joint force references to apply to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model.
-
-    Returns:
-        The 6D force applied to each enabled collidable point and additional data based
-        on the contact model configured:
-        - Soft: the material deformation rate.
-        - Rigid: no additional data.
-        - QuasiRigid: no additional data.
-
-    Note:
-        The material deformation rate is always returned in the mixed frame`
-        `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
-        Instead, the 6D forces are returned in the active representation.
-    """
-
-    # Build the common kw arguments to pass to the computation of the contact forces.
-    common_kwargs = dict(
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
-    )
-
-    # Build the additional kwargs to pass to the computation of the contact forces.
-    match model.contact_model:
-
-        case contacts.RelaxedRigidContacts():
-
-            kwargs_contact_model = common_kwargs | kwargs
-
-        case _:
-            raise ValueError(f"Invalid contact model: {model.contact_model}")
-
-    # Compute the contact forces with the active contact model.
-    W_f_C, aux_data = model.contact_model.compute_contact_forces(
-        model=model,
-        data=data,
-        **kwargs_contact_model,
-    )
-
-    # Compute the transforms of the implicit frames `C[L] = (W_p_C, [L])`
-    # associated to the enabled collidable point.
-    # In inertial-fixed representation, the computation of these transforms
-    # is not necessary and the conversion below becomes a no-op.
-
-    # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_points = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-    )
-
-    W_H_C = (
-        js.contact.transforms(model=model, data=data)
-        if data.velocity_representation is not VelRepr.Inertial
-        else jnp.stack([jnp.eye(4)] * len(indices_of_enabled_collidable_points))
-    )
-
-    # Convert the 6D forces to the active representation.
-    f_Ci = jax.vmap(
-        lambda W_f_C, W_H_C: data.inertial_to_other_representation(
-            array=W_f_C,
-            other_representation=data.velocity_representation,
-            transform=W_H_C,
-            is_force=True,
-        )
-    )(W_f_C, W_H_C)
-
-    return f_Ci, aux_data
 
 
 @functools.partial(jax.jit, static_argnames=["link_names"])

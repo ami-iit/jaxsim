@@ -1,104 +1,14 @@
-from typing import Any, Protocol
+from typing import Any
 
 import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.integrators import Time
 from jaxsim.math import Quaternion
-from jaxsim.rbda import contacts
 
 from .common import VelRepr
 from .ode_data import ODEState
-
-
-class SystemDynamicsFromModelAndData(Protocol):
-    """
-    Protocol defining the signature of a function computing the system dynamics
-    given a model and data object.
-    """
-
-    def __call__(
-        self,
-        model: js.model.JaxSimModel,
-        data: js.data.JaxSimModelData,
-        **kwargs: dict[str, Any],
-    ) -> tuple[ODEState, dict[str, Any]]:
-        """
-        Compute the system dynamics given a model and data object.
-
-        Args:
-            model: The model to consider.
-            data: The data of the considered model.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            A tuple with an `ODEState` object storing in each of its attributes the
-            corresponding derivative, and the dictionary of auxiliary data returned
-            by the system dynamics evaluation.
-        """
-
-        pass
-
-
-def wrap_system_dynamics_for_integration(
-    *,
-    system_dynamics: SystemDynamicsFromModelAndData,
-    **kwargs: dict[str, Any],
-) -> jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]:
-    """
-    Wrap the system dynamics considered by JaxSim integrators in a generic
-    `f(x, t, **u, **parameters)` function.
-
-    Args:
-        system_dynamics: The system dynamics to wrap.
-        **kwargs: Additional kwargs to close over the system dynamics.
-
-    Returns:
-        The system dynamics closed over the additional kwargs to be used by
-        JaxSim integrators.
-    """
-
-    # Close `system_dynamics` over additional kwargs.
-    # Similarly to what done in `jaxsim.api.model.step`, to be future-proof, we use the
-    # following logic to allow the caller to close over arguments having the same name
-    # of the ones used in the `wrap_system_dynamics_for_integration` function.
-    kwargs = kwargs.copy() if kwargs is not None else {}
-    colliding_system_dynamics_kwargs = kwargs.pop("system_dynamics_kwargs", {})
-    system_dynamics_kwargs = kwargs | colliding_system_dynamics_kwargs
-
-    # Remove `model` and `data` for backward compatibility.
-    # It's no longer necessary to close over them at this stage, as this is always
-    # done in `jaxsim.api.model.step`.
-    # We can remove the following lines in a few releases.
-    _ = system_dynamics_kwargs.pop("data", None)
-    _ = system_dynamics_kwargs.pop("model", None)
-
-    # Create the function with the signature expected by our generic integrators.
-    # Note that our system dynamics is time independent.
-    def f(x: ODEState, t: Time, **kwargs_f) -> tuple[ODEState, dict[str, Any]]:
-
-        # Get the data and model objects from the kwargs.
-        data_f = kwargs_f.pop("data")
-        model_f = kwargs_f.pop("model")
-
-        # Update the state and time stored inside data.
-        with data_f.editable(validate=True) as data_rw:
-            data_rw.state = x
-
-        # Evaluate the system dynamics, allowing to override the kwargs originally
-        # passed when the closure was created.
-        return system_dynamics(
-            model=model_f,
-            data=data_rw,
-            **(system_dynamics_kwargs | kwargs_f),
-        )
-
-    f: jaxsim.integrators.common.SystemDynamics[ODEState, ODEState]
-    return f
-
 
 # ==================================
 # Functions defining system dynamics
@@ -147,76 +57,51 @@ def system_velocity_dynamics(
         link_forces=O_f_L,
         joint_force_references=joint_force_references,
         data=data,
-        velocity_representation=data.velocity_representation,
+        velocity_representation=VelRepr.Inertial,
     )
 
     # ======================
     # Compute contact forces
     # ======================
 
-    # Initialize the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-    # with the terrain.
-    W_f_L_terrain = jnp.zeros_like(O_f_L).astype(float)
-
-    # Initialize a dictionary of auxiliary data.
-    # This dictionary is used to store additional data computed by the contact model.
-    aux_data = {}
-
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
-        with (
-            data.switch_velocity_representation(VelRepr.Inertial),
-            references.switch_velocity_representation(VelRepr.Inertial),
-        ):
-
-            # Compute the 6D forces W_f ∈ ℝ^{n_c × 6} applied to each collidable point
-            # along with contact-specific auxiliary states.
-            W_f_C, aux_data = js.contact.collidable_point_dynamics(
-                model=model,
-                data=data,
-                link_forces=references.link_forces(model=model, data=data),
-                joint_force_references=references.joint_force_references(model=model),
-            )
-
-            # Compute the 6D forces applied to the links equivalent to the forces applied
-            # to the frames associated to the collidable points.
-            W_f_L_terrain = model.contact_model.link_forces_from_contact_forces(
-                model=model,
-                data=data,
-                contact_forces=W_f_C,
-            )
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain = js.contact_model.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=link_forces,
+            joint_force_references=joint_force_references,
+        )
 
     # ===========================
     # Compute system acceleration
     # ===========================
 
     # Compute the total link forces.
-    with (
-        data.switch_velocity_representation(VelRepr.Inertial),
-        references.switch_velocity_representation(VelRepr.Inertial),
-    ):
 
-        # Sum the contact forces just computed with the link forces applied by the user.
-        references = references.apply_link_forces(
-            model=model,
-            data=data,
-            forces=W_f_L_terrain,
-            additive=True,
-        )
+    # Sum the contact forces just computed with the link forces applied by the user.
+    references = references.apply_link_forces(
+        model=model,
+        data=data,
+        forces=W_f_L_terrain,
+        additive=True,
+    )
 
-        # Get the link forces in inertial-fixed representation.
-        f_L_total = references.link_forces(model=model, data=data)
+    # Get the link forces in inertial-fixed representation.
+    f_L_total = references.link_forces(model=model, data=data)
 
-        # Compute the system acceleration in inertial-fixed representation.
-        # This representation is useful for integration purpose.
-        W_v̇_WB, s̈ = system_acceleration(
-            model=model,
-            data=data,
-            joint_force_references=joint_force_references,
-            link_forces=f_L_total,
-        )
+    # Compute the system acceleration in inertial-fixed representation.
+    # This representation is useful for integration purpose.
+    W_v̇_WB, s̈ = system_acceleration(
+        model=model,
+        data=data,
+        joint_force_references=joint_force_references,
+        link_forces=f_L_total,
+    )
 
-    return W_v̇_WB, s̈, aux_data
+    return W_v̇_WB, s̈
 
 
 def system_acceleration(
@@ -401,7 +286,7 @@ def system_dynamics(
     link_forces: jtp.Vector | None = None,
     joint_force_references: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
-) -> tuple[ODEState, dict[str, Any]]:
+) -> ODEState:
     """
     Compute the dynamics of the system.
 
@@ -422,41 +307,21 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
-    # Compute the accelerations and the material deformation rate.
-    W_v̇_WB, s̈, aux_dict = system_velocity_dynamics(
-        model=model,
-        data=data,
-        joint_force_references=joint_force_references,
-        link_forces=link_forces,
-    )
+    with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
+        # Compute the accelerations and the material deformation rate.
+        W_v̇_WB, s̈ = system_velocity_dynamics(
+            model=model,
+            data=data,
+            joint_force_references=joint_force_references,
+            link_forces=link_forces,
+        )
 
-    # Initialize the dictionary storing the derivative of the additional state variables
-    # that extend the state vector of the integrated ODE system.
-    extended_ode_state = {}
-
-    match model.contact_model:
-
-        case contacts.SoftContacts():
-            extended_ode_state["tangential_deformation"] = aux_dict["m_dot"]
-
-        case contacts.ViscoElasticContacts():
-
-            extended_ode_state["tangential_deformation"] = jnp.zeros_like(
-                data.state.extended["tangential_deformation"]
-            )
-
-        case contacts.RigidContacts() | contacts.RelaxedRigidContacts():
-            pass
-
-        case _:
-            raise ValueError(f"Invalid contact model: {model.contact_model}")
-
-    # Extract the velocities.
-    W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
-        model=model,
-        data=data,
-        baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
-    )
+        # Extract the velocities.
+        W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
+            model=model,
+            data=data,
+            baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
+        )
 
     # Create an ODEState object populated with the derivative of each leaf.
     # Our integrators, operating on generic pytrees, will be able to handle it
@@ -469,7 +334,6 @@ def system_dynamics(
         base_linear_velocity=W_v̇_WB[0:3],
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
-        **extended_ode_state,
     )
 
-    return ode_state_derivative, aux_dict
+    return ode_state_derivative

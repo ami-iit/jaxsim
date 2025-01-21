@@ -5,7 +5,6 @@ import dataclasses
 import functools
 import pathlib
 from collections.abc import Sequence
-from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -32,7 +31,7 @@ class JaxSimModel(JaxsimDataclass):
 
     model_name: Static[str]
 
-    time_step: jaxsim.integrators.TimeStep = dataclasses.field(
+    time_step: jtp.FloatLike = dataclasses.field(
         default_factory=lambda: jnp.array(0.001, dtype=float),
     )
 
@@ -40,7 +39,6 @@ class JaxSimModel(JaxsimDataclass):
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
-    # Note that this is the default contact model.
     contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
         default=None, repr=False
     )
@@ -50,10 +48,6 @@ class JaxSimModel(JaxsimDataclass):
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
-        default=None, repr=False
-    )
-
-    integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -106,9 +100,6 @@ class JaxSimModel(JaxsimDataclass):
         *,
         model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
-        integrator: (
-            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
-        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         is_urdf: bool | None = None,
@@ -130,10 +121,6 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
-            integrator:
-                The integrator to use. If not specified, a default one is used.
-                This argument can either be a pre-built integrator instance or one
-                of the integrator classes defined in JaxSim.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -164,7 +151,6 @@ class JaxSimModel(JaxsimDataclass):
             model_description=intermediate_description,
             model_name=model_name,
             time_step=time_step,
-            integrator=integrator,
             terrain=terrain,
             contact_model=contact_model,
         )
@@ -182,9 +168,6 @@ class JaxSimModel(JaxsimDataclass):
         *,
         model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
-        integrator: (
-            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
-        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
     ) -> JaxSimModel:
@@ -202,10 +185,6 @@ class JaxSimModel(JaxsimDataclass):
                 manually overridden in the function that steps the simulation.
             terrain: The terrain to consider (the default is a flat infinite plane).
                 The optional name of the model overriding the physics model name.
-            integrator:
-                The integrator to use. If not specified, a default one is used.
-                This argument can either be a pre-built integrator instance or one
-                of the integrator classes defined in JaxSim.
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
@@ -237,39 +216,8 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.SoftContacts.build()
+            else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
-
-        # Build the integrator if not provided.
-        match integrator:
-
-            # If None, build a default integrator.
-            case None:
-
-                integrator = jaxsim.integrators.fixed_step.Heun2SO3.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
-                )
-
-            # If it's a pre-built integrator (also a custom one from the user)
-            # just use it as is.
-            case _ if isinstance(integrator, jaxsim.integrators.Integrator):
-                pass
-
-            # If an integrator class is passed, assume that it is a JaxSim integrator
-            # and build it with the default system dynamics.
-            case _ if issubclass(integrator, jaxsim.integrators.Integrator):
-
-                integrator_cls = integrator
-                integrator = integrator_cls.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
-                )
-
-            case _:
-                raise ValueError(f"Invalid integrator: {integrator}")
 
         # Build the model.
         model = cls(
@@ -280,7 +228,6 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            integrator=integrator,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the
@@ -480,7 +427,6 @@ def reduce(
         time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
-        integrator=model.integrator,
     )
 
     # Store the origin of the model, in case downstream logic needs it.
@@ -2002,77 +1948,6 @@ def link_bias_accelerations(
     return O_v̇_WL
 
 
-@jax.jit
-@js.common.named_scope
-def link_contact_forces(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    *,
-    link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> jtp.Matrix:
-    """
-    Compute the 6D contact forces of all links of the model.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-        link_forces:
-            The 6D external forces to apply to the links expressed in the same
-            representation of data.
-        joint_force_references:
-            The joint force references to apply to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model..
-
-    Returns:
-        A `(nL, 6)` array containing the stacked 6D contact forces of the links,
-        expressed in the frame corresponding to the active representation.
-    """
-
-    # Note: the following code should be kept in sync with the function
-    # `jaxsim.api.ode.system_velocity_dynamics`. We cannot merge them since
-    # there we need to get also aux_data.
-
-    # Build link forces if not provided.
-    # These forces are expressed in the frame corresponding to the velocity
-    # representation of data.
-    O_f_L = (
-        jnp.atleast_2d(link_forces.squeeze())
-        if link_forces is not None
-        else jnp.zeros((model.number_of_links(), 6))
-    ).astype(float)
-
-    # Build joint force references if not provided.
-    joint_force_references = (
-        jnp.atleast_1d(joint_force_references)
-        if joint_force_references is not None
-        else jnp.zeros(model.dofs())
-    )
-
-    # We expect that the 6D forces included in the `link_forces` argument are expressed
-    # in the frame corresponding to the velocity representation of `data`.
-    input_references = js.references.JaxSimModelReferences.build(
-        model=model,
-        data=data,
-        velocity_representation=data.velocity_representation,
-        link_forces=O_f_L,
-        joint_force_references=joint_force_references,
-    )
-
-    # Compute the 6D forces applied to the links equivalent to the forces applied
-    # to the frames associated to the collidable points.
-    f_L, _ = model.contact_model.compute_link_contact_forces(
-        model=model,
-        data=data,
-        link_forces=input_references.link_forces(model=model, data=data),
-        joint_force_references=input_references.joint_force_references(),
-        **kwargs,
-    )
-
-    return f_L
-
-
 # ======
 # Energy
 # ======
@@ -2153,78 +2028,29 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    t0: jtp.FloatLike = 0.0,
-    dt: jtp.FloatLike | None = None,
-    integrator: jaxsim.integrators.Integrator | None = None,
-    integrator_metadata: dict[str, Any] | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
+) -> js.data.JaxSimModelData:
     """
     Perform a simulation step.
 
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        integrator: The integrator to use.
-        integrator_metadata: The metadata of the integrator, if needed.
-        t0: The initial time to consider. Only relevant for time-dependent dynamics.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
         joint_force_references: The joint force references to consider.
-        kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
-        A tuple containing the new data of the model and a dictionary of auxiliary
-        data computed during the step. If the integrator has metadata, the dictionary
-        will contain the new metadata stored in the `integrator_metadata` key.
+        The new data of the model after the simulation step.
 
     Note:
         In order to reduce the occurrences of frame conversions performed internally,
         it is recommended to use inertial-fixed velocity representation. This can be
         particularly useful for automatically differentiated logic.
     """
-
-    # Extract the integrator kwargs.
-    # The following logic allows using integrators having kwargs colliding with the
-    # kwargs of this step function.
-    kwargs = kwargs if kwargs is not None else {}
-    integrator_kwargs = kwargs.pop("integrator_kwargs", {})
-    integrator_kwargs = kwargs | integrator_kwargs
-
-    # Extract the integrator and the optional metadata.
-    integrator_metadata_t0 = integrator_metadata
-    integrator = integrator if integrator is not None else model.integrator
-
-    # Initialize the time-related variables.
-    state_t0 = data.state
-    t0 = jnp.array(t0, dtype=float)
-    dt = jnp.array(dt if dt is not None else model.time_step).astype(float)
-
-    # The visco-elastic contacts operate at best with their own integrator.
-    # They can be used with Euler-like integrators, paying the price of ignoring
-    # some of the benefits of continuous-time integration on the system position.
-    # Furthermore, the requirement to know the Δt used by the integrator is not
-    # compatible with high-order integrators, that use advanced RK stages to evaluate
-    # the dynamics at intermediate times.
-    module = jaxsim.rbda.contacts.visco_elastic.step.__module__
-    name = jaxsim.rbda.contacts.visco_elastic.step.__name__
-    msg = "You need to use the custom '{}.{}' function with this contact model."
-    jaxsim.exceptions.raise_runtime_error_if(
-        condition=(
-            isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts)
-            & (
-                ~jnp.allclose(dt, model.time_step)
-                | ~int(
-                    isinstance(integrator, jaxsim.integrators.fixed_step.ForwardEuler)
-                )
-            )
-        ),
-        msg=msg.format(module, name),
-    )
 
     # =================
     # Phase 1: pre-step
@@ -2249,106 +2075,22 @@ def step(
     # =============
 
     # Prepare the references to pass.
-    with references.switch_velocity_representation(data.velocity_representation):
-
+    with references.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial):
         f_L = references.link_forces(model=model, data=data)
         τ_references = references.joint_force_references(model=model)
 
     # Step the dynamics forward.
-    state_tf, integrator_metadata_tf = integrator.step(
-        x0=state_t0,
-        t0=t0,
-        dt=dt,
-        metadata=integrator_metadata_t0,
-        # Always inject the current (model, data) pair into the system dynamics
-        # considered by the integrator, and include the input variables represented
-        # by the pair (f_L, τ_references).
-        # Note that the wrapper of the system dynamics will override (state_x0, t0)
-        # inside the passed data even if it is not strictly needed. This logic is
-        # necessary to reuse the jit-compiled step function of compatible pytrees
-        # of model and data produced e.g. by parameterized applications.
-        **(
-            dict(
-                model=model,
-                data=data,
-                link_forces=f_L,
-                joint_force_references=τ_references,
-            )
-            | integrator_kwargs
-        ),
+    data_tf = js.integrators.heun2_integration(
+        model=model,
+        data=data,
+        link_forces=f_L,
+        joint_force_references=τ_references,
     )
 
-    # Store the new state of the model.
-    data_tf = data.replace(state=state_tf)
-
-    # ==================
-    # Phase 3: post-step
-    # ==================
-
-    # Post process the simulation state, if needed.
-    match model.contact_model:
-
-        # Rigid contact models use an impact model that produces discontinuous model velocities.
-        # Hence, here we need to reset the velocity after each impact to guarantee that
-        # the linear velocity of the active collidable points is zero.
-        case jaxsim.rbda.contacts.RigidContacts():
-
-            # Raise runtime error for not supported case in which Rigid contacts and
-            # Baumgarte stabilization are enabled and used with ForwardEuler integrator.
-            jaxsim.exceptions.raise_runtime_error_if(
-                condition=isinstance(
-                    integrator,
-                    jaxsim.integrators.fixed_step.ForwardEuler
-                    | jaxsim.integrators.fixed_step.ForwardEulerSO3,
-                )
-                & ((data_tf.contacts_params.K > 0) | (data_tf.contacts_params.D > 0)),
-                msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
-            )
-
-            # Extract the indices corresponding to the enabled collidable points.
-            indices_of_enabled_collidable_points = (
-                model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-            )
-
-            W_p_C = js.contact.collidable_point_positions(model, data_tf)[
-                indices_of_enabled_collidable_points
-            ]
-
-            # Compute the penetration depth of the collidable points.
-            δ, *_ = jax.vmap(
-                jaxsim.rbda.contacts.common.compute_penetration_data,
-                in_axes=(0, 0, None),
-            )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
-
-            with data_tf.switch_velocity_representation(VelRepr.Mixed):
-                J_WC = js.contact.jacobian(model, data_tf)[
-                    indices_of_enabled_collidable_points
-                ]
-                M = js.model.free_floating_mass_matrix(model, data_tf)
-                BW_ν_pre_impact = data_tf.generalized_velocity()
-
-                # Compute the impact velocity.
-                # It may be discontinuous in case new contacts are made.
-                BW_ν_post_impact = (
-                    jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
-                        generalized_velocity=BW_ν_pre_impact,
-                        inactive_collidable_points=(δ <= 0),
-                        M=M,
-                        J_WC=J_WC,
-                    )
-                )
-
-                # Reset the generalized velocity.
-                data_tf = data_tf.reset_base_velocity(BW_ν_post_impact[0:6])
-                data_tf = data_tf.reset_joint_velocities(BW_ν_post_impact[6:])
-
+    # ne parliamo dopo
     # Restore the input velocity representation.
     data_tf = data_tf.replace(
         velocity_representation=data.velocity_representation, validate=False
     )
 
-    return data_tf, {} | (
-        dict(integrator_metadata=integrator_metadata_tf)
-        if integrator_metadata is not None
-        else {}
-    )
+    return data_tf

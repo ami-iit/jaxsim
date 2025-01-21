@@ -95,143 +95,6 @@ def collidable_point_velocities(
     return W_ṗ_Ci
 
 
-@jax.jit
-@js.common.named_scope
-def collidable_point_forces(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> jtp.Matrix:
-    """
-    Compute the 6D forces applied to each collidable point.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-        link_forces:
-            The 6D external forces to apply to the links expressed in the same
-            representation of data.
-        joint_force_references:
-            The joint force references to apply to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model.
-
-    Returns:
-        The 6D forces applied to each collidable point expressed in the frame
-        corresponding to the active representation.
-    """
-
-    f_Ci, _ = collidable_point_dynamics(
-        model=model,
-        data=data,
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
-        **kwargs,
-    )
-
-    return f_Ci
-
-
-@jax.jit
-@js.common.named_scope
-def collidable_point_dynamics(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> tuple[jtp.Matrix, dict[str, jtp.PyTree]]:
-    r"""
-    Compute the 6D force applied to each enabled collidable point.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-        link_forces:
-            The 6D external forces to apply to the links expressed in the same
-            representation of data.
-        joint_force_references:
-            The joint force references to apply to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model.
-
-    Returns:
-        The 6D force applied to each enabled collidable point and additional data based
-        on the contact model configured:
-        - Soft: the material deformation rate.
-        - Rigid: no additional data.
-        - QuasiRigid: no additional data.
-
-    Note:
-        The material deformation rate is always returned in the mixed frame
-        `C[W] = ({}^W \mathbf{p}_C, [W])`. This is convenient for integration purpose.
-        Instead, the 6D forces are returned in the active representation.
-    """
-
-    # Build the common kw arguments to pass to the computation of the contact forces.
-    common_kwargs = dict(
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
-    )
-
-    # Build the additional kwargs to pass to the computation of the contact forces.
-    match model.contact_model:
-
-        case contacts.SoftContacts():
-
-            kwargs_contact_model = {}
-
-        case contacts.RigidContacts():
-
-            kwargs_contact_model = common_kwargs | kwargs
-
-        case contacts.RelaxedRigidContacts():
-
-            kwargs_contact_model = common_kwargs | kwargs
-
-        case contacts.ViscoElasticContacts():
-
-            kwargs_contact_model = common_kwargs | dict(dt=model.time_step) | kwargs
-
-        case _:
-            raise ValueError(f"Invalid contact model: {model.contact_model}")
-
-    # Compute the contact forces with the active contact model.
-    W_f_C, aux_data = model.contact_model.compute_contact_forces(
-        model=model,
-        data=data,
-        **kwargs_contact_model,
-    )
-
-    # Compute the transforms of the implicit frames `C[L] = (W_p_C, [L])`
-    # associated to the enabled collidable point.
-    # In inertial-fixed representation, the computation of these transforms
-    # is not necessary and the conversion below becomes a no-op.
-
-    # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_points = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-    )
-
-    W_H_C = (
-        js.contact.transforms(model=model, data=data)
-        if data.velocity_representation is not VelRepr.Inertial
-        else jnp.stack([jnp.eye(4)] * len(indices_of_enabled_collidable_points))
-    )
-
-    # Convert the 6D forces to the active representation.
-    f_Ci = jax.vmap(
-        lambda W_f_C, W_H_C: data.inertial_to_other_representation(
-            array=W_f_C,
-            other_representation=data.velocity_representation,
-            transform=W_H_C,
-            is_force=True,
-        )
-    )(W_f_C, W_H_C)
-
-    return f_Ci, aux_data
-
-
 @functools.partial(jax.jit, static_argnames=["link_names"])
 @js.common.named_scope
 def in_contact(
@@ -351,7 +214,7 @@ def estimate_good_contact_parameters(
 
         zero_data = js.data.JaxSimModelData.build(
             model=model,
-            contacts_params=jaxsim.rbda.contacts.SoftContactsParams(),
+            contacts_params=jaxsim.rbda.contacts.RelaxedRigidContactsParams(),
         )
 
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
@@ -362,62 +225,16 @@ def estimate_good_contact_parameters(
 
         return 2 * W_pz_CoM
 
-    max_δ = (
+    max_δ = (  # noqa: F841
         max_penetration
         if max_penetration is not None
         # Consider as default a 0.5% of the model height.
         else 0.005 * estimate_model_height(model=model)
     )
 
-    nc = number_of_active_collidable_points_steady_state
+    nc = number_of_active_collidable_points_steady_state  # noqa: F841
 
     match model.contact_model:
-
-        case contacts.SoftContacts():
-            assert isinstance(model.contact_model, contacts.SoftContacts)
-
-            parameters = contacts.SoftContactsParams.build_default_from_jaxsim_model(
-                model=model,
-                standard_gravity=standard_gravity,
-                static_friction_coefficient=static_friction_coefficient,
-                max_penetration=max_δ,
-                number_of_active_collidable_points_steady_state=nc,
-                damping_ratio=damping_ratio,
-                **kwargs,
-            )
-
-        case contacts.ViscoElasticContacts():
-            assert isinstance(model.contact_model, contacts.ViscoElasticContacts)
-
-            parameters = (
-                contacts.ViscoElasticContactsParams.build_default_from_jaxsim_model(
-                    model=model,
-                    standard_gravity=standard_gravity,
-                    static_friction_coefficient=static_friction_coefficient,
-                    max_penetration=max_δ,
-                    number_of_active_collidable_points_steady_state=nc,
-                    damping_ratio=damping_ratio,
-                    **kwargs,
-                )
-            )
-
-        case contacts.RigidContacts():
-            assert isinstance(model.contact_model, contacts.RigidContacts)
-
-            # Disable Baumgarte stabilization by default since it does not play
-            # well with the forward Euler integrator.
-            K = kwargs.get("K", 0.0)
-
-            parameters = contacts.RigidContactsParams.build(
-                mu=static_friction_coefficient,
-                **(
-                    dict(
-                        K=K,
-                        D=2 * jnp.sqrt(K),
-                    )
-                    | kwargs
-                ),
-            )
 
         case contacts.RelaxedRigidContacts():
             assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)

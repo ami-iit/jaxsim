@@ -265,7 +265,7 @@ class RelaxedRigidContacts(common.ContactModel):
                 Optional `(n_joints,)` vector of joint forces.
 
         Returns:
-            A tuple containing as first element the computed contact forces.
+            A tuple containing as first element the computed contact forces in inertial representation.
         """
 
         link_forces = jnp.atleast_2d(

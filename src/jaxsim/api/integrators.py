@@ -19,8 +19,10 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             data.generalized_velocity() + generalized_acceleration * model.time_step
         )
 
-        base_lin_velocity = new_velocity[:3]
         base_ang_velocity = new_velocity[3:6]
+        base_lin_velocity = (
+            new_velocity[0:3] + Skew.wedge(base_ang_velocity) @ data.base_position()
+        )
         joint_velocity = new_velocity[6:]
 
         quat = data.base_orientation(dcm=False)

@@ -69,7 +69,7 @@ def system_velocity_dynamics(
 
             # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
             # with the terrain.
-            W_f_L_terrain = js.model.link_contact_forces(
+            W_f_L_terrain = js.contact_model.link_contact_forces(
                 model=model,
                 data=data,
                 link_forces=link_forces,

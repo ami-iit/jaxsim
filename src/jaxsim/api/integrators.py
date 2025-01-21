@@ -4,17 +4,14 @@ import jax.numpy as jnp
 import jaxsim
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim.math.skew import Skew
 
 
 def semi_implicit_euler_integration(model, data, link_forces, joint_force_references):
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
 
-<<<<<<< HEAD
     with data.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial):
-=======
-    with (data.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial)):
->>>>>>> d36e21c5 (fix tests but one)
         a_b, dds, _ = js.ode.system_velocity_dynamics(
             model=model,
             data=data,
@@ -34,13 +31,9 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
 
         quat = data.base_orientation(dcm=False)
         angular_velocity_norm = jnp.linalg.norm(base_ang_velocity)
-<<<<<<< HEAD
         axis_angular_velocity = base_ang_velocity / (
             angular_velocity_norm + 1e-6 * (angular_velocity_norm == 0)
         )
-=======
-        axis_angular_velocity = base_ang_velocity / (angular_velocity_norm + 1e-6 * (angular_velocity_norm == 0))
->>>>>>> d36e21c5 (fix tests but one)
         angle_rotation = model.time_step * angular_velocity_norm
         delta_quat = axis_angle_to_quat(axis_angular_velocity, angle_rotation)
         new_quaternion = quat_mul(quat, delta_quat)
@@ -101,7 +94,7 @@ def heun2_integration(model, data, link_forces, joint_force_references):
         with data.editable(validate=True) as data_rw:
             data_rw.state = xi
 
-        ki, _ = js.ode.system_dynamics(
+        ki = js.ode.system_dynamics(
             model,
             data,
             link_forces=link_forces,
@@ -132,27 +125,23 @@ def heun2_integration(model, data, link_forces, joint_force_references):
 
 
 def axis_angle_to_quat(axis: jax.Array, angle: jax.Array) -> jax.Array:
-  """
-  Provides a quaternion that describes rotating around axis by angle.
+    """
+    Provide a quaternion that describes rotating around axis by angle.
 
     Args:
-      axis: (3,) axis (x,y,z)
-      angle: () float angle to rotate by
+        axis: (3,) axis (x,y,z)
+        angle: () float angle to rotate by
 
     Returns:
-      A quaternion that rotates around axis by angle
+        A quaternion that rotates around axis by angle
     """
     s, c = jnp.sin(angle * 0.5), jnp.cos(angle * 0.5)
     return jnp.insert(axis * s, 0, c)
 
 
 def quat_mul(u: jax.Array, v: jax.Array) -> jax.Array:
-<<<<<<< HEAD
-    """Multiplies two quaternions.
-=======
     """
     Multiplies two quaternions.
->>>>>>> d36e21c5 (fix tests but one)
 
     Args:
         u: (4,) quaternion (w,x,y,z)

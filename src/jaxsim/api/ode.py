@@ -57,7 +57,7 @@ def system_velocity_dynamics(
         link_forces=O_f_L,
         joint_force_references=joint_force_references,
         data=data,
-        velocity_representation=data.velocity_representation,
+        velocity_representation=VelRepr.Inertial,
     )
 
     # ======================
@@ -65,46 +65,41 @@ def system_velocity_dynamics(
     # ======================
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-        with data.switch_velocity_representation(VelRepr.Inertial):
 
-            # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-            # with the terrain.
-            W_f_L_terrain = js.contact_model.link_contact_forces(
-                model=model,
-                data=data,
-                link_forces=link_forces,
-                joint_force_references=joint_force_references,
-            )
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain = js.contact_model.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=link_forces,
+            joint_force_references=joint_force_references,
+        )
 
     # ===========================
     # Compute system acceleration
     # ===========================
 
     # Compute the total link forces.
-    with (
-        data.switch_velocity_representation(VelRepr.Inertial),
-        references.switch_velocity_representation(VelRepr.Inertial),
-    ):
 
-        # Sum the contact forces just computed with the link forces applied by the user.
-        references = references.apply_link_forces(
-            model=model,
-            data=data,
-            forces=W_f_L_terrain,
-            additive=True,
-        )
+    # Sum the contact forces just computed with the link forces applied by the user.
+    references = references.apply_link_forces(
+        model=model,
+        data=data,
+        forces=W_f_L_terrain,
+        additive=True,
+    )
 
-        # Get the link forces in inertial-fixed representation.
-        f_L_total = references.link_forces(model=model, data=data)
+    # Get the link forces in inertial-fixed representation.
+    f_L_total = references.link_forces(model=model, data=data)
 
-        # Compute the system acceleration in inertial-fixed representation.
-        # This representation is useful for integration purpose.
-        W_v̇_WB, s̈ = system_acceleration(
-            model=model,
-            data=data,
-            joint_force_references=joint_force_references,
-            link_forces=f_L_total,
-        )
+    # Compute the system acceleration in inertial-fixed representation.
+    # This representation is useful for integration purpose.
+    W_v̇_WB, s̈ = system_acceleration(
+        model=model,
+        data=data,
+        joint_force_references=joint_force_references,
+        link_forces=f_L_total,
+    )
 
     return W_v̇_WB, s̈
 
@@ -312,20 +307,21 @@ def system_dynamics(
         by the system dynamics evaluation.
     """
 
-    # Compute the accelerations and the material deformation rate.
-    W_v̇_WB, s̈ = system_velocity_dynamics(
-        model=model,
-        data=data,
-        joint_force_references=joint_force_references,
-        link_forces=link_forces,
-    )
+    with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
+        # Compute the accelerations and the material deformation rate.
+        W_v̇_WB, s̈ = system_velocity_dynamics(
+            model=model,
+            data=data,
+            joint_force_references=joint_force_references,
+            link_forces=link_forces,
+        )
 
-    # Extract the velocities.
-    W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
-        model=model,
-        data=data,
-        baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
-    )
+        # Extract the velocities.
+        W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
+            model=model,
+            data=data,
+            baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
+        )
 
     # Create an ODEState object populated with the derivative of each leaf.
     # Our integrators, operating on generic pytrees, will be able to handle it

@@ -71,7 +71,7 @@ def test_box_with_external_forces(
     # ... and step the simulation.
     for _ in T_ns:
 
-        data, _ = js.model.step(
+        data = js.model.step(
             model=model,
             data=data,
             link_forces=references.link_forces(model=model, data=data),
@@ -151,7 +151,7 @@ def test_box_with_zero_gravity(
             references.switch_velocity_representation(velocity_representation),
         ):
 
-            data, _ = js.model.step(
+            data = js.model.step(
                 model=model,
                 data=data,
                 link_forces=references.link_forces(model=model, data=data),
@@ -168,12 +168,11 @@ def test_box_with_zero_gravity(
 def run_simulation(
     model: js.model.JaxSimModel,
     data_t0: js.data.JaxSimModelData,
-    dt: jtp.FloatLike,
     tf: jtp.FloatLike,
 ) -> js.data.JaxSimModelData:
 
     # Initialize the integration horizon.
-    T_ns = jnp.arange(start=0.0, stop=int(tf * 1e9), step=int(dt * 1e9)).astype(int)
+    T_ns = jnp.arange(start=0.0, stop=int(tf * 1e9), step=int(model.time_step * 1e9)).astype(int)
 
     # Initialize the simulation data.
     data = data_t0.copy()
@@ -187,15 +186,13 @@ def run_simulation(
                 data, _ = jaxsim.rbda.contacts.visco_elastic.step(
                     model=model,
                     data=data,
-                    dt=dt,
                 )
 
             case _:
 
-                data, _ = js.model.step(
+                data = js.model.step(
                     model=model,
                     data=data,
-                    dt=dt,
                 )
 
     return data
@@ -218,6 +215,7 @@ def test_simulation_with_soft_contacts(
         model.kin_dyn_parameters.contact_parameters.enabled = tuple(
             enabled_collidable_points_mask.tolist()
         )
+        model.time_step = 0.001
 
     assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 
@@ -245,7 +243,7 @@ def test_simulation_with_soft_contacts(
     # Run the simulation and test the final state
     # ===========================================
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
     assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
@@ -285,7 +283,7 @@ def test_simulation_with_visco_elastic_contacts(
     # Run the simulation and test the final state
     # ===========================================
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
     assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
@@ -337,7 +335,7 @@ def test_simulation_with_rigid_contacts(
     # Run the simulation and test the final state
     # ===========================================
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
     assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
@@ -390,7 +388,7 @@ def test_simulation_with_relaxed_rigid_contacts(
     # Run the simulation and test the final state
     # ===========================================
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     # With this contact model, we need to slightly increase the tolerances.
     assert data_tf.base_position()[0:2] == pytest.approx(
@@ -438,7 +436,8 @@ def test_joint_limits(
     # Test minimum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
+    model = model.replace(time_step=0.005, validate=False)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
     assert (
         np.min(np.array(data_tf.joint_positions()), axis=0) + tolerance
@@ -448,7 +447,8 @@ def test_joint_limits(
     # Test maximum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
+    model = model.replace(time_step=0.001)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
     assert (
         np.max(np.array(data_tf.joint_positions()), axis=0) - tolerance

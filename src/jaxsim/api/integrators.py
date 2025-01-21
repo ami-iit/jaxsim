@@ -84,7 +84,13 @@ def heun2_integration(model, data, link_forces, joint_force_references):
         # Evaluate the dynamics.
         with data.editable(validate=True) as data_rw:
             data_rw.state = xi
-        ki, _ = js.ode.system_dynamics(model, data_rw)
+
+        ki, _ = js.ode.system_dynamics(
+            model,
+            data,
+            link_forces=link_forces,
+            joint_force_references=joint_force_references,
+        )
 
         # Store the kᵢ derivative in K.
         op = lambda l_k, l_ki: l_k.at[i].set(l_ki)

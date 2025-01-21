@@ -202,7 +202,11 @@ class JaxsimDataclass(abc.ABC):
         )
 
         if not compatible_structure:
-            raise ValueError("Pytrees have incompatible structures.")
+            raise ValueError(
+                f"Pytrees have incompatible structures.\n"
+                f"Original: {', '.join(map(str, [jax.tree_util.tree_structure(tree) for tree in trees[1:]]))}\n"
+                f"Target: {target_structure}"
+            )
 
         target_shapes = JaxsimDataclass.get_leaf_shapes(trees[0])
 

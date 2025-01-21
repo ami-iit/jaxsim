@@ -172,7 +172,9 @@ def run_simulation(
 ) -> js.data.JaxSimModelData:
 
     # Initialize the integration horizon.
-    T_ns = jnp.arange(start=0.0, stop=int(tf * 1e9), step=int(model.time_step * 1e9)).astype(int)
+    T_ns = jnp.arange(
+        start=0.0, stop=int(tf * 1e9), step=int(model.time_step * 1e9)
+    ).astype(int)
 
     # Initialize the simulation data.
     data = data_t0.copy()

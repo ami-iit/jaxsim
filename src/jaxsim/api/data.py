@@ -41,6 +41,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     """
 
+    # base_transform, link_velocities, joint_transform, forward kynematics
+
     # Joint state
     joint_positions: jtp.Vector
     joint_velocities: jtp.Vector

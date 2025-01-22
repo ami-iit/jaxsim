@@ -53,25 +53,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     base_linear_velocity: jtp.Vector
     base_angular_velocity: jtp.Vector
 
-    def __hash__(self) -> int:
-
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.joint_positions),
-                HashedNumpyArray.hash_of_array(self.joint_velocities),
-                HashedNumpyArray.hash_of_array(self.base_position),
-                HashedNumpyArray.hash_of_array(self.base_quaternion),
-                HashedNumpyArray.hash_of_array(self.base_linear_velocity),
-                HashedNumpyArray.hash_of_array(self.base_angular_velocity),
-            )
-        )
-
-    def __eq__(self, other: JaxSimModelData) -> bool:
-        if not isinstance(other, JaxSimModelData):
-            return False
-        return hash(self) == hash(other)
 
     @staticmethod
     def build(

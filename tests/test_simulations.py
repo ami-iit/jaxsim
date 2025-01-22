@@ -30,7 +30,7 @@ def test_box_with_external_forces(
     )
 
     # Compute the force due to gravity at the CoM.
-    mg = data0.standard_gravity() * js.model.total_mass(model=model)
+    mg = model.gravity * js.model.total_mass(model=model)
     G_f = jnp.array([0.0, 0.0, mg, 0, 0, 0])
 
     # Compute the position of the CoM expressed in the coordinates of the link frame L.
@@ -234,13 +234,6 @@ def test_simulation_with_relaxed_rigid_contacts(
         model=model,
         base_position=jnp.array([0.0, 0.0, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
-        # For this contact model, the following method is practically no-op.
-        # Let's leave it there for consistency and to make sure that nothing
-        # gets broken if it is updated in the future.
-        contacts_params=js.contact.estimate_good_contact_parameters(
-            model=model,
-            static_friction_coefficient=0.001,
-        ),
     )
 
     # ===========================================

@@ -4,11 +4,11 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
+from jaxsim.api.data import JaxSimModelData
 import jaxsim.typing as jtp
 from jaxsim.math import Quaternion, Skew
 
 from .common import VelRepr
-from .ode_data import ODEState
 
 # ==================================
 # Functions defining system dynamics
@@ -288,7 +288,7 @@ def system_dynamics(
     link_forces: jtp.Vector | None = None,
     joint_force_references: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
-) -> ODEState:
+) -> JaxSimModelData:
     """
     Compute the dynamics of the system.
 
@@ -304,13 +304,12 @@ def system_dynamics(
             quaternion (only used in integrators not operating on the SO(3) manifold).
 
     Returns:
-        A tuple with an `ODEState` object storing in each of its attributes the
+        A tuple with an `JaxSimModelData` object storing in each of its attributes the
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        # Compute the accelerations and the material deformation rate.
         W_v̇_WB, s̈ = system_velocity_dynamics(
             model=model,
             data=data,
@@ -318,17 +317,13 @@ def system_dynamics(
             link_forces=link_forces,
         )
 
-        # Extract the velocities.
         W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
             model=model,
             data=data,
             baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
         )
 
-    # Create an ODEState object populated with the derivative of each leaf.
-    # Our integrators, operating on generic pytrees, will be able to handle it
-    # automatically as state derivative.
-    ode_state_derivative = ODEState.build_from_jaxsim_model(
+    ode_state_derivative = JaxSimModelData.build(
         model=model,
         base_position=W_ṗ_B,
         base_quaternion=W_Q̇_B,

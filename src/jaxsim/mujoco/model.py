@@ -148,7 +148,7 @@ class MujocoModelHelper:
     def gravity(self) -> npt.NDArray:
         """Return the 3D gravity vector."""
 
-        return self.model.opt.gravity
+        return np.array([0, 0, self.model.gravity])
 
     # =========================
     # Methods for the base link

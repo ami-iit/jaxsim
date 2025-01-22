@@ -39,9 +39,13 @@ class JaxSimModel(JaxsimDataclass):
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
+    gravity: Static[float] = jaxsim.math.STANDARD_GRAVITY
+
     contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
         default=None, repr=False
     )
+
+    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(default=None, repr=False)
 
     kin_dyn_parameters: js.kin_dyn_parameters.KinDynParameters | None = (
         dataclasses.field(default=None, repr=False)
@@ -170,6 +174,8 @@ class JaxSimModel(JaxsimDataclass):
         time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
+        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,\
+        gravity: jtp.FloatLike = jax.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -188,6 +194,8 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
+            contacts_params: The parameters of the soft contacts.
+            gravity: The gravity constant.
 
         Returns:
             The built Model object.
@@ -219,6 +227,9 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
+        if contacts_params is None:
+            contacts_params = contact_model._parameters_class()
+
         # Build the model.
         model = cls(
             model_name=model_name,
@@ -228,6 +239,8 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
+            contacts_params=contacts_params,
+            gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the
@@ -945,7 +958,7 @@ def forward_dynamics_aba(
         joint_velocities=ṡ,
         joint_forces=τ,
         link_forces=W_f_L,
-        standard_gravity=data.standard_gravity(),
+        standard_gravity=model.gravity,
     )
 
     # =============
@@ -1398,7 +1411,7 @@ def inverse_dynamics(
         base_angular_acceleration=W_v̇_WB[3:6],
         joint_accelerations=s̈,
         link_forces=W_f_L,
-        standard_gravity=data.standard_gravity(),
+        standard_gravity=model.gravity,
     )
 
     # =============
@@ -2005,12 +2018,8 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
     """
 
     m = total_mass(model=model)
-    gravity = data.gravity.squeeze()
     W_p̃_CoM = jnp.hstack([js.com.com_position(model=model, data=data), 1])
-
-    U = -jnp.hstack([gravity, 0]) @ (m * W_p̃_CoM)
-    return U.squeeze().astype(float)
-
+    return jnp.sum((m * W_p̃_CoM)[2] * model.gravity)
 
 # ==========
 # Simulation

@@ -4,7 +4,7 @@ import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Cross, StandardGravity
+from jaxsim.math import Adjoint, Cross, STANDARD_GRAVITY
 
 from . import utils
 
@@ -22,7 +22,7 @@ def rnea(
     base_angular_acceleration: jtp.Vector | None = None,
     joint_accelerations: jtp.Vector | None = None,
     link_forces: jtp.Matrix | None = None,
-    standard_gravity: jtp.FloatLike = StandardGravity,
+    standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute inverse dynamics using the Recursive Newton-Euler Algorithm (RNEA).

@@ -75,7 +75,7 @@ def build_kindyncomputations_from_jaxsim_model(
         urdf=model.built_from,
         considered_joints=considered_joints,
         vel_repr=data.velocity_representation,
-        gravity=np.array(data.gravity),
+        gravity=np.array([0, 0, model.gravity]),
         removed_joint_positions=removed_joint_positions,
     )
 

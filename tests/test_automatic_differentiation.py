@@ -72,7 +72,7 @@ def test_ad_aba(
     )
 
     # Get the standard gravity constant.
-    g = jaxsim.math.StandardGravity
+    g = jaxsim.math.STANDARD_GRAVITY
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()
@@ -126,7 +126,7 @@ def test_ad_rnea(
     )
 
     # Get the standard gravity constant.
-    g = jaxsim.math.StandardGravity
+    g = jaxsim.math.STANDARD_GRAVITY
 
     # State in VelRepr.Inertial representation.
     W_p_B = data.base_position()

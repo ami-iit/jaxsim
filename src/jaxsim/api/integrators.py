@@ -24,7 +24,7 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
         with data.switch_velocity_representation(
             velocity_representation=jaxsim.VelRepr.Mixed
         ):
-            B_H_W = Transform.inverse(data.base_transform()).at[:3, :3].set(jnp.eye(3))
+            B_H_W = Transform.inverse(data.base_transform).at[:3, :3].set(jnp.eye(3))
             BW_X_W = Adjoint.from_transform(B_H_W)
 
         new_generalized_acceleration = jnp.hstack([W_v̇_WB, s̈])
@@ -88,9 +88,7 @@ def heun2_integration(model, data, link_forces, joint_force_references):
     row_index_of_solution: int = 0
 
     # Initialize the carry of the for loop with the stacked kᵢ vectors.
-    carry0 = jax.tree.map(
-        lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), data
-    )
+    carry0 = jax.tree.map(lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), data)
 
     def scan_body(carry, i):
         # Compute ∑ⱼ aᵢⱼ kⱼ.
@@ -100,7 +98,7 @@ def heun2_integration(model, data, link_forces, joint_force_references):
         # Compute the next state for the kᵢ evaluation.
         # Note that this is not a Δt integration since aᵢⱼ could be fractional.
         op = lambda x0_leaf, k_leaf: x0_leaf + model.time_step * k_leaf
-        xi = jax.tree.map(op, data, sum_ak)
+        _ = jax.tree.map(op, data, sum_ak)
 
         # Compute the next time for the kᵢ evaluation.
 

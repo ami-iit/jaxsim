@@ -38,7 +38,7 @@ def test_contact_kinematics(
     # Compute the pose of the implicit contact frame associated to the collidable points
     # and the transforms of all links.
     W_H_C = js.contact.transforms(model=model, data=data)
-    W_H_L = js.model.forward_kinematics(model=model, data=data)
+    W_H_L = data.link_transforms
 
     # Check that the orientation of the implicit contact frame matches with the
     # orientation of the link to which the contact point is attached.

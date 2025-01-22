@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import functools
 from collections.abc import Sequence
 
@@ -12,7 +13,6 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
 from . import common
@@ -38,10 +38,15 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             The linear velocity of the base link in inertial-fixed representation.
         base_angular_velocity:
             The angular velocity of the base link in inertial-fixed representation.
-
+        base_transform: The base transform.
+        joint_transforms: The joint transforms.
+        link_transforms: The link transforms.
+        link_velocities: The link velocities.
     """
 
-    # base_transform, link_velocities, joint_transform, forward kynematics
+    # Joint state
+    joint_positions: jtp.Vector
+    joint_velocities: jtp.Vector
 
     # Base state
     base_quaternion: jtp.Vector
@@ -49,10 +54,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     base_angular_velocity: jtp.Vector
     base_position: jtp.Vector
 
-    # Joint state
-    joint_positions: jtp.Vector
-    joint_velocities: jtp.Vector
-
+    # Cached computations.
+    base_transform: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    joint_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    link_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
 
     @staticmethod
     def build(
@@ -145,6 +151,20 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             is_force=False,
         ).astype(float)
 
+        joint_transforms = model.kin_dyn_parameters.joint_transforms(
+            joint_positions=joint_positions, base_transform=W_H_B
+        )
+
+        link_transforms, link_velocities = jaxsim.rbda.forward_kinematics_model(
+            model=model,
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            base_linear_velocity=v_WB[0:3],
+            base_angular_velocity=v_WB[3:6],
+            joint_velocities=joint_velocities,
+        )
+
         model_data = JaxSimModelData(
             base_quaternion=base_quaternion,
             base_position=base_position,
@@ -153,16 +173,19 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity=v_WB[3:6],
             joint_velocities=joint_velocities,
             velocity_representation=velocity_representation,
+            base_transform=W_H_B,
+            joint_transforms=joint_transforms,
+            link_transforms=link_transforms,
+            link_velocities=link_velocities,
         )
 
         if not model_data.valid(model=model):
             raise ValueError(
-                "The built state is not compatible with the model.",
-                model_data
+                "The built state is not compatible with the model.", model_data
             )
 
         return model_data
-    
+
     @staticmethod
     def zero(
         model: js.model.JaxSimModel,
@@ -173,12 +196,13 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         Args:
             model: The model for which to create the state.
+            velocity_representation: The velocity representation to use.
 
-        Returns
+        Returns:
+            A `JaxSimModelData` initialized with zero state.
         """
         return JaxSimModelData.build(
-            model=model,
-            velocity_representation=velocity_representation
+            model=model, velocity_representation=velocity_representation
         )
 
     # ==================
@@ -215,26 +239,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @js.common.named_scope
     @jax.jit
-    def base_transform(self) -> jtp.Matrix:
-        """
-        Get the base transform.
-
-        Returns:
-            The base transform as an SE(3) matrix.
-        """
-
-        W_R_B = self.base_orientation(dcm=True)
-        W_p_B = jnp.vstack(self.base_position)
-
-        return jnp.vstack(
-            [
-                jnp.block([W_R_B, W_p_B]),
-                jnp.array([0, 0, 0, 1]),
-            ]
-        )
-
-    @js.common.named_scope
-    @jax.jit
     def base_velocity(self) -> jtp.Vector:
         """
         Get the base 6D velocity.
@@ -250,7 +254,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ]
         )
 
-        W_H_B = self.base_transform()
+        W_H_B = self.base_transform
 
         return (
             JaxSimModelData.inertial_to_other_representation(
@@ -274,7 +278,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             A tuple containing the base transform and the joint positions.
         """
 
-        return self.base_transform(), self.joint_positions
+        return self.base_transform, self.joint_positions
 
     @js.common.named_scope
     @jax.jit
@@ -321,10 +325,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         positions = jnp.atleast_1d(jnp.array(positions).squeeze()).astype(float)
 
         if model is None:
-            return self.replace(
-                validate=True,
-                joint_positions=positions
-            )
+            return self.replace(validate=True, joint_positions=positions)
 
         if not_tracing(positions) and not self.valid(model=model):
             msg = "The data object is not compatible with the provided model"
@@ -338,7 +339,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.replace(
             validate=True,
-            joint_positions=self.joint_positions.at[joint_idxs].set(positions)
+            joint_positions=self.joint_positions.at[joint_idxs].set(positions),
         )
 
     @js.common.named_scope
@@ -364,10 +365,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         velocities = jnp.atleast_1d(jnp.array(velocities).squeeze()).astype(float)
 
         if model is None:
-            return self.replace(
-                validate=True,
-                joint_velocities=velocities
-            )
+            return self.replace(validate=True, joint_velocities=velocities)
 
         if not_tracing(velocities) and not self.valid(model=model):
             msg = "The data object is not compatible with the provided model"
@@ -381,7 +379,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.replace(
             validate=True,
-            joint_velocities=self.joint_velocities.at[joint_idxs].set(velocities)
+            joint_velocities=self.joint_velocities.at[joint_idxs].set(velocities),
         )
 
     @js.common.named_scope
@@ -401,7 +399,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return self.replace(
             validate=True,
-            base_position=jnp.atleast_1d(base_position.squeeze()).astype(float)
+            base_position=jnp.atleast_1d(base_position.squeeze()).astype(float),
         )
 
     @js.common.named_scope
@@ -422,10 +420,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         norm = jaxsim.math.safe_norm(W_Q_B)
         W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
 
-        return self.replace(
-            validate=True,
-            base_quaternion=W_Q_B
-        )
+        return self.replace(validate=True, base_quaternion=W_Q_B)
 
     @js.common.named_scope
     @jax.jit
@@ -545,7 +540,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_v_WB = self.other_representation_to_inertial(
             array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
             other_representation=velocity_representation,
-            transform=self.base_transform(),
+            transform=self.base_transform,
             is_force=False,
         )
 
@@ -554,7 +549,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_linear_velocity=W_v_WB[0:3].squeeze().astype(float),
             base_angular_velocity=W_v_WB[3:6].squeeze().astype(float),
         )
-    
+
     def valid(self, model: js.model.JaxSimModel) -> bool:
         """
         Check if the `JaxSimModelData` is valid for a given `JaxSimModel`.
@@ -580,6 +575,44 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             return False
 
         return True
+
+    @js.common.named_scope
+    @jax.jit
+    def update_cached(self, model: js.model.JaxSimModel) -> JaxSimModelData:
+        """
+        Update the cached kinematics and dynamics quantities of the model.
+
+        Args:
+            model: the model to consider.
+
+        Returns:
+            The data object with updated quantity.
+        """
+
+        base_transform = jaxsim.math.Transform.from_quaternion_and_translation(
+            translation=self.base_position, quaternion=self.base_quaternion
+        )
+
+        joint_transforms = model.kin_dyn_parameters.joint_transforms(
+            joint_positions=self.joint_positions, base_transform=self.base_transform
+        )
+
+        link_transforms, link_velocities = jaxsim.rbda.forward_kinematics_model(
+            model=model,
+            base_position=self.base_position,
+            base_quaternion=self.base_quaternion,
+            joint_positions=self.joint_positions,
+            joint_velocities=self.joint_velocities,
+            base_linear_velocity=self.base_linear_velocity,
+            base_angular_velocity=self.base_angular_velocity,
+        )
+
+        return self.replace(
+            base_transform=base_transform,
+            joint_transforms=joint_transforms,
+            link_transforms=link_transforms,
+            link_velocities=link_velocities,
+        )
 
 
 @functools.partial(jax.jit, static_argnames=["velocity_representation", "base_rpy_seq"])
@@ -640,7 +673,7 @@ def random_model_data(
     """
 
     key = key if key is not None else jax.random.PRNGKey(seed=0)
-    k1, k2, k3, k4, k5, k6, k7 = jax.random.split(key, num=7)
+    k1, k2, k3, k4, k5, k6 = jax.random.split(key, num=6)
 
     p_min = jnp.array(base_pos_bounds[0], dtype=float)
     p_max = jnp.array(base_pos_bounds[1], dtype=float)
@@ -652,52 +685,64 @@ def random_model_data(
     ω_max = jnp.array(base_vel_ang_bounds[1], dtype=float)
     ṡ_min, ṡ_max = joint_vel_bounds
 
-    random_data = JaxSimModelData.zero(model=model)
+    base_position = jax.random.uniform(key=k1, shape=(3,), minval=p_min, maxval=p_max)
 
-    with random_data.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
+    base_quaternion = jaxsim.math.Quaternion.to_wxyz(
+        xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
+            seq=base_rpy_seq,
+            angles=jax.random.uniform(
+                key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
+            ),
+        ).as_quat()
+    )
 
-        random_data.base_position = jax.random.uniform(
-            key=k1, shape=(3,), minval=p_min, maxval=p_max
+    (
+        joint_positions,
+        joint_velocities,
+        base_linear_velocity,
+        base_angular_velocity,
+    ) = (None,) * 4
+
+    if model.number_of_joints() > 0:
+
+        s_min, s_max = (
+            jnp.array(joint_pos_bounds, dtype=float)
+            if joint_pos_bounds is not None
+            else (None, None)
         )
 
-        random_data.base_quaternion = jaxsim.math.Quaternion.to_wxyz(
-            xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
-                seq=base_rpy_seq,
-                angles=jax.random.uniform(
-                    key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
-                ),
-            ).as_quat()
+        joint_positions = (
+            js.joint.random_joint_positions(model=model, key=k3)
+            if (s_min is None or s_max is None)
+            else jax.random.uniform(
+                key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
+            )
         )
 
-        if model.number_of_joints() > 0:
+        joint_velocities = jax.random.uniform(
+            key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+        )
 
-            s_min, s_max = (
-                jnp.array(joint_pos_bounds, dtype=float)
-                if joint_pos_bounds is not None
-                else (None, None)
-            )
+    if model.floating_base():
+        base_linear_velocity = jax.random.uniform(
+            key=k5, shape=(3,), minval=v_min, maxval=v_max
+        )
 
-            random_data.joint_positions = (
-                js.joint.random_joint_positions(model=model, key=k3)
-                if (s_min is None or s_max is None)
-                else jax.random.uniform(
-                    key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
-                )
-            )
+        base_angular_velocity = jax.random.uniform(
+            key=k6, shape=(3,), minval=ω_min, maxval=ω_max
+        )
 
-            random_data.joint_velocities = jax.random.uniform(
-                key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
-            )
-
-        if model.floating_base():
-            random_data.base_linear_velocity = jax.random.uniform(
-                key=k5, shape=(3,), minval=v_min, maxval=v_max
-            )
-
-            random_data.base_angular_velocity = jax.random.uniform(
-                key=k6, shape=(3,), minval=ω_min, maxval=ω_max
-            )
-
-    return random_data
+    return JaxSimModelData.build(
+        model=model,
+        base_position=base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=joint_positions,
+        joint_velocities=joint_velocities,
+        base_linear_velocity=base_linear_velocity,
+        base_angular_velocity=base_angular_velocity,
+        **(
+            {"velocity_representation": velocity_representation}
+            if velocity_representation is not None
+            else {}
+        ),
+    )

@@ -93,6 +93,7 @@ def test_box_with_zero_gravity(
     # Move the terrain (almost) infinitely far away from the box.
     with model.editable(validate=False) as model:
         model.terrain = jaxsim.terrain.FlatTerrain.build(height=-1e9)
+        model.gravity = 0.0
 
     # Split the PRNG key.
     _, subkey = jax.random.split(prng_key, num=2)
@@ -102,7 +103,6 @@ def test_box_with_zero_gravity(
         model=model,
         base_position=jax.random.uniform(subkey, shape=(3,)),
         velocity_representation=velocity_representation,
-        standard_gravity=0.0,
     )
 
     # Initialize a references object that simplifies handling external forces.
@@ -181,21 +181,10 @@ def run_simulation(
 
     for _ in T_ns:
 
-        match model.contact_model:
-
-            case jaxsim.rbda.contacts.ViscoElasticContacts():
-
-                data, _ = jaxsim.rbda.contacts.visco_elastic.step(
-                    model=model,
-                    data=data,
-                )
-
-            case _:
-
-                data = js.model.step(
-                    model=model,
-                    data=data,
-                )
+        data = js.model.step(
+            model=model,
+            data=data,
+        )
 
     return data
 
@@ -288,6 +277,8 @@ def test_joint_limits(
     # Test minimum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
 
+    data_t0 = data_t0.update_cached(model=model)
+
     model = model.replace(time_step=0.005, validate=False)
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
@@ -298,6 +289,8 @@ def test_joint_limits(
 
     # Test maximum joint position limits.
     data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
+
+    data_t0 = data_t0.update_cached(model=model)
 
     model = model.replace(time_step=0.001)
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)

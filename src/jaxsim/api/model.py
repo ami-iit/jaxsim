@@ -28,6 +28,7 @@ class JaxSimModel(JaxsimDataclass):
     """
     The JaxSim model defining the kinematics and dynamics of a robot.
     """
+
     # link_spatial_inertial_matrices, motion_subspaces
 
     model_name: Static[str]
@@ -46,7 +47,9 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(default=None, repr=False)
+    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
+        default=None, repr=False
+    )
 
     kin_dyn_parameters: js.kin_dyn_parameters.KinDynParameters | None = (
         dataclasses.field(default=None, repr=False)
@@ -175,7 +178,7 @@ class JaxSimModel(JaxsimDataclass):
         time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
-        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,\
+        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
         """
@@ -1390,7 +1393,9 @@ def inverse_dynamics(
 
     # Extract the inputs in inertial-fixed representation.
     with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(model=model, data=data, link_names=model.link_names())
+        W_f_L = references.link_forces(
+            model=model, data=data, link_names=model.link_names()
+        )
 
     # ========================
     # Compute inverse dynamics
@@ -1815,9 +1820,12 @@ def link_bias_accelerations(
     # Compute the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+    i_X_λi = model.kin_dyn_parameters.joint_transforms(
         joint_positions=data.joint_positions, base_transform=W_H_B
     )
+
+    # Extract the joint motion subspaces.
+    S = model.kin_dyn_parameters.motion_subspaces
 
     # Allocate the buffer to store the body-fixed link velocities.
     L_v_WL = jnp.zeros(shape=(model.number_of_links(), 6))
@@ -1993,6 +2001,7 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
     m = total_mass(model=model)
     W_p̃_CoM = jnp.hstack([js.com.com_position(model=model, data=data), 1])
     return jnp.sum((m * W_p̃_CoM)[2] * model.gravity)
+
 
 # ==========
 # Simulation

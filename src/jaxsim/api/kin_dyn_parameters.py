@@ -233,13 +233,17 @@ class KinDynParameters(JaxsimDataclass):
 
             return S[joint_type]
 
-        motion_subspaces = jnp.array(
-            [
-                motion_subspace(joint_type, axis)
-                for joint_type, axis in zip(
-                    joint_model.joint_types, joint_model.joint_axis, strict=True
-                )
-            ]
+        motion_subspaces = (
+            jnp.array(
+                [
+                    motion_subspace(joint_type, axis)
+                    for joint_type, axis in zip(
+                        joint_model.joint_types[1:], joint_model.joint_axis, strict=True
+                    )
+                ]
+            )
+            if len(joint_model.joint_axis) != 0
+            else jnp.empty((0, 6, 1))
         )
 
         # =================================
@@ -397,15 +401,14 @@ class KinDynParameters(JaxsimDataclass):
                 self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
             ]
         )
-
-        s = jnp.array(joint_positions).astype(float)
-        axis = jnp.array([j.axis for j in self.joint_model.joint_axis])
-
-        pre_H_suc_J = supported_joint_motion(
-            joint_type=self.joint_model.joint_types,
-            joint_positions=s,
-            joint_axes=axis,
-        )
+        if self.number_of_joints() == 0:
+            pre_H_suc_J = jnp.empty((0, 4, 4))
+        else:
+            pre_H_suc_J = jax.vmap(supported_joint_motion)(
+                joint_types=jnp.array(self.joint_model.joint_types[1:]).astype(int),
+                joint_positions=jnp.array(joint_positions),
+                joint_axes=jnp.array([j.axis for j in self.joint_model.joint_axis]),
+            )
 
         # Extract the transforms and motion subspaces of the joints.
         # We stack the base transform W_H_B at index 0, and a dummy motion subspace

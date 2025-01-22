@@ -165,6 +165,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_position=base_position,
             base_quaternion=base_quaternion,
             joint_positions=joint_positions,
+            base_linear_velocity=base_linear_velocity,
+            base_angular_velocity=base_angular_velocity,
+            joint_velocities=joint_velocities,
         )
 
         model_data = JaxSimModelData(
@@ -198,8 +201,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         Args:
             model: The model for which to create the state.
+            velocity_representation: The velocity representation to use.
 
-        Returns
+        Returns:
+            A `JaxSimModelData` initialized with zero state.
         """
         return JaxSimModelData.build(
             model=model, velocity_representation=velocity_representation
@@ -254,7 +259,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ]
         )
 
-        W_H_B = self.base_transform()
+        W_H_B = self.base_transform
 
         return (
             JaxSimModelData.inertial_to_other_representation(
@@ -278,7 +283,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             A tuple containing the base transform and the joint positions.
         """
 
-        return self.base_transform(), self.joint_positions
+        return self.base_transform, self.joint_positions
 
     @js.common.named_scope
     @jax.jit
@@ -540,7 +545,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_v_WB = self.other_representation_to_inertial(
             array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
             other_representation=velocity_representation,
-            transform=self.base_transform(),
+            transform=self.base_transform,
             is_force=False,
         )
 

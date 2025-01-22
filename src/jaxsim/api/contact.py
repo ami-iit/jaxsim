@@ -240,9 +240,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     )[indices_of_enabled_collidable_points]
 
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = js.model.forward_kinematics(model=model, data=data)[
-        parent_link_idx_of_enabled_collidable_points
-    ]
+    W_H_L = data.link_transforms[parent_link_idx_of_enabled_collidable_points]
 
     L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
         indices_of_enabled_collidable_points
@@ -392,7 +390,7 @@ def jacobian_derivative(
     ]
 
     # Get the transforms of all the parent links.
-    W_H_Li = js.model.forward_kinematics(model=model, data=data)
+    W_H_Li = data.link_transforms
 
     # =====================================================
     # Compute quantities to adjust the input representation
@@ -420,7 +418,7 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_W)
 
         case VelRepr.Body:
-            W_H_B = data.base_transform()
+            W_H_B = data.base_transform
             W_X_B = Adjoint.from_transform(transform=W_H_B)
             B_v_WB = data.base_velocity()
             B_vx_WB = Cross.vx(B_v_WB)
@@ -430,7 +428,7 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_B)
 
         case VelRepr.Mixed:
-            W_H_B = data.base_transform()
+            W_H_B = data.base_transform
             W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
             W_X_BW = Adjoint.from_transform(transform=W_H_BW)
             BW_v_WB = data.base_velocity()

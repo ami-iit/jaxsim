@@ -220,23 +220,29 @@ def test_ad_fk(
     W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
     s = data.joint_positions
+    W_v_lin = data.base_linear_velocity
+    W_v_ang = data.base_angular_velocity
+    ṡ = data.joint_velocities
 
     # ====
     # Test
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    fk = lambda W_p_B, W_Q_B, s: jaxsim.rbda.forward_kinematics_model(
+    fk = lambda W_p_B, W_Q_B, s, W_v_lin, W_v_ang, ṡ: jaxsim.rbda.forward_kinematics_model(
         model=model,
         base_position=W_p_B,
         base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
+        base_linear_velocity=W_v_lin,
+        base_angular_velocity=W_v_ang,
+        joint_velocities=ṡ,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=fk,
-        args=(W_p_B, W_Q_B, s),
+        args=(W_p_B, W_Q_B, s, W_v_lin, W_v_ang, ṡ),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

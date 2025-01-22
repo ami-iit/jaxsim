@@ -48,7 +48,7 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             omega_in_body_fixed=False,
         ).squeeze()
 
-        new_base_position = data.base_position() + dt * base_lin_velocity_mixed
+        new_base_position = data.base_position + dt * base_lin_velocity_mixed
         new_base_quaternion = data.base_orientation() + dt * base_quaternion_derivative
 
         base_quaternion_norm = jaxsim.math.safe_norm(new_base_quaternion)
@@ -57,20 +57,16 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             base_quaternion_norm == 0, 1.0, base_quaternion_norm
         )
 
-        new_joint_position = data.joint_positions() + dt * new_joint_velocities
+        new_joint_position = data.joint_positions + dt * new_joint_velocities
 
         data = data.replace(
             validate=True,
-            state=data.state.replace(
-                physics_model=data.state.physics_model.replace(
-                    base_quaternion=new_base_quaternion,
-                    base_position=new_base_position,
-                    joint_positions=new_joint_position,
-                    joint_velocities=new_joint_velocities,
-                    base_linear_velocity=base_lin_velocity_inertial,
-                    base_angular_velocity=base_ang_velocity_mixed,
-                )
-            ),
+            base_quaternion=new_base_quaternion,
+            base_position=new_base_position,
+            joint_positions=new_joint_position,
+            joint_velocities=new_joint_velocities,
+            base_linear_velocity=base_lin_velocity_inertial,
+            base_angular_velocity=base_ang_velocity_mixed,
         )
 
         return data
@@ -93,7 +89,7 @@ def heun2_integration(model, data, link_forces, joint_force_references):
 
     # Initialize the carry of the for loop with the stacked kᵢ vectors.
     carry0 = jax.tree.map(
-        lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), data.state
+        lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), data
     )
 
     def scan_body(carry, i):
@@ -104,14 +100,9 @@ def heun2_integration(model, data, link_forces, joint_force_references):
         # Compute the next state for the kᵢ evaluation.
         # Note that this is not a Δt integration since aᵢⱼ could be fractional.
         op = lambda x0_leaf, k_leaf: x0_leaf + model.time_step * k_leaf
-        xi = jax.tree.map(op, data.state, sum_ak)
+        xi = jax.tree.map(op, data, sum_ak)
 
         # Compute the next time for the kᵢ evaluation.
-        # ti = c[i] * model.time_step  # TODO: Check why it is not used (wrapper dynamics)
-
-        # Evaluate the dynamics.
-        with data.editable(validate=True) as data_rw:
-            data_rw.state = xi
 
         ki = js.ode.system_dynamics(
             model,
@@ -136,8 +127,8 @@ def heun2_integration(model, data, link_forces, joint_force_references):
     # Compute the output state.
     # Note that z contains as many new states as the rows of `b.T`.
     op = lambda x0, k: x0 + model.time_step * jnp.einsum("zs,s...->z...", b.T, k)
-    z = jax.tree.map(op, data.state, K)
+    z = jax.tree.map(op, data, K)
 
     # The next state is the batch element located at the configured index of solution.
-    next_state = jax.tree.map(lambda l: l[row_index_of_solution], z)
-    return data.replace(state=next_state)
+    next_data = jax.tree.map(lambda l: l[row_index_of_solution], z)
+    return next_data

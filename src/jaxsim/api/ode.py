@@ -142,7 +142,7 @@ def system_acceleration(
     τ_references = (
         jnp.atleast_1d(joint_force_references.squeeze())
         if joint_force_references is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     ).astype(float)
 
     # ====================
@@ -163,13 +163,13 @@ def system_acceleration(
 
         # Compute the joint position limit violations.
         lower_violation = jnp.clip(
-            data.state.physics_model.joint_positions
+            data.joint_positions
             - model.kin_dyn_parameters.joint_parameters.position_limits_min,
             max=0.0,
         )
 
         upper_violation = jnp.clip(
-            data.state.physics_model.joint_positions
+            data.joint_positions
             - model.kin_dyn_parameters.joint_parameters.position_limits_max,
             min=0.0,
         )
@@ -180,7 +180,7 @@ def system_acceleration(
         τ_position_limit -= (
             jnp.positive(τ_position_limit)
             * jnp.diag(d_j)
-            @ data.state.physics_model.joint_velocities
+            @ data.joint_velocities
         )
 
     # ====================
@@ -201,8 +201,8 @@ def system_acceleration(
 
         # Compute the joint friction torque.
         τ_friction = -(
-            jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_velocities)
-            + jnp.diag(kv) @ data.state.physics_model.joint_velocities
+            jnp.diag(kc) @ jnp.sign(data.joint_velocities)
+            + jnp.diag(kv) @ data.joint_velocities
         )
 
     # ========================
@@ -264,10 +264,10 @@ def system_position_dynamics(
         Where :math:`S(\cdot)` is the skew-symmetric matrix operator.
     """
 
-    ṡ = data.joint_velocities(model=model)
+    ṡ = data.joint_velocities
     W_Q_B = data.base_orientation(dcm=False)
     W_ω_WB = data.base_velocity()[3:6]
-    W_ṗ_B = data.base_velocity()[0:3] + Skew.wedge(W_ω_WB) @ data.base_position()
+    W_ṗ_B = data.base_velocity()[0:3] + Skew.wedge(W_ω_WB) @ data.base_position
 
     W_Q̇_B = Quaternion.derivative(
         quaternion=W_Q_B,

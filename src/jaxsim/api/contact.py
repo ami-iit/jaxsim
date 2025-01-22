@@ -42,12 +42,12 @@ def collidable_point_kinematics(
 
         W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
             model=model,
-            base_position=data.base_position(),
+            base_position=data.base_position,
             base_quaternion=data.base_orientation(dcm=False),
-            joint_positions=data.joint_positions(model=model),
+            joint_positions=data.joint_positions,
             base_linear_velocity=data.base_velocity()[0:3],
             base_angular_velocity=data.base_velocity()[3:6],
-            joint_velocities=data.joint_velocities(model=model),
+            joint_velocities=data.joint_velocities,
         )
 
     return W_p_Ci, W_ṗ_Ci

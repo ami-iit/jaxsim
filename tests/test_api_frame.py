@@ -249,9 +249,9 @@ def test_frame_jacobian_derivative(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
         q = jnp.hstack(
             [
-                data.base_position(),
+                data.base_position,
                 data.base_orientation(),
-                data.joint_positions(),
+                data.joint_positions,
             ]
         )
 
@@ -271,7 +271,7 @@ def test_frame_jacobian_derivative(
             K=0.0,
         ).squeeze()
 
-        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities()])
+        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities])
 
         return q̇
 

@@ -4,7 +4,7 @@ import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Cross, StandardGravity
+from jaxsim.math import Adjoint, Cross, STANDARD_GRAVITY
 
 from . import utils
 
@@ -20,7 +20,7 @@ def aba(
     joint_velocities: jtp.VectorLike,
     joint_forces: jtp.VectorLike | None = None,
     link_forces: jtp.MatrixLike | None = None,
-    standard_gravity: jtp.FloatLike = StandardGravity,
+    standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute forward dynamics using the Articulated Body Algorithm (ABA).

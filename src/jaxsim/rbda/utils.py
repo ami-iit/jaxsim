@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim import exceptions
-from jaxsim.math import StandardGravity
+from jaxsim.math import STANDARD_GRAVITY
 
 
 def process_inputs(
@@ -96,7 +96,7 @@ def process_inputs(
     standard_gravity = (
         jnp.array(standard_gravity).squeeze()
         if standard_gravity is not None
-        else StandardGravity
+        else STANDARD_GRAVITY
     )
 
     if s.shape != (dofs,):
@@ -144,7 +144,7 @@ def process_inputs(
     W_v̇_WB = jnp.hstack([W_v̇l_WB, W_ω̇_WB])
 
     # Create the 6D gravity acceleration.
-    W_g = jnp.zeros(6).at[2].set(-standard_gravity)
+    W_g = jnp.array([0, 0, standard_gravity, 0, 0, 0])
 
     return (
         W_p_B.astype(float),

@@ -30,7 +30,7 @@ def test_box_with_external_forces(
     )
 
     # Compute the force due to gravity at the CoM.
-    mg = data0.standard_gravity() * js.model.total_mass(model=model)
+    mg = model.gravity * js.model.total_mass(model=model)
     G_f = jnp.array([0.0, 0.0, mg, 0, 0, 0])
 
     # Compute the position of the CoM expressed in the coordinates of the link frame L.
@@ -78,7 +78,7 @@ def test_box_with_external_forces(
         )
 
     # Check that the box didn't move.
-    assert data.base_position() == pytest.approx(data0.base_position())
+    assert data.base_position == pytest.approx(data0.base_position)
     assert data.base_orientation() == pytest.approx(data0.base_orientation())
 
 
@@ -158,8 +158,8 @@ def test_box_with_zero_gravity(
             )
 
     # Check that the box moved as expected.
-    assert data.base_position() == pytest.approx(
-        data0.base_position()
+    assert data.base_position == pytest.approx(
+        data0.base_position
         + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
         abs=1e-3,
     )
@@ -234,13 +234,6 @@ def test_simulation_with_relaxed_rigid_contacts(
         model=model,
         base_position=jnp.array([0.0, 0.0, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
-        # For this contact model, the following method is practically no-op.
-        # Let's leave it there for consistency and to make sure that nothing
-        # gets broken if it is updated in the future.
-        contacts_params=js.contact.estimate_good_contact_parameters(
-            model=model,
-            static_friction_coefficient=0.001,
-        ),
     )
 
     # ===========================================
@@ -250,10 +243,10 @@ def test_simulation_with_relaxed_rigid_contacts(
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     # With this contact model, we need to slightly increase the tolerances.
-    assert data_tf.base_position()[0:2] == pytest.approx(
-        data_t0.base_position()[0:2], abs=0.000_010
+    assert data_tf.base_position[0:2] == pytest.approx(
+        data_t0.base_position[0:2], abs=0.000_010
     )
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(
+    assert data_tf.base_position[2] + max_penetration == pytest.approx(
         box_height / 2, abs=0.000_100
     )
 
@@ -299,7 +292,7 @@ def test_joint_limits(
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
     assert (
-        np.min(np.array(data_tf.joint_positions()), axis=0) + tolerance
+        np.min(np.array(data_tf.joint_positions), axis=0) + tolerance
         >= position_limits_min
     )
 
@@ -310,6 +303,6 @@ def test_joint_limits(
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
     assert (
-        np.max(np.array(data_tf.joint_positions()), axis=0) - tolerance
+        np.max(np.array(data_tf.joint_positions), axis=0) - tolerance
         <= position_limits_max
     )

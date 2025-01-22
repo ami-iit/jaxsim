@@ -72,14 +72,14 @@ def test_ad_aba(
     )
 
     # Get the standard gravity constant.
-    g = jaxsim.math.StandardGravity
+    g = jaxsim.math.STANDARD_GRAVITY
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
     W_v_WB = data.base_velocity()
-    ṡ = data.joint_velocities(model=model)
+    ṡ = data.joint_velocities
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -126,14 +126,14 @@ def test_ad_rnea(
     )
 
     # Get the standard gravity constant.
-    g = jaxsim.math.StandardGravity
+    g = jaxsim.math.STANDARD_GRAVITY
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
     W_v_WB = data.base_velocity()
-    ṡ = data.joint_velocities(model=model)
+    ṡ = data.joint_velocities
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -185,7 +185,7 @@ def test_ad_crba(
     )
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
 
     # ====
     # Test
@@ -217,9 +217,9 @@ def test_ad_fk(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
 
     # ====
     # Test
@@ -256,7 +256,7 @@ def test_ad_jacobian(
     )
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
 
     # ====
     # Test
@@ -295,11 +295,11 @@ def test_ad_integration(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
+    W_p_B = data.base_position
     W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
     W_v_WB = data.base_velocity()
-    ṡ = data.joint_velocities(model=model)
+    ṡ = data.joint_velocities
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -325,17 +325,12 @@ def test_ad_integration(
         W_Q_B = W_Q_B / jnp.linalg.norm(W_Q_B)
 
         data_x0 = data.replace(
-            state=js.ode_data.ODEState.build(
-                physics_model_state=js.ode_data.PhysicsModelState.build(
-                    base_position=W_p_B,
-                    base_quaternion=W_Q_B,
-                    joint_positions=s,
-                    base_linear_velocity=W_v_WB[0:3],
-                    base_angular_velocity=W_v_WB[3:6],
-                    joint_velocities=ṡ,
-                ),
-                extended_state={},
-            ),
+            base_position=W_p_B,
+            base_quaternion=W_Q_B,
+            joint_positions=s,
+            base_linear_velocity=W_v_WB[0:3],
+            base_angular_velocity=W_v_WB[3:6],
+            joint_velocities=ṡ,
         )
 
         data_xf = js.model.step(
@@ -345,11 +340,11 @@ def test_ad_integration(
             link_forces=W_f_L,
         )
 
-        xf_W_p_B = data_xf.base_position()
+        xf_W_p_B = data_xf.base_position
         xf_W_Q_B = data_xf.base_orientation(dcm=False)
-        xf_s = data_xf.joint_positions(model=model)
+        xf_s = data_xf.joint_positions
         xf_W_v_WB = data_xf.base_velocity()
-        xf_ṡ = data_xf.joint_velocities(model=model)
+        xf_ṡ = data_xf.joint_velocities
 
         return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ
 

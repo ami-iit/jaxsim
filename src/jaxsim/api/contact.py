@@ -42,12 +42,12 @@ def collidable_point_kinematics(
 
         W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
             model=model,
-            base_position=data.base_position(),
+            base_position=data.base_position,
             base_quaternion=data.base_orientation(dcm=False),
-            joint_positions=data.joint_positions(model=model),
+            joint_positions=data.joint_positions,
             base_linear_velocity=data.base_velocity()[0:3],
             base_angular_velocity=data.base_velocity()[3:6],
-            joint_velocities=data.joint_velocities(model=model),
+            joint_velocities=data.joint_velocities,
         )
 
     return W_p_Ci, W_ṗ_Ci
@@ -168,11 +168,7 @@ def estimate_good_soft_contacts_parameters(
 def estimate_good_contact_parameters(
     model: js.model.JaxSimModel,
     *,
-    standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
     static_friction_coefficient: jtp.FloatLike = 0.5,
-    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
-    damping_ratio: jtp.FloatLike = 1.0,
-    max_penetration: jtp.FloatLike | None = None,
     **kwargs,
 ) -> jaxsim.rbda.contacts.ContactParamsTypes:
     """
@@ -180,15 +176,7 @@ def estimate_good_contact_parameters(
 
     Args:
         model: The model to consider.
-        standard_gravity: The standard gravity constant.
         static_friction_coefficient: The static friction coefficient.
-        number_of_active_collidable_points_steady_state:
-            The number of active collidable points in steady state supporting
-            the weight of the robot.
-        damping_ratio: The damping ratio.
-        max_penetration:
-            The maximum penetration allowed in steady state when the robot is
-            supported by the configured number of active collidable points.
         kwargs:
             Additional model-specific parameters passed to the builder method of
             the parameters class.
@@ -205,34 +193,6 @@ def estimate_good_contact_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
-
-    def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
-        """
-        Displacement between the CoM and the lowest collidable point using zero
-        joint positions.
-        """
-
-        zero_data = js.data.JaxSimModelData.build(
-            model=model,
-            contacts_params=jaxsim.rbda.contacts.RelaxedRigidContactsParams(),
-        )
-
-        W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
-
-        if model.floating_base():
-            W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
-            return 2 * (W_pz_CoM - W_pz_C.min())
-
-        return 2 * W_pz_CoM
-
-    max_δ = (  # noqa: F841
-        max_penetration
-        if max_penetration is not None
-        # Consider as default a 0.5% of the model height.
-        else 0.005 * estimate_model_height(model=model)
-    )
-
-    nc = number_of_active_collidable_points_steady_state  # noqa: F841
 
     match model.contact_model:
 

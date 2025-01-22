@@ -64,7 +64,7 @@ def build_kindyncomputations_from_jaxsim_model(
         else dict(
             zip(
                 model.joint_names(),
-                data.joint_positions(model=model, joint_names=model.joint_names()),
+                data.joint_positions,
                 strict=True,
             )
         )
@@ -75,7 +75,7 @@ def build_kindyncomputations_from_jaxsim_model(
         urdf=model.built_from,
         considered_joints=considered_joints,
         vel_repr=data.velocity_representation,
-        gravity=np.array(data.gravity),
+        gravity=np.array([0, 0, model.gravity]),
         removed_joint_positions=removed_joint_positions,
     )
 
@@ -102,13 +102,13 @@ def store_jaxsim_data_in_kindyncomputations(
 
     """
 
-    if kin_dyn.dofs() != data.joint_positions().size:
+    if kin_dyn.dofs() != data.joint_positions.size:
         raise ValueError(data)
 
     with data.switch_velocity_representation(kin_dyn.vel_repr):
         kin_dyn.set_robot_state(
-            joint_positions=np.array(data.joint_positions()),
-            joint_velocities=np.array(data.joint_velocities()),
+            joint_positions=np.array(data.joint_positions),
+            joint_velocities=np.array(data.joint_velocities),
             base_transform=np.array(data.base_transform()),
             base_velocity=np.array(data.base_velocity()),
         )

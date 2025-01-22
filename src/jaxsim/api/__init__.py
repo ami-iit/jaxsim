@@ -10,6 +10,5 @@ from . import (
     kin_dyn_parameters,
     link,
     ode,
-    ode_data,
     references,
 )

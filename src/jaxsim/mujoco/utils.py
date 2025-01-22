@@ -59,7 +59,7 @@ def mujoco_data_from_jaxsim(
     if jaxsim_model.floating_base():
 
         # Set the model position.
-        model_helper.set_base_position(position=np.array(jaxsim_data.base_position()))
+        model_helper.set_base_position(position=np.array(jaxsim_data.base_position))
 
         # Set the model orientation.
         model_helper.set_base_orientation(

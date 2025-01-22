@@ -142,7 +142,9 @@ class JointModel:
         return self.suc_H_i[joint_index]
 
 
-def supported_joint_motion(joint_types, joint_positions, joint_axes) -> jtp.Matrix:
+def supported_joint_motion(
+    joint_types: jtp.Array, joint_positions: jtp.Matrix, joint_axes: jtp.Matrix
+) -> jtp.Matrix:
     """
     Compute the transforms of the joints.
 
@@ -155,19 +157,42 @@ def supported_joint_motion(joint_types, joint_positions, joint_axes) -> jtp.Matr
         The transforms of the joints.
     """
 
+    # Prepare the joint position
     s = jnp.array(joint_positions).astype(float)
-    axis = jnp.array([j.axis for j in joint_axes])
 
-    F = jaxlie.SE3.identity()
-    R = jaxlie.SE3.from_matrix(
-        matrix=jnp.eye(4).at[:3, :3].set(Rotation.from_axis_angle(vector=s * axis))
-    )
-    P = jaxlie.SE3.from_rotation_and_translation(
-        rotation=jaxlie.SO3.identity(),
-        translation=jnp.array(s * axis),
-    )
+    def compute_F() -> tuple[jtp.Matrix, jtp.Array]:
+        return jaxlie.SE3.identity()
 
-    if joint_positions.size == 0:
-        return jnp.empty((0, 4, 4)), jnp.empty((0, 6, 1))
+    def compute_R() -> tuple[jtp.Matrix, jtp.Array]:
 
-    return jax.lax.select_n(F, R, P, which=joint_types)
+        # Get the additional argument specifying the joint axis.
+        # This is a metadata required by only some joint types.
+        axis = jnp.array(joint_axes).astype(float).squeeze()
+
+        pre_H_suc = jaxlie.SE3.from_matrix(
+            matrix=jnp.eye(4).at[:3, :3].set(Rotation.from_axis_angle(vector=s * axis))
+        )
+
+        return pre_H_suc
+
+    def compute_P() -> tuple[jtp.Matrix, jtp.Array]:
+
+        # Get the additional argument specifying the joint axis.
+        # This is a metadata required by only some joint types.
+        axis = jnp.array(joint_axes).astype(float).squeeze()
+
+        pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
+            rotation=jaxlie.SO3.identity(),
+            translation=jnp.array(s * axis),
+        )
+
+        return pre_H_suc
+
+    return jax.lax.switch(
+        index=joint_types,
+        branches=(
+            compute_F,  # JointType.Fixed
+            compute_R,  # JointType.Revolute
+            compute_P,  # JointType.Prismatic
+        ),
+    ).as_matrix()

@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-from jaxsim.api.data import JaxSimModelData
 import jaxsim.typing as jtp
+from jaxsim.api.data import JaxSimModelData
 from jaxsim.math import Quaternion, Skew
 
 from .common import VelRepr

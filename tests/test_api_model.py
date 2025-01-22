@@ -81,9 +81,7 @@ def test_model_creation_and_reduction(
         locked_joint_positions=dict(
             zip(
                 model_full.joint_names(),
-                data_full.joint_positions(
-                    model=model_full, joint_names=model_full.joint_names()
-                ).tolist(),
+                data_full.joint_positions,
                 strict=True,
             )
         ),
@@ -107,7 +105,7 @@ def test_model_creation_and_reduction(
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,
-        base_position=data_full.base_position(),
+        base_position=data_full.base_position,
         base_quaternion=data_full.base_orientation(dcm=False),
         joint_positions=data_full.joint_positions(
             model=model_full, joint_names=model_reduced.joint_names()
@@ -137,10 +135,10 @@ def test_model_creation_and_reduction(
     # Check that joint serialization works.
     assert data_full.joint_positions(
         model=model_full, joint_names=model_reduced.joint_names()
-    ) == pytest.approx(data_reduced.joint_positions())
+    ) == pytest.approx(data_reduced.joint_positions)
     assert data_full.joint_velocities(
         model=model_full, joint_names=model_reduced.joint_names()
-    ) == pytest.approx(data_reduced.joint_velocities())
+    ) == pytest.approx(data_reduced.joint_velocities)
 
     # Check that link transforms are preserved.
     for link_name in model_reduced.link_names():
@@ -444,7 +442,7 @@ def test_coriolis_matrix(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
 
         q = jnp.hstack(
-            [data.base_position(), data.base_orientation(), data.joint_positions()]
+            [data.base_position, data.base_orientation(), data.joint_positions]
         )
 
         return q
@@ -464,7 +462,7 @@ def test_coriolis_matrix(
             K=0.0,
         ).squeeze()
 
-        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities()])
+        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities])
 
         return q̇
 

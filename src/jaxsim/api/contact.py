@@ -37,18 +37,18 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
+    # TODO (flferretti): Remove switch as soon as the link velocities are cached.
     with data.switch_velocity_representation(VelRepr.Inertial):
+        W_J_WL = js.model.generalized_free_floating_jacobian(model=model, data=data)
+        I_ν = data.generalized_velocity()
 
-        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
-            model=model,
-            base_position=data.base_position(),
-            base_quaternion=data.base_orientation(dcm=False),
-            joint_positions=data.joint_positions(model=model),
-            base_linear_velocity=data.base_velocity()[0:3],
-            base_angular_velocity=data.base_velocity()[3:6],
-            joint_velocities=data.joint_velocities(model=model),
-        )
+    link_velocities = W_J_WL @ I_ν
+
+    W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+        model=model,
+        link_transforms=js.model.forward_kinematics(model=model, data=data),
+        link_velocities=link_velocities,
+    )
 
     return W_p_Ci, W_ṗ_Ci
 

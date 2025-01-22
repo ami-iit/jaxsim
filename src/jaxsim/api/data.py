@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
 import functools
 from collections.abc import Sequence
 
@@ -18,7 +17,6 @@ from jaxsim.utils.tracing import not_tracing
 
 from . import common
 from .common import VelRepr
-from .ode_data import ODEState
 
 try:
     from typing import Self
@@ -29,14 +27,29 @@ except ImportError:
 @jax_dataclasses.pytree_dataclass
 class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     """
-    Class containing the data of a `JaxSimModel` object.
+    Class storing the state of the physics model dynamics.
+
+    Attributes:
+        joint_positions: The vector of joint positions.
+        joint_velocities: The vector of joint velocities.
+        base_position: The 3D position of the base link.
+        base_quaternion: The quaternion defining the orientation of the base link.
+        base_linear_velocity:
+            The linear velocity of the base link in inertial-fixed representation.
+        base_angular_velocity:
+            The angular velocity of the base link in inertial-fixed representation.
+
     """
 
-    state: ODEState
+    # Joint state
+    joint_positions: jtp.Vector
+    joint_velocities: jtp.Vector
 
-    gravity: jtp.Vector
-
-    contacts_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(repr=False)
+    # Base state
+    base_position: jtp.Vector
+    base_quaternion: jtp.Vector
+    base_linear_velocity: jtp.Vector
+    base_angular_velocity: jtp.Vector
 
     def __hash__(self) -> int:
 
@@ -44,57 +57,19 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         return hash(
             (
-                hash(self.state),
-                HashedNumpyArray.hash_of_array(self.gravity),
-                hash(self.contacts_params),
+                HashedNumpyArray.hash_of_array(self.joint_positions),
+                HashedNumpyArray.hash_of_array(self.joint_velocities),
+                HashedNumpyArray.hash_of_array(self.base_position),
+                HashedNumpyArray.hash_of_array(self.base_quaternion),
+                HashedNumpyArray.hash_of_array(self.base_linear_velocity),
+                HashedNumpyArray.hash_of_array(self.base_angular_velocity),
             )
         )
 
     def __eq__(self, other: JaxSimModelData) -> bool:
-
         if not isinstance(other, JaxSimModelData):
             return False
-
         return hash(self) == hash(other)
-
-    def valid(self, model: js.model.JaxSimModel | None = None) -> bool:
-        """
-        Check if the current state is valid for the given model.
-
-        Args:
-            model: The model to check against.
-
-        Returns:
-            `True` if the current state is valid for the given model, `False` otherwise.
-        """
-
-        valid = True
-        valid = valid and self.standard_gravity() > 0
-
-        if model is not None:
-            valid = valid and self.state.valid(model=model)
-
-        return valid
-
-    @staticmethod
-    def zero(
-        model: js.model.JaxSimModel,
-        velocity_representation: VelRepr = VelRepr.Inertial,
-    ) -> JaxSimModelData:
-        """
-        Create a `JaxSimModelData` object with zero state.
-
-        Args:
-            model: The model for which to create the zero state.
-            velocity_representation: The velocity representation to use.
-
-        Returns:
-            A `JaxSimModelData` object with zero state.
-        """
-
-        return JaxSimModelData.build(
-            model=model, velocity_representation=velocity_representation
-        )
 
     @staticmethod
     def build(
@@ -105,10 +80,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.VectorLike | None = None,
         base_angular_velocity: jtp.VectorLike | None = None,
         joint_velocities: jtp.VectorLike | None = None,
-        standard_gravity: jtp.FloatLike = jaxsim.math.StandardGravity,
-        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         velocity_representation: VelRepr = VelRepr.Inertial,
-        extended_ode_state: dict[str, jtp.PyTree] | None = None,
     ) -> JaxSimModelData:
         """
         Create a `JaxSimModelData` object with the given state.
@@ -123,13 +95,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity:
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
-            standard_gravity: The standard gravity constant.
-            contacts_params: The parameters of the soft contacts.
             velocity_representation: The velocity representation to use.
-            extended_ode_state:
-                Additional user-defined state variables that are not part of the
-                standard `ODEState` object. Useful to extend the system dynamics
-                considered by default in JaxSim.
 
         Returns:
             A `JaxSimModelData` initialized with the given state.
@@ -162,8 +128,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ),
             dtype=float,
         ).squeeze()
-
-        gravity = jnp.zeros(3).at[2].set(-standard_gravity)
 
         joint_positions = jnp.atleast_1d(
             jnp.array(
@@ -198,48 +162,27 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             is_force=False,
         ).astype(float)
 
-        ode_state = ODEState.build_from_jaxsim_model(
-            model=model,
+        model_data = JaxSimModelData(
             base_position=base_position,
             base_quaternion=base_quaternion,
             joint_positions=joint_positions,
             base_linear_velocity=v_WB[0:3],
             base_angular_velocity=v_WB[3:6],
             joint_velocities=joint_velocities,
-            # Unpack all the additional ODE states. If the contact model requires an
-            # additional state that is not explicitly passed to this builder, ODEState
-            # automatically populates that state with zeroed variables.
-            # This is not true for any other custom state that the user might want to
-            # pass to the integrator.
-            **(extended_ode_state if extended_ode_state else {}),
-        )
-
-        if not ode_state.valid(model=model):
-            raise ValueError(ode_state)
-
-        if contacts_params is None:
-            contacts_params = model.contact_model._parameters_class()
-
-        return JaxSimModelData(
-            state=ode_state,
-            gravity=gravity,
-            contacts_params=contacts_params,
             velocity_representation=velocity_representation,
         )
+
+        if not model_data.valid(model=model):
+            raise ValueError(
+                "The built state is not compatible with the model.",
+                model_data
+            )
+
+        return model_data
 
     # ==================
     # Extract quantities
     # ==================
-
-    def standard_gravity(self) -> jtp.Float:
-        """
-        Get the standard gravity constant.
-
-        Returns:
-            The standard gravity constant.
-        """
-
-        return -self.gravity[2]
 
     @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["joint_names"])
@@ -740,6 +683,56 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 )
             ),
         )
+    
+    def valid(self, model: js.model.JaxSimModel) -> bool:
+        """
+        Check if the `JaxSimModelData` is valid for a given `JaxSimModel`.
+
+        Args:
+            model: The `JaxSimModel` to validate the `JaxSimModelData` against.
+
+        Returns:
+            `True` if the `JaxSimModelData` is valid for the given model,
+            `False` otherwise.
+        """
+
+        shape = self.joint_positions.shape
+        expected_shape = (model.dofs(),)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.joint_velocities.shape
+        expected_shape = (model.dofs(),)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_position.shape
+        expected_shape = (3,)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_quaternion.shape
+        expected_shape = (4,)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_linear_velocity.shape
+        expected_shape = (3,)
+
+        if shape != expected_shape:
+            return False
+
+        shape = self.base_angular_velocity.shape
+        expected_shape = (3,)
+
+        if shape != expected_shape:
+            return False
+
+        return True
 
 
 @functools.partial(jax.jit, static_argnames=["velocity_representation", "base_rpy_seq"])
@@ -776,11 +769,6 @@ def random_model_data(
         jtp.FloatLike | Sequence[jtp.FloatLike],
         jtp.FloatLike | Sequence[jtp.FloatLike],
     ] = (-1.0, 1.0),
-    contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
-    standard_gravity_bounds: tuple[jtp.FloatLike, jtp.FloatLike] = (
-        jaxsim.math.StandardGravity,
-        jaxsim.math.StandardGravity,
-    ),
 ) -> JaxSimModelData:
     """
     Randomly generate a `JaxSimModelData` object.
@@ -799,8 +787,6 @@ def random_model_data(
         base_vel_lin_bounds: The bounds for the base linear velocity.
         base_vel_ang_bounds: The bounds for the base angular velocity.
         joint_vel_bounds: The bounds for the joint velocities.
-        contacts_params: The parameters of the contact model.
-        standard_gravity_bounds: The bounds for the standard gravity.
 
     Returns:
         A `JaxSimModelData` object with random data.
@@ -874,25 +860,6 @@ def random_model_data(
 
             physics_model_state.base_angular_velocity = jax.random.uniform(
                 key=k6, shape=(3,), minval=ω_min, maxval=ω_max
-            )
-
-        random_data.gravity = (
-            jnp.zeros(3, dtype=random_data.gravity.dtype)
-            .at[2]
-            .set(
-                -jax.random.uniform(
-                    key=k7,
-                    shape=(),
-                    minval=standard_gravity_bounds[0],
-                    maxval=standard_gravity_bounds[1],
-                )
-            )
-        )
-
-        if contacts_params is None:
-            random_data = random_data.replace(
-                contacts_params=model.contact_model._parameters_class(),
-                validate=False,
             )
 
     return random_data

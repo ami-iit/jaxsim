@@ -28,6 +28,7 @@ class JaxSimModel(JaxsimDataclass):
     """
     The JaxSim model defining the kinematics and dynamics of a robot.
     """
+    # link_spatial_inertial_matrices, motion_subspaces
 
     model_name: Static[str]
 

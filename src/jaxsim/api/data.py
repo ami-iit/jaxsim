@@ -13,7 +13,6 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.rbda
 import jaxsim.typing as jtp
-from jaxsim.utils import Mutability
 from jaxsim.utils.tracing import not_tracing
 
 from . import common
@@ -607,6 +606,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_position=self.base_position,
             base_quaternion=self.base_quaternion,
             joint_positions=self.joint_positions,
+            joint_velocities=self.joint_velocities,
+            base_linear_velocity=self.base_linear_velocity,
+            base_angular_velocity=self.base_angular_velocity,
         )
 
         return self.replace(
@@ -687,52 +689,64 @@ def random_model_data(
     ω_max = jnp.array(base_vel_ang_bounds[1], dtype=float)
     ṡ_min, ṡ_max = joint_vel_bounds
 
-    random_data = JaxSimModelData.zero(model=model)
+    base_position = jax.random.uniform(key=k1, shape=(3,), minval=p_min, maxval=p_max)
 
-    with random_data.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
+    base_quaternion = jaxsim.math.Quaternion.to_wxyz(
+        xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
+            seq=base_rpy_seq,
+            angles=jax.random.uniform(
+                key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
+            ),
+        ).as_quat()
+    )
 
-        random_data.base_position = jax.random.uniform(
-            key=k1, shape=(3,), minval=p_min, maxval=p_max
+    (
+        joint_positions,
+        joint_velocities,
+        base_linear_velocity,
+        base_angular_velocity,
+    ) = (None,) * 4
+
+    if model.number_of_joints() > 0:
+
+        s_min, s_max = (
+            jnp.array(joint_pos_bounds, dtype=float)
+            if joint_pos_bounds is not None
+            else (None, None)
         )
 
-        random_data.base_quaternion = jaxsim.math.Quaternion.to_wxyz(
-            xyzw=jax.scipy.spatial.transform.Rotation.from_euler(
-                seq=base_rpy_seq,
-                angles=jax.random.uniform(
-                    key=k2, shape=(3,), minval=rpy_min, maxval=rpy_max
-                ),
-            ).as_quat()
+        joint_positions = (
+            js.joint.random_joint_positions(model=model, key=k3)
+            if (s_min is None or s_max is None)
+            else jax.random.uniform(
+                key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
+            )
         )
 
-        if model.number_of_joints() > 0:
+        joint_velocities = jax.random.uniform(
+            key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
+        )
 
-            s_min, s_max = (
-                jnp.array(joint_pos_bounds, dtype=float)
-                if joint_pos_bounds is not None
-                else (None, None)
-            )
+    if model.floating_base():
+        base_linear_velocity = jax.random.uniform(
+            key=k5, shape=(3,), minval=v_min, maxval=v_max
+        )
 
-            random_data.joint_positions = (
-                js.joint.random_joint_positions(model=model, key=k3)
-                if (s_min is None or s_max is None)
-                else jax.random.uniform(
-                    key=k3, shape=(model.dofs(),), minval=s_min, maxval=s_max
-                )
-            )
+        base_angular_velocity = jax.random.uniform(
+            key=k6, shape=(3,), minval=ω_min, maxval=ω_max
+        )
 
-            random_data.joint_velocities = jax.random.uniform(
-                key=k4, shape=(model.dofs(),), minval=ṡ_min, maxval=ṡ_max
-            )
-
-        if model.floating_base():
-            random_data.base_linear_velocity = jax.random.uniform(
-                key=k5, shape=(3,), minval=v_min, maxval=v_max
-            )
-
-            random_data.base_angular_velocity = jax.random.uniform(
-                key=k6, shape=(3,), minval=ω_min, maxval=ω_max
-            )
-
-    return random_data
+    return JaxSimModelData.build(
+        model=model,
+        base_position=base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=joint_positions,
+        joint_velocities=joint_velocities,
+        base_linear_velocity=base_linear_velocity,
+        base_angular_velocity=base_angular_velocity,
+        **(
+            {"velocity_representation": velocity_representation}
+            if velocity_representation is not None
+            else {}
+        ),
+    )

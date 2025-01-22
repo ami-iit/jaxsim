@@ -2037,7 +2037,7 @@ def step(
         τ_references = references.joint_force_references(model=model)
 
     # Step the dynamics forward.
-    data_tf = js.integrators.heun2_integration(
+    data_tf = js.integrators.semi_implicit_euler_integration(
         model=model,
         data=data,
         link_forces=f_L,
@@ -2049,5 +2049,7 @@ def step(
     data_tf = data_tf.replace(
         velocity_representation=data.velocity_representation, validate=False
     )
+
+    data_tf = data_tf.update_cached(model=model)
 
     return data_tf

@@ -435,6 +435,8 @@ def test_coriolis_matrix(
         data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
         data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
+        data_ad = data_ad.update_cached(model=model)
+
         M = js.model.free_floating_mass_matrix(model=model, data=data_ad)
 
         return M

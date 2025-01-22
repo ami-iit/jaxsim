@@ -332,6 +332,8 @@ def test_link_jacobian_derivative(
         data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
         data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
+        data_ad = data_ad.update_cached(model=model)
+
         O_J_WL_I = js.model.generalized_free_floating_jacobian(
             model=model, data=data_ad
         )

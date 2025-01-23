@@ -2000,8 +2000,7 @@ def step(
         data: The data of the considered model.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
-            The 6D forces to apply to the links expressed in the frame corresponding to
-            the velocity representation of `data`.
+            The 6D forces to apply to the links expressed in inertial-representation.
         joint_force_references: The joint force references to consider.
 
     Returns:
@@ -2013,46 +2012,82 @@ def step(
         particularly useful for automatically differentiated logic.
     """
 
-    # =================
-    # Phase 1: pre-step
-    # =================
-
     # TODO: some contact models here may want to perform a dynamic filtering of
-    # the enabled collidable points.
+    # the enabled collidable points
 
-    # Build the references object.
-    # We assume that the link forces are expressed in the frame corresponding to the
-    # velocity representation of the data.
-    references = js.references.JaxSimModelReferences.build(
-        model=model,
-        data=data,
-        velocity_representation=data.velocity_representation,
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
+    # Extract the inputs
+    W_f_L_external = jnp.atleast_2d(
+        jnp.array(link_forces, dtype=float).squeeze()
+        if link_forces is not None
+        else jnp.zeros((model.number_of_links(), 6))
+    )
+    τ_references = jnp.atleast_1d(
+        jnp.array(joint_force_references, dtype=float).squeeze()
+        if joint_force_references is not None
+        else jnp.zeros(model.dofs())
     )
 
-    # =============
-    # Phase 2: step
-    # =============
+    # ======================
+    # Compute contact forces
+    # ======================
 
-    # Prepare the references to pass.
-    f_L = references._link_forces
-    τ_references = references._joint_force_references
+    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
 
-    # Step the dynamics forward.
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain = js.contact_model.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=W_f_L_external,
+            joint_force_references=τ_references,
+        )
+
+    # ==============================
+    # Compute the total link forces
+    # ==============================
+
+    W_f_L_total = W_f_L_external + W_f_L_terrain
+
+    # ================================
+    # Compute the total joint torques
+    # ================================
+
+    τ_total = js.actuation_model.compute_resultant_torques(
+        model, data, joint_force_references=joint_force_references
+    )
+
+    # ===============================
+    # Compute the system acceleration
+    # ===============================
+
+    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
+        W_v̇_WB, s̈ = js.ode.system_velocity_dynamics(
+            model=model,
+            data=data,
+            link_forces=W_f_L_total,
+            joint_torques=τ_total,
+        )
+
+    # =============================
+    # Advance the simulation state
+    # =============================
+
     data_tf = js.integrators.semi_implicit_euler_integration(
         model=model,
         data=data,
-        link_forces=f_L,
-        joint_force_references=τ_references,
+        base_acceleration_inertial=W_v̇_WB,
+        joint_accelerations=s̈,
     )
 
     # ne parliamo dopo
-    # Restore the input velocity representation.
+    # Restore the input velocity representation
     data_tf = data_tf.replace(
         velocity_representation=data.velocity_representation, validate=False
     )
 
+    # Update the cached quantities in data
     data_tf = data_tf.update_cached(model=model)
 
     return data_tf

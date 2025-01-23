@@ -22,7 +22,7 @@ def system_velocity_dynamics(
     data: js.data.JaxSimModelData,
     *,
     link_forces: jtp.Vector | None = None,
-    joint_force_references: jtp.Vector | None = None,
+    joint_torques: jtp.Vector | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector, dict[str, Any]]:
     """
     Compute the dynamics of the system velocity.
@@ -31,9 +31,8 @@ def system_velocity_dynamics(
         model: The model to consider.
         data: The data of the considered model.
         link_forces:
-            The 6D forces to apply to the links expressed in the frame corresponding to
-            the velocity representation of `data`.
-        joint_force_references: The joint force references to apply.
+            The 6D forces to apply to the links expressed in inertial-fixed representation.
+        joint_torques: The joint torques acting on the joints.
 
     Returns:
         A tuple containing the derivative of the base 6D velocity in inertial-fixed
@@ -44,45 +43,23 @@ def system_velocity_dynamics(
     # Build link forces if not provided.
     # These forces are expressed in the frame corresponding to the velocity
     # representation of data.
-    O_f_L = (
+    W_f_L = (
         jnp.atleast_2d(link_forces.squeeze())
         if link_forces is not None
         else jnp.zeros((model.number_of_links(), 6))
     ).astype(float)
 
-    # ======================
-    # Compute contact forces
-    # ======================
-
-    W_f_L_terrain = jnp.zeros_like(O_f_L)
-
-    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-
-        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-        # with the terrain.
-        W_f_L_terrain = js.contact_model.link_contact_forces(
-            model=model,
-            data=data,
-            link_forces=link_forces,
-            joint_force_references=joint_force_references,
-        )
-
     # ===========================
     # Compute system acceleration
     # ===========================
-
-    # Compute the total link forces.
-
-    # Sum the contact forces just computed with the link forces applied by the user.
-    f_L_total = O_f_L + W_f_L_terrain  # references.link_forces(model=model, data=data)
 
     # Compute the system acceleration in inertial-fixed representation.
     # This representation is useful for integration purpose.
     W_v̇_WB, s̈ = system_acceleration(
         model=model,
         data=data,
-        joint_force_references=joint_force_references,
-        link_forces=f_L_total,
+        joint_torques=joint_torques,
+        link_forces=W_f_L,
     )
 
     return W_v̇_WB, s̈
@@ -93,7 +70,7 @@ def system_acceleration(
     data: js.data.JaxSimModelData,
     *,
     link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
+    joint_torques: jtp.VectorLike | None = None,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute the system acceleration in the active representation.
@@ -104,7 +81,7 @@ def system_acceleration(
         link_forces:
             The 6D forces to apply to the links expressed in the same
             velocity representation of data.
-        joint_force_references: The joint force references to apply.
+        joint_torques: The joint torques applied to the joints.
 
     Returns:
         A tuple containing the base 6D acceleration in the active representation
@@ -121,78 +98,6 @@ def system_acceleration(
         if link_forces is not None
         else jnp.zeros((model.number_of_links(), 6))
     ).astype(float)
-
-    # Build joint torques if not provided.
-    τ_references = (
-        jnp.atleast_1d(joint_force_references.squeeze())
-        if joint_force_references is not None
-        else jnp.zeros_like(data.joint_positions)
-    ).astype(float)
-
-    # ====================
-    # Enforce joint limits
-    # ====================
-
-    τ_position_limit = jnp.zeros_like(τ_references).astype(float)
-
-    if model.dofs() > 0:
-
-        # Stiffness and damper parameters for the joint position limits.
-        k_j = jnp.array(
-            model.kin_dyn_parameters.joint_parameters.position_limit_spring
-        ).astype(float)
-        d_j = jnp.array(
-            model.kin_dyn_parameters.joint_parameters.position_limit_damper
-        ).astype(float)
-
-        # Compute the joint position limit violations.
-        lower_violation = jnp.clip(
-            data.joint_positions
-            - model.kin_dyn_parameters.joint_parameters.position_limits_min,
-            max=0.0,
-        )
-
-        upper_violation = jnp.clip(
-            data.joint_positions
-            - model.kin_dyn_parameters.joint_parameters.position_limits_max,
-            min=0.0,
-        )
-
-        # Compute the joint position limit torque.
-        τ_position_limit -= jnp.diag(k_j) @ (lower_violation + upper_violation)
-
-        τ_position_limit -= (
-            jnp.positive(τ_position_limit) * jnp.diag(d_j) @ data.joint_velocities
-        )
-
-    # ====================
-    # Joint friction model
-    # ====================
-
-    τ_friction = jnp.zeros_like(τ_references).astype(float)
-
-    if model.dofs() > 0:
-
-        # Static and viscous joint friction parameters
-        kc = jnp.array(
-            model.kin_dyn_parameters.joint_parameters.friction_static
-        ).astype(float)
-        kv = jnp.array(
-            model.kin_dyn_parameters.joint_parameters.friction_viscous
-        ).astype(float)
-
-        # Compute the joint friction torque.
-        τ_friction = -(
-            jnp.diag(kc) @ jnp.sign(data.joint_velocities)
-            + jnp.diag(kv) @ data.joint_velocities
-        )
-
-    # ========================
-    # Compute forward dynamics
-    # ========================
-
-    # Compute the total joint forces.
-    τ_total = τ_references + τ_friction + τ_position_limit
 
     # Store the link forces in a references object.
     references = js.references.JaxSimModelReferences.build(
@@ -212,7 +117,7 @@ def system_acceleration(
     v̇_WB, s̈ = js.model.forward_dynamics_aba(
         model=model,
         data=data,
-        joint_forces=τ_total,
+        joint_forces=joint_torques,
         link_forces=references.link_forces(model=model, data=data),
     )
 
@@ -268,7 +173,7 @@ def system_dynamics(
     data: js.data.JaxSimModelData,
     *,
     link_forces: jtp.Vector | None = None,
-    joint_force_references: jtp.Vector | None = None,
+    joint_torques: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
 ) -> JaxSimModelData:
     """
@@ -280,7 +185,7 @@ def system_dynamics(
         link_forces:
             The 6D forces to apply to the links expressed in the frame corresponding to
             the velocity representation of `data`.
-        joint_force_references: The joint force references to apply.
+        joint_torques: The joint torques acting on the joints.
         baumgarte_quaternion_regularization:
             The Baumgarte regularization coefficient used to adjust the norm of the
             quaternion (only used in integrators not operating on the SO(3) manifold).
@@ -295,7 +200,7 @@ def system_dynamics(
         W_v̇_WB, s̈ = system_velocity_dynamics(
             model=model,
             data=data,
-            joint_force_references=joint_force_references,
+            joint_torques=joint_torques,
             link_forces=link_forces,
         )
 

@@ -1,9 +1,7 @@
-import jax
 import jax.numpy as jnp
 
 import jaxsim
 import jaxsim.api as js
-import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Transform
 
 
@@ -21,11 +19,8 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             joint_force_references=joint_force_references,
         )
 
-        with data.switch_velocity_representation(
-            velocity_representation=jaxsim.VelRepr.Mixed
-        ):
-            B_H_W = Transform.inverse(data.base_transform).at[:3, :3].set(jnp.eye(3))
-            BW_X_W = Adjoint.from_transform(B_H_W)
+        B_H_W = Transform.inverse(data.base_transform).at[:3, :3].set(jnp.eye(3))
+        BW_X_W = Adjoint.from_transform(B_H_W)
 
         new_generalized_acceleration = jnp.hstack([W_v̇_WB, s̈])
 
@@ -70,63 +65,3 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
         )
 
         return data
-
-
-def heun2_integration(model, data, link_forces, joint_force_references):
-    """Integrate the system state using the Heun's method."""
-    A: jtp.Matrix = jnp.array(
-        [
-            [0, 0],
-            [1, 0],
-        ],
-        dtype=float,
-    )
-
-    b: jtp.Matrix = jnp.array([[1 / 2, 1 / 2]], dtype=float).transpose()
-    c: jtp.Vector = jnp.array([0, 1], dtype=float)
-
-    row_index_of_solution: int = 0
-
-    # Initialize the carry of the for loop with the stacked kᵢ vectors.
-    carry0 = jax.tree.map(lambda l: jnp.zeros((c.size, *l.shape), dtype=l.dtype), data)
-
-    def scan_body(carry, i):
-        # Compute ∑ⱼ aᵢⱼ kⱼ.
-        op_sum_ak = lambda k: jnp.einsum("s,s...->...", A[i], k)
-        sum_ak = jax.tree.map(op_sum_ak, carry)
-
-        # Compute the next state for the kᵢ evaluation.
-        # Note that this is not a Δt integration since aᵢⱼ could be fractional.
-        op = lambda x0_leaf, k_leaf: x0_leaf + model.time_step * k_leaf
-        _ = jax.tree.map(op, data, sum_ak)
-
-        # Compute the next time for the kᵢ evaluation.
-
-        ki = js.ode.system_dynamics(
-            model,
-            data,
-            link_forces=link_forces,
-            joint_force_references=joint_force_references,
-        )
-
-        # Store the kᵢ derivative in K.
-        op = lambda l_k, l_ki: l_k.at[i].set(l_ki)
-        carry = jax.tree.map(op, carry, ki)
-
-        return carry, {}
-
-    # Compute the state derivatives kᵢ.
-    K, _ = jax.lax.scan(
-        f=scan_body,
-        init=carry0,
-        xs=jnp.arange(c.size),
-    )
-
-    # Compute the output state.
-    # Note that z contains as many new states as the rows of `b.T`.
-    op = lambda x0, k: x0 + model.time_step * jnp.einsum("zs,s...->z...", b.T, k)
-    z = jax.tree.map(op, data, K)
-
-    # The next state is the batch element located at the configured index of solution.
-    next_data = jax.tree.map(lambda l: l[row_index_of_solution], z)
-    return next_data

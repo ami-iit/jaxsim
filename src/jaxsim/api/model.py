@@ -110,6 +110,7 @@ class JaxSimModel(JaxsimDataclass):
         time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
+        contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -129,6 +130,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
+            contact_params: The parameters of the contact model.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -161,6 +163,7 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
+            contacts_params=contact_params,
         )
 
         # Store the origin of the model, in case downstream logic needs it.

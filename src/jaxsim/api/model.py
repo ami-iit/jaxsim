@@ -91,7 +91,7 @@ class JaxSimModel(JaxsimDataclass):
         return hash(
             (
                 hash(self.model_name),
-                hash(float(self.time_step)),
+                hash(self.time_step),
                 hash(self.kin_dyn_parameters),
                 hash(self.contact_model),
             )
@@ -317,7 +317,7 @@ class JaxSimModel(JaxsimDataclass):
             True if the model is floating-base, False otherwise.
         """
 
-        return bool(self.kin_dyn_parameters.joint_model.joint_dofs[0] == 6)
+        return self.kin_dyn_parameters.joint_model.joint_dofs[0] == 6
 
     def base_link(self) -> str:
         """
@@ -348,7 +348,7 @@ class JaxSimModel(JaxsimDataclass):
             the number of joints. In the future, this could be different.
         """
 
-        return int(sum(self.kin_dyn_parameters.joint_model.joint_dofs[1:]))
+        return sum(self.kin_dyn_parameters.joint_model.joint_dofs[1:])
 
     def joint_names(self) -> tuple[str, ...]:
         """
@@ -431,7 +431,7 @@ def reduce(
     for joint_name in set(model.joint_names()) - set(considered_joints):
         j = intermediate_description.joints_dict[joint_name]
         with j.mutable_context():
-            j.initial_position = float(locked_joint_positions.get(joint_name, 0.0))
+            j.initial_position = locked_joint_positions.get(joint_name, 0.0)
 
     # Reduce the model description.
     # If `considered_joints` contains joints not existing in the model,

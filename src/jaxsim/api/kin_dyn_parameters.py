@@ -11,7 +11,7 @@ from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
-from jaxsim.parsers.descriptions import JointDescription, ModelDescription
+from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
@@ -226,9 +226,9 @@ class KinDynParameters(JaxsimDataclass):
         def motion_subspace(joint_type: int, axis: npt.ArrayLike) -> npt.ArrayLike:
 
             S = {
-                0: np.zeros(shape=(6, 1)),
-                1: np.vstack(np.hstack([np.zeros(3), axis.axis])),
-                2: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
+                JointType.Fixed: np.zeros(shape=(6, 1)),
+                JointType.Revolute: np.vstack(np.hstack([np.zeros(3), axis.axis])),
+                JointType.Prismatic: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
             }
 
             return S[joint_type]

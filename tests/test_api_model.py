@@ -294,11 +294,10 @@ def test_model_rbda(
     # Support both fixed-base and floating-base models by slicing the first six rows.
     sl = np.s_[0:] if model.floating_base() else np.s_[6:]
 
-    with jax.disable_jit():
-        # Mass matrix
-        M_idt = kin_dyn.mass_matrix()
-        M_js = js.model.free_floating_mass_matrix(model=model, data=data)
-        assert pytest.approx(M_idt[sl, sl]) == M_js[sl, sl]
+    # Mass matrix
+    M_idt = kin_dyn.mass_matrix()
+    M_js = js.model.free_floating_mass_matrix(model=model, data=data)
+    assert pytest.approx(M_idt[sl, sl]) == M_js[sl, sl]
 
     # Gravity forces
     g_idt = kin_dyn.gravity_forces()

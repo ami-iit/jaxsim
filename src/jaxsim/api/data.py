@@ -54,10 +54,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     base_angular_velocity: jtp.Vector
     base_position: jtp.Vector
 
-    # Joint state
-    joint_positions: jtp.Vector
-    joint_velocities: jtp.Vector
-
     # Cached computations.
     base_transform: jtp.Matrix = dataclasses.field(repr=False, default=None)
     joint_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
@@ -164,8 +160,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_position=base_position,
             base_quaternion=base_quaternion,
             joint_positions=joint_positions,
-            base_linear_velocity=base_linear_velocity,
-            base_angular_velocity=base_angular_velocity,
+            base_linear_velocity=v_WB[0:3],
+            base_angular_velocity=v_WB[3:6],
             joint_velocities=joint_velocities,
         )
 

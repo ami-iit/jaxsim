@@ -223,17 +223,17 @@ class KinDynParameters(JaxsimDataclass):
             jnp.arange(start=0, stop=len(ordered_links))
         )
 
-        def motion_subspace(joint_type, axis):
+        def motion_subspace(joint_type: int, axis: npt.ArrayLike) -> npt.ArrayLike:
 
             S = {
                 0: np.zeros(shape=(6, 1)),
                 1: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
-                2: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
+                2: np.vstack(np.hstack([np.zeros(3), axis.axis])),
             }
 
             return S[joint_type]
 
-        motion_subspaces = (
+        S_J = (
             jnp.array(
                 [
                     motion_subspace(joint_type, axis)
@@ -245,6 +245,8 @@ class KinDynParameters(JaxsimDataclass):
             if len(joint_model.joint_axis) != 0
             else jnp.empty((0, 6, 1))
         )
+
+        motion_subspaces = jnp.vstack([jnp.zeros((6, 1))[jnp.newaxis, ...], S_J])
 
         # =================================
         # Build and return KinDynParameters

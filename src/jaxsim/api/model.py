@@ -1360,15 +1360,12 @@ def inverse_dynamics(
     with data.switch_velocity_representation(VelRepr.Inertial):
         W_p_B = data.base_position
         W_v_WB = data.base_velocity()
-        W_Q_B = data.base_orientation(dcm=False)
+        W_Q_B = data.base_quaternion
         s = data.joint_positions
         ṡ = data.joint_velocities
 
     # Extract the inputs in inertial-fixed representation.
-    with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(
-            model=model, data=data, link_names=model.link_names()
-        )
+    W_f_L = references._link_forces
 
     # ========================
     # Compute inverse dynamics
@@ -1434,6 +1431,8 @@ def free_floating_gravity_forces(
         data_rnea.base_quaternion = data.base_quaternion
         data_rnea.joint_positions = data.joint_positions
 
+    data_rnea = data_rnea.update_cached(model=model)
+
     return jnp.hstack(
         inverse_dynamics(
             model=model,
@@ -1482,6 +1481,8 @@ def free_floating_bias_forces(
         if model.floating_base():
             data_rnea.base_linear_velocity = data.base_linear_velocity
             data_rnea.base_angular_velocity = data.base_angular_velocity
+
+        data_rnea = data_rnea.update_cached(model=model)
 
     return jnp.hstack(
         inverse_dynamics(

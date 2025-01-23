@@ -40,9 +40,9 @@ def forward_kinematics_model(
         base_position=base_position,
         base_quaternion=base_quaternion,
         joint_positions=joint_positions,
-        joint_velocities=joint_velocities,
         base_linear_velocity=base_linear_velocity,
         base_angular_velocity=base_angular_velocity,
+        joint_velocities=joint_velocities,
     )
 
     # Get the parent array λ(i).

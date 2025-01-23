@@ -2027,6 +2027,14 @@ def step(
         else jnp.zeros(model.dofs())
     )
 
+    # ================================
+    # Compute the total joint torques
+    # ================================
+
+    τ_total = js.actuation_model.compute_resultant_torques(
+        model, data, joint_force_references=τ_references
+    )
+
     # ======================
     # Compute contact forces
     # ======================
@@ -2041,7 +2049,7 @@ def step(
             model=model,
             data=data,
             link_forces=W_f_L_external,
-            joint_force_references=τ_references,
+            joint_force_references=τ_total,
         )
 
     # ==============================
@@ -2049,14 +2057,6 @@ def step(
     # ==============================
 
     W_f_L_total = W_f_L_external + W_f_L_terrain
-
-    # ================================
-    # Compute the total joint torques
-    # ================================
-
-    τ_total = js.actuation_model.compute_resultant_torques(
-        model, data, joint_force_references=joint_force_references
-    )
 
     # ===============================
     # Compute the system acceleration

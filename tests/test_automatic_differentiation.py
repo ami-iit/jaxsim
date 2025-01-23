@@ -338,6 +338,7 @@ def test_ad_integration(
             base_angular_velocity=W_v_WB[3:6],
             joint_velocities=ṡ,
         )
+        data.update_cached(model)
 
         data_xf = js.model.step(
             model=model,

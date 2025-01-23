@@ -19,11 +19,8 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             joint_force_references=joint_force_references,
         )
 
-        with data.switch_velocity_representation(
-            velocity_representation=jaxsim.VelRepr.Mixed
-        ):
-            B_H_W = Transform.inverse(data.base_transform).at[:3, :3].set(jnp.eye(3))
-            BW_X_W = Adjoint.from_transform(B_H_W)
+        B_H_W = Transform.inverse(data.base_transform()).at[:3, :3].set(jnp.eye(3))
+        BW_X_W = Adjoint.from_transform(B_H_W)
 
         new_generalized_acceleration = jnp.hstack([W_v̇_WB, s̈])
 

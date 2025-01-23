@@ -3,10 +3,11 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
-from jaxsim.math import Rotation, Transform
+from jaxsim.math import Rotation
 from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
 

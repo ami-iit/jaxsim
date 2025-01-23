@@ -19,7 +19,7 @@ def semi_implicit_euler_integration(model, data, link_forces, joint_force_refere
             joint_force_references=joint_force_references,
         )
 
-        B_H_W = Transform.inverse(data.base_transform()).at[:3, :3].set(jnp.eye(3))
+        B_H_W = Transform.inverse(data.base_transform).at[:3, :3].set(jnp.eye(3))
         BW_X_W = Adjoint.from_transform(B_H_W)
 
         new_generalized_acceleration = jnp.hstack([W_v̇_WB, s̈])

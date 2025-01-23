@@ -30,7 +30,7 @@ def test_box_with_external_forces(
     )
 
     # Compute the force due to gravity at the CoM.
-    mg = model.gravity * js.model.total_mass(model=model)
+    mg = -model.gravity * js.model.total_mass(model=model)
     G_f = jnp.array([0.0, 0.0, mg, 0, 0, 0])
 
     # Compute the position of the CoM expressed in the coordinates of the link frame L.

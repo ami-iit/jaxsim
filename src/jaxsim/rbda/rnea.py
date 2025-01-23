@@ -4,7 +4,7 @@ import jaxlie
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Cross, StandardGravity
+from jaxsim.math import STANDARD_GRAVITY, Adjoint, Cross
 
 from . import utils
 
@@ -22,7 +22,7 @@ def rnea(
     base_angular_acceleration: jtp.Vector | None = None,
     joint_accelerations: jtp.Vector | None = None,
     link_forces: jtp.Matrix | None = None,
-    standard_gravity: jtp.FloatLike = StandardGravity,
+    standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
 ) -> tuple[jtp.Vector, jtp.Vector]:
     """
     Compute inverse dynamics using the Recursive Newton-Euler Algorithm (RNEA).
@@ -88,12 +88,15 @@ def rnea(
     W_X_B = W_H_B.adjoint()
     B_X_W = W_H_B.inverse().adjoint()
 
-    # Compute the parent-to-child adjoints and the motion subspaces of the joints.
+    # Compute the parent-to-child adjoints of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
+    i_X_λi = model.kin_dyn_parameters.joint_transforms(
         joint_positions=s, base_transform=W_H_B.as_matrix()
     )
+
+    # Extract the joint motion subspaces.
+    S = model.kin_dyn_parameters.motion_subspaces
 
     # Allocate buffers.
     v = jnp.zeros(shape=(model.number_of_links(), 6, 1))

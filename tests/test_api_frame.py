@@ -237,6 +237,8 @@ def test_frame_jacobian_derivative(
         data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
         data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
+        data_ad = data_ad.update_cached(model=model)
+
         O_J_ad_WF_I = jax.vmap(
             lambda model, data, frame_index: js.frame.jacobian(
                 model=model, data=data, frame_index=frame_index
@@ -249,9 +251,9 @@ def test_frame_jacobian_derivative(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
         q = jnp.hstack(
             [
-                data.base_position(),
+                data.base_position,
                 data.base_orientation(),
-                data.joint_positions(),
+                data.joint_positions,
             ]
         )
 
@@ -271,7 +273,7 @@ def test_frame_jacobian_derivative(
             K=0.0,
         ).squeeze()
 
-        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities()])
+        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities])
 
         return q̇
 

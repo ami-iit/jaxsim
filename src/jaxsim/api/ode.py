@@ -5,10 +5,10 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim.api.data import JaxSimModelData
 from jaxsim.math import Quaternion, Skew
 
 from .common import VelRepr
-from .ode_data import ODEState
 
 # ==================================
 # Functions defining system dynamics
@@ -142,7 +142,7 @@ def system_acceleration(
     τ_references = (
         jnp.atleast_1d(joint_force_references.squeeze())
         if joint_force_references is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     ).astype(float)
 
     # ====================
@@ -163,13 +163,13 @@ def system_acceleration(
 
         # Compute the joint position limit violations.
         lower_violation = jnp.clip(
-            data.state.physics_model.joint_positions
+            data.joint_positions
             - model.kin_dyn_parameters.joint_parameters.position_limits_min,
             max=0.0,
         )
 
         upper_violation = jnp.clip(
-            data.state.physics_model.joint_positions
+            data.joint_positions
             - model.kin_dyn_parameters.joint_parameters.position_limits_max,
             min=0.0,
         )
@@ -178,9 +178,7 @@ def system_acceleration(
         τ_position_limit -= jnp.diag(k_j) @ (lower_violation + upper_violation)
 
         τ_position_limit -= (
-            jnp.positive(τ_position_limit)
-            * jnp.diag(d_j)
-            @ data.state.physics_model.joint_velocities
+            jnp.positive(τ_position_limit) * jnp.diag(d_j) @ data.joint_velocities
         )
 
     # ====================
@@ -201,8 +199,8 @@ def system_acceleration(
 
         # Compute the joint friction torque.
         τ_friction = -(
-            jnp.diag(kc) @ jnp.sign(data.state.physics_model.joint_velocities)
-            + jnp.diag(kv) @ data.state.physics_model.joint_velocities
+            jnp.diag(kc) @ jnp.sign(data.joint_velocities)
+            + jnp.diag(kv) @ data.joint_velocities
         )
 
     # ========================
@@ -264,10 +262,10 @@ def system_position_dynamics(
         Where :math:`S(\cdot)` is the skew-symmetric matrix operator.
     """
 
-    ṡ = data.joint_velocities(model=model)
+    ṡ = data.joint_velocities
     W_Q_B = data.base_orientation(dcm=False)
     W_ω_WB = data.base_velocity()[3:6]
-    W_ṗ_B = data.base_velocity()[0:3] + Skew.wedge(W_ω_WB) @ data.base_position()
+    W_ṗ_B = data.base_velocity()[0:3] + Skew.wedge(W_ω_WB) @ data.base_position
 
     W_Q̇_B = Quaternion.derivative(
         quaternion=W_Q_B,
@@ -288,7 +286,7 @@ def system_dynamics(
     link_forces: jtp.Vector | None = None,
     joint_force_references: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
-) -> ODEState:
+) -> JaxSimModelData:
     """
     Compute the dynamics of the system.
 
@@ -304,13 +302,12 @@ def system_dynamics(
             quaternion (only used in integrators not operating on the SO(3) manifold).
 
     Returns:
-        A tuple with an `ODEState` object storing in each of its attributes the
+        A tuple with an `JaxSimModelData` object storing in each of its attributes the
         corresponding derivative, and the dictionary of auxiliary data returned
         by the system dynamics evaluation.
     """
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
-        # Compute the accelerations and the material deformation rate.
         W_v̇_WB, s̈ = system_velocity_dynamics(
             model=model,
             data=data,
@@ -318,17 +315,13 @@ def system_dynamics(
             link_forces=link_forces,
         )
 
-        # Extract the velocities.
         W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
             model=model,
             data=data,
             baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
         )
 
-    # Create an ODEState object populated with the derivative of each leaf.
-    # Our integrators, operating on generic pytrees, will be able to handle it
-    # automatically as state derivative.
-    ode_state_derivative = ODEState.build_from_jaxsim_model(
+    ode_state_derivative = JaxSimModelData.build(
         model=model,
         base_position=W_ṗ_B,
         base_quaternion=W_Q̇_B,

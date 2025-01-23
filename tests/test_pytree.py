@@ -51,7 +51,7 @@ def test_call_jit_compiled_function_passing_different_objects(
         # Return random elements from model and data, just to have something returned.
         return (
             jnp.sum(model.kin_dyn_parameters.link_parameters.mass),
-            data.base_position(),
+            data.base_position,
         )
 
     data1 = js.data.JaxSimModelData.build(model=model1)

@@ -2033,9 +2033,8 @@ def step(
     # =============
 
     # Prepare the references to pass.
-    with references.switch_velocity_representation(jaxsim.api.common.VelRepr.Inertial):
-        f_L = references.link_forces(model=model, data=data)
-        τ_references = references.joint_force_references(model=model)
+    f_L = references._link_forces
+    τ_references = references._joint_force_references
 
     # Step the dynamics forward.
     data_tf = js.integrators.semi_implicit_euler_integration(

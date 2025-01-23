@@ -142,6 +142,7 @@ class JointModel:
         return self.suc_H_i[joint_index]
 
 
+@jax.jit
 def supported_joint_motion(
     joint_types: jtp.Array, joint_positions: jtp.Matrix, joint_axes: jtp.Matrix
 ) -> jtp.Matrix:

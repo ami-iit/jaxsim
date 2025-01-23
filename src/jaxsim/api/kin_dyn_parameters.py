@@ -227,8 +227,8 @@ class KinDynParameters(JaxsimDataclass):
 
             S = {
                 0: np.zeros(shape=(6, 1)),
-                1: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
-                2: np.vstack(np.hstack([np.zeros(3), axis.axis])),
+                1: np.vstack(np.hstack([np.zeros(3), axis.axis])),
+                2: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
             }
 
             return S[joint_type]

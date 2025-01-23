@@ -103,7 +103,7 @@ def test_model_creation_and_reduction(
     assert model_full.time_step == model_reduced.time_step
 
     joint_idxs = js.joint.names_to_idxs(
-        model=model_reduced, joint_names=model_reduced.joint_names()
+        model=model_full, joint_names=model_reduced.joint_names()
     )
 
     # Build the data of the reduced model.

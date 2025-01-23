@@ -314,7 +314,7 @@ class RelaxedRigidContacts(common.ContactModel):
                 model=model,
                 data=data,
                 link_forces=references.link_forces(model=model, data=data),
-                joint_force_references=references.joint_force_references(model=model),
+                joint_torques=references.joint_force_references(model=model),
             )
         )
 

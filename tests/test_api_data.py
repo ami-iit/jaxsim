@@ -47,9 +47,7 @@ def test_data_switch_velocity_representation(
                 data.base_linear_velocity = new_base_linear_velocity
             raise RuntimeError("This is raised on purpose inside this context")
 
-    assert data.base_linear_velocity == pytest.approx(
-        old_base_linear_velocity
-    )
+    assert data.base_linear_velocity == pytest.approx(old_base_linear_velocity)
 
     # The following instead should result to an updated `data` object.
     with (
@@ -58,9 +56,7 @@ def test_data_switch_velocity_representation(
     ):
         data.base_linear_velocity = new_base_linear_velocity
 
-    assert data.base_linear_velocity == pytest.approx(
-        new_base_linear_velocity
-    )
+    assert data.base_linear_velocity == pytest.approx(new_base_linear_velocity)
 
 
 def test_data_change_velocity_representation(

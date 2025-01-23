@@ -52,13 +52,13 @@ def system_velocity_dynamics(
 
     # We expect that the 6D forces included in the `link_forces` argument are expressed
     # in the frame corresponding to the velocity representation of `data`.
-    references = js.references.JaxSimModelReferences.build(
-        model=model,
-        link_forces=O_f_L,
-        joint_force_references=joint_force_references,
-        data=data,
-        velocity_representation=VelRepr.Inertial,
-    )
+    # references = js.references.JaxSimModelReferences.build(
+    #     model=model,
+    #     link_forces=O_f_L,
+    #     joint_force_references=joint_force_references,
+    #     data=data,
+    #     velocity_representation=VelRepr.Inertial,
+    # )
 
     # ======================
     # Compute contact forces
@@ -82,15 +82,15 @@ def system_velocity_dynamics(
     # Compute the total link forces.
 
     # Sum the contact forces just computed with the link forces applied by the user.
-    references = references.apply_link_forces(
-        model=model,
-        data=data,
-        forces=W_f_L_terrain,
-        additive=True,
-    )
+    # references = references.apply_link_forces(
+    #     model=model,
+    #     data=data,
+    #     forces=W_f_L_terrain,
+    #     additive=True,
+    # )
 
     # Get the link forces in inertial-fixed representation.
-    f_L_total = references.link_forces(model=model, data=data)
+    f_L_total = O_f_L + W_f_L_terrain  # references.link_forces(model=model, data=data)
 
     # Compute the system acceleration in inertial-fixed representation.
     # This representation is useful for integration purpose.

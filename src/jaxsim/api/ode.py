@@ -54,6 +54,8 @@ def system_velocity_dynamics(
     # Compute contact forces
     # ======================
 
+    W_f_L_terrain = jnp.zeros_like(O_f_L)
+
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact

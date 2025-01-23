@@ -178,9 +178,7 @@ def system_acceleration(
         τ_position_limit -= jnp.diag(k_j) @ (lower_violation + upper_violation)
 
         τ_position_limit -= (
-            jnp.positive(τ_position_limit)
-            * jnp.diag(d_j)
-            @ data.joint_velocities
+            jnp.positive(τ_position_limit) * jnp.diag(d_j) @ data.joint_velocities
         )
 
     # ====================

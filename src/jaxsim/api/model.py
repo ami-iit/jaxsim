@@ -1989,7 +1989,7 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    link_forces: jtp.MatrixLike | None = None,
+    link_forces_inertial: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
 ) -> js.data.JaxSimModelData:
     """
@@ -1999,7 +1999,7 @@ def step(
         model: The model to consider.
         data: The data of the considered model.
         dt: The time step to consider. If not specified, it is read from the model.
-        link_forces:
+        link_forces_inertial:
             The 6D forces to apply to the links expressed in inertial-representation.
         joint_force_references: The joint force references to consider.
 
@@ -2017,8 +2017,8 @@ def step(
 
     # Extract the inputs
     W_f_L_external = jnp.atleast_2d(
-        jnp.array(link_forces, dtype=float).squeeze()
-        if link_forces is not None
+        jnp.array(link_forces_inertial, dtype=float).squeeze()
+        if link_forces_inertial is not None
         else jnp.zeros((model.number_of_links(), 6))
     )
     τ_references = jnp.atleast_1d(

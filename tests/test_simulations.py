@@ -74,7 +74,7 @@ def test_box_with_external_forces(
         data = js.model.step(
             model=model,
             data=data,
-            link_forces=references.link_forces(model=model, data=data),
+            link_forces_inertial=references._link_forces,
         )
 
     # Check that the box didn't move.
@@ -148,7 +148,7 @@ def test_box_with_zero_gravity(
         data = js.model.step(
             model=model,
             data=data,
-            link_forces=references.link_forces(model=model, data=data),
+            link_forces_inertial=references.link_forces(model=model, data=data),
         )
 
     # Check that the box moved as expected.

@@ -24,7 +24,7 @@ def raise_if(
     # Disable host callback if running on unsupported hardware or if the user
     # explicitly disabled it.
     if jax.devices()[0].platform in {"tpu", "METAL"} or os.environ.get(
-        "JAXSIM_DISABLE_EXCEPTIONS", 0
+        "JAXSIM_DISABLE_EXCEPTIONS", 1
     ):
         return
 

@@ -69,13 +69,14 @@ def test_box_with_external_forces(
     data = data0.copy()
 
     # ... and step the simulation.
-    for _ in T_ns:
+    with references.switch_velocity_representation(VelRepr.Mixed):
+        for _ in T_ns:
 
-        data = js.model.step(
-            model=model,
-            data=data,
-            link_forces=references.link_forces(model=model, data=data),
-        )
+            data = js.model.step(
+                model=model,
+                data=data,
+                link_forces_mixed=references.link_forces(model=model, data=data),
+            )
 
     # Check that the box didn't move.
     assert data.base_position == pytest.approx(data0.base_position)
@@ -143,13 +144,14 @@ def test_box_with_zero_gravity(
     data = data0.copy()
 
     # ... and step the simulation.
-    for _ in T:
+    with references.switch_velocity_representation(jaxsim.VelRepr.Mixed):
+        for _ in T:
 
-        data = js.model.step(
-            model=model,
-            data=data,
-            link_forces=references.link_forces(model=model, data=data),
-        )
+            data = js.model.step(
+                model=model,
+                data=data,
+                link_forces_mixed=references.link_forces(model=model, data=data),
+            )
 
     # Check that the box moved as expected.
     assert data.base_position == pytest.approx(

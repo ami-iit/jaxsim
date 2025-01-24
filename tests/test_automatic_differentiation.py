@@ -297,7 +297,7 @@ def test_ad_integration(
 
     _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
-        model=model, velocity_representation=VelRepr.Inertial, key=subkey
+        model=model, velocity_representation=VelRepr.Mixed, key=subkey
     )
 
     # State in VelRepr.Inertial representation.
@@ -308,7 +308,7 @@ def test_ad_integration(
     ṡ = data.joint_velocities
 
     # Inputs.
-    W_f_L = references.link_forces(model=model)
+    LW_f_L = references.link_forces(model=model, data=data)
     τ = references.joint_force_references(model=model)
 
     # ====
@@ -323,7 +323,7 @@ def test_ad_integration(
         W_v_WB: jtp.Vector,
         ṡ: jtp.Vector,
         τ: jtp.Vector,
-        W_f_L: jtp.Matrix,
+        LW_f_L: jtp.Matrix,
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
 
         # When JAX tests against finite differences, the injected ε will make the
@@ -344,7 +344,7 @@ def test_ad_integration(
             model=model,
             data=data_x0,
             joint_force_references=τ,
-            link_forces=W_f_L,
+            link_forces_mixed=LW_f_L,
         )
 
         xf_W_p_B = data_xf.base_position
@@ -360,7 +360,7 @@ def test_ad_integration(
     # current implementation of `optax` optimizers in the relaxed rigid contact model.
     check_grads(
         f=step,
-        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, LW_f_L),
         order=AD_ORDER,
         modes=["fwd"],
         eps=ε,

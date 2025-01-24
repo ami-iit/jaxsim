@@ -33,8 +33,8 @@ class JaxSimModel(JaxsimDataclass):
 
     model_name: Static[str]
 
-    time_step: jtp.FloatLike = dataclasses.field(
-        default_factory=lambda: jnp.array(0.001, dtype=float),
+    time_step: float = dataclasses.field(
+        default=0.001,
     )
 
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
@@ -222,7 +222,7 @@ class JaxSimModel(JaxsimDataclass):
         time_step = (
             time_step
             if time_step is not None
-            else JaxSimModel.__dataclass_fields__["time_step"].default_factory()
+            else JaxSimModel.__dataclass_fields__["time_step"].default
         )
 
         # Create the default contact model.

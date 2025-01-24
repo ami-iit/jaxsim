@@ -1,4 +1,7 @@
 import os
+
+os.environ["JAXSIM_ENABLE_EXCEPTIONS"] = "1"
+
 import pathlib
 import subprocess
 

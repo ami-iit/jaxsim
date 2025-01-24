@@ -61,9 +61,9 @@ The logging and exceptions configurations is controlled by the following environ
 
   *Default:* ``DEBUG`` for development, ``WARNING`` for production.
 
-- ``JAXSIM_DISABLE_EXCEPTIONS``: Disables the runtime checks and exceptions.
+- ``JAXSIM_DISABLE_EXCEPTIONS``: Disables the runtime checks and exceptions. Note that enabling exceptions might lead to device-to-host transfer of data, increasing the computational time required.
 
-  *Default:* ``False``.
+  *Default:* ``True``.
 
 .. note::
     Runtime exceptions are disabled by default on TPU.

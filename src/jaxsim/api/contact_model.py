@@ -15,7 +15,6 @@ def link_contact_forces(
     *,
     link_forces: jtp.MatrixLike | None = None,
     joint_torques: jtp.VectorLike | None = None,
-    **kwargs,
 ) -> jtp.Matrix:
     """
     Compute the 6D contact forces of all links of the model in inertial representation.
@@ -26,8 +25,7 @@ def link_contact_forces(
         link_forces:
             The 6D external forces to apply to the links expressed in inertial representation
         joint_torques:
-            The joint torques applied to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model..
+            The joint torques acting on the joints.
 
     Returns:
         A `(nL, 6)` array containing the stacked 6D contact forces of the links,

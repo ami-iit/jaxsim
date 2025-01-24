@@ -14,7 +14,7 @@ def link_contact_forces(
     data: js.data.JaxSimModelData,
     *,
     link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
+    joint_torques: jtp.VectorLike | None = None,
     **kwargs,
 ) -> jtp.Matrix:
     """
@@ -25,8 +25,8 @@ def link_contact_forces(
         data: The data of the considered model.
         link_forces:
             The 6D external forces to apply to the links expressed in inertial representation
-        joint_force_references:
-            The joint force references to apply to the joints.
+        joint_torques:
+            The joint torques applied to the joints.
         kwargs: Additional keyword arguments to pass to the active contact model..
 
     Returns:
@@ -39,7 +39,7 @@ def link_contact_forces(
         model=model,
         data=data,
         link_forces=link_forces,
-        joint_force_references=joint_force_references,
+        joint_force_references=joint_torques,
     )
 
     # Compute the 6D forces applied to the links equivalent to the forces applied

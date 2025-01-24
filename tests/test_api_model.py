@@ -81,7 +81,7 @@ def test_model_creation_and_reduction(
         locked_joint_positions=dict(
             zip(
                 model_full.joint_names(),
-                data_full.joint_positions,
+                data_full.joint_positions.tolist(),
                 strict=True,
             )
         ),

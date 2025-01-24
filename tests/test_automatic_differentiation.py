@@ -344,7 +344,7 @@ def test_ad_integration(
             model=model,
             data=data_x0,
             joint_force_references=τ,
-            link_forces=W_f_L,
+            link_forces_inertial=W_f_L,
         )
 
         xf_W_p_B = data_xf.base_position

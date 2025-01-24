@@ -55,10 +55,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     base_position: jtp.Vector
 
     # Cached computations.
-    base_transform: jtp.Matrix = dataclasses.field(repr=False, default=None)
-    joint_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
-    link_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
-    link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _base_transform: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _joint_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _link_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
 
     @staticmethod
     def build(
@@ -173,10 +173,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity=v_WB[3:6],
             joint_velocities=joint_velocities,
             velocity_representation=velocity_representation,
-            base_transform=W_H_B,
-            joint_transforms=joint_transforms,
-            link_transforms=link_transforms,
-            link_velocities=link_velocities,
+            _base_transform=W_H_B,
+            _joint_transforms=joint_transforms,
+            _link_transforms=link_transforms,
+            _link_velocities=link_velocities,
         )
 
         if not model_data.valid(model=model):
@@ -208,6 +208,34 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     # ==================
     # Extract quantities
     # ==================
+
+    @property
+    def base_transform(self) -> jtp.Matrix:
+        """
+        Get the base transform.
+        """
+        return self._base_transform
+
+    @property
+    def joint_transforms(self) -> jtp.Matrix:
+        """
+        Get the joint transforms.
+        """
+        return self._joint_transforms
+
+    @property
+    def link_transforms(self) -> jtp.Matrix:
+        """
+        Get the link transforms.
+        """
+        return self._link_transforms
+
+    @property
+    def link_velocities(self) -> jtp.Matrix:
+        """
+        Get the link velocities.
+        """
+        return self._link_velocities
 
     @js.common.named_scope
     @functools.partial(jax.jit, static_argnames=["dcm"])
@@ -254,7 +282,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             ]
         )
 
-        W_H_B = self.base_transform
+        W_H_B = self._base_transform
 
         return (
             JaxSimModelData.inertial_to_other_representation(
@@ -278,7 +306,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             A tuple containing the base transform and the joint positions.
         """
 
-        return self.base_transform, self.joint_positions
+        return self._base_transform, self.joint_positions
 
     @js.common.named_scope
     @jax.jit
@@ -540,7 +568,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_v_WB = self.other_representation_to_inertial(
             array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
             other_representation=velocity_representation,
-            transform=self.base_transform,
+            transform=self._base_transform,
             is_force=False,
         )
 
@@ -594,7 +622,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         joint_transforms = model.kin_dyn_parameters.joint_transforms(
-            joint_positions=self.joint_positions, base_transform=self.base_transform
+            joint_positions=self.joint_positions, base_transform=self._base_transform
         )
 
         link_transforms, link_velocities = jaxsim.rbda.forward_kinematics_model(
@@ -608,10 +636,10 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         return self.replace(
-            base_transform=base_transform,
-            joint_transforms=joint_transforms,
-            link_transforms=link_transforms,
-            link_velocities=link_velocities,
+            _base_transform=base_transform,
+            _joint_transforms=joint_transforms,
+            _link_transforms=link_transforms,
+            _link_velocities=link_velocities,
         )
 
 

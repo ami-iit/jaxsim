@@ -2049,7 +2049,7 @@ def step(
             model=model,
             data=data,
             link_forces=W_f_L_external,
-            joint_force_references=τ_total,
+            joint_torques=τ_total,
         )
 
     # ==============================

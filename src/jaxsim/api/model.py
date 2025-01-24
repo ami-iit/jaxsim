@@ -1989,7 +1989,7 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    link_forces_inertial: jtp.MatrixLike | None = None,
+    link_forces_mixed: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
 ) -> js.data.JaxSimModelData:
     """
@@ -1999,8 +1999,9 @@ def step(
         model: The model to consider.
         data: The data of the considered model.
         dt: The time step to consider. If not specified, it is read from the model.
-        link_forces_inertial:
-            The 6D forces to apply to the links expressed in inertial-representation.
+        link_forces_mixed:
+            The 6D forces to apply to the links expressed in mixed-representation
+            (i.e. each wrench is expressed in the frame with origin in the link frame and orientation of the world frame),
         joint_force_references: The joint force references to consider.
 
     Returns:
@@ -2016,9 +2017,9 @@ def step(
     # the enabled collidable points
 
     # Extract the inputs
-    W_f_L_external = jnp.atleast_2d(
-        jnp.array(link_forces_inertial, dtype=float).squeeze()
-        if link_forces_inertial is not None
+    LW_f_L_external = jnp.atleast_2d(
+        jnp.array(link_forces_mixed, dtype=float).squeeze()
+        if link_forces_mixed is not None
         else jnp.zeros((model.number_of_links(), 6))
     )
     τ_references = jnp.atleast_1d(
@@ -2039,7 +2040,7 @@ def step(
     # Compute contact forces
     # ======================
 
-    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
+    W_f_L_terrain = jnp.zeros_like(LW_f_L_external)
 
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
@@ -2048,13 +2049,23 @@ def step(
         W_f_L_terrain = js.contact_model.link_contact_forces(
             model=model,
             data=data,
-            link_forces=W_f_L_external,
+            link_forces=LW_f_L_external,
             joint_force_references=τ_total,
         )
 
     # ==============================
     # Compute the total link forces
     # ==============================
+
+    # Convert the external link forces from mixed to inertial representation.
+    W_f_L_external = jax.vmap(
+        lambda LW_f_L, W_H_L: js.common.ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+            LW_f_L,
+            other_representation=VelRepr.Mixed,
+            transform=W_H_L,
+            is_force=True,
+        )
+    )(LW_f_L_external, data.link_transforms)
 
     W_f_L_total = W_f_L_external + W_f_L_terrain
 

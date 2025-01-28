@@ -263,7 +263,7 @@ class RigidContacts(ContactModel):
 
         # Compute kin-dyn quantities used in the contact model.
         with data.switch_velocity_representation(VelRepr.Mixed):
-            BW_ν = data.generalized_velocity()
+            BW_ν = data.generalized_velocity
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
@@ -294,19 +294,13 @@ class RigidContacts(ContactModel):
         )
 
         # Compute the generalized free acceleration.
-        with (
-            references.switch_velocity_representation(VelRepr.Mixed),
-            data.switch_velocity_representation(VelRepr.Mixed),
-        ):
-
+        with data.switch_velocity_representation(VelRepr.Mixed):
             BW_ν̇_free = jnp.hstack(
                 js.ode.system_acceleration(
                     model=model,
                     data=data,
                     link_forces=references.link_forces(model=model, data=data),
-                    joint_force_references=references.joint_force_references(
-                        model=model
-                    ),
+                    joint_torques=references.joint_force_references(model=model),
                 )
             )
 
@@ -325,8 +319,8 @@ class RigidContacts(ContactModel):
             δ=δ,
             δ_dot=δ_dot,
             n=n̂,
-            K=data.contacts_params.K,
-            D=data.contacts_params.D,
+            K=model.contact_params.K,
+            D=model.contact_params.D,
         ).flatten()
 
         # Compute the Delassus matrix.
@@ -342,7 +336,7 @@ class RigidContacts(ContactModel):
 
         # Construct the inequality constraints.
         G = RigidContacts._compute_ineq_constraint_matrix(
-            inactive_collidable_points=(δ <= 0), mu=data.contacts_params.mu
+            inactive_collidable_points=(δ <= 0), mu=model.contact_params.mu
         )
         h_bounds = RigidContacts._compute_ineq_bounds(
             n_collidable_points=n_collidable_points

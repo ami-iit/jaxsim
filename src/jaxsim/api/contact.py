@@ -37,14 +37,11 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
-    with data.switch_velocity_representation(VelRepr.Inertial):
-
-        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
-            model=model,
-            link_transforms=data._link_transforms,
-            link_velocities=data._link_velocities,
-        )
+    W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+        model=model,
+        link_transforms=data._link_transforms,
+        link_velocities=data._link_velocities,
+    )
 
     return W_p_Ci, W_ṗ_Ci
 
@@ -164,7 +161,11 @@ def estimate_good_soft_contacts_parameters(
 def estimate_good_contact_parameters(
     model: js.model.JaxSimModel,
     *,
+    standard_gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     static_friction_coefficient: jtp.FloatLike = 0.5,
+    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+    damping_ratio: jtp.FloatLike = 1.0,
+    max_penetration: jtp.FloatLike | None = None,
     **kwargs,
 ) -> jaxsim.rbda.contacts.ContactParamsTypes:
     """
@@ -172,7 +173,12 @@ def estimate_good_contact_parameters(
 
     Args:
         model: The model to consider.
+        standard_gravity: The standard gravity acceleration.
         static_friction_coefficient: The static friction coefficient.
+        number_of_active_collidable_points_steady_state:
+            The number of active collidable points in steady state.
+        damping_ratio: The damping ratio.
+        max_penetration: The maximum penetration allowed.
         kwargs:
             Additional model-specific parameters passed to the builder method of
             the parameters class.
@@ -190,7 +196,80 @@ def estimate_good_contact_parameters(
         specific application.
     """
 
+    def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
+        """
+        Displacement between the CoM and the lowest collidable point using zero
+        joint positions.
+        """
+
+        zero_data = js.data.JaxSimModelData.build(
+            model=model,
+        )
+
+        W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
+
+        if model.floating_base():
+            W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
+            return 2 * (W_pz_CoM - W_pz_C.min())
+
+        return 2 * W_pz_CoM
+
+    max_δ = (
+        max_penetration
+        if max_penetration is not None
+        # Consider as default a 0.5% of the model height.
+        else 0.005 * estimate_model_height(model=model)
+    )
+
+    nc = number_of_active_collidable_points_steady_state
+
     match model.contact_model:
+
+        case contacts.SoftContacts():
+            assert isinstance(model.contact_model, contacts.SoftContacts)
+
+            parameters = contacts.SoftContactsParams.build_default_from_jaxsim_model(
+                model=model,
+                standard_gravity=standard_gravity,
+                static_friction_coefficient=static_friction_coefficient,
+                max_penetration=max_δ,
+                number_of_active_collidable_points_steady_state=nc,
+                damping_ratio=damping_ratio,
+                **kwargs,
+            )
+
+        case contacts.ViscoElasticContacts():
+            assert isinstance(model.contact_model, contacts.ViscoElasticContacts)
+
+            parameters = (
+                contacts.ViscoElasticContactsParams.build_default_from_jaxsim_model(
+                    model=model,
+                    standard_gravity=standard_gravity,
+                    static_friction_coefficient=static_friction_coefficient,
+                    max_penetration=max_δ,
+                    number_of_active_collidable_points_steady_state=nc,
+                    damping_ratio=damping_ratio,
+                    **kwargs,
+                )
+            )
+
+        case contacts.RigidContacts():
+            assert isinstance(model.contact_model, contacts.RigidContacts)
+
+            # Disable Baumgarte stabilization by default since it does not play
+            # well with the forward Euler integrator.
+            K = kwargs.get("K", 0.0)
+
+            parameters = contacts.RigidContactsParams.build(
+                mu=static_friction_coefficient,
+                **(
+                    dict(
+                        K=K,
+                        D=2 * jnp.sqrt(K),
+                    )
+                    | kwargs
+                ),
+            )
 
         case contacts.RelaxedRigidContacts():
             assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)

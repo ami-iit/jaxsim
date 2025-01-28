@@ -62,7 +62,10 @@ def system_velocity_dynamics(
         link_forces=W_f_L,
     )
 
-    return W_v̇_WB, s̈
+    return (
+        W_v̇_WB,
+        s̈,
+    )
 
 
 def system_acceleration(

@@ -307,38 +307,42 @@ class RelaxedRigidContacts(common.ContactModel):
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
 
-        BW_ν = data.generalized_velocity()
+        with (
+            data.switch_velocity_representation(VelRepr.Mixed),
+            references.switch_velocity_representation(VelRepr.Mixed),
+        ):
+            BW_ν = data.generalized_velocity()
 
-        BW_ν̇_free = jnp.hstack(
-            js.ode.system_acceleration(
+            BW_ν̇_free = jnp.hstack(
+                js.ode.system_acceleration(
+                    model=model,
+                    data=data,
+                    link_forces=references.link_forces(model=model, data=data),
+                    joint_torques=references.joint_force_references(model=model),
+                )
+            )
+
+            M = js.model.free_floating_mass_matrix(model=model, data=data)
+
+            Jl_WC = jnp.vstack(
+                jax.vmap(lambda J, δ: J * (δ > 0))(
+                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
+                )
+            )
+
+            J̇_WC = jnp.vstack(
+                jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
+                    js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
+                ),
+            )
+
+            # Compute the regularization terms.
+            a_ref, R, *_ = self._regularizers(
                 model=model,
-                data=data,
-                link_forces=references.link_forces(model=model, data=data),
-                joint_torques=references.joint_force_references(model=model),
+                position_constraint=position_constraint,
+                velocity_constraint=velocity,
+                parameters=model.contacts_params,
             )
-        )
-
-        M = js.model.free_floating_mass_matrix(model=model, data=data)
-
-        Jl_WC = jnp.vstack(
-            jax.vmap(lambda J, δ: J * (δ > 0))(
-                js.contact.jacobian(model=model, data=data)[:, :3, :], δ
-            )
-        )
-
-        J̇_WC = jnp.vstack(
-            jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
-                js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
-            ),
-        )
-
-        # Compute the regularization terms.
-        a_ref, R, *_ = self._regularizers(
-            model=model,
-            position_constraint=position_constraint,
-            velocity_constraint=velocity,
-            parameters=model.contacts_params,
-        )
 
         # Compute the Delassus matrix and the free mixed linear acceleration of
         # the collidable points.

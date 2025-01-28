@@ -779,6 +779,7 @@ def random_model_data(
         jaxsim.math.StandardGravity,
         jaxsim.math.StandardGravity,
     ),
+    contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
 ) -> JaxSimModelData:
     """
     Randomly generate a `JaxSimModelData` object.
@@ -886,4 +887,4 @@ def random_model_data(
             )
         )
 
-    return random_data
+    return random_data.replace(contacts_params=contacts_params)

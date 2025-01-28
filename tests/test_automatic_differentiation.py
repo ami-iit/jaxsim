@@ -298,6 +298,9 @@ def test_ad_soft_contacts(
 
     model = jaxsim_models_types
 
+    with model.editable(validate=False) as model:
+        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build(model=model)
+
     _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
     p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
     v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
@@ -379,10 +382,9 @@ def test_ad_integration(
         s: jtp.Vector,
         W_v_WB: jtp.Vector,
         ṡ: jtp.Vector,
-        m: jtp.Vector,
         τ: jtp.Vector,
         W_f_L: jtp.Matrix,
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
 
         # When JAX tests against finite differences, the injected ε will make the
         # quaternion non-unitary, which will cause the AD check to fail.
@@ -396,7 +398,6 @@ def test_ad_integration(
             base_linear_velocity=W_v_WB[0:3],
             base_angular_velocity=W_v_WB[3:6],
             joint_velocities=ṡ,
-            extended_state={"tangential_deformation": m},
         )
 
         data_xf = js.model.step(
@@ -411,9 +412,8 @@ def test_ad_integration(
         xf_s = data_xf.joint_positions
         xf_W_v_WB = data_xf.base_velocity
         xf_ṡ = data_xf.joint_velocities
-        xf_m = data_xf.extended_state["tangential_deformation"]
 
-        return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ, xf_m
+        return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ
 
     # Check derivatives against finite differences.
     # We set forward mode only because the backward mode is not supported by the

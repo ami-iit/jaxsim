@@ -14,7 +14,7 @@ import jaxsim.exceptions
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.api.common import ModelDataWithVelocityRepresentation
-from jaxsim.math import StandardGravity
+from jaxsim.math import STANDARD_GRAVITY
 from jaxsim.terrain import Terrain
 
 from . import common
@@ -90,7 +90,7 @@ class ViscoElasticContactsParams(common.ContactsParams):
         cls: type[Self],
         model: js.model.JaxSimModel,
         *,
-        standard_gravity: jtp.FloatLike = StandardGravity,
+        standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
         static_friction_coefficient: jtp.FloatLike = 0.5,
         max_penetration: jtp.FloatLike = 0.001,
         number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
@@ -375,7 +375,7 @@ class ViscoElasticContacts(common.ContactModel):
         # ==================================
 
         p_t0, v_t0 = js.contact.collidable_point_kinematics(model, data)
-        m_t0 = data.state.extended["tangential_deformation"][indices, :]
+        m_t0 = data.contact_state["tangential_deformation"][indices, :]
 
         p_t0 = p_t0[indices, :]
         v_t0 = v_t0[indices, :]
@@ -525,7 +525,7 @@ class ViscoElasticContacts(common.ContactModel):
         m_t0 = jnp.atleast_2d(
             m_t0
             if m_t0 is not None
-            else data.state.extended["tangential_deformation"][
+            else data.contact_state["tangential_deformation"][
                 indices_of_enabled_collidable_points, :
             ]
         )
@@ -551,7 +551,7 @@ class ViscoElasticContacts(common.ContactModel):
                 position=p,
                 velocity=v,
                 tangential_deformation=m,
-                parameters=data.contacts_params,
+                parameters=model.contact_params,
                 terrain=model.terrain,
             )
         )(p_t0, v_t0, m_t0)
@@ -599,12 +599,11 @@ class ViscoElasticContacts(common.ContactModel):
             CW_Jl_WC = js.contact.jacobian(
                 model=model,
                 data=data,
-                output_vel_repr=jaxsim.VelRepr.Mixed,
             )[indices_of_enabled_collidable_points, 0:3, :]
 
-            CW_J̇l_WC = js.contact.jacobian_derivative(
-                model=model, data=data, output_vel_repr=jaxsim.VelRepr.Mixed
-            )[indices_of_enabled_collidable_points, 0:3, :]
+            CW_J̇l_WC = js.contact.jacobian_derivative(model=model, data=data)[
+                indices_of_enabled_collidable_points, 0:3, :
+            ]
 
         # Compute the Delassus matrix.
         ψ = jnp.vstack(CW_Jl_WC) @ jnp.linalg.lstsq(M, jnp.vstack(CW_Jl_WC).T)[0]
@@ -627,17 +626,12 @@ class ViscoElasticContacts(common.ContactModel):
         J̇ = jnp.vstack(CW_J̇l_WC)
 
         # Compute the free system acceleration components.
-        with (
-            data.switch_velocity_representation(jaxsim.VelRepr.Mixed),
-            references.switch_velocity_representation(jaxsim.VelRepr.Mixed),
-        ):
-
-            BW_v̇_free_WB, s̈_free = js.ode.system_acceleration(
-                model=model,
-                data=data,
-                link_forces=references.link_forces(model=model, data=data),
-                joint_force_references=references.joint_force_references(model=model),
-            )
+        BW_v̇_free_WB, s̈_free = js.ode.system_acceleration(
+            model=model,
+            data=data,
+            link_forces=references.link_forces(model=model, data=data),
+            joint_torques=references.joint_force_references(model=model),
+        )
 
         # Pack the free system acceleration in mixed representation.
         ν̇_free = jnp.hstack([BW_v̇_free_WB, s̈_free])
@@ -802,8 +796,8 @@ class ViscoElasticContacts(common.ContactModel):
         dt: jtp.FloatLike,
         link_forces: jtp.MatrixLike | None = None,
         joint_force_references: jtp.VectorLike | None = None,
-        average_link_contact_forces_inertial: jtp.MatrixLike | None = None,
-        average_of_average_link_contact_forces_mixed: jtp.MatrixLike | None = None,
+        average_link_contact_forces: jtp.MatrixLike | None = None,
+        average_of_average_link_contact_forces: jtp.MatrixLike | None = None,
     ) -> js.data.JaxSimModelData:
         """
         Advance the system state by integrating the dynamics.
@@ -816,22 +810,21 @@ class ViscoElasticContacts(common.ContactModel):
                 The 6D forces to apply to the links expressed in the frame corresponding
                 to the velocity representation of `data`.
             joint_force_references: The joint force references to apply.
-            average_link_contact_forces_inertial:
-                The average contact forces computed with the exponential integrator and
-                expressed in the inertial-fixed frame.
-            average_of_average_link_contact_forces_mixed:
+            average_link_contact_forces:
+                The average contact forces computed with the exponential integrator.
+            average_of_average_link_contact_forces:
                 The average of the average contact forces computed with the exponential
-                integrator and expressed in the mixed frame.
+                integrator.
 
         Returns:
             The data object storing the system state at the final time.
         """
 
-        s_t0 = data.joint_positions()
-        W_p_B_t0 = data.base_position()
-        W_Q_B_t0 = data.base_orientation(dcm=False)
+        s_t0 = data.joint_positions
+        W_p_B_t0 = data.base_position
+        W_Q_B_t0 = data.base_quaternion
 
-        ṡ_t0 = data.joint_velocities()
+        ṡ_t0 = data.joint_velocities
         with data.switch_velocity_representation(jaxsim.VelRepr.Mixed):
             W_ṗ_B_t0 = data.base_velocity()[0:3]
             W_ω_WB_t0 = data.base_velocity()[3:6]
@@ -850,53 +843,39 @@ class ViscoElasticContacts(common.ContactModel):
         )
 
         W_f̅_L = (
-            jnp.array(average_link_contact_forces_inertial)
-            if average_link_contact_forces_inertial is not None
+            jnp.array(average_link_contact_forces)
+            if average_link_contact_forces is not None
             else jnp.zeros_like(references._link_forces)
         ).astype(float)
 
         LW_f̿_L = (
-            jnp.array(average_of_average_link_contact_forces_mixed)
-            if average_of_average_link_contact_forces_mixed is not None
+            jnp.array(average_of_average_link_contact_forces)
+            if average_of_average_link_contact_forces is not None
             else W_f̅_L
         ).astype(float)
 
         # Compute the system inertial acceleration, used to integrate the system velocity.
         # It considers the average contact forces computed with the exponential integrator.
-        with (
-            data.switch_velocity_representation(jaxsim.VelRepr.Inertial),
-            references.switch_velocity_representation(jaxsim.VelRepr.Inertial),
-        ):
-
-            W_ν̇_pr = jnp.hstack(
-                js.ode.system_acceleration(
-                    model=model,
-                    data=data,
-                    joint_force_references=references.joint_force_references(
-                        model=model
-                    ),
-                    link_forces=W_f̅_L + references.link_forces(model=model, data=data),
-                )
+        W_ν̇_pr = jnp.hstack(
+            js.ode.system_acceleration(
+                model=model,
+                data=data,
+                joint_torques=references.joint_force_references(model=model),
+                link_forces=W_f̅_L + references.link_forces(model=model, data=data),
             )
+        )
 
         # Compute the system mixed acceleration, used to integrate the system position.
         # It considers the average of the average contact forces computed with the
         # exponential integrator.
-        with (
-            data.switch_velocity_representation(jaxsim.VelRepr.Mixed),
-            references.switch_velocity_representation(jaxsim.VelRepr.Mixed),
-        ):
-
-            BW_ν̇_pr2 = jnp.hstack(
-                js.ode.system_acceleration(
-                    model=model,
-                    data=data,
-                    joint_force_references=references.joint_force_references(
-                        model=model
-                    ),
-                    link_forces=LW_f̿_L + references.link_forces(model=model, data=data),
-                )
+        BW_ν̇_pr2 = jnp.hstack(
+            js.ode.system_acceleration(
+                model=model,
+                data=data,
+                joint_torques=references.joint_force_references(model=model),
+                link_forces=LW_f̿_L + references.link_forces(model=model, data=data),
             )
+        )
 
         # Integrate the system velocity using the inertial-fixed acceleration.
         W_ν_plus = W_ν_t0 + dt * W_ν̇_pr
@@ -917,14 +896,15 @@ class ViscoElasticContacts(common.ContactModel):
         )
 
         # Create the data at the final time.
-        data_tf = data.copy()
-        data_tf = data_tf.reset_joint_positions(q_plus[7:])
+        data_tf = data.reset_joint_positions(q_plus[7:])
         data_tf = data_tf.reset_base_position(q_plus[0:3])
         data_tf = data_tf.reset_base_quaternion(q_plus[3:7])
         data_tf = data_tf.reset_joint_velocities(W_ν_plus[6:])
         data_tf = data_tf.reset_base_velocity(
             W_ν_plus[0:6], velocity_representation=jaxsim.VelRepr.Inertial
         )
+
+        data_tf = data_tf.update_cached(model=model)
 
         return data_tf.replace(
             velocity_representation=data.velocity_representation, validate=False
@@ -958,13 +938,7 @@ def step(
     """
 
     assert isinstance(model.contact_model, ViscoElasticContacts)
-    assert isinstance(data.contacts_params, ViscoElasticContactsParams)
-
-    # Compute the contact forces in inertial-fixed representation.
-    # TODO: understand what's wrong in other representations.
-    data_inertial_fixed = data.replace(
-        velocity_representation=jaxsim.VelRepr.Inertial, validate=False
-    )
+    assert isinstance(model.contact_params, ViscoElasticContactsParams)
 
     # Create the references object.
     references = js.references.JaxSimModelReferences.build(
@@ -981,7 +955,7 @@ def step(
     # Compute the contact forces with the exponential integrator.
     W_f̅_C, aux_data = model.contact_model.compute_contact_forces(
         model=model,
-        data=data_inertial_fixed,
+        data=data,
         dt=jnp.array(dt).astype(float),
         link_forces=references.link_forces(model=model, data=data),
         joint_force_references=references.joint_force_references(model=model),
@@ -999,17 +973,13 @@ def step(
     # Get the link contact forces by summing the forces of contact points belonging
     # to the same link.
     W_f̅_L, W_f̿_L = jax.vmap(
-        lambda W_f_C: model.contact_model.link_forces_from_contact_forces(
-            model=model, data=data_inertial_fixed, contact_forces=W_f_C
+        lambda W_f_C: js.contact_model.link_forces_from_contact_forces(
+            model=model, data=data, contact_forces=W_f_C
         )
     )(jnp.stack([W_f̅_C, W_f̿_C]))
 
     # Compute the link transforms.
-    W_H_L = (
-        js.model.forward_kinematics(model=model, data=data)
-        if data.velocity_representation is not jaxsim.VelRepr.Inertial
-        else jnp.zeros(shape=(model.number_of_links(), 4, 4))
-    )
+    W_H_L = data.link_transforms
 
     # For integration purpose, we need the average of average forces expressed in
     # mixed representation.
@@ -1032,12 +1002,12 @@ def step(
     data_tf: js.data.JaxSimModelData = (
         model.contact_model.integrate_data_with_average_contact_forces(
             model=model,
-            data=data_inertial_fixed,
+            data=data,
             dt=dt,
             link_forces=references.link_forces(model=model, data=data),
             joint_force_references=references.joint_force_references(model=model),
-            average_link_contact_forces_inertial=W_f̅_L,
-            average_of_average_link_contact_forces_mixed=LW_f̿_L,
+            average_link_contact_forces=W_f̅_L,
+            average_of_average_link_contact_forces=LW_f̿_L,
         )
     )
 
@@ -1052,15 +1022,10 @@ def step(
             model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
         )
 
-        data_tf.state.extended |= {
-            "tangential_deformation": data_tf.state.extended["tangential_deformation"]
+        data_tf.contact_state |= {
+            "tangential_deformation": data_tf.contact_state["tangential_deformation"]
             .at[indices_of_enabled_collidable_points]
             .set(m_tf)
         }
 
-    # Restore the original velocity representation.
-    data_tf = data_tf.replace(
-        velocity_representation=data.velocity_representation, validate=False
-    )
-
-    return data_tf, {}
+    return data_tf

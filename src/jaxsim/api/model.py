@@ -47,13 +47,13 @@ class JaxSimModel(JaxsimDataclass):
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
-    gravity: Static[float] = jaxsim.math.STANDARD_GRAVITY
+    gravity: Static[float] = -jaxsim.math.STANDARD_GRAVITY
 
     contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
         default=None, repr=False
     )
 
-    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
+    contact_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -122,6 +122,7 @@ class JaxSimModel(JaxsimDataclass):
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         integrator: IntegratorType | None = None,
+        gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
@@ -144,6 +145,7 @@ class JaxSimModel(JaxsimDataclass):
                 If not specified, a soft contacts model is used.
             contact_params: The parameters of the contact model.
             integrator: The integrator to use for the simulation.
+            gravity: The gravity constant.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -177,7 +179,7 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            contacts_params=contact_params,
+            contact_params=contact_params,
             integrator=integrator,
             gravity=gravity,
         )
@@ -197,7 +199,7 @@ class JaxSimModel(JaxsimDataclass):
         time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
-        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
@@ -217,8 +219,8 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model overriding the physics model name.
             contact_model:
                 The contact model to consider.
-                If not specified, a soft contacts model is used.
-            contacts_params: The parameters of the soft contacts.
+                If not specified, a relaxed-constraints rigid contacts model is used.
+            contact_params: The parameters of the contact model.
             integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
 
@@ -252,8 +254,8 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
-        if contacts_params is None:
-            contacts_params = contact_model._parameters_class()
+        if contact_params is None:
+            contact_params = contact_model._parameters_class()
 
         # Consider the default integrator if not specified.
         integrator = (
@@ -271,7 +273,7 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            contacts_params=contacts_params,
+            contact_params=contact_params,
             integrator=integrator,
             gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we
@@ -473,7 +475,7 @@ def reduce(
         time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
-        contacts_params=model.contacts_params,
+        contact_params=model.contact_params,
         gravity=model.gravity,
         integrator=model.integrator,
     )
@@ -2100,7 +2102,7 @@ def step(
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
         # with the terrain.
-        W_f_L_terrain = js.contact_model.link_contact_forces(
+        W_f_L_terrain, aux_dict = js.contact_model.link_contact_forces(
             model=model,
             data=data,
             link_forces=W_f_L_external,
@@ -2122,7 +2124,58 @@ def step(
     integrator_fn = _INTEGRATORS_MAP[model.integrator]
 
     data_tf = integrator_fn(
-        model=model, data=data, link_forces=W_f_L_total, joint_torques=τ_total
+        model=model,
+        data=data,
+        link_forces=W_f_L_total,
+        joint_torques=τ_total,
+        extended_contact_state=aux_dict,
+    )
+
+    if isinstance(model.contact_model, jaxsim.rbda.contacts.RigidContacts):
+        # Extract the indices corresponding to the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
+
+        W_p_C = js.contact.collidable_point_positions(model, data_tf)[
+            indices_of_enabled_collidable_points
+        ]
+
+        # Compute the penetration depth of the collidable points.
+        δ, *_ = jax.vmap(
+            jaxsim.rbda.contacts.common.compute_penetration_data,
+            in_axes=(0, 0, None),
+        )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
+
+        with data_tf.switch_velocity_representation(VelRepr.Mixed):
+            J_WC = js.contact.jacobian(model, data_tf)[
+                indices_of_enabled_collidable_points
+            ]
+            M = js.model.free_floating_mass_matrix(model, data_tf)
+            BW_ν_pre_impact = data_tf.generalized_velocity
+
+            # Compute the impact velocity.
+            # It may be discontinuous in case new contacts are made.
+            BW_ν_post_impact = (
+                jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
+                    generalized_velocity=BW_ν_pre_impact,
+                    inactive_collidable_points=(δ <= 0),
+                    M=M,
+                    J_WC=J_WC,
+                )
+            )
+
+            # Reset the generalized velocity.
+            data_tf = data_tf.replace(
+                model=model,
+                base_linear_velocity=BW_ν_post_impact[0:3],
+                base_angular_velocity=BW_ν_post_impact[3:6],
+                joint_velocities=BW_ν_post_impact[6:],
+            )
+
+    # Restore the input velocity representation
+    data_tf = data_tf.replace(
+        velocity_representation=data.velocity_representation, validate=False
     )
 
     return data_tf

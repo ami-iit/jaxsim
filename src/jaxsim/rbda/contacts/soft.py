@@ -11,7 +11,7 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.math import StandardGravity
+from jaxsim.math import STANDARD_GRAVITY
 from jaxsim.terrain import Terrain
 
 from . import common
@@ -108,7 +108,7 @@ class SoftContactsParams(common.ContactsParams):
         cls: type[Self],
         model: js.model.JaxSimModel,
         *,
-        standard_gravity: jtp.FloatLike = StandardGravity,
+        standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
         static_friction_coefficient: jtp.FloatLike = 0.5,
         max_penetration: jtp.FloatLike = 0.001,
         number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
@@ -456,7 +456,11 @@ class SoftContacts(common.ContactModel):
         W_p_C, W_ṗ_C = js.contact.collidable_point_kinematics(model=model, data=data)
 
         # Extract the material deformation corresponding to the collidable points.
-        m = data.state.extended["tangential_deformation"]
+        m = (
+            data.contact_state["tangential_deformation"]
+            if "tangential_deformation" in data.contact_state
+            else jnp.zeros_like(W_p_C)
+        )
 
         m_enabled = m[indices_of_enabled_collidable_points]
 
@@ -470,7 +474,7 @@ class SoftContacts(common.ContactModel):
                 position=p,
                 velocity=v,
                 tangential_deformation=m,
-                parameters=data.contacts_params,
+                parameters=model.contact_params,
                 terrain=model.terrain,
             )
         )(W_p_C, W_ṗ_C, m_enabled)

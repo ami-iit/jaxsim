@@ -5,6 +5,7 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim.rbda.contacts import SoftContacts
 
 
 @jax.jit
@@ -15,7 +16,7 @@ def link_contact_forces(
     *,
     link_forces: jtp.MatrixLike | None = None,
     joint_torques: jtp.VectorLike | None = None,
-) -> jtp.Matrix:
+) -> tuple[jtp.Matrix, dict[str, jtp.Matrix]]:
     """
     Compute the 6D contact forces of all links of the model in inertial representation.
 
@@ -33,11 +34,14 @@ def link_contact_forces(
     """
 
     # Compute the contact forces for each collidable point with the active contact model.
-    W_f_C, _ = model.contact_model.compute_contact_forces(
+    W_f_C, aux_dict = model.contact_model.compute_contact_forces(
         model=model,
         data=data,
-        link_forces=link_forces,
-        joint_force_references=joint_torques,
+        **(
+            dict(link_forces=link_forces, joint_force_references=joint_torques)
+            if not isinstance(model.contact_model, SoftContacts)
+            else {}
+        ),
     )
 
     # Compute the 6D forces applied to the links equivalent to the forces applied
@@ -46,7 +50,7 @@ def link_contact_forces(
         model=model, data=data, contact_forces=W_f_C
     )
 
-    return W_f_L
+    return W_f_L, aux_dict
 
 
 @staticmethod

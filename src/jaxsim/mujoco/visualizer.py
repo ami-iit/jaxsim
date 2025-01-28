@@ -46,7 +46,7 @@ class MujocoVideoRecorder:
 
         self.fps = fps
         self.frames: list[npt.NDArray] = []
-        self.data: mujoco.MjData | None = None
+        self.data: list[mujoco.MjData] | mujoco.MjData | None = None
         self.model: mujoco.MjModel | None = None
         self.reset(model=model, data=data)
 
@@ -68,8 +68,23 @@ class MujocoVideoRecorder:
     def render_frame(self, camera_name: str = "track") -> npt.NDArray:
         """Render a frame."""
 
-        mujoco.mj_forward(self.model, self.data)
-        self.renderer.update_scene(data=self.data, camera=camera_name)
+        for idx, data in enumerate(
+            self.data if isinstance(self.data, list) else [self.data]
+        ):
+            mujoco.mj_forward(self.model, data)
+
+            if idx == 0:
+                self.renderer.update_scene(data=data, camera=camera_name)
+                continue
+
+            mujoco.mjv_addGeoms(
+                m=self.model,
+                d=data,
+                opt=mujoco.MjvOption(),
+                pert=mujoco.MjvPerturb(),
+                catmask=mujoco.mjtCatBit.mjCAT_DYNAMIC,
+                scn=self.renderer.scene,
+            )
 
         return self.renderer.render()
 

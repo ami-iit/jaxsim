@@ -427,15 +427,13 @@ def test_coriolis_matrix(
     # all velocity representations, that are handled internally when computing M.
     def M(q) -> jax.Array:
 
-        data_ad = js.data.JaxSimModelData.zero(
-            model=model, velocity_representation=data.velocity_representation
+        data_ad = js.data.JaxSimModelData.build(
+            model=model,
+            velocity_representation=data.velocity_representation,
+            base_position=q[:3],
+            base_quaternion=q[3:7],
+            joint_positions=q[7:],
         )
-
-        data_ad = data_ad.reset_base_position(base_position=q[:3])
-        data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
-        data_ad = data_ad.reset_joint_positions(positions=q[7:])
-
-        data_ad = data_ad.update_cached(model=model)
 
         M = js.model.free_floating_mass_matrix(model=model, data=data_ad)
 

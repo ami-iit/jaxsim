@@ -331,6 +331,7 @@ def test_ad_integration(
         W_Q_B = W_Q_B / jnp.linalg.norm(W_Q_B)
 
         data_x0 = data.replace(
+            model=model,
             base_position=W_p_B,
             base_quaternion=W_Q_B,
             joint_positions=s,
@@ -338,7 +339,6 @@ def test_ad_integration(
             base_angular_velocity=W_v_WB[3:6],
             joint_velocities=ṡ,
         )
-        data.update_cached(model)
 
         data_xf = js.model.step(
             model=model,

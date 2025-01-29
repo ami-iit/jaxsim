@@ -56,17 +56,18 @@ def semi_implicit_euler_integration(
 
         new_joint_position = data.joint_positions + dt * new_joint_velocities
 
-        data = data.replace(
-            validate=True,
-            base_quaternion=new_base_quaternion,
-            base_position=new_base_position,
-            joint_positions=new_joint_position,
-            joint_velocities=new_joint_velocities,
-            base_linear_velocity=base_lin_velocity_inertial,
-            # Here we use the base angular velocity in mixed representation since
-            # it's equivalent to the one in inertial representation
-            # See: S. Traversaro and A. Saccon, “Multibody Dynamics Notation (Version 2), pg.9
-            base_angular_velocity=base_ang_velocity_mixed,
-        )
+    data = data.replace(
+        model=model,
+        validate=True,
+        base_quaternion=new_base_quaternion,
+        base_position=new_base_position,
+        joint_positions=new_joint_position,
+        joint_velocities=new_joint_velocities,
+        base_linear_velocity=base_lin_velocity_inertial,
+        # Here we use the base angular velocity in mixed representation since
+        # it's equivalent to the one in inertial representation
+        # See: S. Traversaro and A. Saccon, “Multibody Dynamics Notation (Version 2), pg.9
+        base_angular_velocity=base_ang_velocity_mixed,
+    )
 
-        return data
+    return data

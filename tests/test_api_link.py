@@ -324,15 +324,13 @@ def test_link_jacobian_derivative(
     # all velocity representations, that are handled internally when computing J.
     def J(q) -> jax.Array:
 
-        data_ad = js.data.JaxSimModelData.zero(
-            model=model, velocity_representation=data.velocity_representation
+        data_ad = js.data.JaxSimModelData.build(
+            model=model,
+            velocity_representation=data.velocity_representation,
+            base_position=q[:3],
+            base_quaternion=q[3:7],
+            joint_positions=q[7:],
         )
-
-        data_ad = data_ad.reset_base_position(base_position=q[:3])
-        data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
-        data_ad = data_ad.reset_joint_positions(positions=q[7:])
-
-        data_ad = data_ad.update_cached(model=model)
 
         O_J_WL_I = js.model.generalized_free_floating_jacobian(
             model=model, data=data_ad

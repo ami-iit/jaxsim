@@ -229,15 +229,13 @@ def test_frame_jacobian_derivative(
     # Compute the plain Jacobian.
     # This function will be used to compute the Jacobian derivative with AD.
     def J(q, frame_idxs) -> jax.Array:
-        data_ad = js.data.JaxSimModelData.zero(
-            model=model, velocity_representation=data.velocity_representation
+        data_ad = js.data.JaxSimModelData.build(
+            model=model,
+            velocity_representation=data.velocity_representation,
+            base_position=q[:3],
+            base_quaternion=q[3:7],
+            joint_positions=q[7:],
         )
-
-        data_ad = data_ad.reset_base_position(base_position=q[:3])
-        data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
-        data_ad = data_ad.reset_joint_positions(positions=q[7:])
-
-        data_ad = data_ad.update_cached(model=model)
 
         O_J_ad_WF_I = jax.vmap(
             lambda model, data, frame_index: js.frame.jacobian(

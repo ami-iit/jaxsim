@@ -1426,15 +1426,12 @@ def free_floating_gravity_forces(
     )
 
     # Set just the generalized position.
-    with data_rnea.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
-
-        data_rnea.base_position = data.base_position
-        data_rnea.base_quaternion = data.base_quaternion
-        data_rnea.joint_positions = data.joint_positions
-
-    data_rnea = data_rnea.update_cached(model=model)
+    data_rnea = data_rnea.replace(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_quaternion,
+        joint_positions=data.joint_positions,
+    )
 
     return jnp.hstack(
         inverse_dynamics(
@@ -1471,21 +1468,19 @@ def free_floating_bias_forces(
     )
 
     # Set the generalized position and generalized velocity.
-    with data_rnea.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
-
-        data_rnea.base_position = data.base_position
-        data_rnea.base_quaternion = data.base_quaternion
-        data_rnea.joint_positions = data.joint_positions
-        data_rnea.joint_velocities = data.joint_velocities
-
-        # Make sure that base velocity is zero for fixed-base model.
-        if model.floating_base():
-            data_rnea.base_linear_velocity = data.base_linear_velocity
-            data_rnea.base_angular_velocity = data.base_angular_velocity
-
-        data_rnea = data_rnea.update_cached(model=model)
+    data_rnea = data_rnea.replace(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_quaternion,
+        joint_positions=data.joint_positions,
+        joint_velocities=data.joint_velocities,
+        base_linear_velocity=(
+            data.base_linear_velocity if model.floating_base() else None
+        ),
+        base_angular_velocity=(
+            data.base_angular_velocity if model.floating_base() else None
+        ),
+    )
 
     return jnp.hstack(
         inverse_dynamics(
@@ -2091,14 +2086,5 @@ def step(
         base_acceleration_inertial=W_v̇_WB,
         joint_accelerations=s̈,
     )
-
-    # ne parliamo dopo
-    # Restore the input velocity representation
-    data_tf = data_tf.replace(
-        velocity_representation=data.velocity_representation, validate=False
-    )
-
-    # Update the cached quantities in data
-    data_tf = data_tf.update_cached(model=model)
 
     return data_tf

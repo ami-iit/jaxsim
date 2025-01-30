@@ -34,7 +34,7 @@ def link_contact_forces(
     """
 
     # Compute the contact forces for each collidable point with the active contact model.
-    W_f_C, aux_dict = model.contact_model.compute_contact_forces(
+    W_f_C, extended_contact_state = model.contact_model.compute_contact_forces(
         model=model,
         data=data,
         **(
@@ -50,7 +50,7 @@ def link_contact_forces(
         model=model, data=data, contact_forces=W_f_C
     )
 
-    return W_f_L, aux_dict
+    return W_f_L, extended_contact_state
 
 
 @staticmethod

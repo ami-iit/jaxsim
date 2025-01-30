@@ -2050,7 +2050,7 @@ def step(
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
         # with the terrain.
-        W_f_L_terrain, aux_dict = js.contact_model.link_contact_forces(
+        W_f_L_terrain, extended_contact_state = js.contact_model.link_contact_forces(
             model=model,
             data=data,
             link_forces=W_f_L_external,
@@ -2072,7 +2072,7 @@ def step(
     match model.contact_model:
 
         case jaxsim.rbda.contacts.SoftContacts():
-            contact_state["tangential_deformation"] = aux_dict["m_dot"]
+            contact_state["tangential_deformation"] = extended_contact_state["m_dot"]
 
         case (
             jaxsim.rbda.contacts.RigidContacts()

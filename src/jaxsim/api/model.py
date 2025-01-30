@@ -2074,7 +2074,7 @@ def step(
     # ===============================
 
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
-        W_v̇_WB, s̈ = js.ode.system_velocity_dynamics(
+        W_v̇_WB, s̈ = js.ode.system_acceleration(
             model=model,
             data=data,
             link_forces=W_f_L_total,

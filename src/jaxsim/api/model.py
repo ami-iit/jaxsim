@@ -558,8 +558,7 @@ def generalized_free_floating_jacobian(
 
         case VelRepr.Mixed:
 
-            W_R_B = data.base_orientation
-            W_R_B = jaxsim.math.Quaternion.to_dcm(W_R_B)
+            W_R_B = jaxsim.math.Quaternion.to_dcm(data.base_orientation)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
@@ -1469,18 +1468,19 @@ def free_floating_bias_forces(
     )
 
     # Set the generalized position and generalized velocity.
+    base_linear_velocity, base_angular_velocity = None, None
+    if model.floating_base():
+        base_velocity = data.base_velocity
+        base_linear_velocity = base_velocity[:3]
+        base_angular_velocity = base_velocity[3:]
     data_rnea = data_rnea.replace(
         model=model,
         base_position=data.base_position,
         base_quaternion=data.base_quaternion,
         joint_positions=data.joint_positions,
         joint_velocities=data.joint_velocities,
-        base_linear_velocity=(
-            data._base_linear_velocity if model.floating_base() else None
-        ),
-        base_angular_velocity=(
-            data._base_angular_velocity if model.floating_base() else None
-        ),
+        base_linear_velocity=base_linear_velocity,
+        base_angular_velocity=base_angular_velocity,
     )
 
     return jnp.hstack(
@@ -1671,8 +1671,7 @@ def average_velocity_jacobian(
             GB_J = G_J
             W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
-            B_R_W = data.base_orientation
-            B_R_W = jaxsim.math.Quaternion.to_dcm(B_R_W).transpose()
+            B_R_W = jaxsim.math.Quaternion.to_dcm(data.base_orientation).transpose()
 
             B_H_GB = jnp.eye(4).at[0:3, 3].set(B_R_W @ (W_p_CoM - W_p_B))
             B_X_GB = Adjoint.from_transform(transform=B_H_GB)

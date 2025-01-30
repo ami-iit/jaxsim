@@ -79,7 +79,7 @@ def test_box_with_external_forces(
 
     # Check that the box didn't move.
     assert data.base_position == pytest.approx(data0.base_position)
-    assert data.base_orientation() == pytest.approx(data0.base_orientation())
+    assert data.base_orientation == pytest.approx(data0.base_orientation)
 
 
 def test_box_with_zero_gravity(

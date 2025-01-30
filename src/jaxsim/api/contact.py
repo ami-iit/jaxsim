@@ -42,8 +42,8 @@ def collidable_point_kinematics(
 
         W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
             model=model,
-            link_transforms=data.link_transforms,
-            link_velocities=data.link_velocities,
+            link_transforms=data._link_transforms,
+            link_velocities=data._link_velocities,
         )
 
     return W_p_Ci, W_ṗ_Ci
@@ -236,7 +236,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     )[indices_of_enabled_collidable_points]
 
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = data.link_transforms[parent_link_idx_of_enabled_collidable_points]
+    W_H_L = data._link_transforms[parent_link_idx_of_enabled_collidable_points]
 
     L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
         indices_of_enabled_collidable_points
@@ -386,10 +386,10 @@ def jacobian_derivative(
     ]
 
     # Get the transforms of all the parent links.
-    W_H_Li = data.link_transforms
+    W_H_Li = data._link_transforms
 
     # Get the link velocities.
-    W_v_WLi = data.link_velocities
+    W_v_WLi = data._link_velocities
 
     # =====================================================
     # Compute quantities to adjust the input representation
@@ -417,9 +417,9 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_W)
 
         case VelRepr.Body:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             W_X_B = Adjoint.from_transform(transform=W_H_B)
-            B_v_WB = data.base_velocity()
+            B_v_WB = data.base_velocity
             B_vx_WB = Cross.vx(B_v_WB)
             W_Ẋ_B = W_X_B @ B_vx_WB
 
@@ -427,10 +427,10 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_B)
 
         case VelRepr.Mixed:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
             W_X_BW = Adjoint.from_transform(transform=W_H_BW)
-            BW_v_WB = data.base_velocity()
+            BW_v_WB = data.base_velocity
             BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
             BW_vx_W_BW = Cross.vx(BW_v_W_BW)
             W_Ẋ_BW = W_X_BW @ BW_vx_W_BW

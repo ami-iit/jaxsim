@@ -44,20 +44,20 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     """
 
     # Joint state
-    joint_positions: jtp.Vector
-    joint_velocities: jtp.Vector
+    _joint_positions: jtp.Vector
+    _joint_velocities: jtp.Vector
 
     # Base state
-    base_quaternion: jtp.Vector
-    base_linear_velocity: jtp.Vector
-    base_angular_velocity: jtp.Vector
-    base_position: jtp.Vector
+    _base_quaternion: jtp.Vector
+    _base_linear_velocity: jtp.Vector
+    _base_angular_velocity: jtp.Vector
+    _base_position: jtp.Vector
 
     # Cached computations.
-    base_transform: jtp.Matrix = dataclasses.field(repr=False, default=None)
-    joint_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
-    link_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
-    link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _base_transform: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _joint_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _link_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
+    _link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
 
     @staticmethod
     def build(
@@ -167,17 +167,17 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         model_data = JaxSimModelData(
-            base_quaternion=base_quaternion,
-            base_position=base_position,
-            joint_positions=joint_positions,
-            base_linear_velocity=W_v_WB[0:3],
-            base_angular_velocity=W_v_WB[3:6],
-            joint_velocities=joint_velocities,
             velocity_representation=velocity_representation,
-            base_transform=W_H_B,
-            joint_transforms=joint_transforms,
-            link_transforms=link_transforms,
-            link_velocities=link_velocities_inertial,
+            _base_quaternion=base_quaternion,
+            _base_position=base_position,
+            _joint_positions=joint_positions,
+            _base_linear_velocity=W_v_WB[0:3],
+            _base_angular_velocity=W_v_WB[3:6],
+            _joint_velocities=joint_velocities,
+            _base_transform=W_H_B,
+            _joint_transforms=joint_transforms,
+            _link_transforms=link_transforms,
+            _link_velocities=link_velocities_inertial,
         )
 
         if not model_data.valid(model=model):
@@ -210,14 +210,50 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     # Extract quantities
     # ==================
 
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["dcm"])
-    def base_orientation(self, dcm: jtp.BoolLike = False) -> jtp.Vector | jtp.Matrix:
+    @property
+    def joint_positions(self) -> jtp.Vector:
+        """
+        Get the joint positions.
+
+        Returns:
+            The joint positions.
+        """
+        return self._joint_positions
+
+    @property
+    def joint_velocities(self) -> jtp.Vector:
+        """
+        Get the joint velocities.
+
+        Returns:
+            The joint velocities.
+        """
+        return self._joint_velocities
+
+    @property
+    def base_quaternion(self) -> jtp.Vector:
+        """
+        Get the base quaternion.
+
+        Returns:
+            The base quaternion.
+        """
+        return self._base_quaternion
+
+    @property
+    def base_position(self) -> jtp.Vector:
+        """
+        Get the base position.
+
+        Returns:
+            The base position.
+        """
+        return self._base_position
+
+    @property
+    def base_orientation(self) -> jtp.Matrix:
         """
         Get the base orientation.
-
-        Args:
-            dcm: Whether to return the orientation as a SO(3) matrix or quaternion.
 
         Returns:
             The base orientation.
@@ -233,13 +269,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         # stored in the state is a unit quaternion.
         norm = jaxsim.math.safe_norm(W_Q_B)
         W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
+        return W_Q_B
 
-        return (W_Q_B if not dcm else jaxsim.math.Quaternion.to_dcm(W_Q_B)).astype(
-            float
-        )
-
-    @js.common.named_scope
-    @jax.jit
+    @property
     def base_velocity(self) -> jtp.Vector:
         """
         Get the base 6D velocity.
@@ -250,12 +282,12 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         W_v_WB = jnp.hstack(
             [
-                self.base_linear_velocity,
-                self.base_angular_velocity,
+                self._base_linear_velocity,
+                self._base_angular_velocity,
             ]
         )
 
-        W_H_B = self.base_transform
+        W_H_B = self._base_transform
 
         return (
             JaxSimModelData.inertial_to_other_representation(
@@ -268,8 +300,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             .astype(float)
         )
 
-    @js.common.named_scope
-    @jax.jit
+    @property
     def generalized_position(self) -> tuple[jtp.Matrix, jtp.Vector]:
         r"""
         Get the generalized position
@@ -279,10 +310,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             A tuple containing the base transform and the joint positions.
         """
 
-        return self.base_transform, self.joint_positions
+        return self._base_transform, self.joint_positions
 
-    @js.common.named_scope
-    @jax.jit
+    @property
     def generalized_velocity(self) -> jtp.Vector:
         r"""
         Get the generalized velocity.
@@ -294,7 +324,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         """
 
         return (
-            jnp.hstack([self.base_velocity(), self.joint_velocities])
+            jnp.hstack([self.base_velocity, self.joint_velocities])
             .squeeze()
             .astype(float)
         )
@@ -370,7 +400,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_velocity=jnp.hstack(
                 [
                     linear_velocity.squeeze(),
-                    self.base_velocity()[3:6],
+                    self.base_velocity[3:6],
                 ]
             ),
             velocity_representation=velocity_representation,
@@ -401,7 +431,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         return self.reset_base_velocity(
             base_velocity=jnp.hstack(
                 [
-                    self.base_velocity()[0:3],
+                    self.base_velocity[0:3],
                     angular_velocity.squeeze(),
                 ]
             ),
@@ -439,7 +469,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_v_WB = self.other_representation_to_inertial(
             array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
             other_representation=velocity_representation,
-            transform=self.base_transform,
+            transform=self._base_transform,
             is_force=False,
         )
 
@@ -470,9 +500,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if base_quaternion is None:
             base_quaternion = self.base_quaternion
         if base_linear_velocity is None:
-            base_linear_velocity = self.base_linear_velocity
+            base_linear_velocity = self._base_linear_velocity
         if base_angular_velocity is None:
-            base_angular_velocity = self.base_angular_velocity
+            base_angular_velocity = self._base_angular_velocity
         if base_position is None:
             base_position = self.base_position
 
@@ -503,17 +533,17 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         return super().replace(
-            joint_positions=joint_positions,
-            joint_velocities=joint_velocities,
-            base_quaternion=base_quaternion,
-            base_linear_velocity=base_linear_velocity,
-            base_angular_velocity=base_angular_velocity,
-            base_position=base_position,
+            _joint_positions=joint_positions,
+            _joint_velocities=joint_velocities,
+            _base_quaternion=base_quaternion,
+            _base_linear_velocity=base_linear_velocity,
+            _base_angular_velocity=base_angular_velocity,
+            _base_position=base_position,
+            _base_transform=base_transform,
+            _joint_transforms=joint_transforms,
+            _link_transforms=link_transforms,
+            _link_velocities=link_velocities,
             validate=validate,
-            base_transform=base_transform,
-            joint_transforms=joint_transforms,
-            link_transforms=link_transforms,
-            link_velocities=link_velocities,
         )
 
     def valid(self, model: js.model.JaxSimModel) -> bool:
@@ -527,17 +557,17 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             `True` if the `JaxSimModelData` is valid for the given model,
             `False` otherwise.
         """
-        if self.joint_positions.shape != (model.dofs(),):
+        if self._joint_positions.shape != (model.dofs(),):
             return False
-        if self.joint_velocities.shape != (model.dofs(),):
+        if self._joint_velocities.shape != (model.dofs(),):
             return False
-        if self.base_position.shape != (3,):
+        if self._base_position.shape != (3,):
             return False
-        if self.base_quaternion.shape != (4,):
+        if self._base_quaternion.shape != (4,):
             return False
-        if self.base_linear_velocity.shape != (3,):
+        if self._base_linear_velocity.shape != (3,):
             return False
-        if self.base_angular_velocity.shape != (3,):
+        if self._base_angular_velocity.shape != (3,):
             return False
 
         return True

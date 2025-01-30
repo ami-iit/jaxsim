@@ -109,8 +109,8 @@ def store_jaxsim_data_in_kindyncomputations(
         kin_dyn.set_robot_state(
             joint_positions=np.array(data.joint_positions),
             joint_velocities=np.array(data.joint_velocities),
-            base_transform=np.array(data.base_transform),
-            base_velocity=np.array(data.base_velocity()),
+            base_transform=np.array(data._base_transform),
+            base_velocity=np.array(data.base_velocity),
         )
 
     return kin_dyn

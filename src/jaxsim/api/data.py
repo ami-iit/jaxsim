@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 from collections.abc import Sequence
+from typing import override
 
 import jax
 import jax.numpy as jnp
@@ -374,111 +375,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=W_Q_B,
         )
 
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
-    def reset_base_linear_velocity(
-        self,
-        linear_velocity: jtp.VectorLike,
-        velocity_representation: VelRepr | None = None,
-    ) -> Self:
-        """
-        Reset the base linear velocity.
-
-        Args:
-            linear_velocity: The base linear velocity as a 3D array.
-            velocity_representation:
-                The velocity representation in which the base velocity is expressed.
-                If `None`, the active representation is considered.
-
-        Returns:
-            The updated `JaxSimModelData` object.
-        """
-
-        linear_velocity = jnp.array(linear_velocity)
-
-        return self.reset_base_velocity(
-            base_velocity=jnp.hstack(
-                [
-                    linear_velocity.squeeze(),
-                    self.base_velocity[3:6],
-                ]
-            ),
-            velocity_representation=velocity_representation,
-        )
-
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
-    def reset_base_angular_velocity(
-        self,
-        angular_velocity: jtp.VectorLike,
-        velocity_representation: VelRepr | None = None,
-    ) -> Self:
-        """
-        Reset the base angular velocity.
-
-        Args:
-            angular_velocity: The base angular velocity as a 3D array.
-            velocity_representation:
-                The velocity representation in which the base velocity is expressed.
-                If `None`, the active representation is considered.
-
-        Returns:
-            The updated `JaxSimModelData` object.
-        """
-
-        angular_velocity = jnp.array(angular_velocity)
-
-        return self.reset_base_velocity(
-            base_velocity=jnp.hstack(
-                [
-                    self.base_velocity[0:3],
-                    angular_velocity.squeeze(),
-                ]
-            ),
-            velocity_representation=velocity_representation,
-        )
-
-    @js.common.named_scope
-    @functools.partial(jax.jit, static_argnames=["velocity_representation"])
-    def reset_base_velocity(
-        self,
-        base_velocity: jtp.VectorLike,
-        velocity_representation: VelRepr | None = None,
-    ) -> Self:
-        """
-        Reset the base 6D velocity.
-
-        Args:
-            base_velocity: The base 6D velocity in the active representation.
-            velocity_representation:
-                The velocity representation in which the base velocity is expressed.
-                If `None`, the active representation is considered.
-
-        Returns:
-            The updated `JaxSimModelData` object.
-        """
-
-        base_velocity = jnp.array(base_velocity)
-
-        velocity_representation = (
-            velocity_representation
-            if velocity_representation is not None
-            else self.velocity_representation
-        )
-
-        W_v_WB = self.other_representation_to_inertial(
-            array=jnp.atleast_1d(base_velocity.squeeze()).astype(float),
-            other_representation=velocity_representation,
-            transform=self._base_transform,
-            is_force=False,
-        )
-
-        return self.replace(
-            validate=True,
-            base_linear_velocity=W_v_WB[0:3].squeeze().astype(float),
-            base_angular_velocity=W_v_WB[3:6].squeeze().astype(float),
-        )
-
+    @override
     def replace(
         self,
         model: js.model.JaxSimModel,
@@ -488,6 +385,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
+        velocity_representation: VelRepr | None = None,
         validate: bool = False,
     ) -> Self:
         """
@@ -499,22 +397,15 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             joint_velocities = self.joint_velocities
         if base_quaternion is None:
             base_quaternion = self.base_quaternion
-        if base_linear_velocity is None:
-            base_linear_velocity = self._base_linear_velocity
-        if base_angular_velocity is None:
-            base_angular_velocity = self._base_angular_velocity
         if base_position is None:
             base_position = self.base_position
+        if velocity_representation is None:
+            velocity_representation = self.velocity_representation
 
         joint_positions = jnp.atleast_1d(joint_positions.squeeze()).astype(float)
         joint_velocities = jnp.atleast_1d(joint_velocities.squeeze()).astype(float)
         base_quaternion = jnp.atleast_1d(base_quaternion.squeeze()).astype(float)
-        base_linear_velocity = jnp.atleast_1d(base_linear_velocity.squeeze())
-        base_linear_velocity = base_linear_velocity.astype(float)
-        base_angular_velocity = jnp.atleast_1d(base_angular_velocity.squeeze())
-        base_angular_velocity = base_angular_velocity.astype(float)
-        base_position = jnp.atleast_1d(base_position.squeeze())
-        base_position = base_position.astype(float)
+        base_position = jnp.atleast_1d(base_position.squeeze()).astype(float)
 
         base_transform = jaxsim.math.Transform.from_quaternion_and_translation(
             translation=base_position, quaternion=base_quaternion
@@ -522,6 +413,25 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         joint_transforms = model.kin_dyn_parameters.joint_transforms(
             joint_positions=joint_positions, base_transform=base_transform
         )
+
+        if base_linear_velocity is None and base_angular_velocity is None:
+            base_linear_velocity = self._base_linear_velocity
+            base_angular_velocity = self._base_angular_velocity
+        else:
+            if base_linear_velocity is None:
+                base_linear_velocity = self.base_velocity[:3]
+            if base_angular_velocity is None:
+                base_angular_velocity = self.base_velocity[3:]
+            base_linear_velocity = jnp.atleast_1d(base_linear_velocity.squeeze())
+            base_angular_velocity = jnp.atleast_1d(base_angular_velocity.squeeze())
+            W_v_WB = JaxSimModelData.other_representation_to_inertial(
+                array=jnp.hstack([base_linear_velocity, base_angular_velocity]),
+                other_representation=self.velocity_representation,
+                transform=base_transform,
+                is_force=False,
+            ).astype(float)
+            base_linear_velocity, base_angular_velocity = W_v_WB[:3], W_v_WB[3:]
+
         link_transforms, link_velocities = jaxsim.rbda.forward_kinematics_model(
             model=model,
             base_position=base_position,
@@ -533,6 +443,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         return super().replace(
+            velocity_representation=velocity_representation,
             _joint_positions=joint_positions,
             _joint_velocities=joint_velocities,
             _base_quaternion=base_quaternion,

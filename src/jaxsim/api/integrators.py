@@ -15,6 +15,7 @@ def semi_implicit_euler_integration(
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
+    velocity_representation = data.velocity_representation
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
         dt = model.time_step
@@ -59,6 +60,7 @@ def semi_implicit_euler_integration(
     data = data.replace(
         model=model,
         validate=True,
+        velocity_representation=velocity_representation,
         base_quaternion=new_base_quaternion,
         base_position=new_base_position,
         joint_positions=new_joint_position,

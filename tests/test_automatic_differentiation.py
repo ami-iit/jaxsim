@@ -229,21 +229,14 @@ def test_ad_fk(
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    fk = (
-        lambda W_p_B,
-        W_Q_B,
-        s,
-        W_v_lin,
-        W_v_ang,
-        ṡ: jaxsim.rbda.forward_kinematics_model(
-            model=model,
-            base_position=W_p_B,
-            base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
-            joint_positions=s,
-            base_linear_velocity_inertial=W_v_lin,
-            base_angular_velocity_inertial=W_v_ang,
-            joint_velocities=ṡ,
-        )
+    fk = lambda W_p_B, W_Q_B, s, W_v_lin, W_v_ang, ṡ: jaxsim.rbda.forward_kinematics_model(
+        model=model,
+        base_position=W_p_B,
+        base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
+        joint_positions=s,
+        base_linear_velocity_inertial=W_v_lin,
+        base_angular_velocity_inertial=W_v_ang,
+        joint_velocities=ṡ,
     )
 
     # Check derivatives against finite differences.

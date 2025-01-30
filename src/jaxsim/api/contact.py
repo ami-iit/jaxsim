@@ -238,21 +238,6 @@ def estimate_good_contact_parameters(
                 **kwargs,
             )
 
-        case contacts.ViscoElasticContacts():
-            assert isinstance(model.contact_model, contacts.ViscoElasticContacts)
-
-            parameters = (
-                contacts.ViscoElasticContactsParams.build_default_from_jaxsim_model(
-                    model=model,
-                    standard_gravity=standard_gravity,
-                    static_friction_coefficient=static_friction_coefficient,
-                    max_penetration=max_δ,
-                    number_of_active_collidable_points_steady_state=nc,
-                    damping_ratio=damping_ratio,
-                    **kwargs,
-                )
-            )
-
         case contacts.RigidContacts():
             assert isinstance(model.contact_model, contacts.RigidContacts)
 

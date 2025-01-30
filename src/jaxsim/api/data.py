@@ -182,11 +182,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                     model.kin_dyn_parameters.contact_parameters.point
                 )
             }
-            if isinstance(
-                model.contact_model,
-                jaxsim.rbda.contacts.SoftContacts
-                | jaxsim.rbda.contacts.ViscoElasticContacts,
-            )
+            if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts)
             else contact_state or {}
         )
 

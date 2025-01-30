@@ -135,7 +135,11 @@ jobs:
           contains(matrix.os, 'ubuntu') &&
           (github.event_name != 'pull_request' ||
            steps.changes.outputs.all == 'true')
-        run: pytest
+        run: |
+          pytest -vv -k "test_ad_integration[ur10]"
+          pytest -vv -k "test_ad_integration[ur10]"
+          sudo apt install valgrind
+          valgrind pytest -vv -k "test_ad_integration[ur10]"
         env:
           # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591
           PY_COLORS: "1"

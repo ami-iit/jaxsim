@@ -2074,11 +2074,6 @@ def step(
         case jaxsim.rbda.contacts.SoftContacts():
             contact_state["tangential_deformation"] = aux_dict["m_dot"]
 
-        case jaxsim.rbda.contacts.ViscoElasticContacts():
-            contact_state["tangential_deformation"] = jnp.zeros_like(
-                jnp.array(model.kin_dyn_parameters.contact_parameters.point)
-            )
-
         case (
             jaxsim.rbda.contacts.RigidContacts()
             | jaxsim.rbda.contacts.RelaxedRigidContacts()

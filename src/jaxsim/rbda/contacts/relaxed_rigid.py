@@ -307,7 +307,7 @@ class RelaxedRigidContacts(common.ContactModel):
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
 
-        BW_ν = data.generalized_velocity()
+        BW_ν = data.generalized_velocity
 
         BW_ν̇_free = jnp.hstack(
             js.ode.system_acceleration(

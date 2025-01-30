@@ -21,13 +21,13 @@ def semi_implicit_euler_integration(
         W_v̇_WB = base_acceleration_inertial
         s̈ = joint_accelerations
 
-        B_H_W = Transform.inverse(data.base_transform).at[:3, :3].set(jnp.eye(3))
+        B_H_W = Transform.inverse(data._base_transform).at[:3, :3].set(jnp.eye(3))
         BW_X_W = Adjoint.from_transform(B_H_W)
 
         new_generalized_acceleration = jnp.hstack([W_v̇_WB, s̈])
 
         new_generalized_velocity = (
-            data.generalized_velocity() + dt * new_generalized_acceleration
+            data.generalized_velocity + dt * new_generalized_acceleration
         )
 
         new_base_velocity_inertial = new_generalized_velocity[0:6]
@@ -40,13 +40,13 @@ def semi_implicit_euler_integration(
         base_ang_velocity_mixed = new_base_velocity_mixed[3:6]
 
         base_quaternion_derivative = jaxsim.math.Quaternion.derivative(
-            quaternion=data.base_orientation(),
+            quaternion=data.base_orientation,
             omega=base_ang_velocity_mixed,
             omega_in_body_fixed=False,
         ).squeeze()
 
         new_base_position = data.base_position + dt * base_lin_velocity_mixed
-        new_base_quaternion = data.base_orientation() + dt * base_quaternion_derivative
+        new_base_quaternion = data.base_orientation + dt * base_quaternion_derivative
 
         base_quaternion_norm = jaxsim.math.safe_norm(new_base_quaternion)
 

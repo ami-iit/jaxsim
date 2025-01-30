@@ -36,7 +36,7 @@ def test_data_switch_velocity_representation(
     # =====
 
     new_base_linear_velocity = jnp.array([1.0, -2.0, 3.0])
-    old_base_linear_velocity = data.base_linear_velocity
+    old_base_linear_velocity = data._base_linear_velocity
 
     # The following should not change the original `data` object since it raises.
     with pytest.raises(RuntimeError):
@@ -44,19 +44,19 @@ def test_data_switch_velocity_representation(
             velocity_representation=VelRepr.Inertial
         ):
             with data.mutable_context(mutability=Mutability.MUTABLE):
-                data.base_linear_velocity = new_base_linear_velocity
+                data._base_linear_velocity = new_base_linear_velocity
             raise RuntimeError("This is raised on purpose inside this context")
 
-    assert data.base_linear_velocity == pytest.approx(old_base_linear_velocity)
+    assert data._base_linear_velocity == pytest.approx(old_base_linear_velocity)
 
     # The following instead should result to an updated `data` object.
     with (
         data.switch_velocity_representation(velocity_representation=VelRepr.Inertial),
         data.mutable_context(mutability=Mutability.MUTABLE),
     ):
-        data.base_linear_velocity = new_base_linear_velocity
+        data._base_linear_velocity = new_base_linear_velocity
 
-    assert data.base_linear_velocity == pytest.approx(new_base_linear_velocity)
+    assert data._base_linear_velocity == pytest.approx(new_base_linear_velocity)
 
 
 def test_data_change_velocity_representation(
@@ -89,17 +89,17 @@ def test_data_change_velocity_representation(
             model=model, data=data
         )
 
-    assert data.base_velocity() == pytest.approx(kin_dyn_inertial.base_velocity())
+    assert data.base_velocity == pytest.approx(kin_dyn_inertial.base_velocity())
 
     if not model.floating_base():
         return
 
     with data.switch_velocity_representation(VelRepr.Mixed):
-        assert data.base_velocity() == pytest.approx(kin_dyn_mixed.base_velocity())
-        assert data.base_velocity()[0:3] != pytest.approx(data.base_linear_velocity)
-        assert data.base_velocity()[3:6] == pytest.approx(data.base_angular_velocity)
+        assert data.base_velocity == pytest.approx(kin_dyn_mixed.base_velocity())
+        assert data.base_velocity[0:3] != pytest.approx(data._base_linear_velocity)
+        assert data.base_velocity[3:6] == pytest.approx(data._base_angular_velocity)
 
     with data.switch_velocity_representation(VelRepr.Body):
-        assert data.base_velocity() == pytest.approx(kin_dyn_body.base_velocity())
-        assert data.base_velocity()[0:3] != pytest.approx(data.base_linear_velocity)
-        assert data.base_velocity()[3:6] != pytest.approx(data.base_angular_velocity)
+        assert data.base_velocity == pytest.approx(kin_dyn_body.base_velocity())
+        assert data.base_velocity[0:3] != pytest.approx(data._base_linear_velocity)
+        assert data.base_velocity[3:6] != pytest.approx(data._base_angular_velocity)

@@ -229,7 +229,7 @@ def velocity(
     )
 
     # Get the generalized velocity in the input velocity representation.
-    I_ν = data.generalized_velocity()
+    I_ν = data.generalized_velocity
 
     # Compute the frame velocity in the output velocity representation.
     return O_J_WF_I @ I_ν
@@ -401,9 +401,9 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_W)
 
         case VelRepr.Body:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             W_X_B = Adjoint.from_transform(transform=W_H_B)
-            B_v_WB = data.base_velocity()
+            B_v_WB = data.base_velocity
             B_vx_WB = Cross.vx(B_v_WB)
             W_Ẋ_B = W_X_B @ B_vx_WB
 
@@ -411,10 +411,10 @@ def jacobian_derivative(
             Ṫ = compute_Ṫ(model=model, Ẋ=W_Ẋ_B)
 
         case VelRepr.Mixed:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
             W_X_BW = Adjoint.from_transform(transform=W_H_BW)
-            BW_v_WB = data.base_velocity()
+            BW_v_WB = data.base_velocity
             BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
             BW_vx_W_BW = Cross.vx(BW_v_W_BW)
             W_Ẋ_BW = W_X_BW @ BW_vx_W_BW
@@ -438,7 +438,7 @@ def jacobian_derivative(
             W_H_F = transform(model=model, data=data, frame_index=frame_index)
             O_X_W = F_X_W = Adjoint.from_transform(transform=W_H_F, inverse=True)
             with data.switch_velocity_representation(VelRepr.Inertial):
-                W_nu = data.generalized_velocity()
+                W_nu = data.generalized_velocity
             W_v_WF = W_J_WL_W @ W_nu
             W_vx_WF = Cross.vx(W_v_WF)
             O_Ẋ_W = F_Ẋ_W = -F_X_W @ W_vx_WF  # noqa: F841
@@ -455,7 +455,7 @@ def jacobian_derivative(
                     frame_index=frame_index,
                     output_vel_repr=VelRepr.Mixed,
                 )
-                FW_v_WF = FW_J_WF_FW @ data.generalized_velocity()
+                FW_v_WF = FW_J_WF_FW @ data.generalized_velocity
             W_v_W_FW = jnp.zeros(6).at[0:3].set(FW_v_WF[0:3])
             W_vx_W_FW = Cross.vx(W_v_W_FW)
             O_Ẋ_W = FW_Ẋ_W = -FW_X_W @ W_vx_W_FW  # noqa: F841

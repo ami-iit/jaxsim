@@ -295,8 +295,7 @@ def jacobian(
             B_J_WL_I = B_J_WL_B
 
         case VelRepr.Mixed:
-            W_R_B = data.base_orientation
-            W_R_B = jaxsim.math.Quaternion.to_dcm(W_R_B)
+            W_R_B = jaxsim.math.Quaternion.to_dcm(data.base_orientation)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841

@@ -1989,7 +1989,7 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    link_forces_inertial: jtp.MatrixLike | None = None,
+    link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
 ) -> js.data.JaxSimModelData:
     """
@@ -1999,8 +1999,8 @@ def step(
         model: The model to consider.
         data: The data of the considered model.
         dt: The time step to consider. If not specified, it is read from the model.
-        link_forces_inertial:
-            The 6D forces to apply to the links expressed in inertial-representation.
+        link_forces:
+            The 6D forces to apply to the links expressed in same representation of data.
         joint_force_references: The joint force references to consider.
 
     Returns:
@@ -2016,11 +2016,22 @@ def step(
     # the enabled collidable points
 
     # Extract the inputs
-    W_f_L_external = jnp.atleast_2d(
-        jnp.array(link_forces_inertial, dtype=float).squeeze()
-        if link_forces_inertial is not None
+    O_f_L_external = jnp.atleast_2d(
+        jnp.array(link_forces, dtype=float).squeeze()
+        if link_forces is not None
         else jnp.zeros((model.number_of_links(), 6))
     )
+
+    # Get the external forces in inertial-fixed representation.
+    W_f_L_external = jax.vmap(
+        lambda f_L, W_H_L: js.data.JaxSimModelData.other_representation_to_inertial(
+            f_L,
+            other_representation=data.velocity_representation,
+            transform=W_H_L,
+            is_force=True,
+        )
+    )(O_f_L_external, data.link_transforms)
+
     τ_references = jnp.atleast_1d(
         jnp.array(joint_force_references, dtype=float).squeeze()
         if joint_force_references is not None
@@ -2063,7 +2074,7 @@ def step(
     # ===============================
 
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
-        W_v̇_WB, s̈ = js.ode.system_velocity_dynamics(
+        W_v̇_WB, s̈ = js.ode.system_acceleration(
             model=model,
             data=data,
             link_forces=W_f_L_total,

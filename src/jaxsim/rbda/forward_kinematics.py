@@ -15,8 +15,8 @@ def forward_kinematics_model(
     base_position: jtp.VectorLike,
     base_quaternion: jtp.VectorLike,
     joint_positions: jtp.VectorLike,
-    base_linear_velocity: jtp.VectorLike,
-    base_angular_velocity: jtp.VectorLike,
+    base_linear_velocity_inertial: jtp.VectorLike,
+    base_angular_velocity_inertial: jtp.VectorLike,
     joint_velocities: jtp.VectorLike,
 ) -> jtp.Array:
     """
@@ -27,8 +27,8 @@ def forward_kinematics_model(
         base_position: The position of the base link.
         base_quaternion: The quaternion of the base link.
         joint_positions: The positions of the joints.
-        base_linear_velocity: The linear velocity of the base link.
-        base_angular_velocity: The angular velocity of the base link.
+        base_linear_velocity_inertial: The linear velocity of the base link in inertial-fixed representation.
+        base_angular_velocity_inertial: The angular velocity of the base link in inertial-fixed representation.
         joint_velocities: The velocities of the joints.
 
     Returns:
@@ -40,8 +40,8 @@ def forward_kinematics_model(
         base_position=base_position,
         base_quaternion=base_quaternion,
         joint_positions=joint_positions,
-        base_linear_velocity=base_linear_velocity,
-        base_angular_velocity=base_angular_velocity,
+        base_linear_velocity=base_linear_velocity_inertial,
+        base_angular_velocity=base_angular_velocity_inertial,
         joint_velocities=joint_velocities,
     )
 

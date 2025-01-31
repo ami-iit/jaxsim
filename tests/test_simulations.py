@@ -74,7 +74,7 @@ def test_box_with_external_forces(
         data = js.model.step(
             model=model,
             data=data,
-            link_forces_inertial=references._link_forces,
+            link_forces=references.link_forces(model, data),
         )
 
     # Check that the box didn't move.
@@ -84,6 +84,7 @@ def test_box_with_external_forces(
 
 def test_box_with_zero_gravity(
     jaxsim_model_box: js.model.JaxSimModel,
+    velocity_representation: VelRepr,
     prng_key: jnp.ndarray,
 ):
 
@@ -101,14 +102,14 @@ def test_box_with_zero_gravity(
     data0 = js.data.JaxSimModelData.build(
         model=model,
         base_position=jax.random.uniform(subkey, shape=(3,)),
-        velocity_representation=jaxsim.VelRepr.Inertial,
+        velocity_representation=velocity_representation,
     )
 
     # Initialize a references object that simplifies handling external forces.
     references = js.references.JaxSimModelReferences.build(
         model=model,
         data=data0,
-        velocity_representation=jaxsim.VelRepr.Inertial,
+        velocity_representation=velocity_representation,
     )
 
     # Apply a link forces to the base link.
@@ -144,12 +145,15 @@ def test_box_with_zero_gravity(
 
     # ... and step the simulation.
     for _ in T:
-
-        data = js.model.step(
-            model=model,
-            data=data,
-            link_forces_inertial=references.link_forces(model=model, data=data),
-        )
+        with (
+            data.switch_velocity_representation(velocity_representation),
+            references.switch_velocity_representation(velocity_representation),
+        ):
+            data = js.model.step(
+                model=model,
+                data=data,
+                link_forces=references.link_forces(model=model, data=data),
+            )
 
     # Check that the box moved as expected.
     assert data.base_position == pytest.approx(

@@ -1,3 +1,5 @@
+import dataclasses
+
 import jax
 import jax.numpy as jnp
 
@@ -17,8 +19,7 @@ def semi_implicit_euler_integration(
     extended_contact_state: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
-    # Step the dynamics forward.
-    velocity_representation = data.velocity_representation
+
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
         dt = model.time_step
@@ -68,20 +69,21 @@ def semi_implicit_euler_integration(
             is_leaf=lambda x: x is None,
         )
 
-    data = data.replace(
-        model=model,
-        validate=True,
-        velocity_representation=velocity_representation,
-        base_quaternion=new_base_quaternion,
-        base_position=new_base_position,
-        joint_positions=new_joint_position,
-        joint_velocities=new_joint_velocities,
-        base_linear_velocity=base_lin_velocity_inertial,
+    # TODO: Avoid double replace, e.g. by computing cached value here
+    data = dataclasses.replace(
+        data,
+        _base_quaternion=new_base_quaternion,
+        _base_position=new_base_position,
+        _joint_positions=new_joint_position,
+        _joint_velocities=new_joint_velocities,
+        _base_linear_velocity=base_lin_velocity_inertial,
         # Here we use the base angular velocity in mixed representation since
         # it's equivalent to the one in inertial representation
         # See: S. Traversaro and A. Saccon, “Multibody Dynamics Notation (Version 2), pg.9
-        base_angular_velocity=base_ang_velocity_mixed,
+        _base_angular_velocity=base_ang_velocity_mixed,
         contact_state=integrated_contact_state,
     )
+
+    data = data.replace(model=model)  # update cache
 
     return data

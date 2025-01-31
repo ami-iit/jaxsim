@@ -263,7 +263,7 @@ class RigidContacts(ContactModel):
 
         # Compute kin-dyn quantities used in the contact model.
         with data.switch_velocity_representation(VelRepr.Mixed):
-            BW_ν = data.generalized_velocity()
+            BW_ν = data.generalized_velocity
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 

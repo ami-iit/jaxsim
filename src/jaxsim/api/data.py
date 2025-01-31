@@ -5,6 +5,11 @@ import functools
 from collections.abc import Sequence
 from typing import override
 
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
+
 import jax
 import jax.numpy as jnp
 import jax.scipy.spatial.transform
@@ -402,7 +407,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
-        velocity_representation: VelRepr | None = None,
         *,
         contact_state: dict[str, jtp.Array] | None = None,
         validate: bool = False,
@@ -418,8 +422,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion = self.base_quaternion
         if base_position is None:
             base_position = self.base_position
-        if velocity_representation is None:
-            velocity_representation = self.velocity_representation
 
         joint_positions = jnp.atleast_1d(joint_positions.squeeze()).astype(float)
         joint_velocities = jnp.atleast_1d(joint_velocities.squeeze()).astype(float)
@@ -434,8 +436,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         if base_linear_velocity is None and base_angular_velocity is None:
-            base_linear_velocity = self._base_linear_velocity
-            base_angular_velocity = self._base_angular_velocity
+            base_linear_velocity_inertial = self._base_linear_velocity
+            base_angular_velocity_inertial = self._base_angular_velocity
         else:
             if base_linear_velocity is None:
                 base_linear_velocity = self.base_velocity[:3]
@@ -443,13 +445,18 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 base_angular_velocity = self.base_velocity[3:]
             base_linear_velocity = jnp.atleast_1d(base_linear_velocity.squeeze())
             base_angular_velocity = jnp.atleast_1d(base_angular_velocity.squeeze())
+
             W_v_WB = JaxSimModelData.other_representation_to_inertial(
                 array=jnp.hstack([base_linear_velocity, base_angular_velocity]),
                 other_representation=self.velocity_representation,
                 transform=base_transform,
                 is_force=False,
             ).astype(float)
-            base_linear_velocity, base_angular_velocity = W_v_WB[:3], W_v_WB[3:]
+
+            base_linear_velocity_inertial, base_angular_velocity_inertial = (
+                W_v_WB[:3],
+                W_v_WB[3:],
+            )
 
         link_transforms, link_velocities = jaxsim.rbda.forward_kinematics_model(
             model=model,
@@ -457,17 +464,16 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=base_quaternion,
             joint_positions=joint_positions,
             joint_velocities=joint_velocities,
-            base_linear_velocity_inertial=base_linear_velocity,
-            base_angular_velocity_inertial=base_angular_velocity,
+            base_linear_velocity_inertial=base_linear_velocity_inertial,
+            base_angular_velocity_inertial=base_angular_velocity_inertial,
         )
 
         return super().replace(
-            velocity_representation=velocity_representation,
             _joint_positions=joint_positions,
             _joint_velocities=joint_velocities,
             _base_quaternion=base_quaternion,
-            _base_linear_velocity=base_linear_velocity,
-            _base_angular_velocity=base_angular_velocity,
+            _base_linear_velocity=base_linear_velocity_inertial,
+            _base_angular_velocity=base_angular_velocity_inertial,
             _base_position=base_position,
             _base_transform=base_transform,
             _joint_transforms=joint_transforms,

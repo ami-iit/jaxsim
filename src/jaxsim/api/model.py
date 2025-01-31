@@ -2135,7 +2135,7 @@ def step(
                 indices_of_enabled_collidable_points
             ]
             M = js.model.free_floating_mass_matrix(model, data_tf)
-            BW_ν_pre_impact = data_tf.generalized_velocity()
+            BW_ν_pre_impact = data_tf.generalized_velocity
 
             # Compute the impact velocity.
             # It may be discontinuous in case new contacts are made.
@@ -2158,10 +2158,9 @@ def step(
 
     # ne parliamo dopo
     # Restore the input velocity representation
-    data_tf = data_tf.replace(
-        model=model,
+    data_tf = dataclasses.replace(
+        data_tf,
         velocity_representation=data.velocity_representation,
-        validate=False,
     )
 
     return data_tf

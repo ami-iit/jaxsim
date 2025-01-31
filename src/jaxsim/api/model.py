@@ -2026,7 +2026,7 @@ def step(
             transform=W_H_L,
             is_force=True,
         )
-    )(O_f_L_external, data.link_transforms)
+    )(O_f_L_external, data._link_transforms)
 
     τ_references = jnp.atleast_1d(
         jnp.array(joint_force_references, dtype=float).squeeze()

@@ -439,8 +439,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=base_quaternion,
             joint_positions=joint_positions,
             joint_velocities=joint_velocities,
-            base_linear_velocity=base_linear_velocity,
-            base_angular_velocity=base_angular_velocity,
+            base_linear_velocity_inertial=base_linear_velocity,
+            base_angular_velocity_inertial=base_angular_velocity,
         )
 
         return super().replace(

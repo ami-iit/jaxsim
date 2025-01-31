@@ -1,4 +1,5 @@
 import dataclasses
+
 import jax.numpy as jnp
 
 import jaxsim
@@ -16,7 +17,6 @@ def semi_implicit_euler_integration(
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
-    velocity_representation = data.velocity_representation
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
         dt = model.time_step
@@ -57,7 +57,6 @@ def semi_implicit_euler_integration(
         )
 
         new_joint_position = data.joint_positions + dt * new_joint_velocities
-
 
     # TODO: Avoid double replace, e.g. by computing cached value here
     data = dataclasses.replace(

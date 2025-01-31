@@ -3,7 +3,11 @@ from __future__ import annotations
 import dataclasses
 import functools
 from collections.abc import Sequence
-from typing import override
+
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
 
 import jax
 import jax.numpy as jnp

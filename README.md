@@ -51,15 +51,14 @@ model = js.model.reduce(model=full_model, considered_joints=joints)
 
 ndof = model.dofs()
 # Initialize data and simulation
-data = js.data.JaxSimModelData.zero(model=model).reset_base_position(
-    base_position=jnp.array([0.0, 0.0, 1.0])
-)
+# Note that the defaul data representation is mixed velocity representation 
+data = js.data.JaxSimModelData.build(model=model,base_position=jnp.array([0.0, 0.0, 1.0]))
 T = jnp.arange(start=0, stop=1.0, step=model.time_step)
 tau = jnp.zeros(ndof)
 
 # Simulate
 for t in T:
-    data, _ = js.model.step(model=model, data=data, link_forces=None, joint_force_references=tau)
+    data = js.model.step(model=model, data=data, link_forces_inertial=None, joint_force_references=tau)
 
 ```
 

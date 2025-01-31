@@ -60,6 +60,9 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     _link_transforms: jtp.Matrix = dataclasses.field(repr=False, default=None)
     _link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
 
+    # Extended state for soft and rigid contact models.
+    contact_state: dict[str, jtp.Array] = dataclasses.field(default=None)
+
     @staticmethod
     def build(
         model: js.model.JaxSimModel,
@@ -70,6 +73,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.VectorLike | None = None,
         joint_velocities: jtp.VectorLike | None = None,
         velocity_representation: VelRepr = VelRepr.Mixed,
+        *,
+        contact_state: dict[str, jtp.Array] | None = None,
     ) -> JaxSimModelData:
         """
         Create a `JaxSimModelData` object with the given state.
@@ -85,6 +90,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
             velocity_representation: The velocity representation to use. It defaults to mixed if not provided.
+            contact_state: The optional contact state.
 
         Returns:
             A `JaxSimModelData` initialized with the given state.
@@ -167,18 +173,29 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             )
         )
 
+        contact_state = (
+            {
+                "tangential_deformation": jnp.zeros_like(
+                    model.kin_dyn_parameters.contact_parameters.point
+                )
+            }
+            if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts)
+            else contact_state or {}
+        )
+
         model_data = JaxSimModelData(
             velocity_representation=velocity_representation,
             _base_quaternion=base_quaternion,
             _base_position=base_position,
             _joint_positions=joint_positions,
-            _base_linear_velocity=v_WB[0:3],
-            _base_angular_velocity=v_WB[3:6],
+            _base_linear_velocity=W_v_WB[0:3],
+            _base_angular_velocity=W_v_WB[3:6],
             _joint_velocities=joint_velocities,
             _base_transform=W_H_B,
             _joint_transforms=joint_transforms,
             _link_transforms=link_transforms,
-            _link_velocities=link_velocities,
+            _link_velocities=link_velocities_inertial,
+            contact_state=contact_state or {},
         )
 
         if not model_data.valid(model=model):
@@ -386,6 +403,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
         velocity_representation: VelRepr | None = None,
+        *,
+        contact_state: dict[str, jtp.Array] | None = None,
         validate: bool = False,
     ) -> Self:
         """
@@ -438,8 +457,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=base_quaternion,
             joint_positions=joint_positions,
             joint_velocities=joint_velocities,
-            base_linear_velocity=base_linear_velocity,
-            base_angular_velocity=base_angular_velocity,
+            base_linear_velocity_inertial=base_linear_velocity,
+            base_angular_velocity_inertial=base_angular_velocity,
         )
 
         return super().replace(
@@ -454,6 +473,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             _joint_transforms=joint_transforms,
             _link_transforms=link_transforms,
             _link_velocities=link_velocities,
+            contact_state=contact_state or self.contact_state,
             validate=validate,
         )
 
@@ -601,6 +621,16 @@ def random_model_data(
             key=k6, shape=(3,), minval=ω_min, maxval=ω_max
         )
 
+    contact_state = (
+        {
+            "tangential_deformation": jnp.zeros_like(
+                model.kin_dyn_parameters.contact_parameters.point
+            )
+        }
+        if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts)
+        else {}
+    )
+
     return JaxSimModelData.build(
         model=model,
         base_position=base_position,
@@ -609,6 +639,7 @@ def random_model_data(
         joint_velocities=joint_velocities,
         base_linear_velocity=base_linear_velocity,
         base_angular_velocity=base_angular_velocity,
+        contact_state=contact_state,
         **(
             {"velocity_representation": velocity_representation}
             if velocity_representation is not None

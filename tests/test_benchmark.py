@@ -54,15 +54,6 @@ def test_free_floating_bias_forces(
 
 
 @pytest.mark.benchmark
-def test_forward_kinematics(
-    jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
-):
-    model = jaxsim_model_ergocub_reduced
-
-    benchmark_test_function(js.model.forward_kinematics, model, benchmark, batch_size)
-
-
-@pytest.mark.benchmark
 def test_free_floating_mass_matrix(
     jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
 ):

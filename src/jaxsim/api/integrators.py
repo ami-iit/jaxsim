@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 
 import jaxsim
@@ -12,6 +13,8 @@ def semi_implicit_euler_integration(
     data: js.data.JaxSimModelData,
     base_acceleration_inertial: jtp.Vector,
     joint_accelerations: jtp.Vector,
+    *,
+    extended_contact_state: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
@@ -57,6 +60,14 @@ def semi_implicit_euler_integration(
 
         new_joint_position = data.joint_positions + dt * new_joint_velocities
 
+        # Integrate the leaves of the contact state PyTree.
+        integrated_contact_state = jax.tree.map(
+            lambda x, x_dot: None if x is None else x + dt * x_dot,
+            data.contact_state,
+            extended_contact_state,
+            is_leaf=lambda x: x is None,
+        )
+
     data = data.replace(
         model=model,
         validate=True,
@@ -70,6 +81,7 @@ def semi_implicit_euler_integration(
         # it's equivalent to the one in inertial representation
         # See: S. Traversaro and A. Saccon, “Multibody Dynamics Notation (Version 2), pg.9
         base_angular_velocity=base_ang_velocity_mixed,
+        contact_state=integrated_contact_state,
     )
 
     return data

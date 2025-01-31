@@ -385,7 +385,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
-        velocity_representation: VelRepr | None = None,
         validate: bool = False,
     ) -> Self:
         """
@@ -399,8 +398,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion = self.base_quaternion
         if base_position is None:
             base_position = self.base_position
-        if velocity_representation is None:
-            velocity_representation = self.velocity_representation
 
         joint_positions = jnp.atleast_1d(joint_positions.squeeze()).astype(float)
         joint_velocities = jnp.atleast_1d(joint_velocities.squeeze()).astype(float)
@@ -443,7 +440,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         )
 
         return super().replace(
-            velocity_representation=velocity_representation,
             _joint_positions=joint_positions,
             _joint_velocities=joint_velocities,
             _base_quaternion=base_quaternion,

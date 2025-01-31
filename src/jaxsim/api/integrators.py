@@ -1,3 +1,4 @@
+import dataclasses
 import jax.numpy as jnp
 
 import jaxsim
@@ -57,19 +58,18 @@ def semi_implicit_euler_integration(
 
         new_joint_position = data.joint_positions + dt * new_joint_velocities
 
-    data = data.replace(
-        model=model,
-        validate=True,
-        velocity_representation=velocity_representation,
-        base_quaternion=new_base_quaternion,
-        base_position=new_base_position,
-        joint_positions=new_joint_position,
-        joint_velocities=new_joint_velocities,
-        base_linear_velocity=base_lin_velocity_inertial,
+    data = dataclasses.replace(
+        data,
+        _base_quaternion=new_base_quaternion,
+        _base_position=new_base_position,
+        _joint_positions=new_joint_position,
+        _joint_velocities=new_joint_velocities,
+        _base_linear_velocity=base_lin_velocity_inertial,
         # Here we use the base angular velocity in mixed representation since
         # it's equivalent to the one in inertial representation
         # See: S. Traversaro and A. Saccon, “Multibody Dynamics Notation (Version 2), pg.9
-        base_angular_velocity=base_ang_velocity_mixed,
+        _base_angular_velocity=base_ang_velocity_mixed,
     )
+    data = data.replace(model=model)  # update cache
 
     return data

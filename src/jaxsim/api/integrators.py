@@ -58,6 +58,8 @@ def semi_implicit_euler_integration(
 
         new_joint_position = data.joint_positions + dt * new_joint_velocities
 
+
+    # TODO: Avoid double replace, e.g. by computing cached value here
     data = dataclasses.replace(
         data,
         _base_quaternion=new_base_quaternion,

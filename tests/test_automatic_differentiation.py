@@ -234,8 +234,8 @@ def test_ad_fk(
         base_position=W_p_B,
         base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
-        base_linear_velocity=W_v_lin,
-        base_angular_velocity=W_v_ang,
+        base_linear_velocity_inertial=W_v_lin,
+        base_angular_velocity_inertial=W_v_ang,
         joint_velocities=ṡ,
     )
 
@@ -344,7 +344,7 @@ def test_ad_integration(
             model=model,
             data=data_x0,
             joint_force_references=τ,
-            link_forces_inertial=W_f_L,
+            link_forces=W_f_L,
         )
 
         xf_W_p_B = data_xf.base_position

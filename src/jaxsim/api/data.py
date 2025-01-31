@@ -41,7 +41,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_transform: The base transform.
         joint_transforms: The joint transforms.
         link_transforms: The link transforms.
-        link_velocities: The link velocities.
+        link_velocities: The link velocities in inertial-fixed representation.
     """
 
     # Joint state
@@ -69,7 +69,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.VectorLike | None = None,
         base_angular_velocity: jtp.VectorLike | None = None,
         joint_velocities: jtp.VectorLike | None = None,
-        velocity_representation: VelRepr = VelRepr.Inertial,
+        velocity_representation: VelRepr = VelRepr.Mixed,
     ) -> JaxSimModelData:
         """
         Create a `JaxSimModelData` object with the given state.
@@ -84,7 +84,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_angular_velocity:
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
-            velocity_representation: The velocity representation to use.
+            velocity_representation: The velocity representation to use. It defaults to mixed if not provided.
 
         Returns:
             A `JaxSimModelData` initialized with the given state.
@@ -144,7 +144,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             translation=base_position, quaternion=base_quaternion
         )
 
-        v_WB = JaxSimModelData.other_representation_to_inertial(
+        W_v_WB = JaxSimModelData.other_representation_to_inertial(
             array=jnp.hstack([base_linear_velocity, base_angular_velocity]),
             other_representation=velocity_representation,
             transform=W_H_B,
@@ -155,28 +155,30 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             joint_positions=joint_positions, base_transform=W_H_B
         )
 
-        link_transforms, link_velocities = jaxsim.rbda.forward_kinematics_model(
-            model=model,
-            base_position=base_position,
-            base_quaternion=base_quaternion,
-            joint_positions=joint_positions,
-            base_linear_velocity=v_WB[0:3],
-            base_angular_velocity=v_WB[3:6],
-            joint_velocities=joint_velocities,
+        link_transforms, link_velocities_inertial = (
+            jaxsim.rbda.forward_kinematics_model(
+                model=model,
+                base_position=base_position,
+                base_quaternion=base_quaternion,
+                joint_positions=joint_positions,
+                base_linear_velocity_inertial=W_v_WB[0:3],
+                base_angular_velocity_inertial=W_v_WB[3:6],
+                joint_velocities=joint_velocities,
+            )
         )
 
         model_data = JaxSimModelData(
             base_quaternion=base_quaternion,
             base_position=base_position,
             joint_positions=joint_positions,
-            base_linear_velocity=v_WB[0:3],
-            base_angular_velocity=v_WB[3:6],
+            base_linear_velocity=W_v_WB[0:3],
+            base_angular_velocity=W_v_WB[3:6],
             joint_velocities=joint_velocities,
             velocity_representation=velocity_representation,
             base_transform=W_H_B,
             joint_transforms=joint_transforms,
             link_transforms=link_transforms,
-            link_velocities=link_velocities,
+            link_velocities=link_velocities_inertial,
         )
 
         if not model_data.valid(model=model):
@@ -189,14 +191,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     @staticmethod
     def zero(
         model: js.model.JaxSimModel,
-        velocity_representation: VelRepr = VelRepr.Inertial,
+        velocity_representation: VelRepr = VelRepr.Mixed,
     ) -> JaxSimModelData:
         """
         Create a `JaxSimModelData` object with zero state.
 
         Args:
             model: The model for which to create the state.
-            velocity_representation: The velocity representation to use.
+            velocity_representation: The velocity representation to use. It defaults to mixed if not provided.
 
         Returns:
             A `JaxSimModelData` initialized with zero state.
@@ -603,8 +605,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion=self.base_quaternion,
             joint_positions=self.joint_positions,
             joint_velocities=self.joint_velocities,
-            base_linear_velocity=self.base_linear_velocity,
-            base_angular_velocity=self.base_angular_velocity,
+            base_linear_velocity_inertial=self.base_linear_velocity,
+            base_angular_velocity_inertial=self.base_angular_velocity,
         )
 
         return self.replace(

@@ -100,9 +100,9 @@ def system_position_dynamics(
     """
 
     ṡ = data.joint_velocities
-    W_Q_B = data.base_orientation(dcm=False)
-    W_ω_WB = data.base_velocity()[3:6]
-    W_ṗ_B = data.base_velocity()[0:3] + Skew.wedge(W_ω_WB) @ data.base_position
+    W_Q_B = data.base_orientation
+    W_ω_WB = data.base_velocity[3:6]
+    W_ṗ_B = data.base_velocity[0:3] + Skew.wedge(W_ω_WB) @ data.base_position
 
     W_Q̇_B = Quaternion.derivative(
         quaternion=W_Q_B,

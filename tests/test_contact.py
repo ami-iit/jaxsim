@@ -28,7 +28,7 @@ def test_collidable_point_jacobians(
     W_ṗ_C = js.contact.collidable_point_velocities(model=model, data=data)
 
     # Compute the generalized velocity and the free-floating Jacobian of the frame C.
-    ν = data.generalized_velocity()
+    ν = data.generalized_velocity
     CW_J_WC = js.contact.jacobian(model=model, data=data, output_vel_repr=VelRepr.Mixed)
 
     # Compute the velocity of the collidable points using the Jacobians.

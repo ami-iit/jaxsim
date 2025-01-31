@@ -79,7 +79,7 @@ def test_box_with_external_forces(
 
     # Check that the box didn't move.
     assert data.base_position == pytest.approx(data0.base_position)
-    assert data.base_orientation() == pytest.approx(data0.base_orientation())
+    assert data.base_orientation == pytest.approx(data0.base_orientation)
 
 
 def test_box_with_zero_gravity(
@@ -273,9 +273,7 @@ def test_joint_limits(
     tolerance = theta * 0.10
 
     # Test minimum joint position limits.
-    data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
-
-    data_t0 = data_t0.update_cached(model=model)
+    data_t0 = data.replace(model=model, joint_positions=position_limits_min - theta)
 
     model = model.replace(time_step=0.005, validate=False)
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
@@ -286,9 +284,7 @@ def test_joint_limits(
     )
 
     # Test maximum joint position limits.
-    data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
-
-    data_t0 = data_t0.update_cached(model=model)
+    data_t0 = data.replace(model=model, joint_positions=position_limits_max - theta)
 
     model = model.replace(time_step=0.001)
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)

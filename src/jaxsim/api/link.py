@@ -187,7 +187,7 @@ def transform(
         idx=link_index,
     )
 
-    return data.link_transforms[link_index]
+    return data._link_transforms[link_index]
 
 
 @jax.jit
@@ -285,7 +285,7 @@ def jacobian(
     # Adjust the input representation such that `J_WL_I @ I_ν`.
     match data.velocity_representation:
         case VelRepr.Inertial:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
             B_J_WL_I = B_J_WL_W = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
                 B_X_W, jnp.eye(model.dofs())
@@ -295,7 +295,7 @@ def jacobian(
             B_J_WL_I = B_J_WL_B
 
         case VelRepr.Mixed:
-            W_R_B = data.base_orientation(dcm=True)
+            W_R_B = jaxsim.math.Quaternion.to_dcm(data.base_orientation)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             B_J_WL_I = B_J_WL_BW = B_J_WL_B @ jax.scipy.linalg.block_diag(  # noqa: F841
@@ -310,7 +310,7 @@ def jacobian(
     # Adjust the output representation such that `O_v_WL_I = O_J_WL_I @ I_ν`.
     match output_vel_repr:
         case VelRepr.Inertial:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             W_X_B = Adjoint.from_transform(transform=W_H_B)
             O_J_WL_I = W_J_WL_I = W_X_B @ B_J_WL_I  # noqa: F841
 
@@ -320,7 +320,7 @@ def jacobian(
             O_J_WL_I = L_J_WL_I
 
         case VelRepr.Mixed:
-            W_H_B = data.base_transform
+            W_H_B = data._base_transform
             W_H_L = W_H_B @ B_H_L
             LW_H_L = W_H_L.at[0:3, 3].set(jnp.zeros(3))
             LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
@@ -378,7 +378,7 @@ def velocity(
     )
 
     # Get the generalized velocity in the input velocity representation.
-    I_ν = data.generalized_velocity()
+    I_ν = data.generalized_velocity
 
     # Compute the link velocity in the output velocity representation.
     return O_J_WL_I @ I_ν

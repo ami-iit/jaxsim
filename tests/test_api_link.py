@@ -112,7 +112,7 @@ def test_link_transforms(
     # Tests
     # =====
 
-    W_H_LL_model = data.link_transforms
+    W_H_LL_model = data._link_transforms
 
     W_H_LL_links = jax.vmap(
         lambda idx: js.link.transform(model=model, data=data, link_index=idx)
@@ -239,7 +239,7 @@ def test_link_bias_acceleration(
         # Inertial-fixed to body-fixed conversion.
         case VelRepr.Inertial:
 
-            W_H_L = data.link_transforms
+            W_H_L = data._link_transforms
 
             W_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
@@ -260,7 +260,7 @@ def test_link_bias_acceleration(
         # Body-fixed to inertial-fixed conversion.
         case VelRepr.Body:
 
-            W_H_L = data.link_transforms
+            W_H_L = data._link_transforms
 
             L_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
@@ -301,7 +301,7 @@ def test_link_jacobian_derivative(
     # =====
 
     # Get the generalized velocity.
-    I_ν = data.generalized_velocity()
+    I_ν = data.generalized_velocity
 
     # Compute J̇.
     O_J̇_WL_I = jax.vmap(
@@ -324,15 +324,13 @@ def test_link_jacobian_derivative(
     # all velocity representations, that are handled internally when computing J.
     def J(q) -> jax.Array:
 
-        data_ad = js.data.JaxSimModelData.zero(
-            model=model, velocity_representation=data.velocity_representation
+        data_ad = js.data.JaxSimModelData.build(
+            model=model,
+            velocity_representation=data.velocity_representation,
+            base_position=q[:3],
+            base_quaternion=q[3:7],
+            joint_positions=q[7:],
         )
-
-        data_ad = data_ad.reset_base_position(base_position=q[:3])
-        data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
-        data_ad = data_ad.reset_joint_positions(positions=q[7:])
-
-        data_ad = data_ad.update_cached(model=model)
 
         O_J_WL_I = js.model.generalized_free_floating_jacobian(
             model=model, data=data_ad
@@ -343,7 +341,7 @@ def test_link_jacobian_derivative(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
 
         q = jnp.hstack(
-            [data.base_position, data.base_orientation(), data.joint_positions]
+            [data.base_position, data.base_orientation, data.joint_positions]
         )
 
         return q
@@ -351,13 +349,13 @@ def test_link_jacobian_derivative(
     def compute_q̇(data: js.data.JaxSimModelData) -> jax.Array:
 
         with data.switch_velocity_representation(VelRepr.Body):
-            B_ω_WB = data.base_velocity()[3:6]
+            B_ω_WB = data.base_velocity[3:6]
 
         with data.switch_velocity_representation(VelRepr.Mixed):
-            W_ṗ_B = data.base_velocity()[0:3]
+            W_ṗ_B = data.base_velocity[0:3]
 
         W_Q̇_B = jaxsim.math.Quaternion.derivative(
-            quaternion=data.base_orientation(),
+            quaternion=data.base_orientation,
             omega=B_ω_WB,
             omega_in_body_fixed=True,
             K=0.0,

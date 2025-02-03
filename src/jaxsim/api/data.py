@@ -334,6 +334,16 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             .astype(float)
         )
 
+    @property
+    def base_transform(self) -> jtp.Matrix:
+        """
+        Get the base transform.
+
+        Returns:
+            The base transform.
+        """
+        return self._base_transform
+
     # ================
     # Store quantities
     # ================

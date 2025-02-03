@@ -63,7 +63,7 @@ def mujoco_data_from_jaxsim(
 
         # Set the model orientation.
         model_helper.set_base_orientation(
-            orientation=np.array(jaxsim_data.base_orientation())
+            orientation=np.array(jaxsim_data.base_orientation)
         )
 
     # Set the joint positions.

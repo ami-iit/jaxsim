@@ -57,7 +57,7 @@ tau = jnp.zeros(ndof)
 
 # Simulate
 for t in T:
-    data = js.model.step(model=model, data=data, link_forces_inertial=None, joint_force_references=tau)
+    data = js.model.step(model=model, data=data, link_forces=None, joint_force_references=tau)
 
 ```
 

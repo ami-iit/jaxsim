@@ -6,9 +6,8 @@
 <br/>
 <table>
   <tr>
-    <th><img src="https://github.com/user-attachments/assets/115b1c1c-6ae5-4c59-92e0-1be13ba954db" width="250"></th>
-    <th><img src="https://github.com/user-attachments/assets/f9661fae-9a85-41dd-9a58-218758ec8c9c" width="250"></th>
-    <th><img src="https://github.com/user-attachments/assets/ae8adadf-3bca-47b8-97ca-3a9273633d60" width="250"></th>
+    <th><img src="https://github.com/user-attachments/assets/f9661fae-9a85-41dd-9a58-218758ec8c9c" width="500"></th>
+    <th><img src="https://github.com/user-attachments/assets/62b88b9d-45ea-4d22-99d2-f24fc842dd29" width="500"></th>
   </tr>
 </table>
 <br/>
@@ -51,15 +50,14 @@ model = js.model.reduce(model=full_model, considered_joints=joints)
 
 ndof = model.dofs()
 # Initialize data and simulation
-data = js.data.JaxSimModelData.zero(model=model).reset_base_position(
-    base_position=jnp.array([0.0, 0.0, 1.0])
-)
+# Note that the default data representation is mixed velocity representation
+data = js.data.JaxSimModelData.build(model=model,base_position=jnp.array([0.0, 0.0, 1.0]))
 T = jnp.arange(start=0, stop=1.0, step=model.time_step)
 tau = jnp.zeros(ndof)
 
 # Simulate
 for t in T:
-    data, _ = js.model.step(model=model, data=data, link_forces=None, joint_force_references=tau)
+    data = js.model.step(model=model, data=data, link_forces=None, joint_force_references=tau)
 
 ```
 

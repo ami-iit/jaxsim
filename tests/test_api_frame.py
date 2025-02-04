@@ -215,7 +215,7 @@ def test_frame_jacobian_derivative(
     # ===============
 
     # Get the generalized velocity.
-    I_ν = data.generalized_velocity()
+    I_ν = data.generalized_velocity
 
     # Compute J̇.
     O_J̇_WF_I = jax.vmap(
@@ -229,13 +229,13 @@ def test_frame_jacobian_derivative(
     # Compute the plain Jacobian.
     # This function will be used to compute the Jacobian derivative with AD.
     def J(q, frame_idxs) -> jax.Array:
-        data_ad = js.data.JaxSimModelData.zero(
-            model=model, velocity_representation=data.velocity_representation
+        data_ad = js.data.JaxSimModelData.build(
+            model=model,
+            velocity_representation=data.velocity_representation,
+            base_position=q[:3],
+            base_quaternion=q[3:7],
+            joint_positions=q[7:],
         )
-
-        data_ad = data_ad.reset_base_position(base_position=q[:3])
-        data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
-        data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
         O_J_ad_WF_I = jax.vmap(
             lambda model, data, frame_index: js.frame.jacobian(
@@ -249,9 +249,9 @@ def test_frame_jacobian_derivative(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
         q = jnp.hstack(
             [
-                data.base_position(),
-                data.base_orientation(),
-                data.joint_positions(),
+                data.base_position,
+                data.base_orientation,
+                data.joint_positions,
             ]
         )
 
@@ -259,19 +259,19 @@ def test_frame_jacobian_derivative(
 
     def compute_q̇(data: js.data.JaxSimModelData) -> jax.Array:
         with data.switch_velocity_representation(VelRepr.Body):
-            B_ω_WB = data.base_velocity()[3:6]
+            B_ω_WB = data.base_velocity[3:6]
 
         with data.switch_velocity_representation(VelRepr.Mixed):
-            W_ṗ_B = data.base_velocity()[0:3]
+            W_ṗ_B = data.base_velocity[0:3]
 
         W_Q̇_B = Quaternion.derivative(
-            quaternion=data.base_orientation(),
+            quaternion=data.base_orientation,
             omega=B_ω_WB,
             omega_in_body_fixed=True,
             K=0.0,
         ).squeeze()
 
-        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities()])
+        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities])
 
         return q̇
 

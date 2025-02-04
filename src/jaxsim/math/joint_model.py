@@ -7,11 +7,9 @@ import jaxlie
 from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
+from jaxsim.math import Rotation
 from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
-
-from .rotation import Rotation
-from .transform import Transform
 
 
 @jax_dataclasses.pytree_dataclass
@@ -113,60 +111,6 @@ class JointModel:
             joint_axis=tuple(JointGenericAxis(axis=j.axis) for j in ordered_joints),
         )
 
-    def parent_H_child(
-        self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
-    ) -> tuple[jtp.Matrix, jtp.Array]:
-        r"""
-        Compute the homogeneous transformation between the parent link and
-        the child link of a joint, and the corresponding motion subspace.
-
-        Args:
-            joint_index: The index of the joint.
-            joint_position: The position of the joint.
-
-        Returns:
-            A tuple containing the homogeneous transformation
-            :math:`{}^{\lambda(i)} \mathbf{H}_i(s)`
-            and the motion subspace :math:`\mathbf{S}(s)`.
-        """
-
-        i = joint_index
-        s = joint_position
-
-        # Get the components of the joint model.
-        λ_Hi_pre = self.parent_H_predecessor(joint_index=i)
-        pre_Hi_suc, S = self.predecessor_H_successor(joint_index=i, joint_position=s)
-        suc_Hi_i = self.successor_H_child(joint_index=i)
-
-        # Compose all the transforms.
-        return λ_Hi_pre @ pre_Hi_suc @ suc_Hi_i, S
-
-    @jax.jit
-    def child_H_parent(
-        self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
-    ) -> tuple[jtp.Matrix, jtp.Array]:
-        r"""
-        Compute the homogeneous transformation between the child link and
-        the parent link of a joint, and the corresponding motion subspace.
-
-        Args:
-            joint_index: The index of the joint.
-            joint_position: The position of the joint.
-
-        Returns:
-            A tuple containing the homogeneous transformation
-            :math:`{}^{i} \mathbf{H}_{\lambda(i)}(s)`
-            and the motion subspace :math:`\mathbf{S}(s)`.
-        """
-
-        λ_Hi_i, S = self.parent_H_child(
-            joint_index=joint_index, joint_position=joint_position
-        )
-
-        i_Hi_λ = Transform.inverse(λ_Hi_i)
-
-        return i_Hi_λ, S
-
     def parent_H_predecessor(self, joint_index: jtp.IntLike) -> jtp.Matrix:
         r"""
         Return the homogeneous transformation between the parent link and
@@ -181,31 +125,6 @@ class JointModel:
         """
 
         return self.λ_H_pre[joint_index]
-
-    def predecessor_H_successor(
-        self, joint_index: jtp.IntLike, joint_position: jtp.VectorLike
-    ) -> tuple[jtp.Matrix, jtp.Array]:
-        r"""
-        Compute the homogeneous transformation between the predecessor and
-        the successor frame of a joint, and the corresponding motion subspace.
-
-        Args:
-            joint_index: The index of the joint.
-            joint_position: The position of the joint.
-
-        Returns:
-            A tuple containing the homogeneous transformation
-            :math:`{}^{\text{pre}(i)} \mathbf{H}_{\text{suc}(i)}(s)`
-            and the motion subspace :math:`\mathbf{S}(s)`.
-        """
-
-        pre_H_suc, S = supported_joint_motion(
-            self.joint_types[joint_index],
-            joint_position,
-            self.joint_axis[joint_index].axis,
-        )
-
-        return pre_H_suc, S
 
     def successor_H_child(self, joint_index: jtp.IntLike) -> jtp.Matrix:
         r"""
@@ -225,65 +144,56 @@ class JointModel:
 
 @jax.jit
 def supported_joint_motion(
-    joint_type: jtp.IntLike,
-    joint_position: jtp.VectorLike,
-    joint_axis: jtp.VectorLike | None = None,
-    /,
-) -> tuple[jtp.Matrix, jtp.Array]:
+    joint_types: jtp.Array, joint_positions: jtp.Matrix, joint_axes: jtp.Matrix
+) -> jtp.Matrix:
     """
-    Compute the homogeneous transformation and motion subspace of a joint.
+    Compute the transforms of the joints.
 
     Args:
-        joint_type: The type of the joint.
-        joint_position: The position of the joint.
-        joint_axis: The optional 3D axis of rotation or translation of the joint.
+        joint_types: The types of the joints.
+        joint_positions: The positions of the joints.
+        joint_axes: The axes of the joints.
 
     Returns:
-        A tuple containing the homogeneous transformation and the motion subspace.
+        The transforms of the joints.
     """
 
     # Prepare the joint position
-    s = jnp.array(joint_position).astype(float)
+    s = jnp.array(joint_positions).astype(float)
 
     def compute_F() -> tuple[jtp.Matrix, jtp.Array]:
-        return jaxlie.SE3.identity(), jnp.zeros(shape=(6, 1))
+        return jaxlie.SE3.identity()
 
     def compute_R() -> tuple[jtp.Matrix, jtp.Array]:
 
         # Get the additional argument specifying the joint axis.
         # This is a metadata required by only some joint types.
-        axis = jnp.array(joint_axis).astype(float).squeeze()
+        axis = jnp.array(joint_axes).astype(float).squeeze()
 
         pre_H_suc = jaxlie.SE3.from_matrix(
             matrix=jnp.eye(4).at[:3, :3].set(Rotation.from_axis_angle(vector=s * axis))
         )
 
-        S = jnp.vstack(jnp.hstack([jnp.zeros(3), axis]))
-
-        return pre_H_suc, S
+        return pre_H_suc
 
     def compute_P() -> tuple[jtp.Matrix, jtp.Array]:
 
         # Get the additional argument specifying the joint axis.
         # This is a metadata required by only some joint types.
-        axis = jnp.array(joint_axis).astype(float).squeeze()
+        axis = jnp.array(joint_axes).astype(float).squeeze()
 
         pre_H_suc = jaxlie.SE3.from_rotation_and_translation(
             rotation=jaxlie.SO3.identity(),
             translation=jnp.array(s * axis),
         )
 
-        S = jnp.vstack(jnp.hstack([axis, jnp.zeros(3)]))
+        return pre_H_suc
 
-        return pre_H_suc, S
-
-    pre_H_suc, S = jax.lax.switch(
-        index=joint_type,
+    return jax.lax.switch(
+        index=joint_types,
         branches=(
             compute_F,  # JointType.Fixed
             compute_R,  # JointType.Revolute
             compute_P,  # JointType.Prismatic
         ),
-    )
-
-    return pre_H_suc.as_matrix(), S
+    ).as_matrix()

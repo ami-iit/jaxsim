@@ -38,7 +38,7 @@ def test_contact_kinematics(
     # Compute the pose of the implicit contact frame associated to the collidable points
     # and the transforms of all links.
     W_H_C = js.contact.transforms(model=model, data=data)
-    W_H_L = js.model.forward_kinematics(model=model, data=data)
+    W_H_L = data._link_transforms
 
     # Check that the orientation of the implicit contact frame matches with the
     # orientation of the link to which the contact point is attached.
@@ -60,7 +60,7 @@ def test_contact_kinematics(
     W_ṗ_C = js.contact.collidable_point_velocities(model=model, data=data)
 
     # Compute the velocity of the collidable point using the contact Jacobian.
-    ν = data.generalized_velocity()
+    ν = data.generalized_velocity
     CW_J_WC = js.contact.jacobian(model=model, data=data, output_vel_repr=VelRepr.Mixed)
     CW_vl_WC = jnp.einsum("c6g,g->c6", CW_J_WC, ν)[:, 0:3]
 
@@ -132,12 +132,12 @@ def test_contact_jacobian_derivative(
     # Rebuild the JaxSim data.
     data_with_frames = js.data.JaxSimModelData.build(
         model=model_with_frames,
-        base_position=data.base_position(),
-        base_quaternion=data.base_orientation(dcm=False),
-        joint_positions=data.joint_positions(),
-        base_linear_velocity=data.base_velocity()[0:3],
-        base_angular_velocity=data.base_velocity()[3:6],
-        joint_velocities=data.joint_velocities(),
+        base_position=data.base_position,
+        base_quaternion=data.base_orientation,
+        joint_positions=data.joint_positions,
+        base_linear_velocity=data.base_velocity[0:3],
+        base_angular_velocity=data.base_velocity[3:6],
+        joint_velocities=data.joint_velocities,
         velocity_representation=velocity_representation,
     )
 

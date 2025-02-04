@@ -9,7 +9,6 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
-from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
@@ -73,14 +72,14 @@ def test_ad_aba(
     )
 
     # Get the standard gravity constant.
-    g = jaxsim.math.StandardGravity
+    g = jaxsim.math.STANDARD_GRAVITY
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
-    W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
-    W_v_WB = data.base_velocity()
-    ṡ = data.joint_velocities(model=model)
+    W_p_B = data.base_position
+    W_Q_B = data.base_orientation
+    s = data.joint_positions
+    W_v_WB = data.base_velocity
+    ṡ = data.joint_velocities
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -127,14 +126,14 @@ def test_ad_rnea(
     )
 
     # Get the standard gravity constant.
-    g = jaxsim.math.StandardGravity
+    g = jaxsim.math.STANDARD_GRAVITY
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
-    W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
-    W_v_WB = data.base_velocity()
-    ṡ = data.joint_velocities(model=model)
+    W_p_B = data.base_position
+    W_Q_B = data.base_orientation
+    s = data.joint_positions
+    W_v_WB = data.base_velocity
+    ṡ = data.joint_velocities
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -186,7 +185,7 @@ def test_ad_crba(
     )
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
 
     # ====
     # Test
@@ -218,26 +217,32 @@ def test_ad_fk(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
-    W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
+    W_p_B = data.base_position
+    W_Q_B = data.base_orientation
+    s = data.joint_positions
+    W_v_lin = data._base_linear_velocity
+    W_v_ang = data._base_angular_velocity
+    ṡ = data.joint_velocities
 
     # ====
     # Test
     # ====
 
     # Get a closure exposing only the parameters to be differentiated.
-    fk = lambda W_p_B, W_Q_B, s: jaxsim.rbda.forward_kinematics_model(
+    fk = lambda W_p_B, W_Q_B, s, W_v_lin, W_v_ang, ṡ: jaxsim.rbda.forward_kinematics_model(
         model=model,
         base_position=W_p_B,
         base_quaternion=W_Q_B / jnp.linalg.norm(W_Q_B),
         joint_positions=s,
+        base_linear_velocity_inertial=W_v_lin,
+        base_angular_velocity_inertial=W_v_ang,
+        joint_velocities=ṡ,
     )
 
     # Check derivatives against finite differences.
     check_grads(
         f=fk,
-        args=(W_p_B, W_Q_B, s),
+        args=(W_p_B, W_Q_B, s, W_v_lin, W_v_ang, ṡ),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
@@ -257,7 +262,7 @@ def test_ad_jacobian(
     )
 
     # State in VelRepr.Inertial representation.
-    s = data.joint_positions(model=model)
+    s = data.joint_positions
 
     # ====
     # Test
@@ -283,55 +288,6 @@ def test_ad_jacobian(
     )
 
 
-def test_ad_soft_contacts(
-    jaxsim_models_types: js.model.JaxSimModel,
-    prng_key: jax.Array,
-):
-
-    model = jaxsim_models_types
-
-    _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
-    p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
-    v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
-    m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
-
-    # Get the soft contacts parameters.
-    parameters = js.contact.estimate_good_contact_parameters(model=model)
-
-    # ====
-    # Test
-    # ====
-
-    # Get a closure exposing only the parameters to be differentiated.
-    def close_over_inputs_and_parameters(
-        p: jtp.VectorLike,
-        v: jtp.VectorLike,
-        m: jtp.VectorLike,
-        params: SoftContactsParams,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
-
-        W_f_Ci, CW_ṁ = SoftContacts.compute_contact_force(
-            position=p,
-            velocity=v,
-            tangential_deformation=m,
-            parameters=params,
-            terrain=model.terrain,
-        )
-
-        return W_f_Ci, CW_ṁ
-
-    # Check derivatives against finite differences.
-    check_grads(
-        f=close_over_inputs_and_parameters,
-        args=(p, v, m, parameters),
-        order=AD_ORDER,
-        modes=["rev", "fwd"],
-        eps=ε,
-        # On GPU, the tolerance needs to be increased.
-        rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
-    )
-
-
 def test_ad_integration(
     jaxsim_models_types: js.model.JaxSimModel,
     prng_key: jax.Array,
@@ -345,12 +301,11 @@ def test_ad_integration(
     )
 
     # State in VelRepr.Inertial representation.
-    W_p_B = data.base_position()
-    W_Q_B = data.base_orientation(dcm=False)
-    s = data.joint_positions(model=model)
-    W_v_WB = data.base_velocity()
-    ṡ = data.joint_velocities(model=model)
-    m = data.state.extended["tangential_deformation"]
+    W_p_B = data.base_position
+    W_Q_B = data.base_orientation
+    s = data.joint_positions
+    W_v_WB = data.base_velocity
+    ṡ = data.joint_velocities
 
     # Inputs.
     W_f_L = references.link_forces(model=model)
@@ -367,51 +322,47 @@ def test_ad_integration(
         s: jtp.Vector,
         W_v_WB: jtp.Vector,
         ṡ: jtp.Vector,
-        m: jtp.Vector,
         τ: jtp.Vector,
         W_f_L: jtp.Matrix,
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
 
         # When JAX tests against finite differences, the injected ε will make the
         # quaternion non-unitary, which will cause the AD check to fail.
         W_Q_B = W_Q_B / jnp.linalg.norm(W_Q_B)
 
         data_x0 = data.replace(
-            state=js.ode_data.ODEState.build(
-                physics_model_state=js.ode_data.PhysicsModelState.build(
-                    base_position=W_p_B,
-                    base_quaternion=W_Q_B,
-                    joint_positions=s,
-                    base_linear_velocity=W_v_WB[0:3],
-                    base_angular_velocity=W_v_WB[3:6],
-                    joint_velocities=ṡ,
-                ),
-                extended_state={"tangential_deformation": m},
-            ),
+            model=model,
+            base_position=W_p_B,
+            base_quaternion=W_Q_B,
+            joint_positions=s,
+            base_linear_velocity=W_v_WB[0:3],
+            base_angular_velocity=W_v_WB[3:6],
+            joint_velocities=ṡ,
         )
 
-        data_xf, _ = js.model.step(
+        data_xf = js.model.step(
             model=model,
             data=data_x0,
             joint_force_references=τ,
             link_forces=W_f_L,
         )
 
-        xf_W_p_B = data_xf.base_position()
-        xf_W_Q_B = data_xf.base_orientation(dcm=False)
-        xf_s = data_xf.joint_positions(model=model)
-        xf_W_v_WB = data_xf.base_velocity()
-        xf_ṡ = data_xf.joint_velocities(model=model)
-        xf_m = data_xf.state.extended["tangential_deformation"]
+        xf_W_p_B = data_xf.base_position
+        xf_W_Q_B = data_xf.base_orientation
+        xf_s = data_xf.joint_positions
+        xf_W_v_WB = data_xf.base_velocity
+        xf_ṡ = data_xf.joint_velocities
 
-        return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ, xf_m
+        return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ
 
     # Check derivatives against finite differences.
+    # We set forward mode only because the backward mode is not supported by the
+    # current implementation of `optax` optimizers in the relaxed rigid contact model.
     check_grads(
         f=step,
-        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, m, τ, W_f_L),
+        args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L),
         order=AD_ORDER,
-        modes=["rev", "fwd"],
+        modes=["fwd"],
         eps=ε,
     )
 

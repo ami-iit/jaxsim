@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 import jaxsim.api as js
-import jaxsim.integrators
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
@@ -31,7 +30,7 @@ def test_box_with_external_forces(
     )
 
     # Compute the force due to gravity at the CoM.
-    mg = data0.standard_gravity() * js.model.total_mass(model=model)
+    mg = -model.gravity * js.model.total_mass(model=model)
     G_f = jnp.array([0.0, 0.0, mg, 0, 0, 0])
 
     # Compute the position of the CoM expressed in the coordinates of the link frame L.
@@ -72,15 +71,15 @@ def test_box_with_external_forces(
     # ... and step the simulation.
     for _ in T_ns:
 
-        data, _ = js.model.step(
+        data = js.model.step(
             model=model,
             data=data,
-            link_forces=references.link_forces(model=model, data=data),
+            link_forces=references.link_forces(model, data),
         )
 
     # Check that the box didn't move.
-    assert data.base_position() == pytest.approx(data0.base_position())
-    assert data.base_orientation() == pytest.approx(data0.base_orientation())
+    assert data.base_position == pytest.approx(data0.base_position)
+    assert data.base_orientation == pytest.approx(data0.base_orientation)
 
 
 def test_box_with_zero_gravity(
@@ -94,6 +93,7 @@ def test_box_with_zero_gravity(
     # Move the terrain (almost) infinitely far away from the box.
     with model.editable(validate=False) as model:
         model.terrain = jaxsim.terrain.FlatTerrain.build(height=-1e9)
+        model.gravity = 0.0
 
     # Split the PRNG key.
     _, subkey = jax.random.split(prng_key, num=2)
@@ -103,7 +103,6 @@ def test_box_with_zero_gravity(
         model=model,
         base_position=jax.random.uniform(subkey, shape=(3,)),
         velocity_representation=velocity_representation,
-        standard_gravity=0.0,
     )
 
     # Initialize a references object that simplifies handling external forces.
@@ -146,21 +145,19 @@ def test_box_with_zero_gravity(
 
     # ... and step the simulation.
     for _ in T:
-
         with (
             data.switch_velocity_representation(velocity_representation),
             references.switch_velocity_representation(velocity_representation),
         ):
-
-            data, _ = js.model.step(
+            data = js.model.step(
                 model=model,
                 data=data,
                 link_forces=references.link_forces(model=model, data=data),
             )
 
     # Check that the box moved as expected.
-    assert data.base_position() == pytest.approx(
-        data0.base_position()
+    assert data.base_position == pytest.approx(
+        data0.base_position
         + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
         abs=1e-3,
     )
@@ -169,195 +166,25 @@ def test_box_with_zero_gravity(
 def run_simulation(
     model: js.model.JaxSimModel,
     data_t0: js.data.JaxSimModelData,
-    dt: jtp.FloatLike,
     tf: jtp.FloatLike,
 ) -> js.data.JaxSimModelData:
 
     # Initialize the integration horizon.
-    T_ns = jnp.arange(start=0.0, stop=int(tf * 1e9), step=int(dt * 1e9)).astype(int)
+    T_ns = jnp.arange(
+        start=0.0, stop=int(tf * 1e9), step=int(model.time_step * 1e9)
+    ).astype(int)
 
     # Initialize the simulation data.
     data = data_t0.copy()
 
     for _ in T_ns:
 
-        match model.contact_model:
-
-            case jaxsim.rbda.contacts.ViscoElasticContacts():
-
-                data, _ = jaxsim.rbda.contacts.visco_elastic.step(
-                    model=model,
-                    data=data,
-                    dt=dt,
-                )
-
-            case _:
-
-                data, _ = js.model.step(
-                    model=model,
-                    data=data,
-                    dt=dt,
-                )
+        data = js.model.step(
+            model=model,
+            data=data,
+        )
 
     return data
-
-
-@pytest.mark.parametrize(
-    "integrator",
-    [
-        jaxsim.integrators.fixed_step.ForwardEuler,
-        jaxsim.integrators.fixed_step.ForwardEulerSO3,
-        jaxsim.integrators.fixed_step.RungeKutta4,
-        jaxsim.integrators.fixed_step.RungeKutta4SO3,
-        jaxsim.integrators.variable_step.BogackiShampineSO3,
-    ],
-)
-def test_simulation_with_soft_contacts(
-    jaxsim_model_box: js.model.JaxSimModel,
-    integrator: jaxsim.integrators.Integrator,
-):
-
-    model = jaxsim_model_box
-
-    with model.editable(validate=False) as model:
-
-        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build()
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
-        )
-        model.integrator = integrator.build(
-            dynamics=js.ode.wrap_system_dynamics_for_integration(
-                system_dynamics=js.ode.system_dynamics
-            )
-        )
-
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
-
-    # Initialize the maximum penetration of each collidable point at steady state.
-    max_penetration = 0.001
-
-    # Check jaxsim_model_box@conftest.py.
-    box_height = 0.1
-
-    # Build the data of the model.
-    data_t0 = js.data.JaxSimModelData.build(
-        model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
-        velocity_representation=VelRepr.Inertial,
-        contacts_params=js.contact.estimate_good_contact_parameters(
-            model=model,
-            number_of_active_collidable_points_steady_state=4,
-            static_friction_coefficient=1.0,
-            damping_ratio=1.0,
-            max_penetration=0.001,
-        ),
-    )
-
-    # ===========================================
-    # Run the simulation and test the final state
-    # ===========================================
-
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
-
-    assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
-
-
-def test_simulation_with_visco_elastic_contacts(
-    jaxsim_model_box: js.model.JaxSimModel,
-):
-
-    model = jaxsim_model_box
-
-    with model.editable(validate=False) as model:
-
-        model.contact_model = jaxsim.rbda.contacts.ViscoElasticContacts.build()
-
-    # Initialize the maximum penetration of each collidable point at steady state.
-    max_penetration = 0.001
-
-    # Check jaxsim_model_box@conftest.py.
-    box_height = 0.1
-
-    # Build the data of the model.
-    data_t0 = js.data.JaxSimModelData.build(
-        model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
-        velocity_representation=VelRepr.Inertial,
-        contacts_params=js.contact.estimate_good_contact_parameters(
-            model=model,
-            number_of_active_collidable_points_steady_state=4,
-            static_friction_coefficient=1.0,
-            damping_ratio=1.0,
-            max_penetration=0.001,
-        ),
-    )
-
-    # ===========================================
-    # Run the simulation and test the final state
-    # ===========================================
-
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
-
-    assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
-
-
-def test_simulation_with_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel,
-):
-
-    model = jaxsim_model_box
-
-    with model.editable(validate=False) as model:
-
-        model.contact_model = jaxsim.rbda.contacts.RigidContacts.build(
-            solver_options={"solver_tol": 1e-3},
-        )
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
-        )
-
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
-
-    # Initialize the maximum penetration of each collidable point at steady state.
-    # This model is rigid, so we expect (almost) no penetration.
-    max_penetration = 0.000
-
-    # Check jaxsim_model_box@conftest.py.
-    box_height = 0.1
-
-    # Build the data of the model.
-    data_t0 = js.data.JaxSimModelData.build(
-        model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
-        velocity_representation=VelRepr.Inertial,
-        # In order to achieve almost no penetration, we need to use a fairly large
-        # Baumgarte stabilization term.
-        contacts_params=js.contact.estimate_good_contact_parameters(
-            model=model,
-            K=100_000,
-        ),
-    )
-
-    # ===========================================
-    # Run the simulation and test the final state
-    # ===========================================
-
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
-
-    assert data_tf.base_position()[0:2] == pytest.approx(data_t0.base_position()[0:2])
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(box_height / 2)
 
 
 def test_simulation_with_relaxed_rigid_contacts(
@@ -394,26 +221,19 @@ def test_simulation_with_relaxed_rigid_contacts(
         model=model,
         base_position=jnp.array([0.0, 0.0, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
-        # For this contact model, the following method is practically no-op.
-        # Let's leave it there for consistency and to make sure that nothing
-        # gets broken if it is updated in the future.
-        contacts_params=js.contact.estimate_good_contact_parameters(
-            model=model,
-            static_friction_coefficient=0.001,
-        ),
     )
 
     # ===========================================
     # Run the simulation and test the final state
     # ===========================================
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=1.0)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     # With this contact model, we need to slightly increase the tolerances.
-    assert data_tf.base_position()[0:2] == pytest.approx(
-        data_t0.base_position()[0:2], abs=0.000_010
+    assert data_tf.base_position[0:2] == pytest.approx(
+        data_t0.base_position[0:2], abs=0.000_010
     )
-    assert data_tf.base_position()[2] + max_penetration == pytest.approx(
+    assert data_tf.base_position[2] + max_penetration == pytest.approx(
         box_height / 2, abs=0.000_100
     )
 
@@ -453,21 +273,23 @@ def test_joint_limits(
     tolerance = theta * 0.10
 
     # Test minimum joint position limits.
-    data_t0 = data.reset_joint_positions(positions=position_limits_min - theta)
+    data_t0 = data.replace(model=model, joint_positions=position_limits_min - theta)
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.005, tf=3.0)
+    model = model.replace(time_step=0.005, validate=False)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
     assert (
-        np.min(np.array(data_tf.joint_positions()), axis=0) + tolerance
+        np.min(np.array(data_tf.joint_positions), axis=0) + tolerance
         >= position_limits_min
     )
 
     # Test maximum joint position limits.
-    data_t0 = data.reset_joint_positions(positions=position_limits_max - theta)
+    data_t0 = data.replace(model=model, joint_positions=position_limits_max - theta)
 
-    data_tf = run_simulation(model=model, data_t0=data_t0, dt=0.001, tf=3.0)
+    model = model.replace(time_step=0.001)
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=3.0)
 
     assert (
-        np.max(np.array(data_tf.joint_positions()), axis=0) - tolerance
+        np.max(np.array(data_tf.joint_positions), axis=0) - tolerance
         <= position_limits_max
     )

@@ -5,7 +5,6 @@ import dataclasses
 import functools
 import pathlib
 from collections.abc import Sequence
-from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -30,18 +29,25 @@ class JaxSimModel(JaxsimDataclass):
     The JaxSim model defining the kinematics and dynamics of a robot.
     """
 
+    # link_spatial_inertial_matrices, motion_subspaces
+
     model_name: Static[str]
 
-    time_step: jaxsim.integrators.TimeStep = dataclasses.field(
-        default_factory=lambda: jnp.array(0.001, dtype=float),
+    time_step: float = dataclasses.field(
+        default=0.001,
     )
 
     terrain: Static[jaxsim.terrain.Terrain] = dataclasses.field(
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
-    # Note that this is the default contact model.
+    gravity: Static[float] = jaxsim.math.STANDARD_GRAVITY
+
     contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
+        default=None, repr=False
+    )
+
+    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -50,10 +56,6 @@ class JaxSimModel(JaxsimDataclass):
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
-        default=None, repr=False
-    )
-
-    integrator: Static[jaxsim.integrators.Integrator | None] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -89,7 +91,7 @@ class JaxSimModel(JaxsimDataclass):
         return hash(
             (
                 hash(self.model_name),
-                hash(float(self.time_step)),
+                hash(self.time_step),
                 hash(self.kin_dyn_parameters),
                 hash(self.contact_model),
             )
@@ -106,11 +108,9 @@ class JaxSimModel(JaxsimDataclass):
         *,
         model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
-        integrator: (
-            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
-        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
+        contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -130,10 +130,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
-            integrator:
-                The integrator to use. If not specified, a default one is used.
-                This argument can either be a pre-built integrator instance or one
-                of the integrator classes defined in JaxSim.
+            contact_params: The parameters of the contact model.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -164,9 +161,9 @@ class JaxSimModel(JaxsimDataclass):
             model_description=intermediate_description,
             model_name=model_name,
             time_step=time_step,
-            integrator=integrator,
             terrain=terrain,
             contact_model=contact_model,
+            contacts_params=contact_params,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
@@ -182,11 +179,10 @@ class JaxSimModel(JaxsimDataclass):
         *,
         model_name: str | None = None,
         time_step: jtp.FloatLike | None = None,
-        integrator: (
-            jaxsim.integrators.Integrator | type[jaxsim.integrators.Integrator] | None
-        ) = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
+        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -202,13 +198,11 @@ class JaxSimModel(JaxsimDataclass):
                 manually overridden in the function that steps the simulation.
             terrain: The terrain to consider (the default is a flat infinite plane).
                 The optional name of the model overriding the physics model name.
-            integrator:
-                The integrator to use. If not specified, a default one is used.
-                This argument can either be a pre-built integrator instance or one
-                of the integrator classes defined in JaxSim.
             contact_model:
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
+            contacts_params: The parameters of the soft contacts.
+            gravity: The gravity constant.
 
         Returns:
             The built Model object.
@@ -228,7 +222,7 @@ class JaxSimModel(JaxsimDataclass):
         time_step = (
             time_step
             if time_step is not None
-            else JaxSimModel.__dataclass_fields__["time_step"].default_factory()
+            else JaxSimModel.__dataclass_fields__["time_step"].default
         )
 
         # Create the default contact model.
@@ -237,39 +231,11 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.SoftContacts.build()
+            else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
-        # Build the integrator if not provided.
-        match integrator:
-
-            # If None, build a default integrator.
-            case None:
-
-                integrator = jaxsim.integrators.fixed_step.Heun2SO3.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
-                )
-
-            # If it's a pre-built integrator (also a custom one from the user)
-            # just use it as is.
-            case _ if isinstance(integrator, jaxsim.integrators.Integrator):
-                pass
-
-            # If an integrator class is passed, assume that it is a JaxSim integrator
-            # and build it with the default system dynamics.
-            case _ if issubclass(integrator, jaxsim.integrators.Integrator):
-
-                integrator_cls = integrator
-                integrator = integrator_cls.build(
-                    dynamics=js.ode.wrap_system_dynamics_for_integration(
-                        system_dynamics=js.ode.system_dynamics
-                    )
-                )
-
-            case _:
-                raise ValueError(f"Invalid integrator: {integrator}")
+        if contacts_params is None:
+            contacts_params = contact_model._parameters_class()
 
         # Build the model.
         model = cls(
@@ -280,7 +246,8 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            integrator=integrator,
+            contacts_params=contacts_params,
+            gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
             # needed to compute kinematics and dynamics quantities are stored in the
@@ -350,7 +317,7 @@ class JaxSimModel(JaxsimDataclass):
             True if the model is floating-base, False otherwise.
         """
 
-        return bool(self.kin_dyn_parameters.joint_model.joint_dofs[0] == 6)
+        return self.kin_dyn_parameters.joint_model.joint_dofs[0] == 6
 
     def base_link(self) -> str:
         """
@@ -381,7 +348,7 @@ class JaxSimModel(JaxsimDataclass):
             the number of joints. In the future, this could be different.
         """
 
-        return int(sum(self.kin_dyn_parameters.joint_model.joint_dofs[1:]))
+        return sum(self.kin_dyn_parameters.joint_model.joint_dofs[1:])
 
     def joint_names(self) -> tuple[str, ...]:
         """
@@ -464,7 +431,7 @@ def reduce(
     for joint_name in set(model.joint_names()) - set(considered_joints):
         j = intermediate_description.joints_dict[joint_name]
         with j.mutable_context():
-            j.initial_position = float(locked_joint_positions.get(joint_name, 0.0))
+            j.initial_position = locked_joint_positions.get(joint_name, 0.0)
 
     # Reduce the model description.
     # If `considered_joints` contains joints not existing in the model,
@@ -480,7 +447,6 @@ def reduce(
         time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
-        integrator=model.integrator,
     )
 
     # Store the origin of the model, in case downstream logic needs it.
@@ -534,31 +500,6 @@ def link_spatial_inertia_matrices(model: JaxSimModel) -> jtp.Array:
 # ==============================
 
 
-@jax.jit
-@js.common.named_scope
-def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Array:
-    """
-    Compute the SE(3) transforms from the world frame to the frames of all links.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-
-    Returns:
-        A (nL, 4, 4) array containing the stacked SE(3) transforms of the links.
-        The first axis is the link index.
-    """
-
-    W_H_LL = jaxsim.rbda.forward_kinematics_model(
-        model=model,
-        base_position=data.base_position(),
-        base_quaternion=data.base_orientation(dcm=False),
-        joint_positions=data.joint_positions(model=model),
-    )
-
-    return jnp.atleast_3d(W_H_LL).astype(float)
-
-
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])
 def generalized_free_floating_jacobian(
     model: JaxSimModel,
@@ -592,7 +533,7 @@ def generalized_free_floating_jacobian(
     # Compute the doubly-left free-floating full jacobian.
     B_J_full_WX_B, B_H_L = jaxsim.rbda.jacobian_full_doubly_left(
         model=model,
-        joint_positions=data.joint_positions(),
+        joint_positions=data.joint_positions,
     )
 
     # ======================================================================
@@ -603,7 +544,7 @@ def generalized_free_floating_jacobian(
 
         case VelRepr.Inertial:
 
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
             B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
 
             B_J_full_WX_I = B_J_full_WX_W = (  # noqa: F841
@@ -617,7 +558,7 @@ def generalized_free_floating_jacobian(
 
         case VelRepr.Mixed:
 
-            W_R_B = data.base_orientation(dcm=True)
+            W_R_B = jaxsim.math.Quaternion.to_dcm(data.base_orientation)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
@@ -651,7 +592,7 @@ def generalized_free_floating_jacobian(
 
         case VelRepr.Inertial:
 
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
             W_X_B = jaxsim.math.Adjoint.from_transform(W_H_B)
 
             O_J_WL_I = W_J_WL_I = jax.vmap(  # noqa: F841
@@ -669,7 +610,7 @@ def generalized_free_floating_jacobian(
 
         case VelRepr.Mixed:
 
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
 
             LW_H_L = jax.vmap(
                 lambda B_H_L: (W_H_B @ B_H_L).at[0:3, 3].set(jnp.zeros(3))
@@ -718,15 +659,15 @@ def generalized_free_floating_jacobian_derivative(
     # Compute the derivative of the doubly-left free-floating full jacobian.
     B_J̇_full_WX_B, B_H_L = jaxsim.rbda.jacobian_derivative_full_doubly_left(
         model=model,
-        joint_positions=data.joint_positions(),
-        joint_velocities=data.joint_velocities(),
+        joint_positions=data.joint_positions,
+        joint_velocities=data.joint_velocities,
     )
 
     # The derivative of the equation to change the input and output representations
     # of the Jacobian derivative needs the computation of the plain link Jacobian.
     B_J_full_WL_B, _ = jaxsim.rbda.jacobian_full_doubly_left(
         model=model,
-        joint_positions=data.joint_positions(),
+        joint_positions=data.joint_positions,
     )
 
     # Compute the actual doubly-left free-floating jacobian derivative of the link
@@ -734,7 +675,7 @@ def generalized_free_floating_jacobian_derivative(
     κb = model.kin_dyn_parameters.support_body_array_bool
 
     # Compute the base transform.
-    W_H_B = data.base_transform()
+    W_H_B = data._base_transform
 
     # We add the 5 columns of ones to the Jacobian derivative to account for the
     # base velocity and acceleration (5 + number of links = 6 + number of joints).
@@ -758,7 +699,7 @@ def generalized_free_floating_jacobian_derivative(
 
             B_X_W = jaxsim.math.Adjoint.from_transform(transform=W_H_B, inverse=True)
 
-            W_v_WB = data.base_velocity()
+            W_v_WB = data.base_velocity
             B_Ẋ_W = -B_X_W @ jaxsim.math.Cross.vx(W_v_WB)
 
             # Compute the operator to change the representation of ν, and its
@@ -784,7 +725,7 @@ def generalized_free_floating_jacobian_derivative(
             BW_H_B = W_H_B.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
-            BW_v_WB = data.base_velocity()
+            BW_v_WB = data.base_velocity
             BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
 
             BW_v_BW_B = BW_v_WB - BW_v_W_BW
@@ -809,7 +750,7 @@ def generalized_free_floating_jacobian_derivative(
             O_X_B = W_X_B = jaxsim.math.Adjoint.from_transform(transform=W_H_B)
 
             with data.switch_velocity_representation(VelRepr.Body):
-                B_v_WB = data.base_velocity()
+                B_v_WB = data.base_velocity
 
             O_Ẋ_B = W_Ẋ_B = W_X_B @ jaxsim.math.Cross.vx(B_v_WB)  # noqa: F841
 
@@ -822,9 +763,9 @@ def generalized_free_floating_jacobian_derivative(
             B_X_L = jaxsim.math.Adjoint.inverse(adjoint=L_X_B)
 
             with data.switch_velocity_representation(VelRepr.Body):
-                B_v_WB = data.base_velocity()
+                B_v_WB = data.base_velocity
                 L_v_WL = jnp.einsum(
-                    "b6j,j->b6", L_X_B @ B_J_WL_B, data.generalized_velocity()
+                    "b6j,j->b6", L_X_B @ B_J_WL_B, data.generalized_velocity
                 )
 
             O_Ẋ_B = L_Ẋ_B = -L_X_B @ jaxsim.math.Cross.vx(  # noqa: F841
@@ -842,7 +783,7 @@ def generalized_free_floating_jacobian_derivative(
             B_X_LW = jaxsim.math.Adjoint.inverse(adjoint=LW_X_B)
 
             with data.switch_velocity_representation(VelRepr.Body):
-                B_v_WB = data.base_velocity()
+                B_v_WB = data.base_velocity
 
             with data.switch_velocity_representation(VelRepr.Mixed):
                 BW_H_B = W_H_B.at[0:3, 3].set(jnp.zeros(3))
@@ -852,7 +793,7 @@ def generalized_free_floating_jacobian_derivative(
                     LW_X_B,
                     B_J_WL_B
                     @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
-                    @ data.generalized_velocity(),
+                    @ data.generalized_velocity,
                 )
 
                 LW_v_W_LW = LW_v_WL.at[:, 3:6].set(jnp.zeros_like(LW_v_WL[:, 3:6]))
@@ -954,7 +895,7 @@ def forward_dynamics_aba(
     τ = (
         jnp.atleast_1d(joint_forces.squeeze())
         if joint_forces is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     )
 
     # Build link forces, if not provided.
@@ -973,22 +914,17 @@ def forward_dynamics_aba(
         velocity_representation=data.velocity_representation,
     )
 
-    # Extract the link and joint serializations.
-    link_names = model.link_names()
-    joint_names = model.joint_names()
-
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_B = data.base_position()
-        W_v_WB = data.base_velocity()
-        W_Q_B = data.base_orientation(dcm=False)
-        s = data.joint_positions(model=model, joint_names=joint_names)
-        ṡ = data.joint_velocities(model=model, joint_names=joint_names)
+        W_p_B = data.base_position
+        W_v_WB = data.base_velocity
+        W_Q_B = data.base_orientation
+        s = data.joint_positions
+        ṡ = data.joint_velocities
 
     # Extract the inputs in inertial-fixed representation.
-    with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(model=model, data=data, link_names=link_names)
-        τ = references.joint_force_references(model=model, joint_names=joint_names)
+    W_f_L = references._link_forces
+    τ = references._joint_force_references
 
     # ========================
     # Compute forward dynamics
@@ -1004,7 +940,7 @@ def forward_dynamics_aba(
         joint_velocities=ṡ,
         joint_forces=τ,
         link_forces=W_f_L,
-        standard_gravity=data.standard_gravity(),
+        standard_gravity=model.gravity,
     )
 
     # =============
@@ -1032,14 +968,14 @@ def forward_dynamics_aba(
 
         case VelRepr.Body:
             # In this case C=B
-            W_H_C = W_H_B = data.base_transform()
+            W_H_C = W_H_B = data._base_transform
             W_v_WC = W_v_WB
 
         case VelRepr.Mixed:
             # In this case C=B[W]
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
             W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))  # noqa: F841
-            W_ṗ_B = data.base_velocity()[0:3]
+            W_ṗ_B = data.base_velocity[0:3]
             W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
 
         case _:
@@ -1103,7 +1039,7 @@ def forward_dynamics_crb(
     τ = (
         jnp.atleast_1d(joint_forces)
         if joint_forces is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     )
 
     # Build external forces if not provided.
@@ -1174,7 +1110,7 @@ def free_floating_mass_matrix(
 
     M_body = jaxsim.rbda.crba(
         model=model,
-        joint_positions=data.state.physics_model.joint_positions,
+        joint_positions=data.joint_positions,
     )
 
     match data.velocity_representation:
@@ -1183,16 +1119,14 @@ def free_floating_mass_matrix(
 
         case VelRepr.Inertial:
 
-            B_X_W = Adjoint.from_transform(
-                transform=data.base_transform(), inverse=True
-            )
+            B_X_W = Adjoint.from_transform(transform=data._base_transform, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
 
         case VelRepr.Mixed:
 
-            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
@@ -1228,7 +1162,7 @@ def free_floating_coriolis_matrix(
     # to the active representation stored in data.
     with data.switch_velocity_representation(VelRepr.Body):
 
-        B_ν = data.generalized_velocity()
+        B_ν = data.generalized_velocity
 
         # Doubly-left free-floating Jacobian.
         L_J_WL_B = generalized_free_floating_jacobian(model=model, data=data)
@@ -1275,12 +1209,12 @@ def free_floating_coriolis_matrix(
         case VelRepr.Inertial:
 
             n = model.dofs()
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
             B_X_W = jaxsim.math.Adjoint.from_transform(W_H_B, inverse=True)
             B_T_W = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(n))
 
             with data.switch_velocity_representation(VelRepr.Inertial):
-                W_v_WB = data.base_velocity()
+                W_v_WB = data.base_velocity
                 B_Ẋ_W = -B_X_W @ jaxsim.math.Cross.vx(W_v_WB)
 
             B_Ṫ_W = jax.scipy.linalg.block_diag(B_Ẋ_W, jnp.zeros(shape=(n, n)))
@@ -1295,12 +1229,12 @@ def free_floating_coriolis_matrix(
         case VelRepr.Mixed:
 
             n = model.dofs()
-            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
             B_T_BW = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(n))
 
             with data.switch_velocity_representation(VelRepr.Mixed):
-                BW_v_WB = data.base_velocity()
+                BW_v_WB = data.base_velocity
                 BW_v_W_BW = BW_v_WB.at[3:6].set(jnp.zeros(3))
 
             BW_v_BW_B = BW_v_WB - BW_v_W_BW
@@ -1357,7 +1291,7 @@ def inverse_dynamics(
     s̈ = (
         jnp.atleast_1d(jnp.array(joint_accelerations).squeeze())
         if joint_accelerations is not None
-        else jnp.zeros_like(data.joint_positions())
+        else jnp.zeros_like(data.joint_positions)
     )
 
     # Build base acceleration, if not provided.
@@ -1394,14 +1328,14 @@ def inverse_dynamics(
             W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
 
         case VelRepr.Body:
-            W_H_C = W_H_B = data.base_transform()
+            W_H_C = W_H_B = data._base_transform
             with data.switch_velocity_representation(VelRepr.Inertial):
-                W_v_WC = W_v_WB = data.base_velocity()
+                W_v_WC = W_v_WB = data.base_velocity
 
         case VelRepr.Mixed:
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
             W_H_C = W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))  # noqa: F841
-            W_ṗ_B = data.base_velocity()[0:3]
+            W_ṗ_B = data.base_velocity[0:3]
             W_v_WC = W_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)  # noqa: F841
 
         case _:
@@ -1413,7 +1347,7 @@ def inverse_dynamics(
     W_v̇_WB = to_inertial(
         C_v̇_WB=v̇_WB,
         W_H_C=W_H_C,
-        C_v_WB=data.base_velocity(),
+        C_v_WB=data.base_velocity,
         W_v_WC=W_v_WC,
     )
 
@@ -1425,21 +1359,16 @@ def inverse_dynamics(
         velocity_representation=data.velocity_representation,
     )
 
-    # Extract the link and joint serializations.
-    link_names = model.link_names()
-    joint_names = model.joint_names()
-
     # Extract the state in inertial-fixed representation.
     with data.switch_velocity_representation(VelRepr.Inertial):
-        W_p_B = data.base_position()
-        W_v_WB = data.base_velocity()
-        W_Q_B = data.base_orientation(dcm=False)
-        s = data.joint_positions(model=model, joint_names=joint_names)
-        ṡ = data.joint_velocities(model=model, joint_names=joint_names)
+        W_p_B = data.base_position
+        W_v_WB = data.base_velocity
+        W_Q_B = data.base_quaternion
+        s = data.joint_positions
+        ṡ = data.joint_velocities
 
     # Extract the inputs in inertial-fixed representation.
-    with references.switch_velocity_representation(VelRepr.Inertial):
-        W_f_L = references.link_forces(model=model, data=data, link_names=link_names)
+    W_f_L = references._link_forces
 
     # ========================
     # Compute inverse dynamics
@@ -1457,7 +1386,7 @@ def inverse_dynamics(
         base_angular_acceleration=W_v̇_WB[3:6],
         joint_accelerations=s̈,
         link_forces=W_f_L,
-        standard_gravity=data.standard_gravity(),
+        standard_gravity=model.gravity,
     )
 
     # =============
@@ -1468,7 +1397,7 @@ def inverse_dynamics(
     f_B = js.data.JaxSimModelData.inertial_to_other_representation(
         array=W_f_B,
         other_representation=data.velocity_representation,
-        transform=data.base_transform(),
+        transform=data._base_transform,
         is_force=True,
     ).squeeze()
 
@@ -1497,21 +1426,12 @@ def free_floating_gravity_forces(
     )
 
     # Set just the generalized position.
-    with data_rnea.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
-
-        data_rnea.state.physics_model.base_position = (
-            data.state.physics_model.base_position
-        )
-
-        data_rnea.state.physics_model.base_quaternion = (
-            data.state.physics_model.base_quaternion
-        )
-
-        data_rnea.state.physics_model.joint_positions = (
-            data.state.physics_model.joint_positions
-        )
+    data_rnea = data_rnea.replace(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_quaternion,
+        joint_positions=data.joint_positions,
+    )
 
     return jnp.hstack(
         inverse_dynamics(
@@ -1548,35 +1468,20 @@ def free_floating_bias_forces(
     )
 
     # Set the generalized position and generalized velocity.
-    with data_rnea.mutable_context(
-        mutability=Mutability.MUTABLE, restore_after_exception=False
-    ):
-
-        data_rnea.state.physics_model.base_position = (
-            data.state.physics_model.base_position
-        )
-
-        data_rnea.state.physics_model.base_quaternion = (
-            data.state.physics_model.base_quaternion
-        )
-
-        data_rnea.state.physics_model.joint_positions = (
-            data.state.physics_model.joint_positions
-        )
-
-        data_rnea.state.physics_model.joint_velocities = (
-            data.state.physics_model.joint_velocities
-        )
-
-        # Make sure that base velocity is zero for fixed-base model.
-        if model.floating_base():
-            data_rnea.state.physics_model.base_linear_velocity = (
-                data.state.physics_model.base_linear_velocity
-            )
-
-            data_rnea.state.physics_model.base_angular_velocity = (
-                data.state.physics_model.base_angular_velocity
-            )
+    base_linear_velocity, base_angular_velocity = None, None
+    if model.floating_base():
+        base_velocity = data.base_velocity
+        base_linear_velocity = base_velocity[:3]
+        base_angular_velocity = base_velocity[3:]
+    data_rnea = data_rnea.replace(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_quaternion,
+        joint_positions=data.joint_positions,
+        joint_velocities=data.joint_velocities,
+        base_linear_velocity=base_linear_velocity,
+        base_angular_velocity=base_angular_velocity,
+    )
 
     return jnp.hstack(
         inverse_dynamics(
@@ -1628,7 +1533,7 @@ def total_momentum(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Vec
         The total momentum of the model in the active velocity representation.
     """
 
-    ν = data.generalized_velocity()
+    ν = data.generalized_velocity
     Jh = total_momentum_jacobian(model=model, data=data)
 
     return Jh @ ν
@@ -1668,13 +1573,11 @@ def total_momentum_jacobian(
             B_Jh = B_Jh_B
 
         case VelRepr.Inertial:
-            B_X_W = Adjoint.from_transform(
-                transform=data.base_transform(), inverse=True
-            )
+            B_X_W = Adjoint.from_transform(transform=data._base_transform, inverse=True)
             B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
         case VelRepr.Mixed:
-            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             B_Jh = B_Jh_B @ jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
@@ -1686,14 +1589,14 @@ def total_momentum_jacobian(
             return B_Jh
 
         case VelRepr.Inertial:
-            W_H_B = data.base_transform()
+            W_H_B = data._base_transform
             B_Xv_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
             W_Xf_B = B_Xv_W.T
             W_Jh = W_Xf_B @ B_Jh
             return W_Jh
 
         case VelRepr.Mixed:
-            BW_H_B = data.base_transform().at[0:3, 3].set(jnp.zeros(3))
+            BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_Xv_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             BW_Xf_B = B_Xv_BW.T
             BW_Jh = BW_Xf_B @ B_Jh
@@ -1718,7 +1621,7 @@ def average_velocity(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.V
         in the active representation.
     """
 
-    ν = data.generalized_velocity()
+    ν = data.generalized_velocity
     J = average_velocity_jacobian(model=model, data=data)
 
     return J @ ν
@@ -1766,9 +1669,9 @@ def average_velocity_jacobian(
         case VelRepr.Body:
 
             GB_J = G_J
-            W_p_B = data.base_position()
+            W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
-            B_R_W = data.base_orientation(dcm=True).transpose()
+            B_R_W = jaxsim.math.Quaternion.to_dcm(data.base_orientation).transpose()
 
             B_H_GB = jnp.eye(4).at[0:3, 3].set(B_R_W @ (W_p_CoM - W_p_B))
             B_X_GB = Adjoint.from_transform(transform=B_H_GB)
@@ -1778,7 +1681,7 @@ def average_velocity_jacobian(
         case VelRepr.Mixed:
 
             GW_J = G_J
-            W_p_B = data.base_position()
+            W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
 
             BW_H_GW = jnp.eye(4).at[0:3, 3].set(W_p_CoM - W_p_B)
@@ -1819,7 +1722,7 @@ def link_bias_accelerations(
     # ================================================
 
     # Compute the base transform.
-    W_H_B = data.base_transform()
+    W_H_B = data._base_transform
 
     def other_representation_to_inertial(
         C_v̇_WB: jtp.Vector, C_v_WB: jtp.Vector, W_H_C: jtp.Matrix, W_v_WC: jtp.Vector
@@ -1846,25 +1749,25 @@ def link_bias_accelerations(
             W_H_C = W_H_W = jnp.eye(4)  # noqa: F841
             W_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
             with data.switch_velocity_representation(VelRepr.Inertial):
-                C_v_WB = W_v_WB = data.base_velocity()
+                C_v_WB = W_v_WB = data.base_velocity
 
         case VelRepr.Body:
             W_H_C = W_H_B
             with data.switch_velocity_representation(VelRepr.Inertial):
-                W_v_WC = W_v_WB = data.base_velocity()  # noqa: F841
+                W_v_WC = W_v_WB = data.base_velocity  # noqa: F841
             with data.switch_velocity_representation(VelRepr.Body):
-                C_v_WB = B_v_WB = data.base_velocity()
+                C_v_WB = B_v_WB = data.base_velocity
 
         case VelRepr.Mixed:
             W_H_BW = W_H_B.at[0:3, 0:3].set(jnp.eye(3))
             W_H_C = W_H_BW
             with data.switch_velocity_representation(VelRepr.Mixed):
-                W_ṗ_B = data.base_velocity()[0:3]
+                W_ṗ_B = data.base_velocity[0:3]
                 BW_v_W_BW = jnp.zeros(6).at[0:3].set(W_ṗ_B)
                 W_X_BW = jaxsim.math.Adjoint.from_transform(transform=W_H_BW)
                 W_v_WC = W_v_W_BW = W_X_BW @ BW_v_W_BW  # noqa: F841
             with data.switch_velocity_representation(VelRepr.Mixed):
-                C_v_WB = BW_v_WB = data.base_velocity()  # noqa: F841
+                C_v_WB = BW_v_WB = data.base_velocity  # noqa: F841
 
         case _:
             raise ValueError(data.velocity_representation)
@@ -1888,20 +1791,23 @@ def link_bias_accelerations(
     # Compute the parent-to-child adjoints and the motion subspaces of the joints.
     # These transforms define the relative kinematics of the entire model, including
     # the base transform for both floating-base and fixed-base models.
-    i_X_λi, S = model.kin_dyn_parameters.joint_transforms_and_motion_subspaces(
-        joint_positions=data.joint_positions(), base_transform=W_H_B
+    i_X_λi = model.kin_dyn_parameters.joint_transforms(
+        joint_positions=data.joint_positions, base_transform=W_H_B
     )
+
+    # Extract the joint motion subspaces.
+    S = model.kin_dyn_parameters.motion_subspaces
 
     # Allocate the buffer to store the body-fixed link velocities.
     L_v_WL = jnp.zeros(shape=(model.number_of_links(), 6))
 
     # Store the base velocity.
     with data.switch_velocity_representation(VelRepr.Body):
-        B_v_WB = data.base_velocity()
+        B_v_WB = data.base_velocity
         L_v_WL = L_v_WL.at[0].set(B_v_WB)
 
     # Get the joint velocities.
-    ṡ = data.joint_velocities(model=model, joint_names=model.joint_names())
+    ṡ = data.joint_velocities
 
     # Allocate the buffer to store the body-fixed link accelerations,
     # and initialize the base acceleration.
@@ -1980,11 +1886,11 @@ def link_bias_accelerations(
             )
 
         case VelRepr.Inertial:
-            C_H_L = W_H_L = js.model.forward_kinematics(model=model, data=data)
+            C_H_L = W_H_L = data._link_transforms
             L_v_CL = L_v_WL
 
         case VelRepr.Mixed:
-            W_H_L = js.model.forward_kinematics(model=model, data=data)
+            W_H_L = data._link_transforms
             LW_H_L = jax.vmap(lambda W_H_L: W_H_L.at[0:3, 3].set(jnp.zeros(3)))(W_H_L)
             C_H_L = LW_H_L
             L_v_CL = L_v_LW_L = jax.vmap(  # noqa: F841
@@ -2000,77 +1906,6 @@ def link_bias_accelerations(
     )
 
     return O_v̇_WL
-
-
-@jax.jit
-@js.common.named_scope
-def link_contact_forces(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    *,
-    link_forces: jtp.MatrixLike | None = None,
-    joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> jtp.Matrix:
-    """
-    Compute the 6D contact forces of all links of the model.
-
-    Args:
-        model: The model to consider.
-        data: The data of the considered model.
-        link_forces:
-            The 6D external forces to apply to the links expressed in the same
-            representation of data.
-        joint_force_references:
-            The joint force references to apply to the joints.
-        kwargs: Additional keyword arguments to pass to the active contact model..
-
-    Returns:
-        A `(nL, 6)` array containing the stacked 6D contact forces of the links,
-        expressed in the frame corresponding to the active representation.
-    """
-
-    # Note: the following code should be kept in sync with the function
-    # `jaxsim.api.ode.system_velocity_dynamics`. We cannot merge them since
-    # there we need to get also aux_data.
-
-    # Build link forces if not provided.
-    # These forces are expressed in the frame corresponding to the velocity
-    # representation of data.
-    O_f_L = (
-        jnp.atleast_2d(link_forces.squeeze())
-        if link_forces is not None
-        else jnp.zeros((model.number_of_links(), 6))
-    ).astype(float)
-
-    # Build joint force references if not provided.
-    joint_force_references = (
-        jnp.atleast_1d(joint_force_references)
-        if joint_force_references is not None
-        else jnp.zeros(model.dofs())
-    )
-
-    # We expect that the 6D forces included in the `link_forces` argument are expressed
-    # in the frame corresponding to the velocity representation of `data`.
-    input_references = js.references.JaxSimModelReferences.build(
-        model=model,
-        data=data,
-        velocity_representation=data.velocity_representation,
-        link_forces=O_f_L,
-        joint_force_references=joint_force_references,
-    )
-
-    # Compute the 6D forces applied to the links equivalent to the forces applied
-    # to the frames associated to the collidable points.
-    f_L, _ = model.contact_model.compute_link_contact_forces(
-        model=model,
-        data=data,
-        link_forces=input_references.link_forces(model=model, data=data),
-        joint_force_references=input_references.joint_force_references(),
-        **kwargs,
-    )
-
-    return f_L
 
 
 # ======
@@ -2113,7 +1948,7 @@ def kinetic_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Flo
     """
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Body):
-        B_ν = data.generalized_velocity()
+        B_ν = data.generalized_velocity
         M_B = free_floating_mass_matrix(model=model, data=data)
 
     K = 0.5 * B_ν.T @ M_B @ B_ν
@@ -2135,11 +1970,8 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
     """
 
     m = total_mass(model=model)
-    gravity = data.gravity.squeeze()
     W_p̃_CoM = jnp.hstack([js.com.com_position(model=model, data=data), 1])
-
-    U = -jnp.hstack([gravity, 0]) @ (m * W_p̃_CoM)
-    return U.squeeze().astype(float)
+    return jnp.sum((m * W_p̃_CoM)[2] * model.gravity)
 
 
 # ==========
@@ -2153,34 +1985,22 @@ def step(
     model: JaxSimModel,
     data: js.data.JaxSimModelData,
     *,
-    t0: jtp.FloatLike = 0.0,
-    dt: jtp.FloatLike | None = None,
-    integrator: jaxsim.integrators.Integrator | None = None,
-    integrator_metadata: dict[str, Any] | None = None,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
-    **kwargs,
-) -> tuple[js.data.JaxSimModelData, dict[str, Any]]:
+) -> js.data.JaxSimModelData:
     """
     Perform a simulation step.
 
     Args:
         model: The model to consider.
         data: The data of the considered model.
-        integrator: The integrator to use.
-        integrator_metadata: The metadata of the integrator, if needed.
-        t0: The initial time to consider. Only relevant for time-dependent dynamics.
         dt: The time step to consider. If not specified, it is read from the model.
         link_forces:
-            The 6D forces to apply to the links expressed in the frame corresponding to
-            the velocity representation of `data`.
+            The 6D forces to apply to the links expressed in same representation of data.
         joint_force_references: The joint force references to consider.
-        kwargs: Additional kwargs to pass to the integrator.
 
     Returns:
-        A tuple containing the new data of the model and a dictionary of auxiliary
-        data computed during the step. If the integrator has metadata, the dictionary
-        will contain the new metadata stored in the `integrator_metadata` key.
+        The new data of the model after the simulation step.
 
     Note:
         In order to reduce the occurrences of frame conversions performed internally,
@@ -2188,167 +2008,84 @@ def step(
         particularly useful for automatically differentiated logic.
     """
 
-    # Extract the integrator kwargs.
-    # The following logic allows using integrators having kwargs colliding with the
-    # kwargs of this step function.
-    kwargs = kwargs if kwargs is not None else {}
-    integrator_kwargs = kwargs.pop("integrator_kwargs", {})
-    integrator_kwargs = kwargs | integrator_kwargs
+    # TODO: some contact models here may want to perform a dynamic filtering of
+    # the enabled collidable points
 
-    # Extract the integrator and the optional metadata.
-    integrator_metadata_t0 = integrator_metadata
-    integrator = integrator if integrator is not None else model.integrator
-
-    # Initialize the time-related variables.
-    state_t0 = data.state
-    t0 = jnp.array(t0, dtype=float)
-    dt = jnp.array(dt if dt is not None else model.time_step).astype(float)
-
-    # The visco-elastic contacts operate at best with their own integrator.
-    # They can be used with Euler-like integrators, paying the price of ignoring
-    # some of the benefits of continuous-time integration on the system position.
-    # Furthermore, the requirement to know the Δt used by the integrator is not
-    # compatible with high-order integrators, that use advanced RK stages to evaluate
-    # the dynamics at intermediate times.
-    module = jaxsim.rbda.contacts.visco_elastic.step.__module__
-    name = jaxsim.rbda.contacts.visco_elastic.step.__name__
-    msg = "You need to use the custom '{}.{}' function with this contact model."
-    jaxsim.exceptions.raise_runtime_error_if(
-        condition=(
-            isinstance(model.contact_model, jaxsim.rbda.contacts.ViscoElasticContacts)
-            & (
-                ~jnp.allclose(dt, model.time_step)
-                | ~int(
-                    isinstance(integrator, jaxsim.integrators.fixed_step.ForwardEuler)
-                )
-            )
-        ),
-        msg=msg.format(module, name),
+    # Extract the inputs
+    O_f_L_external = jnp.atleast_2d(
+        jnp.array(link_forces, dtype=float).squeeze()
+        if link_forces is not None
+        else jnp.zeros((model.number_of_links(), 6))
     )
 
-    # =================
-    # Phase 1: pre-step
-    # =================
+    # Get the external forces in inertial-fixed representation.
+    W_f_L_external = jax.vmap(
+        lambda f_L, W_H_L: js.data.JaxSimModelData.other_representation_to_inertial(
+            f_L,
+            other_representation=data.velocity_representation,
+            transform=W_H_L,
+            is_force=True,
+        )
+    )(O_f_L_external, data._link_transforms)
 
-    # TODO: some contact models here may want to perform a dynamic filtering of
-    # the enabled collidable points.
+    τ_references = jnp.atleast_1d(
+        jnp.array(joint_force_references, dtype=float).squeeze()
+        if joint_force_references is not None
+        else jnp.zeros(model.dofs())
+    )
 
-    # Build the references object.
-    # We assume that the link forces are expressed in the frame corresponding to the
-    # velocity representation of the data.
-    references = js.references.JaxSimModelReferences.build(
+    # ================================
+    # Compute the total joint torques
+    # ================================
+
+    τ_total = js.actuation_model.compute_resultant_torques(
+        model, data, joint_force_references=τ_references
+    )
+
+    # ======================
+    # Compute contact forces
+    # ======================
+
+    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
+
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain = js.contact_model.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=W_f_L_external,
+            joint_torques=τ_total,
+        )
+
+    # ==============================
+    # Compute the total link forces
+    # ==============================
+
+    W_f_L_total = W_f_L_external + W_f_L_terrain
+
+    # ===============================
+    # Compute the system acceleration
+    # ===============================
+
+    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
+        W_v̇_WB, s̈ = js.ode.system_acceleration(
+            model=model,
+            data=data,
+            link_forces=W_f_L_total,
+            joint_torques=τ_total,
+        )
+
+    # =============================
+    # Advance the simulation state
+    # =============================
+
+    data_tf = js.integrators.semi_implicit_euler_integration(
         model=model,
         data=data,
-        velocity_representation=data.velocity_representation,
-        link_forces=link_forces,
-        joint_force_references=joint_force_references,
+        base_acceleration_inertial=W_v̇_WB,
+        joint_accelerations=s̈,
     )
 
-    # =============
-    # Phase 2: step
-    # =============
-
-    # Prepare the references to pass.
-    with references.switch_velocity_representation(data.velocity_representation):
-
-        f_L = references.link_forces(model=model, data=data)
-        τ_references = references.joint_force_references(model=model)
-
-    # Step the dynamics forward.
-    state_tf, integrator_metadata_tf = integrator.step(
-        x0=state_t0,
-        t0=t0,
-        dt=dt,
-        metadata=integrator_metadata_t0,
-        # Always inject the current (model, data) pair into the system dynamics
-        # considered by the integrator, and include the input variables represented
-        # by the pair (f_L, τ_references).
-        # Note that the wrapper of the system dynamics will override (state_x0, t0)
-        # inside the passed data even if it is not strictly needed. This logic is
-        # necessary to reuse the jit-compiled step function of compatible pytrees
-        # of model and data produced e.g. by parameterized applications.
-        **(
-            dict(
-                model=model,
-                data=data,
-                link_forces=f_L,
-                joint_force_references=τ_references,
-            )
-            | integrator_kwargs
-        ),
-    )
-
-    # Store the new state of the model.
-    data_tf = data.replace(state=state_tf)
-
-    # ==================
-    # Phase 3: post-step
-    # ==================
-
-    # Post process the simulation state, if needed.
-    match model.contact_model:
-
-        # Rigid contact models use an impact model that produces discontinuous model velocities.
-        # Hence, here we need to reset the velocity after each impact to guarantee that
-        # the linear velocity of the active collidable points is zero.
-        case jaxsim.rbda.contacts.RigidContacts():
-
-            # Raise runtime error for not supported case in which Rigid contacts and
-            # Baumgarte stabilization are enabled and used with ForwardEuler integrator.
-            jaxsim.exceptions.raise_runtime_error_if(
-                condition=isinstance(
-                    integrator,
-                    jaxsim.integrators.fixed_step.ForwardEuler
-                    | jaxsim.integrators.fixed_step.ForwardEulerSO3,
-                )
-                & ((data_tf.contacts_params.K > 0) | (data_tf.contacts_params.D > 0)),
-                msg="Baumgarte stabilization is not supported with ForwardEuler integrators",
-            )
-
-            # Extract the indices corresponding to the enabled collidable points.
-            indices_of_enabled_collidable_points = (
-                model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-            )
-
-            W_p_C = js.contact.collidable_point_positions(model, data_tf)[
-                indices_of_enabled_collidable_points
-            ]
-
-            # Compute the penetration depth of the collidable points.
-            δ, *_ = jax.vmap(
-                jaxsim.rbda.contacts.common.compute_penetration_data,
-                in_axes=(0, 0, None),
-            )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
-
-            with data_tf.switch_velocity_representation(VelRepr.Mixed):
-                J_WC = js.contact.jacobian(model, data_tf)[
-                    indices_of_enabled_collidable_points
-                ]
-                M = js.model.free_floating_mass_matrix(model, data_tf)
-                BW_ν_pre_impact = data_tf.generalized_velocity()
-
-                # Compute the impact velocity.
-                # It may be discontinuous in case new contacts are made.
-                BW_ν_post_impact = (
-                    jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
-                        generalized_velocity=BW_ν_pre_impact,
-                        inactive_collidable_points=(δ <= 0),
-                        M=M,
-                        J_WC=J_WC,
-                    )
-                )
-
-                # Reset the generalized velocity.
-                data_tf = data_tf.reset_base_velocity(BW_ν_post_impact[0:6])
-                data_tf = data_tf.reset_joint_velocities(BW_ν_post_impact[6:])
-
-    # Restore the input velocity representation.
-    data_tf = data_tf.replace(
-        velocity_representation=data.velocity_representation, validate=False
-    )
-
-    return data_tf, {} | (
-        dict(integrator_metadata=integrator_metadata_tf)
-        if integrator_metadata is not None
-        else {}
-    )
+    return data_tf

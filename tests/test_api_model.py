@@ -81,9 +81,7 @@ def test_model_creation_and_reduction(
         locked_joint_positions=dict(
             zip(
                 model_full.joint_names(),
-                data_full.joint_positions(
-                    model=model_full, joint_names=model_full.joint_names()
-                ).tolist(),
+                data_full.joint_positions.tolist(),
                 strict=True,
             )
         ),
@@ -104,22 +102,19 @@ def test_model_creation_and_reduction(
     # Check that the reduced model maintains the same integration step of the full model.
     assert model_full.time_step == model_reduced.time_step
 
-    # Check that the reduced model maintains the same integrator of the full model.
-    assert model_full.integrator == model_reduced.integrator
+    joint_idxs = js.joint.names_to_idxs(
+        model=model_full, joint_names=model_reduced.joint_names()
+    )
 
     # Build the data of the reduced model.
     data_reduced = js.data.JaxSimModelData.build(
         model=model_reduced,
-        base_position=data_full.base_position(),
-        base_quaternion=data_full.base_orientation(dcm=False),
-        joint_positions=data_full.joint_positions(
-            model=model_full, joint_names=model_reduced.joint_names()
-        ),
-        base_linear_velocity=data_full.base_velocity()[0:3],
-        base_angular_velocity=data_full.base_velocity()[3:6],
-        joint_velocities=data_full.joint_velocities(
-            model=model_full, joint_names=model_reduced.joint_names()
-        ),
+        base_position=data_full.base_position,
+        base_quaternion=data_full.base_orientation,
+        joint_positions=data_full.joint_positions[joint_idxs],
+        base_linear_velocity=data_full.base_velocity[0:3],
+        base_angular_velocity=data_full.base_velocity[3:6],
+        joint_velocities=data_full.joint_velocities[joint_idxs],
         velocity_representation=data_full.velocity_representation,
     )
 
@@ -138,12 +133,12 @@ def test_model_creation_and_reduction(
     )
 
     # Check that joint serialization works.
-    assert data_full.joint_positions(
-        model=model_full, joint_names=model_reduced.joint_names()
-    ) == pytest.approx(data_reduced.joint_positions())
-    assert data_full.joint_velocities(
-        model=model_full, joint_names=model_reduced.joint_names()
-    ) == pytest.approx(data_reduced.joint_velocities())
+    assert data_full.joint_positions[joint_idxs] == pytest.approx(
+        data_reduced.joint_positions
+    )
+    assert data_full.joint_velocities[joint_idxs] == pytest.approx(
+        data_reduced.joint_velocities
+    )
 
     # Check that link transforms are preserved.
     for link_name in model_reduced.link_names():
@@ -315,7 +310,7 @@ def test_model_rbda(
     assert pytest.approx(h_idt[sl]) == h_js[sl]
 
     # Forward kinematics
-    HH_js = js.model.forward_kinematics(model=model, data=data)
+    HH_js = data._link_transforms
     HH_idt = jnp.stack(
         [kin_dyn.frame_transform(frame_name=name) for name in model.link_names()]
     )
@@ -417,7 +412,7 @@ def test_coriolis_matrix(
     # Tests
     # =====
 
-    I_ν = data.generalized_velocity()
+    I_ν = data.generalized_velocity
     C = js.model.free_floating_coriolis_matrix(model=model, data=data)
 
     h = js.model.free_floating_bias_forces(model=model, data=data)
@@ -432,13 +427,13 @@ def test_coriolis_matrix(
     # all velocity representations, that are handled internally when computing M.
     def M(q) -> jax.Array:
 
-        data_ad = js.data.JaxSimModelData.zero(
-            model=model, velocity_representation=data.velocity_representation
+        data_ad = js.data.JaxSimModelData.build(
+            model=model,
+            velocity_representation=data.velocity_representation,
+            base_position=q[:3],
+            base_quaternion=q[3:7],
+            joint_positions=q[7:],
         )
-
-        data_ad = data_ad.reset_base_position(base_position=q[:3])
-        data_ad = data_ad.reset_base_quaternion(base_quaternion=q[3:7])
-        data_ad = data_ad.reset_joint_positions(positions=q[7:])
 
         M = js.model.free_floating_mass_matrix(model=model, data=data_ad)
 
@@ -447,7 +442,7 @@ def test_coriolis_matrix(
     def compute_q(data: js.data.JaxSimModelData) -> jax.Array:
 
         q = jnp.hstack(
-            [data.base_position(), data.base_orientation(), data.joint_positions()]
+            [data.base_position, data.base_orientation, data.joint_positions]
         )
 
         return q
@@ -455,19 +450,19 @@ def test_coriolis_matrix(
     def compute_q̇(data: js.data.JaxSimModelData) -> jax.Array:
 
         with data.switch_velocity_representation(VelRepr.Body):
-            B_ω_WB = data.base_velocity()[3:6]
+            B_ω_WB = data.base_velocity[3:6]
 
         with data.switch_velocity_representation(VelRepr.Mixed):
-            W_ṗ_B = data.base_velocity()[0:3]
+            W_ṗ_B = data.base_velocity[0:3]
 
         W_Q̇_B = jaxsim.math.Quaternion.derivative(
-            quaternion=data.base_orientation(),
+            quaternion=data.base_orientation,
             omega=B_ω_WB,
             omega_in_body_fixed=True,
             K=0.0,
         ).squeeze()
 
-        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities()])
+        q̇ = jnp.hstack([W_ṗ_B, W_Q̇_B, data.joint_velocities])
 
         return q̇
 

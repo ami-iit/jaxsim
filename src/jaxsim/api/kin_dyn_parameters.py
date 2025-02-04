@@ -11,7 +11,7 @@ from jax_dataclasses import Static
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
-from jaxsim.parsers.descriptions import JointDescription, ModelDescription
+from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
@@ -36,6 +36,7 @@ class KinDynParameters(JaxsimDataclass):
     link_names: Static[tuple[str]]
     _parent_array: Static[HashedNumpyArray]
     _support_body_array_bool: Static[HashedNumpyArray]
+    _motion_subspaces: Static[HashedNumpyArray]
 
     # Links
     link_parameters: LinkParameters
@@ -49,6 +50,13 @@ class KinDynParameters(JaxsimDataclass):
     # Joints
     joint_model: JointModel
     joint_parameters: JointParameters | None
+
+    @property
+    def motion_subspaces(self) -> jtp.Matrix:
+        r"""
+        Return the motion subspaces :math:`\mathbf{S}(s)` of the joints.
+        """
+        return self._motion_subspaces.get()
 
     @property
     def parent_array(self) -> jtp.Vector:
@@ -215,6 +223,31 @@ class KinDynParameters(JaxsimDataclass):
             jnp.arange(start=0, stop=len(ordered_links))
         )
 
+        def motion_subspace(joint_type: int, axis: npt.ArrayLike) -> npt.ArrayLike:
+
+            S = {
+                JointType.Fixed: np.zeros(shape=(6, 1)),
+                JointType.Revolute: np.vstack(np.hstack([np.zeros(3), axis.axis])),
+                JointType.Prismatic: np.vstack(np.hstack([axis.axis, np.zeros(3)])),
+            }
+
+            return S[joint_type]
+
+        S_J = (
+            jnp.array(
+                [
+                    motion_subspace(joint_type, axis)
+                    for joint_type, axis in zip(
+                        joint_model.joint_types[1:], joint_model.joint_axis, strict=True
+                    )
+                ]
+            )
+            if len(joint_model.joint_axis) != 0
+            else jnp.empty((0, 6, 1))
+        )
+
+        motion_subspaces = jnp.vstack([jnp.zeros((6, 1))[jnp.newaxis, ...], S_J])
+
         # =================================
         # Build and return KinDynParameters
         # =================================
@@ -223,6 +256,7 @@ class KinDynParameters(JaxsimDataclass):
             link_names=tuple(l.name for l in ordered_links),
             _parent_array=HashedNumpyArray(array=parent_array),
             _support_body_array_bool=HashedNumpyArray(array=support_body_array_bool),
+            _motion_subspaces=HashedNumpyArray(array=motion_subspaces),
             link_parameters=link_parameters,
             joint_model=joint_model,
             joint_parameters=joint_parameters,
@@ -359,54 +393,6 @@ class KinDynParameters(JaxsimDataclass):
             of each joint.
         """
 
-        return self.joint_transforms_and_motion_subspaces(
-            joint_positions=joint_positions,
-            base_transform=base_transform,
-        )[0]
-
-    @jax.jit
-    def joint_motion_subspaces(
-        self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
-    ) -> jtp.Array:
-        r"""
-        Return the motion subspaces of the joints.
-
-        Args:
-            joint_positions: The joint positions.
-            base_transform: The homogeneous matrix defining the base pose.
-
-        Returns:
-            The stacked motion subspaces :math:`\mathbf{S}(s)` of each joint.
-        """
-
-        return self.joint_transforms_and_motion_subspaces(
-            joint_positions=joint_positions,
-            base_transform=base_transform,
-        )[1]
-
-    @jax.jit
-    def joint_transforms_and_motion_subspaces(
-        self, joint_positions: jtp.VectorLike, base_transform: jtp.MatrixLike
-    ) -> tuple[jtp.Array, jtp.Array]:
-        r"""
-        Return the transforms and the motion subspaces of the joints.
-
-        Args:
-            joint_positions: The joint positions.
-            base_transform: The homogeneous matrix defining the base pose.
-
-        Returns:
-            A tuple containing the stacked transforms
-            :math:`{}^{i} \mathbf{H}_{\lambda(i)}(s)`
-            and the stacked motion subspaces :math:`\mathbf{S}(s)` of each joint.
-
-        Note:
-            The first transform, at index 0, provides the pose of the base link
-            w.r.t. the world frame. For both floating-base and fixed-base systems,
-            it takes into account the base pose and the optional transform
-            between the root frame of the model and the base link.
-        """
-
         # Rename the base transform.
         W_H_B = base_transform
 
@@ -417,22 +403,19 @@ class KinDynParameters(JaxsimDataclass):
                 self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
             ]
         )
-
-        # Compute the transforms and motion subspaces of the joints.
         if self.number_of_joints() == 0:
-            pre_H_suc_J, S_J = jnp.empty((0, 4, 4)), jnp.empty((0, 6, 1))
+            pre_H_suc_J = jnp.empty((0, 4, 4))
         else:
-            pre_H_suc_J, S_J = jax.vmap(supported_joint_motion)(
-                jnp.array(self.joint_model.joint_types[1:]).astype(int),
-                jnp.array(joint_positions),
-                jnp.array([j.axis for j in self.joint_model.joint_axis]),
+            pre_H_suc_J = jax.vmap(supported_joint_motion)(
+                joint_types=jnp.array(self.joint_model.joint_types[1:]).astype(int),
+                joint_positions=jnp.array(joint_positions),
+                joint_axes=jnp.array([j.axis for j in self.joint_model.joint_axis]),
             )
 
         # Extract the transforms and motion subspaces of the joints.
         # We stack the base transform W_H_B at index 0, and a dummy motion subspace
         # for either the fixed or free-floating joint connecting the world to the base.
         pre_H_suc = jnp.vstack([W_H_B[jnp.newaxis, ...], pre_H_suc_J])
-        S = jnp.vstack([jnp.zeros((6, 1))[jnp.newaxis, ...], S_J])
 
         # Extract the successor-to-child fixed transforms.
         # Note that here we include also the index 0 since suc_H_child[0] stores the
@@ -448,7 +431,7 @@ class KinDynParameters(JaxsimDataclass):
             )
         )(λ_H_pre, pre_H_suc, suc_H_i)
 
-        return i_X_λ, S
+        return i_X_λ
 
     # ============================
     # Helpers to update parameters

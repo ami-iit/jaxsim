@@ -58,7 +58,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-22.04
+          - ubuntu-latest
           - macos-latest
           - windows-latest
         python:
@@ -144,7 +144,7 @@ jobs:
   publish:
     name: Publish to PyPI
     needs: test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
         id-token: write
 

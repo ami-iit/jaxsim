@@ -51,7 +51,7 @@ dependencies = [
     "jaxlie >= 1.3.0",
     "jax_dataclasses >= 1.4.0",
     "pptree",
-    "optax >= 0.2.3",
+    "optax == 0.2.3",
     "qpax",
     "rod >= 0.3.3",
     "typing_extensions ; python_version < '3.12'",

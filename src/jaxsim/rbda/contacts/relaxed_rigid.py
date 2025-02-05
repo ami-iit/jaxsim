@@ -182,10 +182,10 @@ class RelaxedRigidContacts(common.ContactModel):
     """Relaxed rigid contacts model."""
 
     _solver_options_keys: jax_dataclasses.Static[tuple[str, ...]] = dataclasses.field(
-        default=("tol", "maxiter", "memory_size"), kw_only=True
+        default=("tol", "maxiter", "memory_size", "scale_init_precond"), kw_only=True
     )
     _solver_options_values: jax_dataclasses.Static[tuple[Any, ...]] = dataclasses.field(
-        default=(1e-6, 50, 10), kw_only=True
+        default=(1e-6, 50, 10, False), kw_only=True
     )
 
     @property

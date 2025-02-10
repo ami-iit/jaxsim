@@ -4,7 +4,6 @@ from . import (
     actuation_model,
     com,
     contact,
-    contact_model,
     frame,
     integrators,
     joint,

@@ -11,7 +11,6 @@ import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform
-from jaxsim.rbda import contacts
 
 from .common import VelRepr
 
@@ -166,7 +165,6 @@ def estimate_good_contact_parameters(
     number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
-    **kwargs,
 ) -> jaxsim.rbda.contacts.ContactParamsTypes:
     """
     Estimate good contact parameters.
@@ -179,9 +177,6 @@ def estimate_good_contact_parameters(
             The number of active collidable points in steady state.
         damping_ratio: The damping ratio.
         max_penetration: The maximum penetration allowed.
-        kwargs:
-            Additional model-specific parameters passed to the builder method of
-            the parameters class.
 
     Returns:
         The estimated good contacts parameters.
@@ -223,51 +218,14 @@ def estimate_good_contact_parameters(
 
     nc = number_of_active_collidable_points_steady_state
 
-    match model.contact_model:
-
-        case contacts.SoftContacts():
-            assert isinstance(model.contact_model, contacts.SoftContacts)
-
-            parameters = contacts.SoftContactsParams.build_default_from_jaxsim_model(
-                model=model,
-                standard_gravity=standard_gravity,
-                static_friction_coefficient=static_friction_coefficient,
-                max_penetration=max_δ,
-                number_of_active_collidable_points_steady_state=nc,
-                damping_ratio=damping_ratio,
-                **kwargs,
-            )
-
-        case contacts.RigidContacts():
-            assert isinstance(model.contact_model, contacts.RigidContacts)
-
-            # Disable Baumgarte stabilization by default since it does not play
-            # well with the forward Euler integrator.
-            K = kwargs.get("K", 0.0)
-
-            parameters = contacts.RigidContactsParams.build(
-                mu=static_friction_coefficient,
-                **(
-                    dict(
-                        K=K,
-                        D=2 * jnp.sqrt(K),
-                    )
-                    | kwargs
-                ),
-            )
-
-        case contacts.RelaxedRigidContacts():
-            assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)
-
-            parameters = contacts.RelaxedRigidContactsParams.build(
-                mu=static_friction_coefficient,
-                **kwargs,
-            )
-
-        case _:
-            raise ValueError(f"Invalid contact model: {model.contact_model}")
-
-    return parameters
+    return model.contact_model._parameters_class().build_default_from_jaxsim_model(
+        model=model,
+        standard_gravity=standard_gravity,
+        static_friction_coefficient=static_friction_coefficient,
+        max_penetration=max_δ,
+        number_of_active_collidable_points_steady_state=nc,
+        damping_ratio=damping_ratio,
+    )
 
 
 @jax.jit

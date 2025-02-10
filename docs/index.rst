@@ -80,7 +80,6 @@ Features
   :caption: JAXsim API
 
   modules/api
-  modules/integrators
   modules/math
   modules/mujoco
   modules/parsers

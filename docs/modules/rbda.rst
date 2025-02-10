@@ -11,6 +11,8 @@ This module provides a set of algorithms for rigid body dynamics.
     aba
     collidable_points
     contacts.soft
+    contacts.rigid
+    contacts.relaxed_rigid
     crba
     forward_kinematics
     jacobian
@@ -27,6 +29,14 @@ Contact Models
 ~~~~~~~~~~~~~~
 
 .. automodule:: jaxsim.rbda.contacts.soft
+    :members:
+    :no-index:
+
+.. automodule:: jaxsim.rbda.contacts.rigid
+    :members:
+    :no-index:
+
+.. automodule:: jaxsim.rbda.contacts.relaxed_rigid
     :members:
     :no-index:
 

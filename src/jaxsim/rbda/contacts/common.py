@@ -251,3 +251,27 @@ class ContactModel(JaxsimDataclass):
                 else cls.__class__.__name__ + "Params"
             ),
         )
+
+    def update_contact_state(
+        self: type[Self], old_contact_state: dict[str, jtp.Array]
+    ) -> dict[str, jtp.Array]:
+        """
+        Update the contact state.
+
+        Args:
+            old_contact_state: The old contact state.
+
+        Returns:
+            The updated contact state.
+        """
+
+        # Import the contact models to avoid circular imports.
+        from .relaxed_rigid import RelaxedRigidContacts
+        from .rigid import RigidContacts
+        from .soft import SoftContacts
+
+        match self:
+            case SoftContacts():
+                return {"tangential_deformation": old_contact_state["m_dot"]}
+            case RigidContacts() | RelaxedRigidContacts():
+                return {}

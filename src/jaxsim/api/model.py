@@ -2109,6 +2109,9 @@ def step(
             joint_torques=τ_total,
         )
 
+    # Update the contact state data
+    contact_state = model.contact_model.update_contact_state(aux_dict)
+
     # ==============================
     # Compute the total link forces
     # ==============================
@@ -2128,7 +2131,7 @@ def step(
         data=data,
         link_forces=W_f_L_total,
         joint_torques=τ_total,
-        extended_contact_state=aux_dict,
+        extended_contact_state=contact_state,
     )
 
     if isinstance(model.contact_model, jaxsim.rbda.contacts.RigidContacts):

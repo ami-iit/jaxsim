@@ -246,9 +246,9 @@ jaxsim = { path = "./", editable = true }
 
 [tool.pixi.feature.test.tasks]
 pipcheck = "pip check"
-benchmark = { cmd = "pytest --benchmark-only", depends_on = ["pipcheck"] }
+benchmark = { cmd = "pytest --benchmark-only", depends-on = ["pipcheck"] }
 lint = { cmd = "pre-commit run --all-files --hook-stage=manual" }
-test = { cmd = "pytest", depends_on = ["pipcheck"] }
+test = { cmd = "pytest", depends-on = ["pipcheck"] }
 
 [tool.pixi.feature.test.dependencies]
 black-jupyter = "24.*"

@@ -104,7 +104,7 @@ model = js.model.reduce(model=full_model, considered_joints=joints)
 # Initialize model data
 data = js.data.JaxSimModelData.build(
     model=model,
-    base_position=jnp.array([0.0, 0.0, 1.0],
+    base_position=jnp.array([0.0, 0.0, 1.0]),
 )
 
 # Frame and dynamics computations

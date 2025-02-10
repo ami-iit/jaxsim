@@ -27,13 +27,16 @@
 
 
 ```python
-import jax.numpy as jnp
-import jaxsim.api as js
-import icub_models
 import pathlib
+
+import icub_models
+import jax.numpy as jnp
+
+import jaxsim.api as js
 
 # Load the iCub model
 model_path = icub_models.get_model_file("iCubGazeboV2_5")
+
 joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
           'l_shoulder_roll', 'l_shoulder_yaw', 'l_elbow', 'r_shoulder_pitch',
           'r_shoulder_roll', 'r_shoulder_yaw', 'r_elbow', 'l_hip_pitch',
@@ -43,33 +46,45 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
 
 # Build and reduce the model
 model_description = pathlib.Path(model_path)
+
 full_model = js.model.JaxSimModel.build_from_model_description(
     model_description=model_description, time_step=0.0001, is_urdf=True
 )
+
 model = js.model.reduce(model=full_model, considered_joints=joints)
 
+# Get the number of degrees of freedom
 ndof = model.dofs()
+
 # Initialize data and simulation
 # Note that the default data representation is mixed velocity representation
-data = js.data.JaxSimModelData.build(model=model,base_position=jnp.array([0.0, 0.0, 1.0]))
+data = js.data.JaxSimModelData.build(
+    model=model, base_position=jnp.array([0.0, 0.0, 1.0])
+)
+
 T = jnp.arange(start=0, stop=1.0, step=model.time_step)
+
 tau = jnp.zeros(ndof)
 
 # Simulate
-for t in T:
-    data = js.model.step(model=model, data=data, link_forces=None, joint_force_references=tau)
-
+for _ in T:
+    data = js.model.step(
+        model=model, data=data, link_forces=None, joint_force_references=tau
+    )
 ```
 
 ### Using JaxSim as a multibody dynamics library
 ``` python
-import jax.numpy as jnp
-import jaxsim.api as js
-import icub_models
 import pathlib
+
+import icub_models
+import jax.numpy as jnp
+
+import jaxsim.api as js
 
 # Load the iCub model
 model_path = icub_models.get_model_file("iCubGazeboV2_5")
+
 joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
           'l_shoulder_roll', 'l_shoulder_yaw', 'l_elbow', 'r_shoulder_pitch',
           'r_shoulder_roll', 'r_shoulder_yaw', 'r_elbow', 'l_hip_pitch',
@@ -79,9 +94,11 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
 
 # Build and reduce the model
 model_description = pathlib.Path(model_path)
+
 full_model = js.model.JaxSimModel.build_from_model_description(
     model_description=model_description, time_step=0.0001, is_urdf=True
 )
+
 model = js.model.reduce(model=full_model, considered_joints=joints)
 
 # Initialize model data
@@ -92,8 +109,16 @@ data = js.data.JaxSimModelData.build(
 
 # Frame and dynamics computations
 frame_index = js.frame.name_to_idx(model=model, frame_name="l_foot")
-W_H_F = js.frame.transform(model=model, data=data, frame_index=frame_index)  # Frame transformation
-W_J_F = js.frame.jacobian(model=model, data=data, frame_index=frame_index)  # Frame Jacobian
+
+# Frame transformation
+W_H_F = js.frame.transform(
+    model=model, data=data, frame_index=frame_index
+)
+
+# Frame Jacobian
+W_J_F = js.frame.jacobian(
+    model=model, data=data, frame_index=frame_index
+)
 
 # Dynamics properties
 M = js.model.free_floating_mass_matrix(model=model, data=data)  # Mass matrix
@@ -102,9 +127,9 @@ g = js.model.free_floating_gravity_forces(model=model, data=data)  # Gravity for
 C = js.model.free_floating_coriolis_matrix(model=model, data=data)  # Coriolis matrix
 
 # Print dynamics results
-print(f"M: shape={M.shape}, h: shape={h.shape}, g: shape={g.shape}, C: shape={C.shape}")
-
+print(f"{M.shape=} \n{h.shape=} \n{g.shape=} \n{C.shape=}")
 ```
+
 ### Additional features
 
 - Full support for automatic differentiation of RBDAs (forward and reverse modes) with JAX.

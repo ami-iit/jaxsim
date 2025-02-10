@@ -2165,17 +2165,20 @@ def step(
                 )
             )
 
-            # Reset the generalized velocity.
-            data_tf = data_tf.replace(
-                model=model,
-                base_linear_velocity=BW_ν_post_impact[0:3],
-                base_angular_velocity=BW_ν_post_impact[3:6],
-                joint_velocities=BW_ν_post_impact[6:],
+            BW_ν_post_impact_inertial = data_tf.other_representation_to_inertial(
+                array=BW_ν_post_impact[0:6],
+                other_representation=VelRepr.Mixed,
+                transform=data_tf._base_transform.at[0:3, 0:3].set(jnp.eye(3)),
+                is_force=False,
             )
 
-    # Restore the input velocity representation
-    data_tf = data_tf.replace(
-        velocity_representation=data.velocity_representation, validate=False
-    )
+            # Reset the generalized velocity.
+            data_tf = dataclasses.replace(
+                data_tf,
+                velocity_representation=data.velocity_representation,
+                _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
+                _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
+                _joint_velocities=BW_ν_post_impact[6:],
+            )
 
     return data_tf

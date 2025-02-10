@@ -10,13 +10,14 @@ Functional API
     data
     contact
     kin_dyn_parameters
+    integrators
     joint
     link
     frame
     com
-    ode_data
     ode
     references
+    actuation_model
     common
 
 
@@ -24,6 +25,10 @@ Model
 ~~~~~
 
 .. automodule:: jaxsim.api.model
+    :members:
+    :no-index:
+
+.. automodule:: jaxsim.api.actuation_model
     :members:
     :no-index:
 
@@ -57,28 +62,32 @@ Joint
 
 Link
 ~~~~~
+
 .. automodule:: jaxsim.api.link
     :members:
     :no-index:
 
 Frame
 ~~~~~
+
 .. automodule:: jaxsim.api.frame
     :members:
     :no-index:
 
 CoM
 ~~~
+
 .. automodule:: jaxsim.api.com
     :members:
     :no-index:
 
-ODE Data
-~~~~~~~~
+Integration
+~~~~~~~~~~~
 
-.. automodule:: jaxsim.api.ode_data
+.. automodule:: jaxsim.api.integrators
     :members:
     :no-index:
+
 
 .. automodule:: jaxsim.api.ode
     :members:

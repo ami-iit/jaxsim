@@ -6,8 +6,8 @@
 <br/>
 <table>
   <tr>
-    <th><img src="https://github.com/user-attachments/assets/f9661fae-9a85-41dd-9a58-218758ec8c9c" width="500"></th>
-    <th><img src="https://github.com/user-attachments/assets/62b88b9d-45ea-4d22-99d2-f24fc842dd29" width="500"></th>
+    <th><img src="https://github.com/user-attachments/assets/f9661fae-9a85-41dd-9a58-218758ec8c9c"></th>
+    <th><img src="https://github.com/user-attachments/assets/62b88b9d-45ea-4d22-99d2-f24fc842dd29"></th>
   </tr>
 </table>
 <br/>

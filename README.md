@@ -282,9 +282,6 @@ src/jaxsim
 |   |-- ode.py...................# |-- APIs for computing quantities related to the system dynamics.
 |   `-- references.py............# `-- Helper class to create references (link forces and joint torques).
 |-- exceptions.py................# Module containing functions to raise exceptions from JIT-compiled functions.
-|   |-- common.py................# |-- Common utilities used in the current package.
-|   |-- fixed_step.py............# |-- Fixed-step integrators (explicit Runge-Kutta schemes).
-|   `-- variable_step.py.........# `-- Variable-step integrators (embedded Runge-Kutta schemes).
 |-- logging.py...................# Module containing logging utilities.
 |-- math.........................# Package containing mathematical utilities.
 |   |-- adjoint.py...............# |-- APIs for creating and manipulating 6D transformations.

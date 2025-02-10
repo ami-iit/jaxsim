@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim.math import STANDARD_GRAVITY
 from jaxsim.utils import JaxsimDataclass
 
 try:
@@ -79,6 +80,83 @@ class ContactsParams(JaxsimDataclass):
             The `ContactsParams` instance.
         """
         pass
+
+    def build_default_from_jaxsim_model(
+        self: type[Self],
+        model: js.model.JaxSimModel,
+        *,
+        stiffness: jtp.FloatLike | None = None,
+        damping: jtp.FloatLike | None = None,
+        standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
+        static_friction_coefficient: jtp.FloatLike = 0.5,
+        max_penetration: jtp.FloatLike = 0.001,
+        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+        damping_ratio: jtp.FloatLike = 1.0,
+        p: jtp.FloatLike = 0.5,
+        q: jtp.FloatLike = 0.5,
+    ) -> Self:
+        """
+        Create a `ContactsParams` instance with default parameters.
+
+        Args:
+            model: The robot model considered by the contact model.
+            stiffness: The stiffness of the contact model.
+            damping: The damping of the contact model.
+            standard_gravity: The standard gravity acceleration.
+            static_friction_coefficient: The static friction coefficient.
+            max_penetration: The maximum penetration depth.
+            number_of_active_collidable_points_steady_state:
+                The number of active collidable points in steady state.
+            damping_ratio: The damping ratio.
+            p: The first parameter of the contact model.
+            q: The second parameter of the contact model.
+
+        Returns:
+            The `ContactsParams` instance.
+
+        Note:
+            The `stiffness` is intended as the terrain stiffness in the Soft Contacts model,
+            while it is the Baumgarte stabilization stiffness in the Rigid Contacts model.
+
+            The `damping` is intended as the terrain damping in the Soft Contacts model,
+            while it is the Baumgarte stabilization damping in the Rigid Contacts model.
+
+            The `damping_ratio` parameter allows to operate on the following conditions:
+            - ξ > 1.0: over-damped
+            - ξ = 1.0: critically damped
+            - ξ < 1.0: under-damped
+        """
+
+        # Use symbols for input parameters.
+        ξ = damping_ratio
+        δ_max = max_penetration
+        μc = static_friction_coefficient
+
+        # Compute the total mass of the model.
+        m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
+
+        # Rename the standard gravity.
+        g = standard_gravity
+
+        # Compute the average support force on each collidable point.
+        f_average = m * g / number_of_active_collidable_points_steady_state
+
+        # Compute the stiffness to get the desired steady-state penetration.
+        # Note that this is dependent on the non-linear exponent used in
+        # the damping term of the Hunt/Crossley model.
+        K = f_average / jnp.power(δ_max, 1 + p) if stiffness is None else stiffness
+
+        # Compute the damping using the damping ratio.
+        critical_damping = 2 * jnp.sqrt(K * m)
+        D = ξ * critical_damping if damping is None else damping
+
+        return self.build(
+            K=K,
+            D=D,
+            mu=μc,
+            p=p,
+            q=q,
+        )
 
     @abc.abstractmethod
     def valid(self, **kwargs) -> jtp.BoolLike:

@@ -135,7 +135,7 @@ print(f"{M.shape=} \n{h.shape=} \n{g.shape=} \n{C.shape=}")
 - Full support for automatic differentiation of RBDAs (forward and reverse modes) with JAX.
 - Support for automatically differentiating against kinematics and dynamics parameters.
 - All fixed-step integrators are forward and reverse differentiable.
-- Check the example folder for additional usecases!
+- Check the example folder for additional use cases!
 
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat

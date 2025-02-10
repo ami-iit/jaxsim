@@ -76,6 +76,7 @@ class SoftContactsParams(common.ContactsParams):
         mu: jtp.FloatLike = 0.5,
         p: jtp.FloatLike = 0.5,
         q: jtp.FloatLike = 0.5,
+        **kwargs,
     ) -> Self:
         """
         Create a SoftContactsParams instance with specified parameters.
@@ -90,6 +91,7 @@ class SoftContactsParams(common.ContactsParams):
             q:
                 The exponent q corresponding to the spring-related non-linearity
                 of the Hunt/Crossley model
+            **kwargs: Additional parameters to pass to the contact model.
 
         Returns:
             A SoftContactsParams instance with the specified parameters.

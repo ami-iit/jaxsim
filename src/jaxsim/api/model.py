@@ -2102,15 +2102,16 @@ def step(
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
         # with the terrain.
-        W_f_L_terrain, aux_dict = js.contact.link_contact_forces(
+        W_f_L_terrain, old_contact_state = js.contact.link_contact_forces(
             model=model,
             data=data,
             link_forces=W_f_L_external,
             joint_torques=τ_total,
         )
 
-    # Update the contact state data
-    contact_state = model.contact_model.update_contact_state(aux_dict)
+    # Update the contact state data. This is necessary only for the contact models
+    # that require propagation and integration of contact state.
+    contact_state = model.contact_model.update_contact_state(old_contact_state)
 
     # ==============================
     # Compute the total link forces

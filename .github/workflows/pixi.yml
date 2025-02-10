@@ -35,7 +35,7 @@ jobs:
           pixi update --json | pixi exec pixi-diff-to-markdown --explicit-column > diff.md
 
       - name: Test project against updated pixi
-        run: pixi run --environment tasks-cpu test
+        run: pixi run --environment default test
         env:
           PY_COLORS: "1"
           JAX_PLATFORM_NAME: cpu

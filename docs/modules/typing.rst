@@ -10,8 +10,9 @@ Typing
     Int
     Float
     Vector
-    FloatJax
-    IntJax
-    ArrayJax
-    VectorJax
-    MatrixJax
+    BoolLike
+    FloatLike
+    IntLike
+    ArrayLike
+    VectorLike
+    MatrixLike

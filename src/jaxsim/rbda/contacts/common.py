@@ -95,6 +95,7 @@ class ContactsParams(JaxsimDataclass):
         damping_ratio: jtp.FloatLike = 1.0,
         p: jtp.FloatLike = 0.5,
         q: jtp.FloatLike = 0.5,
+        **kwargs,
     ) -> Self:
         """
         Create a `ContactsParams` instance with default parameters.
@@ -111,6 +112,7 @@ class ContactsParams(JaxsimDataclass):
             damping_ratio: The damping ratio.
             p: The first parameter of the contact model.
             q: The second parameter of the contact model.
+            **kwargs: Optional additional arguments.
 
         Returns:
             The `ContactsParams` instance.
@@ -157,6 +159,7 @@ class ContactsParams(JaxsimDataclass):
             mu=μc,
             p=p,
             q=q,
+            **kwargs,
         )
 
     @abc.abstractmethod

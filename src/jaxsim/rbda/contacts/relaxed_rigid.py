@@ -64,12 +64,12 @@ class RelaxedRigidContactsParams(common.ContactsParams):
     )
 
     # Stiffness
-    stiffness: jtp.Float = dataclasses.field(
+    K: jtp.Float = dataclasses.field(
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
     # Damping
-    damping: jtp.Float = dataclasses.field(
+    D: jtp.Float = dataclasses.field(
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
@@ -90,8 +90,8 @@ class RelaxedRigidContactsParams(common.ContactsParams):
                 HashedNumpyArray(self.width),
                 HashedNumpyArray(self.midpoint),
                 HashedNumpyArray(self.power),
-                HashedNumpyArray(self.stiffness),
-                HashedNumpyArray(self.damping),
+                HashedNumpyArray(self.K),
+                HashedNumpyArray(self.D),
                 HashedNumpyArray(self.mu),
             )
         )
@@ -110,9 +110,10 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         width: jtp.FloatLike | None = None,
         midpoint: jtp.FloatLike | None = None,
         power: jtp.FloatLike | None = None,
-        stiffness: jtp.FloatLike | None = None,
-        damping: jtp.FloatLike | None = None,
+        K: jtp.FloatLike | None = None,
+        D: jtp.FloatLike | None = None,
         mu: jtp.FloatLike | None = None,
+        **kwargs,
     ) -> Self:
         """Create a `RelaxedRigidContactsParams` instance."""
 
@@ -151,13 +152,11 @@ class RelaxedRigidContactsParams(common.ContactsParams):
             power=jnp.array(
                 power if power is not None else default("power"), dtype=float
             ),
-            stiffness=jnp.array(
-                stiffness if stiffness is not None else default("stiffness"),
+            K=jnp.array(
+                K if K is not None else default("K"),
                 dtype=float,
             ),
-            damping=jnp.array(
-                damping if damping is not None else default("damping"), dtype=float
-            ),
+            D=jnp.array(D if D is not None else default("D"), dtype=float),
             mu=jnp.array(mu if mu is not None else default("mu"), dtype=float),
         )
 
@@ -501,8 +500,8 @@ class RelaxedRigidContacts(common.ContactModel):
                 "width",
                 "midpoint",
                 "power",
-                "stiffness",
-                "damping",
+                "K",
+                "D",
                 "mu",
             )
         )

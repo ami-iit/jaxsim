@@ -2134,54 +2134,8 @@ def step(
         extended_contact_state=contact_state,
     )
 
-    if isinstance(model.contact_model, jaxsim.rbda.contacts.RigidContacts):
-        # Extract the indices corresponding to the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-        )
-
-        W_p_C = js.contact.collidable_point_positions(model, data_tf)[
-            indices_of_enabled_collidable_points
-        ]
-
-        # Compute the penetration depth of the collidable points.
-        δ, *_ = jax.vmap(
-            jaxsim.rbda.contacts.common.compute_penetration_data,
-            in_axes=(0, 0, None),
-        )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
-
-        with data_tf.switch_velocity_representation(VelRepr.Mixed):
-            J_WC = js.contact.jacobian(model, data_tf)[
-                indices_of_enabled_collidable_points
-            ]
-            M = js.model.free_floating_mass_matrix(model, data_tf)
-            BW_ν_pre_impact = data_tf.generalized_velocity
-
-            # Compute the impact velocity.
-            # It may be discontinuous in case new contacts are made.
-            BW_ν_post_impact = (
-                jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
-                    generalized_velocity=BW_ν_pre_impact,
-                    inactive_collidable_points=(δ <= 0),
-                    M=M,
-                    J_WC=J_WC,
-                )
-            )
-
-            BW_ν_post_impact_inertial = data_tf.other_representation_to_inertial(
-                array=BW_ν_post_impact[0:6],
-                other_representation=VelRepr.Mixed,
-                transform=data_tf._base_transform.at[0:3, 0:3].set(jnp.eye(3)),
-                is_force=False,
-            )
-
-            # Reset the generalized velocity.
-            data_tf = dataclasses.replace(
-                data_tf,
-                velocity_representation=data.velocity_representation,
-                _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
-                _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
-                _joint_velocities=BW_ν_post_impact[6:],
-            )
+    data_tf = model.contact_model.update_velocity_after_impact(
+        model=model, data=data_tf
+    )
 
     return data_tf

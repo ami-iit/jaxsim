@@ -176,15 +176,13 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             )
         )
 
-        contact_state = (
-            {
-                "tangential_deformation": jnp.zeros_like(
-                    model.kin_dyn_parameters.contact_parameters.point
-                )
-            }
-            if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts)
-            else contact_state or {}
-        )
+        contact_state = contact_state or {}
+
+        if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
+            contact_state.setdefault(
+                "tangential_deformation",
+                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
+            )
 
         model_data = JaxSimModelData(
             velocity_representation=velocity_representation,
@@ -198,7 +196,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             _joint_transforms=joint_transforms,
             _link_transforms=link_transforms,
             _link_velocities=link_velocities_inertial,
-            contact_state=contact_state or {},
+            contact_state=contact_state,
         )
 
         if not model_data.valid(model=model):

@@ -123,7 +123,11 @@ def create_box_collision(
     # Conditionally add the top corners based on the environment variable.
     top_corners = (
         np.array([[0, 0, z], [x, 0, z], [x, y, z], [0, y, z]])
-        if not os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0")
+        if os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0").lower()
+        in {
+            "false",
+            "0",
+        }
         else []
     )
 
@@ -184,7 +188,10 @@ def create_sphere_collision(
         ]
 
         # Filter to keep only the bottom half if required.
-        if os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0"):
+        if os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0").lower() in {
+            "true",
+            "1",
+        }:
             # Keep only the points with z <= 0.
             points = [point for point in points if point[2] <= 0]
 

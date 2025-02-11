@@ -1420,14 +1420,10 @@ def free_floating_gravity_forces(
         The free-floating gravity forces of the model.
     """
 
-    # Build a zeroed state.
-    data_rnea = js.data.JaxSimModelData.zero(
-        model=model, velocity_representation=data.velocity_representation
-    )
-
-    # Set just the generalized position.
-    data_rnea = data_rnea.replace(
+    # Build a new state with zeroed velocities.
+    data_rnea = js.data.JaxSimModelData.build(
         model=model,
+        velocity_representation=data.velocity_representation,
         base_position=data.base_position,
         base_quaternion=data.base_quaternion,
         joint_positions=data.joint_positions,
@@ -1462,19 +1458,16 @@ def free_floating_bias_forces(
         The free-floating bias forces of the model.
     """
 
-    # Build a zeroed state.
-    data_rnea = js.data.JaxSimModelData.zero(
-        model=model, velocity_representation=data.velocity_representation
-    )
-
     # Set the generalized position and generalized velocity.
     base_linear_velocity, base_angular_velocity = None, None
     if model.floating_base():
         base_velocity = data.base_velocity
         base_linear_velocity = base_velocity[:3]
         base_angular_velocity = base_velocity[3:]
-    data_rnea = data_rnea.replace(
+
+    data_rnea = js.data.JaxSimModelData.build(
         model=model,
+        velocity_representation=data.velocity_representation,
         base_position=data.base_position,
         base_quaternion=data.base_quaternion,
         joint_positions=data.joint_positions,

@@ -36,8 +36,8 @@ class Transform:
         W_Q_B = jnp.array(quaternion).astype(float)
         W_p_B = jnp.array(translation).astype(float)
 
-        assert W_p_B.size == 3
-        assert W_Q_B.size == 4
+        assert W_p_B.shape[-1] == 3
+        assert W_Q_B.shape[-1] == 4
 
         A_R_B = jaxlie.SO3(wxyz=W_Q_B)
         A_R_B = A_R_B if not normalize_quaternion else A_R_B.normalize()

@@ -56,21 +56,24 @@ class MujocoVideoRecorder:
         )
 
     def reset(
-        self, model: mj.MjModel | None = None, data: mj.MjData | None = None
+        self,
+        model: mj.MjModel | None = None,
+        data: list[mujoco.MjData] | mujoco.MjData | None = None,
     ) -> None:
         """Reset the model and data."""
 
         self.frames = []
 
-        self.data = data if data is not None else self.data
+        self.data = [data] if data is not None else self.data
+        self.data = self.data if isinstance(self.data, list) else [self.data]
+
         self.model = model if model is not None else self.model
 
     def render_frame(self, camera_name: str = "track") -> npt.NDArray:
         """Render a frame."""
 
-        for idx, data in enumerate(
-            self.data if isinstance(self.data, list) else [self.data]
-        ):
+        for idx, data in enumerate(self.data):
+
             mujoco.mj_forward(self.model, data)
 
             if idx == 0:

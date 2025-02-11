@@ -460,16 +460,12 @@ class RelaxedRigidContacts(common.ContactModel):
         CW_fl_C = solution.reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
-        W_f_C = jax.vmap(
-            lambda CW_fl_C, W_H_C: (
-                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
-                    transform=W_H_C,
-                    other_representation=VelRepr.Mixed,
-                    is_force=True,
-                )
-            ),
-        )(CW_fl_C, W_H_C)
+        W_f_C = ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+            array=jnp.zeros((W_H_C.shape[0], 6)).at[:, :3].set(CW_fl_C),
+            transform=W_H_C,
+            other_representation=VelRepr.Mixed,
+            is_force=True,
+        )
 
         return W_f_C, {}
 

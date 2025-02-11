@@ -13,6 +13,7 @@ import rod
 from jax_dataclasses import Static
 
 import jaxsim.api as js
+from jaxsim.api.integrator_types import IntegratorType
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
@@ -61,6 +62,10 @@ class JaxSimModel(JaxsimDataclass):
 
     _description: Static[wrappers.HashlessObject[ModelDescription | None]] = (
         dataclasses.field(default=None, repr=False)
+    )
+
+    integrator_type: Static[IntegratorType] = dataclasses.field(
+        default=IntegratorType.HEUN2, repr=False
     )
 
     @property
@@ -2081,7 +2086,8 @@ def step(
     # Advance the simulation state
     # =============================
 
-    data_tf = js.integrators.semi_implicit_euler_integration(
+    integrator = js.integrators.get_integrator(model.integrator_type)
+    data_tf = integrator(
         model=model,
         data=data,
         base_acceleration_inertial=W_v̇_WB,

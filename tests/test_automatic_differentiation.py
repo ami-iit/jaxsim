@@ -297,7 +297,7 @@ def test_ad_integration(
 
     with model.editable(validate=False) as model:
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts.build(
-            solver_options={"tol": 1e-9}
+            solver_options={"tol": 1e-9, "maxiter": 100}
         )
 
     _, subkey = jax.random.split(prng_key, num=2)

@@ -295,6 +295,11 @@ def test_ad_integration(
 
     model = jaxsim_models_types
 
+    with model.editable(validate=False) as model:
+        model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts.build(
+            solver_options={"tol": 1e-9}
+        )
+
     _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey

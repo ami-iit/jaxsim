@@ -132,6 +132,12 @@ def process_inputs(
     if W_Q_B.shape != (4,):
         raise ValueError(W_Q_B.shape, (4,))
 
+    # Check that the quaternion does not contain NaNs.
+    exceptions.raise_value_error_if(
+        condition=jnp.isnan(W_Q_B).any(),
+        msg="A RBDA received a quaternion that contains NaNs.",
+    )
+
     # Check that the quaternion is unary since our RBDAs make this assumption in order
     # to prevent introducing additional normalizations that would affect AD.
     exceptions.raise_value_error_if(

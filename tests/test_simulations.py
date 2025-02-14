@@ -188,7 +188,7 @@ def run_simulation(
 
 
 def test_simulation_with_relaxed_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel,
+    jaxsim_model_box: js.model.JaxSimModel, integrator
 ):
 
     model = jaxsim_model_box
@@ -206,6 +206,7 @@ def test_simulation_with_relaxed_rigid_contacts(
         model.kin_dyn_parameters.contact_parameters.enabled = tuple(
             enabled_collidable_points_mask.tolist()
         )
+        model.integrator = integrator
 
     assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 

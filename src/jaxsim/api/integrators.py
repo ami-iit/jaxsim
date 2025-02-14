@@ -1,5 +1,6 @@
 import dataclasses
 
+import jax
 import jax.numpy as jnp
 
 import jaxsim
@@ -74,3 +75,71 @@ def semi_implicit_euler_integration(
     data = data.replace(model=model)  # update cache
 
     return data
+
+
+def rk4_integration(
+    model: js.model.JaxSimModel,
+    data: JaxSimModelData,
+    base_acceleration_inertial: jtp.Vector,
+    joint_accelerations: jtp.Vector,
+    link_forces: jtp.Vector,
+    joint_torques: jtp.Vector,
+) -> JaxSimModelData:
+    """Integrate the system state using the Runge-Kutta 4 method."""
+
+    dt = model.time_step
+
+    def get_state_derivative(data_ode: JaxSimModelData) -> dict:
+
+        # Safe normalize the quaternion.
+        base_quaternion_norm = jaxsim.math.safe_norm(data_ode.base_quaternion)
+        base_quaternion = data_ode.base_quaternion / jnp.where(
+            base_quaternion_norm == 0, 1.0, base_quaternion_norm
+        )
+
+        return dict(
+            base_position=data_ode.base_position,
+            base_quaternion=base_quaternion,
+            joint_positions=data_ode.joint_positions,
+            base_linear_velocity=data_ode.base_velocity[0:3],
+            base_angular_velocity=data_ode.base_velocity[3:6],
+            joint_velocities=data_ode.joint_velocities,
+        )
+
+    def f(x) -> dict[str, jtp.Matrix]:
+
+        with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
+
+            data_ti = data.replace(
+                model=model, **{k.lstrip("_"): v for k, v in x.items()}
+            )
+
+            return js.ode.system_dynamics(
+                model=model,
+                data=data_ti,
+                link_forces=link_forces,
+                joint_torques=joint_torques,
+            )
+
+    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
+        x_t0 = get_state_derivative(data)
+
+    euler_mid = lambda x, dxdt: x + (0.5 * dt) * dxdt
+    euler_fin = lambda x, dxdt: x + dt * dxdt
+
+    k1 = f(x_t0)
+    k2 = f(jax.tree.map(euler_mid, x_t0, k1))
+    k3 = f(jax.tree.map(euler_mid, x_t0, k2))
+    k4 = f(jax.tree.map(euler_fin, x_t0, k3))
+
+    # Average the slopes and compute the RK4 state derivative.
+    average = lambda k1, k2, k3, k4: (k1 + 2 * k2 + 2 * k3 + k4) / 6
+
+    dxdt = jax.tree_util.tree_map(average, k1, k2, k3, k4)
+
+    # Integrate the dynamics
+    x_tf = jax.tree_util.tree_map(euler_fin, x_t0, dxdt)
+
+    data_tf = dataclasses.replace(data, **{"_" + k: v for k, v in x_tf.items()})
+
+    return data_tf.replace(model=model)

@@ -158,8 +158,7 @@ def system_dynamics(
             baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
         )
 
-    ode_state_derivative = JaxSimModelData.build(
-        model=model,
+    return dict(
         base_position=W_ṗ_B,
         base_quaternion=W_Q̇_B,
         joint_positions=ṡ,
@@ -167,5 +166,3 @@ def system_dynamics(
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
     )
-
-    return ode_state_derivative

@@ -1,4 +1,5 @@
 import dataclasses
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -143,3 +144,9 @@ def rk4_integration(
     data_tf = dataclasses.replace(data, **{"_" + k: v for k, v in x_tf.items()})
 
     return data_tf.replace(model=model)
+
+
+_INTEGRATORS_MAP: dict[js.model.Integrator, Callable[..., js.data.JaxSimModelData]] = {
+    js.model.Integrator.SemiImplicitEuler: semi_implicit_euler_integration,
+    js.model.Integrator.RungeKutta4: rk4_integration,
+}

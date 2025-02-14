@@ -465,7 +465,7 @@ def reduce(
         model_name=model.name(),
         time_step=model.time_step,
         terrain=model.terrain,
-        contact_model=model.contact_model 
+        contact_model=model.contact_model,
         contacts_params=model.contacts_params,
         gravity=model.gravity,
     )
@@ -2095,7 +2095,7 @@ def step(
     # Advance the simulation state
     # =============================
     # integrator_fn = _INTEGRATORS_MAP[model.integrator]
-    integrator_fn = js.integrators.rk4_integration
+    integrator_fn = js.integrators.semi_implicit_euler_integration
 
     data_tf = integrator_fn(
         model=model,
@@ -2103,11 +2103,11 @@ def step(
         base_acceleration_inertial=W_v̇_WB,
         joint_accelerations=s̈,
         # Pass link_forces and joint_torques if the integrator is rk4
-        **(
-            {"link_forces": W_f_L_total, "joint_torques": τ_total}
-            # if model.integrator == js.integrators.rk4_integration
-            # else {}
-        ),
+        # **(
+        #     {"link_forces": W_f_L_total, "joint_torques": τ_total}
+        #     # if model.integrator == js.integrators.rk4_integration
+        #     # else {}
+        # ),
     )
 
     return data_tf

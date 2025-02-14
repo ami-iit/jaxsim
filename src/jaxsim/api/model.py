@@ -447,6 +447,8 @@ def reduce(
         time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
+        contacts_params=model.contacts_params,
+        gravity=model.gravity,
     )
 
     # Store the origin of the model, in case downstream logic needs it.

@@ -90,30 +90,11 @@ def rk4_integration(
 
     dt = model.time_step
 
-    def get_state_derivative(data_ode: JaxSimModelData) -> dict:
-
-        # Safe normalize the quaternion.
-        base_quaternion_norm = jaxsim.math.safe_norm(data_ode._base_quaternion)
-        base_quaternion = data_ode._base_quaternion / jnp.where(
-            base_quaternion_norm == 0, 1.0, base_quaternion_norm
-        )
-
-        return dict(
-            base_position=data_ode._base_position,
-            base_quaternion=base_quaternion,
-            joint_positions=data_ode._joint_positions,
-            base_linear_velocity=data_ode._base_linear_velocity,
-            base_angular_velocity=data_ode._base_angular_velocity,
-            joint_velocities=data_ode._joint_velocities,
-        )
-
     def f(x) -> dict[str, jtp.Matrix]:
 
         with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
-            data_ti = data.replace(
-                model=model, **{k.lstrip("_"): v for k, v in x.items()}
-            )
+            data_ti = data.replace(model=model, **x)
 
             return js.ode.system_dynamics(
                 model=model,
@@ -122,7 +103,19 @@ def rk4_integration(
                 joint_torques=joint_torques,
             )
 
-    x_t0 = get_state_derivative(data)
+    base_quaternion_norm = jaxsim.math.safe_norm(data._base_quaternion)
+    base_quaternion = data._base_quaternion / jnp.where(
+        base_quaternion_norm == 0, 1.0, base_quaternion_norm
+    )
+
+    x_t0 = dict(
+        base_position=data._base_position,
+        base_quaternion=base_quaternion,
+        joint_positions=data._joint_positions,
+        base_linear_velocity=data._base_linear_velocity,
+        base_angular_velocity=data._base_angular_velocity,
+        joint_velocities=data._joint_velocities,
+    )
 
     euler_mid = lambda x, dxdt: x + (0.5 * dt) * dxdt
     euler_fin = lambda x, dxdt: x + dt * dxdt
@@ -140,7 +133,17 @@ def rk4_integration(
     # Integrate the dynamics
     x_tf = jax.tree_util.tree_map(euler_fin, x_t0, dxdt)
 
-    data_tf = dataclasses.replace(data, **{"_" + k: v for k, v in x_tf.items()})
+    data_tf = dataclasses.replace(
+        data,
+        **{
+            "_base_position": x_tf["base_position"],
+            "_base_quaternion": x_tf["base_quaternion"],
+            "_joint_positions": x_tf["joint_positions"],
+            "_base_linear_velocity": x_tf["base_linear_velocity"],
+            "_base_angular_velocity": x_tf["base_angular_velocity"],
+            "_joint_velocities": x_tf["joint_velocities"],
+        },
+    )
 
     return data_tf.replace(model=model)
 

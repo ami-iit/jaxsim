@@ -145,7 +145,9 @@ def rk4_integration(
     return data_tf.replace(model=model)
 
 
-_INTEGRATORS_MAP: dict[js.model.Integrator, Callable[..., js.data.JaxSimModelData]] = {
-    js.model.Integrator.SemiImplicitEuler: semi_implicit_euler_integration,
-    js.model.Integrator.RungeKutta4: rk4_integration,
+_INTEGRATORS_MAP: dict[
+    js.model.IntegratorType, Callable[..., js.data.JaxSimModelData]
+] = {
+    js.model.IntegratorType.SemiImplicitEuler: semi_implicit_euler_integration,
+    js.model.IntegratorType.RungeKutta4: rk4_integration,
 }

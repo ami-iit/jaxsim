@@ -24,7 +24,7 @@ from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 from .common import VelRepr
 
 
-class Integrator(enum.IntEnum):
+class IntegratorType(enum.IntEnum):
     """The integrators available for the simulation."""
 
     SemiImplicitEuler = enum.auto()
@@ -63,8 +63,8 @@ class JaxSimModel(JaxsimDataclass):
         dataclasses.field(default=None, repr=False)
     )
 
-    integrator: Static[Integrator] = dataclasses.field(
-        default=Integrator.SemiImplicitEuler, repr=False
+    integrator: Static[IntegratorType] = dataclasses.field(
+        default=IntegratorType.SemiImplicitEuler, repr=False
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
@@ -123,7 +123,7 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
-        integrator: Integrator | None = None,
+        integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -197,7 +197,7 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
-        integrator: Integrator | None = None,
+        integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
         """

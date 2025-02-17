@@ -93,18 +93,18 @@ def rk4_integration(
     def get_state_derivative(data_ode: JaxSimModelData) -> dict:
 
         # Safe normalize the quaternion.
-        base_quaternion_norm = jaxsim.math.safe_norm(data_ode.base_quaternion)
-        base_quaternion = data_ode.base_quaternion / jnp.where(
+        base_quaternion_norm = jaxsim.math.safe_norm(data_ode._base_quaternion)
+        base_quaternion = data_ode._base_quaternion / jnp.where(
             base_quaternion_norm == 0, 1.0, base_quaternion_norm
         )
 
         return dict(
-            base_position=data_ode.base_position,
+            base_position=data_ode._base_position,
             base_quaternion=base_quaternion,
-            joint_positions=data_ode.joint_positions,
-            base_linear_velocity=data_ode.base_velocity[0:3],
-            base_angular_velocity=data_ode.base_velocity[3:6],
-            joint_velocities=data_ode.joint_velocities,
+            joint_positions=data_ode._joint_positions,
+            base_linear_velocity=data_ode._base_linear_velocity,
+            base_angular_velocity=data_ode._base_angular_velocity,
+            joint_velocities=data_ode._joint_velocities,
         )
 
     def f(x) -> dict[str, jtp.Matrix]:
@@ -122,8 +122,7 @@ def rk4_integration(
                 joint_torques=joint_torques,
             )
 
-    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
-        x_t0 = get_state_derivative(data)
+    x_t0 = get_state_derivative(data)
 
     euler_mid = lambda x, dxdt: x + (0.5 * dt) * dxdt
     euler_fin = lambda x, dxdt: x + dt * dxdt

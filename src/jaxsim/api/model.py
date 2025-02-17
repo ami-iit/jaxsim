@@ -2113,7 +2113,7 @@ def step(
         # Pass link_forces and joint_torques if the integrator is rk4
         **(
             {"link_forces": W_f_L_total, "joint_torques": τ_total}
-            if model.integrator == js.integrators.rk4_integration
+            if model.integrator == IntegratorType.RungeKutta4
             else {}
         ),
     )

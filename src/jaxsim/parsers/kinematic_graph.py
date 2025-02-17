@@ -274,10 +274,10 @@ class KinematicGraph(Sequence[LinkDescription]):
 
         # Check that our parser correctly resolved the frame's parent to be a link.
         for frame in frames:
-            assert frame.parent.name != "", frame
-            assert frame.parent.name is not None, frame
-            assert frame.parent.name != "__model__", frame
-            assert frame.parent.name not in frames_dict, frame
+            assert frame.parent_name != "", frame
+            assert frame.parent_name is not None, frame
+            assert frame.parent_name != "__model__", frame
+            assert frame.parent_name not in frames_dict, frame
 
         # ===========================================================
         # Populate the kinematic graph with links, joints, and frames
@@ -302,7 +302,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             assert parent_link.name == joint.parent.name
 
             # Assign link's parent.
-            child_link.parent = parent_link
+            child_link.parent_name = parent_link.name
 
             # Assign link's children and make sure they are unique.
             if child_link.name not in {l.name for l in parent_link.children}:
@@ -331,7 +331,7 @@ class KinematicGraph(Sequence[LinkDescription]):
         # Collect all the frames of the kinematic graph.
         # Note: our parser ensures that the parent of a frame is not another frame.
         all_frames_in_graph = [
-            frame for frame in frames if frame.parent.name in all_link_names_in_graph
+            frame for frame in frames if frame.parent_name in all_link_names_in_graph
         ]
 
         # Get the names of all frames in the kinematic graph.
@@ -450,7 +450,7 @@ class KinematicGraph(Sequence[LinkDescription]):
 
             # Get the link to remove and its parent, i.e. the lumped link
             link_to_remove = links_dict[link.name]
-            parent_of_link_to_remove = links_dict[link.parent.name]
+            parent_of_link_to_remove = links_dict[link.parent_name]
 
             msg = "Lumping chain: {}->({})->{}"
             logging.info(
@@ -586,7 +586,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             assert name_of_new_parent_link in reduced_graph, name_of_new_parent_link
 
             # Notify the user if the parent link has changed.
-            if name_of_new_parent_link != frame.parent.name:
+            if name_of_new_parent_link != frame.parent_name:
                 msg = "New parent of frame '{}' is '{}'"
                 logging.debug(msg=msg.format(frame.name, name_of_new_parent_link))
 
@@ -601,7 +601,7 @@ class KinematicGraph(Sequence[LinkDescription]):
                 )
 
                 # Update the parent link such that the pose is expressed in its frame.
-                frame.parent = reduced_graph.links_dict[name_of_new_parent_link]
+                frame.parent_name = name_of_new_parent_link
 
                 # Update dynamic parameters of the frame.
                 frame.mass = 0.0
@@ -880,7 +880,7 @@ class KinematicGraphTransforms:
 
             # Get the joint between the link and its parent.
             parent_joint = self.graph.joints_connection_dict[
-                link.parent.name, link.name
+                link.parent_name, link.name
             ]
 
             # Get the transform of the parent joint.
@@ -901,7 +901,7 @@ class KinematicGraphTransforms:
         frame = self.graph.frames_dict[name]
 
         # Get the transform of the parent link.
-        M_H_L = self.transform(name=frame.parent.name)
+        M_H_L = self.transform(name=frame.parent_name)
 
         # Rename the pose of the frame w.r.t. its parent link.
         L_H_F = frame.pose
@@ -971,13 +971,10 @@ class KinematicGraphTransforms:
         except KeyError as e:
             raise ValueError(f"Frame '{name}' not found in the kinematic graph") from e
 
-        match frame.parent.name:
-            case parent_name if parent_name in self.graph.links_dict:
-                return parent_name
-
-            case parent_name if parent_name in self.graph.frames_dict:
-                return self.find_parent_link_of_frame(name=parent_name)
-
-            case _:
-                msg = f"Failed to find parent element of frame '{name}' with name '{frame.parent.name}'"
-                raise RuntimeError(msg)
+        if frame.parent_name in self.graph.links_dict:
+            return frame.parent_name
+        elif frame.parent_name in self.graph.frames_dict:
+            return self.find_parent_link_of_frame(name=frame.parent_name)
+        else:
+            msg = f"Failed to find parent element of frame '{name}' with name '{frame.parent_name}'"
+            raise RuntimeError(msg)

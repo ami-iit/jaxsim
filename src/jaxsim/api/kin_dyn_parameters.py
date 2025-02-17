@@ -177,9 +177,9 @@ class KinDynParameters(JaxsimDataclass):
         # Build the parent array λ(i) of the model.
         # Note: the parent of the base link is not set since it's not defined.
         parent_array_dict = {
-            link.index: link.parent.index
+            link.index: model_description.links_dict[link.parent_name].index
             for link in ordered_links
-            if link.parent is not None
+            if link.parent_name is not None
         }
         parent_array = jnp.array([-1, *list(parent_array_dict.values())], dtype=int)
 
@@ -862,7 +862,7 @@ class FrameParameters(JaxsimDataclass):
 
         # For each frame, extract the index of the link to which it is attached to.
         parent_link_index_of_frames = tuple(
-            model_description.links_dict[frame.parent.name].index
+            model_description.links_dict[frame.parent_name].index
             for frame in model_description.frames
         )
 

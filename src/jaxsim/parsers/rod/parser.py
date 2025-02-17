@@ -131,7 +131,7 @@ def extract_model_data(
             name=f.name,
             mass=jnp.array(0.0, dtype=float),
             inertia=jnp.zeros(shape=(3, 3)),
-            parent=links_dict[f.attached_to],
+            parent_name=f.attached_to,
             pose=f.pose.transform() if f.pose is not None else jnp.eye(4),
         )
         for f in sdf_model.frames()

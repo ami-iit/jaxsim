@@ -31,7 +31,7 @@ class LinkDescription(JaxsimDataclass):
     mass: float = dataclasses.field(repr=False)
     inertia: jtp.Matrix = dataclasses.field(repr=False)
     index: int | None = None
-    parent_name: str | None = dataclasses.field(default=None, repr=False)
+    parent_name: Static[str | None] = dataclasses.field(default=None, repr=False)
     pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
 
     children: Static[tuple[LinkDescription]] = dataclasses.field(

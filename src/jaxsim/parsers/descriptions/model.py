@@ -119,16 +119,16 @@ class ModelDescription(KinematicGraph):
             for cp in collision_shape.collidable_points:
                 # Find the link that is part of the (reduced) model in which the
                 # collision shape's parent was lumped into
-                real_parent_link_of_shape = kinematic_graph.frames_dict[
+                real_parent_link_name = kinematic_graph.frames_dict[
                     parent_link_of_shape.name
-                ].parent
+                ].parent_name
 
                 # Change the link associated to the collidable point, updating their
                 # relative pose
                 moved_cp = cp.change_link(
-                    new_link=real_parent_link_of_shape,
+                    new_link=kinematic_graph.links_dict[real_parent_link_name],
                     new_H_old=fk.relative_transform(
-                        relative_to=real_parent_link_of_shape.name,
+                        relative_to=real_parent_link_name,
                         name=cp.parent_link.name,
                     ),
                 )

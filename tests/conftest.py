@@ -13,6 +13,7 @@ import rod.urdf.exporter
 
 import jaxsim
 import jaxsim.api as js
+from jaxsim.api.model import IntegratorType
 
 
 def pytest_addoption(parser):
@@ -122,6 +123,24 @@ def velocity_representation(request) -> jaxsim.VelRepr:
 
     Returns:
         A velocity representation.
+    """
+
+    return request.param
+
+
+@pytest.fixture(
+    scope="function",
+    params=[
+        pytest.param(IntegratorType.SemiImplicitEuler, id="semi_implicit_euler"),
+        pytest.param(IntegratorType.RungeKutta4, id="runge_kutta_4"),
+    ],
+)
+def integrator(request) -> str:
+    """
+    Fixture providing the integrator to use in the simulation.
+
+    Returns:
+        The integrator to use in the simulation.
     """
 
     return request.param

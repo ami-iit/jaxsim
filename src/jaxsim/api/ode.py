@@ -3,7 +3,6 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
-from jaxsim.api.data import JaxSimModelData
 from jaxsim.math import Quaternion, Skew
 
 from .common import VelRepr
@@ -123,7 +122,7 @@ def system_dynamics(
     link_forces: jtp.Vector | None = None,
     joint_torques: jtp.Vector | None = None,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
-) -> JaxSimModelData:
+) -> dict[str, jtp.Vector]:
     """
     Compute the dynamics of the system.
 
@@ -139,9 +138,9 @@ def system_dynamics(
             quaternion (only used in integrators not operating on the SO(3) manifold).
 
     Returns:
-        A tuple with an `JaxSimModelData` object storing in each of its attributes the
-        corresponding derivative, and the dictionary of auxiliary data returned
-        by the system dynamics evaluation.
+        A dictionary containing the derivatives of the base position, the base quaternion,
+        the joint positions, the base linear velocity, the base angular velocity, and the
+        joint velocities.
     """
 
     with data.switch_velocity_representation(velocity_representation=VelRepr.Inertial):
@@ -158,8 +157,7 @@ def system_dynamics(
             baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
         )
 
-    ode_state_derivative = JaxSimModelData.build(
-        model=model,
+    return dict(
         base_position=W_ṗ_B,
         base_quaternion=W_Q̇_B,
         joint_positions=ṡ,
@@ -167,5 +165,3 @@ def system_dynamics(
         base_angular_velocity=W_v̇_WB[3:6],
         joint_velocities=s̈,
     )
-
-    return ode_state_derivative

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import enum
 import functools
 import pathlib
 from collections.abc import Sequence
@@ -21,6 +22,13 @@ from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
+
+
+class IntegratorType(enum.IntEnum):
+    """The integrators available for the simulation."""
+
+    SemiImplicitEuler = enum.auto()
+    RungeKutta4 = enum.auto()
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -53,6 +61,10 @@ class JaxSimModel(JaxsimDataclass):
 
     kin_dyn_parameters: js.kin_dyn_parameters.KinDynParameters | None = (
         dataclasses.field(default=None, repr=False)
+    )
+
+    integrator: Static[IntegratorType] = dataclasses.field(
+        default=IntegratorType.SemiImplicitEuler, repr=False
     )
 
     built_from: Static[str | pathlib.Path | rod.Model | None] = dataclasses.field(
@@ -111,6 +123,7 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
     ) -> JaxSimModel:
@@ -131,6 +144,7 @@ class JaxSimModel(JaxsimDataclass):
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
             contact_params: The parameters of the contact model.
+            integrator: The integrator to use for the simulation.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -164,6 +178,7 @@ class JaxSimModel(JaxsimDataclass):
             terrain=terrain,
             contact_model=contact_model,
             contacts_params=contact_params,
+            integrator=integrator,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
@@ -182,6 +197,7 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
         """
@@ -202,6 +218,7 @@ class JaxSimModel(JaxsimDataclass):
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
             contacts_params: The parameters of the soft contacts.
+            integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
 
         Returns:
@@ -237,6 +254,13 @@ class JaxSimModel(JaxsimDataclass):
         if contacts_params is None:
             contacts_params = contact_model._parameters_class()
 
+        # Consider the default integrator if not specified.
+        integrator = (
+            integrator
+            if integrator is not None
+            else JaxSimModel.__dataclass_fields__["integrator"].default
+        )
+
         # Build the model.
         model = cls(
             model_name=model_name,
@@ -247,6 +271,7 @@ class JaxSimModel(JaxsimDataclass):
             terrain=terrain,
             contact_model=contact_model,
             contacts_params=contacts_params,
+            integrator=integrator,
             gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we
             # don't want to trigger recompilation if it changes. All relevant parameters
@@ -449,6 +474,7 @@ def reduce(
         contact_model=model.contact_model,
         contacts_params=model.contacts_params,
         gravity=model.gravity,
+        integrator=model.integrator,
     )
 
     # Store the origin of the model, in case downstream logic needs it.
@@ -2075,12 +2101,21 @@ def step(
     # =============================
     # Advance the simulation state
     # =============================
+    from .integrators import _INTEGRATORS_MAP
 
-    data_tf = js.integrators.semi_implicit_euler_integration(
+    integrator_fn = _INTEGRATORS_MAP[model.integrator]
+
+    data_tf = integrator_fn(
         model=model,
         data=data,
         base_acceleration_inertial=W_v̇_WB,
         joint_accelerations=s̈,
+        # Pass link_forces and joint_torques if the integrator is rk4
+        **(
+            {"link_forces": W_f_L_total, "joint_torques": τ_total}
+            if model.integrator == IntegratorType.RungeKutta4
+            else {}
+        ),
     )
 
     return data_tf

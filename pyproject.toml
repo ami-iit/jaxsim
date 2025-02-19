@@ -284,4 +284,4 @@ cuda-version = "12.*"
 jaxlib = { version = "*", build = "*cuda*" }
 
 [tool.pixi.feature.gpu.tasks]
-test-gpu = { cmd = "pytest --gpu-only", depends_on = ["pipcheck"] }
+test-gpu = { cmd = "pytest --gpu-only", depends-on = ["pipcheck"] }

@@ -342,6 +342,9 @@ class RelaxedRigidContacts(common.ContactModel):
             F1_idx = js.frame.name_to_idx(model=model, frame_name=F1_name)
             F2_idx = js.frame.name_to_idx(model=model, frame_name=F2_name)
 
+            W_H_F1 = js.frame.transform(model=model, data=data, frame_index=F1_idx)
+            W_H_F2 = js.frame.transform(model=model, data=data, frame_index=F2_idx)
+
             J_WF1 = js.frame.jacobian(model=model, data=data, frame_index=F1_idx)
             J_WF2 = js.frame.jacobian(model=model, data=data, frame_index=F2_idx)
             J̇_WF1 = js.frame.jacobian_derivative(
@@ -362,6 +365,9 @@ class RelaxedRigidContacts(common.ContactModel):
             velocity_constraint=velocity,
             parameters=model.contacts_params,
         )
+
+        # jax.debug.print("a_ref.shape: \n{}", a_ref.shape)
+        # jax.debug.print("R.shape: \n{}", R.shape)
 
         num_zeros_kin_constr = J_WF1.shape[0]
         zeros_array_a_ref = jnp.zeros((num_zeros_kin_constr,))
@@ -491,7 +497,18 @@ class RelaxedRigidContacts(common.ContactModel):
         )
 
         # Extract the last 6 values from the solution
-        kin_constr_force = solution[-6:]
+        kin_constr_force_mixed = solution[-6:]
+        jax.debug.print("f_loop_mixed: \n{}", kin_constr_force_mixed)
+
+        # Transform the wrench in inertial representation
+        kin_constr_force_inertial = (
+            ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                array=kin_constr_force_mixed,
+                transform=W_H_F1,
+                other_representation=VelRepr.Mixed,
+                is_force=True,
+            )
+        )
 
         # Reshape the optimized solution to be a matrix of 3D contact forces.
         CW_fl_C = solution[0:-6].reshape(-1, 3)
@@ -508,7 +525,11 @@ class RelaxedRigidContacts(common.ContactModel):
             ),
         )(CW_fl_C, W_H_C)
 
-        return W_f_C, {"kin_constr_force": kin_constr_force}
+        return W_f_C, {
+            "kin_constr_force": kin_constr_force_inertial,
+            "F1_idx": F1_idx,
+            "F2_idx": F2_idx,
+        }
 
     @staticmethod
     def _regularizers(

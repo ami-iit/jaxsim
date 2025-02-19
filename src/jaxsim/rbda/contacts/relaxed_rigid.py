@@ -336,6 +336,25 @@ class RelaxedRigidContacts(common.ContactModel):
                 ),
             )
 
+            # Compute the Jacobians for the closed-chain kinematic constraint\
+            F1_name = "BC1_frame"
+            F2_name = "BC2_frame"
+            F1_idx = js.frame.name_to_idx(model=model, frame_name=F1_name)
+            F2_idx = js.frame.name_to_idx(model=model, frame_name=F2_name)
+
+            J_WF1 = js.frame.jacobian(model=model, data=data, frame_index=F1_idx)
+            J_WF2 = js.frame.jacobian(model=model, data=data, frame_index=F2_idx)
+            J̇_WF1 = js.frame.jacobian_derivative(
+                model=model, data=data, frame_index=F1_idx
+            )
+            J̇_WF2 = js.frame.jacobian_derivative(
+                model=model, data=data, frame_index=F2_idx
+            )
+
+            # Add the kinematic constraint terms to the Jacobians
+            Jl_WC = jnp.vstack([Jl_WC, J_WF1 - J_WF2])
+            J̇_WC = jnp.vstack([J̇_WC, J̇_WF1 - J̇_WF2])
+
         # Compute the regularization terms.
         a_ref, R, *_ = self._regularizers(
             model=model,
@@ -344,14 +363,22 @@ class RelaxedRigidContacts(common.ContactModel):
             parameters=model.contacts_params,
         )
 
+        num_zeros_kin_constr = J_WF1.shape[0]
+        zeros_array_a_ref = jnp.zeros((num_zeros_kin_constr,))
+
+        R_ext = jnp.pad(
+            R, ((0, num_zeros_kin_constr), (0, num_zeros_kin_constr)), mode="constant"
+        )
+        a_ref_ext = jnp.hstack([a_ref, zeros_array_a_ref])
+
         # Compute the Delassus matrix and the free mixed linear acceleration of
         # the collidable points.
         G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
         CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
 
         # Calculate quantities for the linear optimization problem.
-        A = G + R
-        b = CW_al_free_WC - a_ref
+        A = G + R_ext
+        b = CW_al_free_WC - a_ref_ext
 
         # Create the objective function to minimize as a lambda computing the cost
         # from the optimized variables x.
@@ -439,6 +466,13 @@ class RelaxedRigidContacts(common.ContactModel):
             )[0]
         )(position, velocity).flatten()
 
+        init_params = jnp.hstack([
+            init_params,
+            jnp.zeros(
+                6,
+            ),
+        ])
+
         # Get the solver options.
         solver_options = self.solver_options
 
@@ -456,8 +490,11 @@ class RelaxedRigidContacts(common.ContactModel):
             maxiter=maxiter,
         )
 
+        # Extract the last 6 values from the solution
+        kin_constr_force = solution[-6:]
+
         # Reshape the optimized solution to be a matrix of 3D contact forces.
-        CW_fl_C = solution.reshape(-1, 3)
+        CW_fl_C = solution[0:-6].reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
         W_f_C = jax.vmap(
@@ -471,7 +508,7 @@ class RelaxedRigidContacts(common.ContactModel):
             ),
         )(CW_fl_C, W_H_C)
 
-        return W_f_C, {}
+        return W_f_C, {"kin_constr_force": kin_constr_force}
 
     @staticmethod
     def _regularizers(

@@ -82,3 +82,29 @@ class Rotation:
         R = c * jnp.eye(3) - s * Skew.wedge(u) + c1 * u @ u.T
 
         return R.transpose()
+
+    @staticmethod
+    def log_SO3(R: jnp.ndarray) -> jtp.Vector:
+        """
+        Compute the logarithm map of an SO(3) rotation matrix.
+
+        Args:
+            R: The SO(3) rotation matrix.
+
+        Returns:
+            The corresponding 3D Lie algebra element.
+        """
+        cos_theta = (jnp.trace(R) - 1) / 2
+        theta = jnp.arccos(jnp.clip(cos_theta, -1.0, 1.0))
+
+        omega_wedge = R - R.T  # Skew-symmetric part
+        omega = Skew.vee(omega_wedge).squeeze()  # Convert to 3D vector
+
+        # Handle small angles separately to avoid division by zero
+        def near_zero_case():
+            return omega
+
+        def general_case():
+            return (theta / (2 * jnp.sin(theta))) * omega
+
+        return jnp.where(jnp.isclose(theta, 0.0), near_zero_case(), general_case())

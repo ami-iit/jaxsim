@@ -46,16 +46,16 @@ def link_contact_forces(
 
     # Add the forces coming from the kinematic constraints to the link on which the constraint is applied.
 
-    W_f_loop = aux_data["kin_constr_force"]
+    # W_f_loop = aux_data["kin_constr_force"]
+    W_f_loop_F1 = aux_data["kin_constr_force_F1"]
+    W_f_loop_f2 = aux_data["kin_constr_force_F2"]
     F1_idx = aux_data["F1_idx"]
     F2_idx = aux_data["F2_idx"]
     F1_parent_idx = js.frame.idx_of_parent_link(model, frame_index=F1_idx)
     F2_parent_idx = js.frame.idx_of_parent_link(model, frame_index=F2_idx)
-    jax.debug.print("F1_parent: {}", F1_parent_idx)
-    jax.debug.print("F2_parent: {}", F2_parent_idx)
 
-    W_f_L = W_f_L.at[F1_parent_idx].add(W_f_loop)
-    W_f_L = W_f_L.at[F2_parent_idx].add(-W_f_loop)
+    W_f_L = W_f_L.at[F1_parent_idx].add(W_f_loop_F1)
+    W_f_L = W_f_L.at[F2_parent_idx].add(W_f_loop_f2)
     jax.debug.print("W_f_L: \n{}", W_f_L)
 
     return W_f_L

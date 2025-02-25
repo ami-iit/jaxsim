@@ -3,6 +3,8 @@ import os
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optax
+import pytest
 from jax.test_util import check_grads
 
 import jaxsim.api as js
@@ -294,6 +296,11 @@ def test_ad_integration(
 ):
 
     model = jaxsim_models_types
+
+    # TODO: Remove when https://github.com/google-deepmind/optax/pull/1190 is included in a release.
+    # Skip if `optax` version is less or equal to "0.2.4" and the model is ergoCub.
+    if model.name() == "ergoCub" and optax.__version__ <= "0.2.4":
+        pytest.skip("Skipping ergoCub model with optax version <= 0.2.4.")
 
     _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(

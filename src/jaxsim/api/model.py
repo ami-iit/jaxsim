@@ -2101,10 +2101,7 @@ def step(
     integrator_fn = _INTEGRATORS_MAP[model.integrator]
 
     data_tf = integrator_fn(
-        model=model,
-        data=data,
-        link_forces=W_f_L_external,
-        joint_torques=τ_total,
+        model=model, data=data, link_forces=W_f_L_external, joint_torques=τ_total
     )
 
     data_tf = model.contact_model.update_velocity_after_impact(

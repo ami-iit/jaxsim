@@ -413,19 +413,31 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
+        *,
+        contact_state: dict[str, jtp.Array] | None = None,
         validate: bool = False,
     ) -> Self:
         """
         Replace the attributes of the `JaxSimModelData` object.
         """
-        if joint_positions is None:
-            joint_positions = self.joint_positions
-        if joint_velocities is None:
-            joint_velocities = self.joint_velocities
-        if base_quaternion is None:
-            base_quaternion = self.base_quaternion
-        if base_position is None:
-            base_position = self.base_position
+
+        joint_positions = (
+            self.joint_positions if joint_positions is None else joint_positions
+        )
+        joint_velocities = (
+            self.joint_velocities if joint_velocities is None else joint_velocities
+        )
+        base_quaternion = (
+            self.base_quaternion if base_quaternion is None else base_quaternion
+        )
+        base_position = self.base_position if base_position is None else base_position
+        contact_state = self.contact_state if contact_state is None else contact_state
+
+        if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
+            contact_state.setdefault(
+                "tangential_deformation",
+                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
+            )
 
         joint_positions = jnp.atleast_1d(joint_positions.squeeze()).astype(float)
         joint_velocities = jnp.atleast_1d(joint_velocities.squeeze()).astype(float)

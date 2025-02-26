@@ -188,7 +188,7 @@ def run_simulation(
 
 
 def test_simulation_with_soft_contacts(
-    jaxsim_model_box: js.model.JaxSimModel,
+    jaxsim_model_box: js.model.JaxSimModel, integrator
 ):
 
     model = jaxsim_model_box
@@ -239,7 +239,7 @@ def test_simulation_with_soft_contacts(
 
 
 def test_simulation_with_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel,
+    jaxsim_model_box: js.model.JaxSimModel, integrator
 ):
 
     model = jaxsim_model_box

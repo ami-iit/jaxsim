@@ -1,0 +1,53 @@
+name: GPU Benchmarks
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0  * * 1" # Run At 00:00 on Monday
+
+permissions:
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: [self-hosted, gpu]
+    container:
+      image: ghcr.io/nvidia/jax:jax
+      options: --gpus all
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          pip install .[all]
+
+      - name: Run JaxSim benchmarks
+        id: benchmark
+        run: |
+          echo "### Benchmark Results" > results.txt
+          pytest --benchmark-only --gpu-only >> results.txt
+          # Output the results to GitHub Actions for use in the comment
+          echo "results=$(cat results.txt)" >> $GITHUB_ENV
+
+      - name: Debugging comment for benchmarks start
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            Running GPU benchmarks for this PR :rocket:
+          comment-tag: to_delete_on_completion
+          mode: delete-on-completion
+
+      - name: Post results in PR comment
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          pr-number: ${{ github.event.number }}
+          message: |
+            _(execution **${{ github.run_id }}** / attempt **${{ github.run_attempt }}**)_
+            ${{ env.results }}
+          comment-tag: execution
+          mode: upsert

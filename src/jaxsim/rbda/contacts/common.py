@@ -317,8 +317,6 @@ class ContactModel(JaxsimDataclass):
                 in_axes=(0, 0, None),
             )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
 
-            original_representation = data.velocity_representation
-
             with data.switch_velocity_representation(VelRepr.Mixed):
                 J_WC = js.contact.jacobian(model, data)[
                     indices_of_enabled_collidable_points
@@ -344,13 +342,12 @@ class ContactModel(JaxsimDataclass):
                     is_force=False,
                 )
 
-                # Reset the generalized velocity.
-                data = dataclasses.replace(
-                    data,
-                    velocity_representation=original_representation,
-                    _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
-                    _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
-                    _joint_velocities=BW_ν_post_impact[6:],
-                )
+            # Reset the generalized velocity.
+            data = dataclasses.replace(
+                data,
+                _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
+                _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
+                _joint_velocities=BW_ν_post_impact[6:],
+            )
 
         return data

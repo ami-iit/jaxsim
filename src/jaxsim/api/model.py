@@ -145,7 +145,7 @@ class JaxSimModel(JaxsimDataclass):
                 If not specified, a soft contacts model is used.
             contact_params: The parameters of the contact model.
             integrator: The integrator to use for the simulation.
-            gravity: The gravity constant.
+            gravity: The gravity constant. Normally passed as a positive value.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
@@ -181,7 +181,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model=contact_model,
             contact_params=contact_params,
             integrator=integrator,
-            gravity=gravity,
+            gravity=-gravity,
         )
 
         # Store the origin of the model, in case downstream logic needs it.

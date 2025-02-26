@@ -196,11 +196,7 @@ class RigidContacts(ContactModel):
 
         # Zero out the jacobian rows of inactive points.
         Jl_WC = jnp.vstack(
-            jnp.where(
-                inactive_collidable_points[:, jnp.newaxis, jnp.newaxis],
-                jnp.zeros_like(Jl_WC),
-                Jl_WC,
-            )
+            jax.vmap(lambda J, δ: J * δ)(Jl_WC, inactive_collidable_points)
         )
 
         A = jnp.vstack(
@@ -259,16 +255,39 @@ class RigidContacts(ContactModel):
             else jnp.zeros((model.number_of_joints(),))
         )
 
+        # Build a references object to simplify converting link forces.
+        references = js.references.JaxSimModelReferences.build(
+            model=model,
+            data=data,
+            velocity_representation=data.velocity_representation,
+            link_forces=link_forces,
+            joint_force_references=joint_force_references,
+        )
+
+        # Compute the transforms of the implicit frames corresponding to the
+        # collidable points.
+        W_H_C = js.contact.transforms(model=model, data=data)
+
         # Compute kin-dyn quantities used in the contact model.
         with data.switch_velocity_representation(VelRepr.Mixed):
             BW_ν = data.generalized_velocity
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
-            J_WC = js.contact.jacobian(model=model, data=data)
-            J̇_WC = js.contact.jacobian_derivative(model=model, data=data)
+            Jl_WC = jnp.vstack(js.contact.jacobian(model=model, data=data)[:, :3, :])
+            J̇l_WC = jnp.vstack(
+                js.contact.jacobian_derivative(model=model, data=data)[:, :3, :]
+            )
 
-            W_H_C = js.contact.transforms(model=model, data=data)
+            # Compute the generalized free acceleration.
+            BW_ν̇_free = jnp.hstack(
+                js.model.forward_dynamics_aba(
+                    model=model,
+                    data=data,
+                    link_forces=references.link_forces(model=model, data=data),
+                    joint_forces=references.joint_force_references(model=model),
+                )
+            )
 
         # Compute the position and linear velocities (mixed representation) of
         # all enabled collidable points belonging to the robot.
@@ -282,34 +301,9 @@ class RigidContacts(ContactModel):
             position, velocity, model.terrain
         )
 
-        # Build a references object to simplify converting link forces.
-        references = js.references.JaxSimModelReferences.build(
-            model=model,
-            data=data,
-            velocity_representation=data.velocity_representation,
-            link_forces=link_forces,
-            joint_force_references=joint_force_references,
-        )
-
-        # Compute the generalized free acceleration.
-        with data.switch_velocity_representation(VelRepr.Mixed):
-            BW_ν̇_free = jnp.hstack(
-                js.model.forward_dynamics_aba(
-                    model=model,
-                    data=data,
-                    link_forces=references.link_forces(model=model, data=data),
-                    joint_forces=references.joint_force_references(model=model),
-                )
-            )
-
         # Compute the free linear acceleration of the collidable points.
         # Since we use doubly-mixed jacobian, this corresponds to W_p̈_C.
-        free_contact_acc = _linear_acceleration_of_collidable_points(
-            BW_nu=BW_ν,
-            BW_nu_dot=BW_ν̇_free,
-            CW_J_WC_BW=J_WC,
-            CW_J_dot_WC_BW=J̇_WC,
-        ).flatten()
+        CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇l_WC @ BW_ν
 
         # Compute stabilization term.
         baumgarte_term = _compute_baumgarte_stabilization_term(
@@ -322,7 +316,7 @@ class RigidContacts(ContactModel):
         ).flatten()
 
         # Compute the Delassus matrix.
-        delassus_matrix = _compute_delassus_matrix(M=M, J_WC=J_WC)
+        delassus_matrix = _compute_delassus_matrix(M=M, J_WC=Jl_WC)
 
         # Initialize regularization term of the Delassus matrix for
         # better numerical conditioning.
@@ -330,7 +324,7 @@ class RigidContacts(ContactModel):
 
         # Construct the quadratic cost function.
         Q = delassus_matrix + Iε
-        q = free_contact_acc - baumgarte_term
+        q = CW_al_free_WC - baumgarte_term
 
         # Construct the inequality constraints.
         G = _compute_ineq_constraint_matrix(
@@ -379,10 +373,7 @@ def _compute_delassus_matrix(
     J_WC: jtp.MatrixLike,
 ) -> jtp.Matrix:
 
-    sl = jnp.s_[:, 0:3, :]
-    J_WC_lin = jnp.vstack(J_WC[sl])
-
-    delassus_matrix = J_WC_lin @ jnp.linalg.pinv(M) @ J_WC_lin.T
+    delassus_matrix = J_WC @ jnp.linalg.pinv(M) @ J_WC.T
     return delassus_matrix
 
 
@@ -426,27 +417,6 @@ def _compute_ineq_bounds(n_collidable_points: int) -> jtp.Vector:
     n_constraints = 6 * n_collidable_points
 
     return jnp.zeros(shape=(n_constraints,))
-
-
-@jax.jit
-@js.common.named_scope
-def _linear_acceleration_of_collidable_points(
-    BW_nu: jtp.ArrayLike,
-    BW_nu_dot: jtp.ArrayLike,
-    CW_J_WC_BW: jtp.MatrixLike,
-    CW_J_dot_WC_BW: jtp.MatrixLike,
-) -> jtp.Matrix:
-
-    BW_ν = BW_nu
-    BW_ν̇ = BW_nu_dot
-    CW_J̇_WC_BW = CW_J_dot_WC_BW
-
-    # Compute the linear acceleration of the collidable points.
-    # Since we use doubly-mixed jacobians, this corresponds to W_p̈_C.
-    CW_a_WC = jnp.vstack(CW_J̇_WC_BW) @ BW_ν + jnp.vstack(CW_J_WC_BW) @ BW_ν̇
-
-    CW_a_WC = CW_a_WC.reshape(-1, 6)
-    return CW_a_WC[:, 0:3].squeeze()
 
 
 @jax.jit

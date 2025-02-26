@@ -11,7 +11,6 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.math import STANDARD_GRAVITY
 from jaxsim.terrain import Terrain
 
 from . import common
@@ -104,74 +103,6 @@ class SoftContactsParams(common.ContactsParams):
             p=jnp.array(p, dtype=float),
             q=jnp.array(q, dtype=float),
         )
-
-    @classmethod
-    def build_default_from_jaxsim_model(
-        cls: type[Self],
-        model: js.model.JaxSimModel,
-        *,
-        standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
-        static_friction_coefficient: jtp.FloatLike = 0.5,
-        max_penetration: jtp.FloatLike = 0.001,
-        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
-        damping_ratio: jtp.FloatLike = 1.0,
-        p: jtp.FloatLike = 0.5,
-        q: jtp.FloatLike = 0.5,
-    ) -> SoftContactsParams:
-        """
-        Create a SoftContactsParams instance with good default parameters.
-
-        Args:
-            model: The target model.
-            standard_gravity: The standard gravity constant.
-            static_friction_coefficient:
-                The static friction coefficient between the model and the terrain.
-            max_penetration: The maximum penetration depth.
-            number_of_active_collidable_points_steady_state:
-                The number of contacts supporting the weight of the model
-                in steady state.
-            damping_ratio: The ratio controlling the damping behavior.
-            p:
-                The exponent p corresponding to the damping-related non-linearity
-                of the Hunt/Crossley model.
-            q:
-                The exponent q corresponding to the spring-related non-linearity
-                of the Hunt/Crossley model
-
-        Returns:
-            A `SoftContactsParams` instance with the specified parameters.
-
-        Note:
-            The `damping_ratio` parameter allows to operate on the following conditions:
-            - ξ > 1.0: over-damped
-            - ξ = 1.0: critically damped
-            - ξ < 1.0: under-damped
-        """
-
-        # Use symbols for input parameters.
-        ξ = damping_ratio
-        δ_max = max_penetration
-        μc = static_friction_coefficient
-
-        # Compute the total mass of the model.
-        m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
-
-        # Rename the standard gravity.
-        g = standard_gravity
-
-        # Compute the average support force on each collidable point.
-        f_average = m * g / number_of_active_collidable_points_steady_state
-
-        # Compute the stiffness to get the desired steady-state penetration.
-        # Note that this is dependent on the non-linear exponent used in
-        # the damping term of the Hunt/Crossley model.
-        K = f_average / jnp.power(δ_max, 1 + p)
-
-        # Compute the damping using the damping ratio.
-        critical_damping = 2 * jnp.sqrt(K * m)
-        D = ξ * critical_damping
-
-        return SoftContactsParams.build(K=K, D=D, mu=μc, p=p, q=q)
 
     def valid(self) -> jtp.BoolLike:
         """

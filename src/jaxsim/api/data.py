@@ -410,6 +410,8 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
+        *,
+        contact_state: dict[str, jtp.Array] | None = None,
         validate: bool = False,
     ) -> Self:
         """
@@ -429,6 +431,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion = self.base_quaternion
         if base_position is None:
             base_position = self.base_position
+        if contact_state is None:
+            contact_state = self.contact_state
+
+        if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
+            contact_state.setdefault(
+                "tangential_deformation",
+                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
+            )
 
         # Normalize the quaternion to avoid numerical issues.
         base_quaternion_norm = jaxsim.math.safe_norm(

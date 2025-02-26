@@ -313,11 +313,11 @@ class RelaxedRigidContacts(common.ContactModel):
             BW_ν = data.generalized_velocity
 
             BW_ν̇_free = jnp.hstack(
-                js.ode.system_acceleration(
+                js.model.forward_dynamics_aba(
                     model=model,
                     data=data,
                     link_forces=references.link_forces(model=model, data=data),
-                    joint_torques=references.joint_force_references(model=model),
+                    joint_forces=references.joint_force_references(model=model),
                 )
             )
 

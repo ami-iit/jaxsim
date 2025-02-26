@@ -2092,33 +2092,6 @@ def step(
         model, data, joint_force_references=τ_references
     )
 
-    # ======================
-    # Compute contact forces
-    # ======================
-
-    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
-
-    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-
-        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-        # with the terrain.
-        W_f_L_terrain, old_contact_state = js.contact.link_contact_forces(
-            model=model,
-            data=data,
-            link_forces=W_f_L_external,
-            joint_torques=τ_total,
-        )
-
-    # Update the contact state data. This is necessary only for the contact models
-    # that require propagation and integration of contact state.
-    contact_state = model.contact_model.update_contact_state(old_contact_state)
-
-    # ==============================
-    # Compute the total link forces
-    # ==============================
-
-    W_f_L_total = W_f_L_external + W_f_L_terrain
-
     # =============================
     # Advance the simulation state
     # =============================
@@ -2130,9 +2103,8 @@ def step(
     data_tf = integrator_fn(
         model=model,
         data=data,
-        link_forces=W_f_L_total,
+        link_forces=W_f_L_external,
         joint_torques=τ_total,
-        extended_contact_state=contact_state,
     )
 
     data_tf = model.contact_model.update_velocity_after_impact(

@@ -16,15 +16,13 @@ def semi_implicit_euler_integration(
     data: js.data.JaxSimModelData,
     link_forces: jtp.Vector,
     joint_torques: jtp.Vector,
-    *,
-    extended_contact_state: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
 
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
         # Compute the system acceleration
-        W_v̇_WB, s̈ = js.ode.system_acceleration(
+        W_v̇_WB, s̈, contact_state_derivative = js.ode.system_acceleration(
             model=model,
             data=data,
             link_forces=link_forces,
@@ -67,7 +65,9 @@ def semi_implicit_euler_integration(
         s = data.joint_positions + dt * ṡ
 
         integrated_contact_state = jax.tree.map(
-            lambda x, x_dot: x + dt * x_dot, data.contact_state, extended_contact_state
+            lambda x, x_dot: x + dt * x_dot,
+            data.contact_state,
+            contact_state_derivative,
         )
 
     # TODO: Avoid double replace, e.g. by computing cached value here
@@ -93,8 +93,6 @@ def rk4_integration(
     data: JaxSimModelData,
     link_forces: jtp.Vector,
     joint_torques: jtp.Vector,
-    *,
-    extended_contact_state: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the Runge-Kutta 4 method."""
 
@@ -146,15 +144,13 @@ def rk4_integration(
 
     data_tf = dataclasses.replace(
         data,
-        **{
-            "_base_position": x_tf["base_position"],
-            "_base_quaternion": x_tf["base_quaternion"],
-            "_joint_positions": x_tf["joint_positions"],
-            "_base_linear_velocity": x_tf["base_linear_velocity"],
-            "_base_angular_velocity": x_tf["base_angular_velocity"],
-            "_joint_velocities": x_tf["joint_velocities"],
-            "contact_state": x_tf["contact_state"],
-        },
+        _base_position=x_tf["base_position"],
+        _base_quaternion=x_tf["base_quaternion"],
+        _joint_positions=x_tf["joint_positions"],
+        _base_linear_velocity=x_tf["base_linear_velocity"],
+        _base_angular_velocity=x_tf["base_angular_velocity"],
+        _joint_velocities=x_tf["joint_velocities"],
+        contact_state=x_tf["contact_state"],
     )
 
     return data_tf.replace(model=model)

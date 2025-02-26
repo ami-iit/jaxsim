@@ -37,8 +37,6 @@ class JaxSimModel(JaxsimDataclass):
     The JaxSim model defining the kinematics and dynamics of a robot.
     """
 
-    # link_spatial_inertial_matrices, motion_subspaces
-
     model_name: Static[str]
 
     time_step: float = dataclasses.field(
@@ -2086,36 +2084,16 @@ def step(
 
     W_f_L_total = W_f_L_external + W_f_L_terrain
 
-    # ===============================
-    # Compute the system acceleration
-    # ===============================
-
-    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
-        W_v̇_WB, s̈ = js.ode.system_acceleration(
-            model=model,
-            data=data,
-            link_forces=W_f_L_total,
-            joint_torques=τ_total,
-        )
-
     # =============================
     # Advance the simulation state
     # =============================
+
     from .integrators import _INTEGRATORS_MAP
 
     integrator_fn = _INTEGRATORS_MAP[model.integrator]
 
     data_tf = integrator_fn(
-        model=model,
-        data=data,
-        base_acceleration_inertial=W_v̇_WB,
-        joint_accelerations=s̈,
-        # Pass link_forces and joint_torques if the integrator is rk4
-        **(
-            {"link_forces": W_f_L_total, "joint_torques": τ_total}
-            if model.integrator == IntegratorType.RungeKutta4
-            else {}
-        ),
+        model=model, data=data, link_forces=W_f_L_total, joint_torques=τ_total
     )
 
     return data_tf

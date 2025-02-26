@@ -83,13 +83,16 @@ def compute_resultant_torques(
 
         ṡ = data.joint_velocities
 
-        v_thresh = 10.0
+        v_thresh = 50.0
 
         # Compute the joint friction torque.
-        τ_friction = -(
-            jnp.diag(kc) @ jnp.sign(ṡ)
-            + jnp.diag(kv) @ (ṡ * v_thresh / (jnp.abs(ṡ) + v_thresh))
-        )
+        # τ_friction = -(
+        #     # jnp.diag(kc) @ jnp.sign(ṡ)
+        #     + jnp.diag(kv) @ (ṡ * v_thresh / (jnp.abs(ṡ) + v_thresh))
+        # )
+
+        # Vertical asymptote
+        τ_friction = -jnp.diag(kv) @ (ṡ / (v_thresh - jnp.abs(ṡ)))
 
     # ===============================
     # Compute the total joint forces.

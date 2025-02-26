@@ -1,3 +1,4 @@
+import os
 import pathlib
 import tempfile
 import warnings
@@ -355,17 +356,22 @@ class RodModelToMjcf:
             msg = "The Mujoco model has the following extra/missing joints: '{}'"
             raise ValueError(msg.format(extra_joints))
 
+        # Windows locks open files, so we use mkstemp() to create a temporary file without keeping it open.
         with tempfile.NamedTemporaryFile(
-            mode="w+", suffix=".xml", prefix=f"{rod_model.name}_"
-        ) as mjcf_file:
+            suffix=".xml", prefix=f"{rod_model.name}_", delete=False
+        ) as tmp:
+            temp_filename = tmp.name
 
+        try:
             # Convert the in-memory Mujoco model to MJCF.
-            mj.mj_saveLastXML(mjcf_file.name, mj_model)
+            mj.mj_saveLastXML(temp_filename, mj_model)
 
-            # Parse the MJCF string as XML (etree).
-            # We need to post-process the file to include additional elements.
+            # Parse the MJCF file as XML.
             parser = ET.XMLParser(remove_blank_text=True)
-            tree = ET.parse(source=mjcf_file, parser=parser)
+            tree = ET.parse(source=temp_filename, parser=parser)
+
+        finally:
+            os.remove(temp_filename)
 
         # Get the root element.
         root: ET._Element = tree.getroot()

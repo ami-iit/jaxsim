@@ -294,11 +294,11 @@ class RigidContacts(ContactModel):
         # Compute the generalized free acceleration.
         with data.switch_velocity_representation(VelRepr.Mixed):
             BW_ν̇_free = jnp.hstack(
-                js.ode.system_acceleration(
+                js.model.forward_dynamics_aba(
                     model=model,
                     data=data,
                     link_forces=references.link_forces(model=model, data=data),
-                    joint_torques=references.joint_force_references(model=model),
+                    joint_forces=references.joint_force_references(model=model),
                 )
             )
 

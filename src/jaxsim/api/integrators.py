@@ -16,8 +16,6 @@ def semi_implicit_euler_integration(
     data: js.data.JaxSimModelData,
     link_forces: jtp.Vector,
     joint_torques: jtp.Vector,
-    *,
-    extended_contact_state: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
 
@@ -95,8 +93,6 @@ def rk4_integration(
     data: JaxSimModelData,
     link_forces: jtp.Vector,
     joint_torques: jtp.Vector,
-    *,
-    extended_contact_state: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the Runge-Kutta 4 method."""
 

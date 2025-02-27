@@ -332,19 +332,16 @@ The algorithms and some simulation features were inspired by its accompanying [c
 
 The development of JaxSim started in late 2021, inspired by early versions of [`google/brax`][brax].
 At that time, Brax was implemented in maximal coordinates, and we wanted a physics engine in reduced coordinates.
-We are grateful to the Brax team for their work and showing the potential of [JAX][jax] in this field.
+We are grateful to the Brax team for their work and for showing the potential of [JAX][jax] in this field.
 
-Brax v2 was later implemented reduced coordinates, following an approach comparable to JaxSim.
-The development then shifted to [MJX][mjx], which today provides a JAX-based implementation of the Mujoco APIs.
+Brax v2 was later implemented with reduced coordinates, following an approach comparable to JaxSim.
+The development then shifted to [MJX][mjx], which provides a JAX-based implementation of the Mujoco APIs.
 
 The main differences between MJX/Brax and JaxSim are as follows:
 
 - JaxSim supports out-of-the-box all SDF models with [Pose Frame Semantics][PFS].
 - JaxSim only supports collisions between points rigidly attached to bodies and a compliant ground surface.
-  Our contact model requires careful tuning of its spring-damper parameters, but being an instantaneous
-  function of the state $(\mathbf{q}, \boldsymbol{\nu})$, it doesn't require running any optimization algorithm
-  when stepping the simulation forward.
-- JaxSim mitigates the stiffness of the contact-aware system dynamics by providing variable-step integrators.
+- JaxSim experimentally supports variable-step integrators to mitigate the stiffness of the contact-aware system dynamics.
 
 [brax]: https://github.com/google/brax
 [mjx]: https://mujoco.readthedocs.io/en/3.0.0/mjx.html

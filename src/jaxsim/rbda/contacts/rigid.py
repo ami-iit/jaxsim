@@ -330,7 +330,7 @@ class RigidContacts(ContactModel):
         G = _compute_ineq_constraint_matrix(
             inactive_collidable_points=(δ <= 0), mu=model.contact_params.mu
         )
-        h_bounds = _compute_ineq_bounds(n_collidable_points=n_collidable_points)
+        h_bounds = jnp.zeros(6 * n_collidable_points)
 
         # Construct the equality constraints.
         A = jnp.zeros((0, 3 * n_collidable_points))

@@ -1,0 +1,54 @@
+name: GPU Benchmarks
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0  * * 1" # Run At 00:00 on Monday
+
+permissions:
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: self-hosted
+    container:
+      image: ghcr.io/nvidia/jax:jax
+      options: --rm --gpus all
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          pip install .[all]
+
+      - name: Performance regression check
+        uses: actions/checkout@v4
+
+      - name: Run benchmark and store result
+        run: pytest bench.py --benchmark-json output.json
+
+      - name: Download previous benchmark data
+        uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          external-data-json-path: ./cache/benchmark-data.json
+          fail-on-alert: true
+          summary-always: true
+          alert-threshold: 150%
+          auto-push: false
+          gh-pages-branch: gh-pages
+
+      - name: Push benchmark result
+        if: github.event_name != 'pull_request'
+        run: git push 'https://ami-iit:${{ secrets.GITHUB_TOKEN }}@github.com/ami-iit/jaxsim.git' gh-pages:gh-pages

@@ -216,6 +216,7 @@ class RigidContacts(ContactModel):
         return BW_ν_post_impact[0 : M.shape[0]]
 
     @jax.jit
+    @js.common.named_scope
     def compute_contact_forces(
         self,
         model: js.model.JaxSimModel,
@@ -303,18 +304,6 @@ class RigidContacts(ContactModel):
                     joint_forces=references.joint_force_references(model=model),
                 )
             )
-
-        # Compute the position and linear velocities (mixed representation) of
-        # all enabled collidable points belonging to the robot.
-        position, velocity = js.contact.collidable_point_kinematics(
-            model=model, data=data
-        )
-
-        # Compute the penetration depth and velocity of the collidable points.
-        # Note that this function considers the penetration in the normal direction.
-        δ, δ_dot, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
-            position, velocity, model.terrain
-        )
 
         # Compute the free linear acceleration of the collidable points.
         # Since we use doubly-mixed jacobian, this corresponds to W_p̈_C.
@@ -426,19 +415,6 @@ def _compute_ineq_constraint_matrix(
 
     G = jax.scipy.linalg.block_diag(*G)
     return G
-
-
-def _compute_ineq_bounds(n_collidable_points: int) -> jtp.Vector:
-    """
-    Compute the inequality bounds for the contact forces.
-
-    Note:
-        Do not JIT this function as the output shape depends on the number of collidable points.
-    """
-
-    n_constraints = 6 * n_collidable_points
-
-    return jnp.zeros(shape=(n_constraints,))
 
 
 @jax.jit

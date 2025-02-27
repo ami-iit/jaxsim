@@ -104,6 +104,9 @@ def test_soft_contact_model(
 ):
     model = jaxsim_model_ergocub_reduced
 
+    with model.editable(validate=False) as model:
+        model.contact_model = jaxsim.rbda.contacts.SoftContacts()
+
     benchmark_test_function(js.ode.system_dynamics, model, benchmark, batch_size)
 
 

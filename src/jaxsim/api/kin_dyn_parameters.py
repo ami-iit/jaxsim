@@ -773,7 +773,7 @@ class ContactParameters(JaxsimDataclass):
         """
         Return the indices of the enabled collidable points.
         """
-        return np.where(np.array(self.enabled))[0]
+        return jnp.where(np.array(self.enabled), size=len(self.body))[0]
 
     @staticmethod
     def build_from(model_description: ModelDescription) -> ContactParameters:

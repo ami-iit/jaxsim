@@ -17,6 +17,10 @@ Environment variables starting with ``JAXSIM_COLLISION_`` are used to configure 
 
   *Default:* ``False``.
 
+- ``JAXSIM_COLLISION_INCLUDE_OVERLAPS``: Enables or disables the inclusion of overlapping collision points.
+
+  *Default:* ``False``.
+
 - ``JAXSIM_COLLISION_USE_BOTTOM_ONLY``: Limits collision detection to only the bottom half of the box or sphere.
 
   *Default:* ``False``.

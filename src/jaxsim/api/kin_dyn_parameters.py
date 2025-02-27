@@ -797,13 +797,18 @@ class ContactParameters(JaxsimDataclass):
         collidable_points = model_description.all_enabled_collidable_points()
 
         # Extract the positions L_p_C of the collidable points w.r.t. the link frames
-        # they are rigidly attached to.
-        points = jnp.vstack([cp.position for cp in collidable_points])
+        # they are rigidly attached to. We exclude overlapping points.
+        points, idxs = jnp.unique(
+            jnp.vstack([cp.position for cp in collidable_points]),
+            axis=0,
+            return_index=True,
+        )
 
         # Extract the indices of the links to which the collidable points are rigidly
         # attached to.
         link_index_of_points = tuple(
-            links_dict[cp.parent_link.name].index for cp in collidable_points
+            links_dict[cp.parent_link.name].index
+            for cp in map(collidable_points.__getitem__, idxs)
         )
 
         # Build the ContactParameters object.

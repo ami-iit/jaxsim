@@ -98,8 +98,8 @@ def extract_model_data(
     else:
         W_H_M = sdf_model.pose.transform()
         model_pose = kinematic_graph.RootPose(
-            root_position=W_H_M[0:3, 3],
-            root_quaternion=Quaternion.from_dcm(dcm=W_H_M[0:3, 0:3]),
+            _root_position=tuple(W_H_M[0:3, 3].tolist()),
+            _root_quaternion=tuple(Quaternion.from_dcm(dcm=W_H_M[0:3, 0:3]).tolist()),
         )
 
     # ===========
@@ -111,8 +111,12 @@ def extract_model_data(
         descriptions.LinkDescription(
             name=l.name,
             mass=float(l.inertial.mass),
-            inertia=utils.from_sdf_inertial(inertial=l.inertial),
-            pose=l.pose.transform() if l.pose is not None else np.eye(4),
+            _inertia=tuple(utils.from_sdf_inertial(inertial=l.inertial).tolist()),
+            _pose=tuple(
+                l.pose.transform().tolist()
+                if l.pose is not None
+                else np.eye(4).tolist()
+            ),
         )
         for l in sdf_model.links()
         if l.inertial.mass > 0
@@ -129,10 +133,14 @@ def extract_model_data(
     frames = [
         descriptions.LinkDescription(
             name=f.name,
-            mass=jnp.array(0.0, dtype=float),
-            inertia=jnp.zeros(shape=(3, 3)),
             parent_name=f.attached_to,
-            pose=f.pose.transform() if f.pose is not None else jnp.eye(4),
+            mass=0.0,
+            _inertia=tuple(np.zeros(shape=(3, 3)).tolist()),
+            _pose=tuple(
+                f.pose.transform().tolist()
+                if f.pose is not None
+                else np.eye(4).tolist()
+            ),
         )
         for f in sdf_model.frames()
         if f.attached_to in links_dict
@@ -147,7 +155,7 @@ def extract_model_data(
     if sdf_model.is_fixed_base():
         # Create a massless word link
         world_link = descriptions.LinkDescription(
-            name="world", mass=0, inertia=np.zeros(shape=(6, 6))
+            name="world", mass=0, _inertia=tuple(np.zeros(shape=(6, 6)).tolist())
         )
 
         # Gather joints connecting fixed-base models to the world.
@@ -160,14 +168,18 @@ def extract_model_data(
                 parent=world_link,
                 child=links_dict[j.child],
                 jtype=utils.joint_to_joint_type(joint=j),
-                axis=(
-                    np.array(j.axis.xyz.xyz)
+                _axis=(
+                    np.array(j.axis.xyz.xyz).tolist()
                     if j.axis is not None
                     and j.axis.xyz is not None
                     and j.axis.xyz.xyz is not None
                     else None
                 ),
-                pose=j.pose.transform() if j.pose is not None else np.eye(4),
+                _pose=tuple(
+                    j.pose.transform().tolist()
+                    if j.pose is not None
+                    else np.eye(4).tolist()
+                ),
             )
             for j in sdf_model.joints()
             if j.type == "fixed"
@@ -192,7 +204,7 @@ def extract_model_data(
         # Combine the pose of the base link (child of the found fixed joint)
         # with the pose of the fixed joint connecting with the world.
         # Note: we assume it's a fixed joint and ignore any joint angle.
-        links_dict[base_link_name].mutable(validate=False).pose = (
+        links_dict[base_link_name].pose = (
             joints_with_world_parent[0].pose @ links_dict[base_link_name].pose
         )
 
@@ -222,15 +234,19 @@ def extract_model_data(
             parent=links_dict[j.parent],
             child=links_dict[j.child],
             jtype=utils.joint_to_joint_type(joint=j),
-            axis=(
-                np.array(j.axis.xyz.xyz, dtype=float)
+            _axis=tuple(
+                np.array(j.axis.xyz.xyz, dtype=float).tolist()
                 if j.axis is not None
                 and j.axis.xyz is not None
                 and j.axis.xyz.xyz is not None
                 else None
             ),
-            pose=j.pose.transform() if j.pose is not None else np.eye(4),
-            initial_position=0.0,
+            _pose=tuple(
+                j.pose.transform().tolist()
+                if j.pose is not None
+                else np.eye(4).tolist()
+            ),
+            _initial_position=0.0,
             position_limit=(
                 float(
                     j.axis.limit.lower

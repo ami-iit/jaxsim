@@ -29,75 +29,34 @@ class RelaxedRigidContactsParams(common.ContactsParams):
     """Parameters of the relaxed rigid contacts model."""
 
     # Time constant
-    time_constant: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.01, dtype=float)
-    )
+    time_constant: jtp.Float = dataclasses.field(default=0.01)
 
     # Adimensional damping coefficient
-    damping_coefficient: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(1.0, dtype=float)
-    )
+    damping_coefficient: jtp.Float = dataclasses.field(default=1.0)
 
     # Minimum impedance
-    d_min: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.9, dtype=float)
-    )
+    d_min: jtp.Float = dataclasses.field(default=0.9)
 
     # Maximum impedance
-    d_max: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.95, dtype=float)
-    )
+    d_max: jtp.Float = dataclasses.field(default=0.95)
 
     # Width
-    width: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.0001, dtype=float)
-    )
+    width: jtp.Float = dataclasses.field(default=0.0001)
 
     # Midpoint
-    midpoint: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.1, dtype=float)
-    )
+    midpoint: jtp.Float = dataclasses.field(default=0.1)
 
     # Power exponent
-    power: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(1.0, dtype=float)
-    )
+    power: jtp.Float = dataclasses.field(default=1.0)
 
     # Stiffness
-    stiffness: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.0, dtype=float)
-    )
+    stiffness: jtp.Float = dataclasses.field(default=0.0)
 
     # Damping
-    damping: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.0, dtype=float)
-    )
+    damping: jtp.Float = dataclasses.field(default=0.0)
 
     # Friction coefficient
-    mu: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.5, dtype=float)
-    )
-
-    def __hash__(self) -> int:
-        from jaxsim.utils.wrappers import HashedNumpyArray
-
-        return hash(
-            (
-                HashedNumpyArray(self.time_constant),
-                HashedNumpyArray(self.damping_coefficient),
-                HashedNumpyArray(self.d_min),
-                HashedNumpyArray(self.d_max),
-                HashedNumpyArray(self.width),
-                HashedNumpyArray(self.midpoint),
-                HashedNumpyArray(self.power),
-                HashedNumpyArray(self.stiffness),
-                HashedNumpyArray(self.damping),
-                HashedNumpyArray(self.mu),
-            )
-        )
-
-    def __eq__(self, other: RelaxedRigidContactsParams) -> bool:
-        return hash(self) == hash(other)
+    mu: jtp.Float = dataclasses.field(default=0.5)
 
     @classmethod
     def build(
@@ -117,48 +76,25 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         """Create a `RelaxedRigidContactsParams` instance."""
 
         def default(name: str):
-            return cls.__dataclass_fields__[name].default_factory()
+            return cls.__dataclass_fields__[name].default
 
         return cls(
-            time_constant=jnp.array(
-                (
-                    time_constant
-                    if time_constant is not None
-                    else default("time_constant")
-                ),
-                dtype=float,
+            time_constant=(
+                time_constant if time_constant is not None else default("time_constant")
             ),
-            damping_coefficient=jnp.array(
-                (
-                    damping_coefficient
-                    if damping_coefficient is not None
-                    else default("damping_coefficient")
-                ),
-                dtype=float,
+            damping_coefficient=(
+                damping_coefficient
+                if damping_coefficient is not None
+                else default("damping_coefficient")
             ),
-            d_min=jnp.array(
-                d_min if d_min is not None else default("d_min"), dtype=float
-            ),
-            d_max=jnp.array(
-                d_max if d_max is not None else default("d_max"), dtype=float
-            ),
-            width=jnp.array(
-                width if width is not None else default("width"), dtype=float
-            ),
-            midpoint=jnp.array(
-                midpoint if midpoint is not None else default("midpoint"), dtype=float
-            ),
-            power=jnp.array(
-                power if power is not None else default("power"), dtype=float
-            ),
-            stiffness=jnp.array(
-                stiffness if stiffness is not None else default("stiffness"),
-                dtype=float,
-            ),
-            damping=jnp.array(
-                damping if damping is not None else default("damping"), dtype=float
-            ),
-            mu=jnp.array(mu if mu is not None else default("mu"), dtype=float),
+            d_min=d_min if d_min is not None else default("d_min"),
+            d_max=d_max if d_max is not None else default("d_max"),
+            width=width if width is not None else default("width"),
+            midpoint=midpoint if midpoint is not None else default("midpoint"),
+            power=power if power is not None else default("power"),
+            stiffness=stiffness if stiffness is not None else default("stiffness"),
+            damping=damping if damping is not None else default("damping"),
+            mu=mu if mu is not None else default("mu"),
         )
 
     def valid(self) -> jtp.BoolLike:

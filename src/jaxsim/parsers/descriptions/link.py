@@ -2,18 +2,15 @@ from __future__ import annotations
 
 import dataclasses
 
-import jax.numpy as jnp
-import jax_dataclasses
 import numpy as np
-from jax_dataclasses import Static
+import numpy.typing as npt
 
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint
-from jaxsim.utils import JaxsimDataclass
 
 
-@jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
-class LinkDescription(JaxsimDataclass):
+@dataclasses.dataclass(eq=False, unsafe_hash=False)
+class LinkDescription:
     """
     In-memory description of a robot link.
 
@@ -27,50 +24,58 @@ class LinkDescription(JaxsimDataclass):
         children: The children links.
     """
 
-    name: Static[str]
+    name: str
     mass: float = dataclasses.field(repr=False)
-    inertia: jtp.Matrix = dataclasses.field(repr=False)
+    _inertia: tuple[float] = dataclasses.field(repr=False)
     index: int | None = None
-    parent_name: Static[str | None] = dataclasses.field(default=None, repr=False)
-    pose: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.eye(4), repr=False)
+    parent_name: str | None = dataclasses.field(default=None, repr=False)
+    _pose: tuple[float] = dataclasses.field(
+        default=tuple(np.eye(4).tolist()), repr=False
+    )
 
-    children: Static[tuple[LinkDescription]] = dataclasses.field(
+    children: tuple[LinkDescription] = dataclasses.field(
         default_factory=list, repr=False
     )
 
-    def __hash__(self) -> int:
+    @property
+    def inertia(self) -> npt.NDArray:
+        """
+        Get the inertia tensor of the link.
 
-        from jaxsim.utils.wrappers import HashedNumpyArray
+        Returns:
+            npt.NDArray: The inertia tensor of the link.
+        """
+        return np.array(self._inertia)
 
-        return hash(
-            (
-                hash(self.name),
-                hash(float(self.mass)),
-                HashedNumpyArray.hash_of_array(self.inertia),
-                hash(int(self.index)) if self.index is not None else 0,
-                HashedNumpyArray.hash_of_array(self.pose),
-                hash(tuple(self.children)),
-                hash(self.parent_name) if self.parent_name is not None else 0,
-            )
-        )
+    @inertia.setter
+    def inertia(self, inertia: npt.NDArray) -> None:
+        """
+        Set the inertia tensor of the link.
 
-    def __eq__(self, other: LinkDescription) -> bool:
+        Args:
+            inertia: The inertia tensor of the link.
+        """
+        self._inertia = tuple(inertia.tolist())
 
-        if not isinstance(other, LinkDescription):
-            return False
+    @property
+    def pose(self) -> npt.NDArray:
+        """
+        Get the pose transformation matrix of the link.
 
-        if not (
-            self.name == other.name
-            and np.allclose(self.mass, other.mass)
-            and np.allclose(self.inertia, other.inertia)
-            and self.index == other.index
-            and np.allclose(self.pose, other.pose)
-            and self.children == other.children
-            and self.parent_name == other.parent_name
-        ):
-            return False
+        Returns:
+            npt.NDArray: The pose transformation matrix of the link.
+        """
+        return np.array(self._pose)
 
-        return True
+    @pose.setter
+    def pose(self, pose: npt.NDArray) -> None:
+        """
+        Set the pose transformation matrix of the link.
+
+        Args:
+            pose: The pose transformation matrix of the link.
+        """
+        self._pose = tuple(pose.tolist())
 
     @property
     def name_and_index(self) -> str:
@@ -101,15 +106,18 @@ class LinkDescription(JaxsimDataclass):
         I_removed = link.inertia
 
         # Create the SE3 object. Note the inverse.
-        r_X_l = Adjoint.from_transform(transform=lumped_H_removed, inverse=True)
+        r_X_l = np.array(
+            Adjoint.from_transform(transform=lumped_H_removed, inverse=True)
+        )
 
         # Move the inertia
         I_removed_in_lumped_frame = r_X_l.transpose() @ I_removed @ r_X_l
 
         # Create the new combined link
-        lumped_link = self.replace(
-            mass=self.mass + link.mass,
-            inertia=self.inertia + I_removed_in_lumped_frame,
+        lumped_link = dataclasses.replace(
+            self,
+            mass=float(self.mass + link.mass),
+            _inertia=tuple((self.inertia + I_removed_in_lumped_frame).tolist()),
         )
 
         return lumped_link

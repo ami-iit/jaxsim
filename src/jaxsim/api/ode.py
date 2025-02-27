@@ -35,6 +35,21 @@ def system_acceleration(
         and the joint accelerations.
     """
 
+    # ======================
+    # Compute contact forces
+    # ======================
+
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain = js.contact_model.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=link_forces,
+            joint_torques=joint_torques,
+        )
+
     # ====================
     # Validate input data
     # ====================
@@ -54,6 +69,9 @@ def system_acceleration(
         link_forces=f_L,
     )
 
+    with references.switch_velocity_representation(VelRepr.Inertial):
+        W_f_L_total = W_f_L_terrain + references.link_forces(model=model, data=data)
+
     # Compute forward dynamics.
     #
     # - Joint accelerations: s̈ ∈ ℝⁿ
@@ -61,12 +79,13 @@ def system_acceleration(
     #
     # Note that ABA returns the base acceleration in the velocity representation
     # stored in the `data` object.
-    v̇_WB, s̈ = js.model.forward_dynamics_aba(
-        model=model,
-        data=data,
-        joint_forces=joint_torques,
-        link_forces=references.link_forces(model=model, data=data),
-    )
+    with data.switch_velocity_representation(VelRepr.Inertial):
+        v̇_WB, s̈ = js.model.forward_dynamics_aba(
+            model=model,
+            data=data,
+            joint_forces=joint_torques,
+            link_forces=W_f_L_total,
+        )
 
     return v̇_WB, s̈
 

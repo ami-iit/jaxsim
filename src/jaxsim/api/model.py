@@ -2063,41 +2063,6 @@ def step(
         model, data, joint_force_references=τ_references
     )
 
-    # ======================
-    # Compute contact forces
-    # ======================
-
-    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
-
-    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-
-        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-        # with the terrain.
-        W_f_L_terrain = js.contact_model.link_contact_forces(
-            model=model,
-            data=data,
-            link_forces=W_f_L_external,
-            joint_torques=τ_total,
-        )
-
-    # ==============================
-    # Compute the total link forces
-    # ==============================
-
-    W_f_L_total = W_f_L_external + W_f_L_terrain
-
-    # ===============================
-    # Compute the system acceleration
-    # ===============================
-
-    with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
-        W_v̇_WB, s̈ = js.ode.system_acceleration(
-            model=model,
-            data=data,
-            link_forces=W_f_L_total,
-            joint_torques=τ_total,
-        )
-
     # =============================
     # Advance the simulation state
     # =============================
@@ -2108,14 +2073,8 @@ def step(
     data_tf = integrator_fn(
         model=model,
         data=data,
-        base_acceleration_inertial=W_v̇_WB,
-        joint_accelerations=s̈,
-        # Pass link_forces and joint_torques if the integrator is rk4
-        **(
-            {"link_forces": W_f_L_total, "joint_torques": τ_total}
-            if model.integrator == IntegratorType.RungeKutta4
-            else {}
-        ),
+        link_forces=W_f_L_external,
+        joint_torques=τ_total,
     )
 
     return data_tf

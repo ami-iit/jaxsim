@@ -14,16 +14,21 @@ from jaxsim.math import Adjoint, Transform
 def semi_implicit_euler_integration(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
-    base_acceleration_inertial: jtp.Vector,
-    joint_accelerations: jtp.Vector,
+    link_forces: jtp.Vector,
+    joint_torques: jtp.Vector,
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
     # Step the dynamics forward.
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
+        W_v̇_WB, s̈ = js.ode.system_acceleration(
+            model=model,
+            data=data,
+            link_forces=link_forces,
+            joint_torques=joint_torques,
+        )
+
         dt = model.time_step
-        W_v̇_WB = base_acceleration_inertial
-        s̈ = joint_accelerations
 
         B_H_W = Transform.inverse(data._base_transform).at[:3, :3].set(jnp.eye(3))
         BW_X_W = Adjoint.from_transform(B_H_W)
@@ -81,8 +86,6 @@ def semi_implicit_euler_integration(
 def rk4_integration(
     model: js.model.JaxSimModel,
     data: JaxSimModelData,
-    base_acceleration_inertial: jtp.Vector,
-    joint_accelerations: jtp.Vector,
     link_forces: jtp.Vector,
     joint_torques: jtp.Vector,
 ) -> JaxSimModelData:

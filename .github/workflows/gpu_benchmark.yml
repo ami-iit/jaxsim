@@ -9,6 +9,8 @@ on:
 
 permissions:
   pull-requests: write
+  deployments: write
+  contents: write
 
 jobs:
   benchmark:
@@ -54,6 +56,7 @@ jobs:
           external-data-json-path: ./cache/benchmark-data.json
           fail-on-alert: true
           summary-always: true
+          comment-always: true
           alert-threshold: 150%
           auto-push: false
           gh-pages-branch: gh-pages

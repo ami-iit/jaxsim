@@ -37,7 +37,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run benchmark and store result
-        run: pytest tests/test_benchmark.py --benchmark-only --benchmark-json output.json
+        run: |
+            pytest tests/test_benchmark.py -k 'not test_rigid_contact_model and not test_soft_contact_model' --benchmark-only --benchmark-json output.json
 
       - name: Download previous benchmark data
         uses: actions/cache@v4

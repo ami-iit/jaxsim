@@ -63,7 +63,7 @@ def extract_points_select_points_over_axis(
     arr = mesh.vertices
 
     # Sort rows lexicographically first, then columnar.
-    arr.sort(axis=0)
+    arr.sort(axis=VALID_AXIS[axis])
     sorted_arr = arr[dirs[direction]]
     return sorted_arr
 

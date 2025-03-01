@@ -111,32 +111,3 @@ def forward_kinematics_model(
     )
 
     return jax.vmap(Adjoint.to_transform)(W_X_i), W_v_Wi
-
-
-def forward_kinematics(
-    model: js.model.JaxSimModel,
-    link_index: jtp.Int,
-    base_position: jtp.VectorLike,
-    base_quaternion: jtp.VectorLike,
-    joint_positions: jtp.VectorLike,
-) -> jtp.Matrix:
-    """
-    Compute the forward kinematics of a specific link.
-
-    Args:
-        model: The model to consider.
-        link_index: The index of the link to consider.
-        base_position: The position of the base link.
-        base_quaternion: The quaternion of the base link.
-        joint_positions: The positions of the joints.
-
-    Returns:
-        The SE(3) transform of the link.
-    """
-
-    return forward_kinematics_model(
-        model=model,
-        base_position=base_position,
-        base_quaternion=base_quaternion,
-        joint_positions=joint_positions,
-    )[link_index]

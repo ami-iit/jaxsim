@@ -50,6 +50,9 @@ def system_acceleration(
     # Compute contact forces
     # ======================
 
+    W_f_L_terrain = jnp.zeros_like(f_L)
+    contact_state_derivative = {}
+
     if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
@@ -95,7 +98,6 @@ def system_acceleration(
 @jax.jit
 @js.common.named_scope
 def system_position_dynamics(
-    model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     baumgarte_quaternion_regularization: jtp.FloatLike = 1.0,
 ) -> tuple[jtp.Vector, jtp.Vector, jtp.Vector]:
@@ -103,7 +105,6 @@ def system_position_dynamics(
     Compute the dynamics of the system position.
 
     Args:
-        model: The model to consider.
         data: The data of the considered model.
         baumgarte_quaternion_regularization:
             The Baumgarte regularization coefficient for adjusting the quaternion norm.
@@ -173,7 +174,6 @@ def system_dynamics(
         )
 
         W_ṗ_B, W_Q̇_B, ṡ = system_position_dynamics(
-            model=model,
             data=data,
             baumgarte_quaternion_regularization=baumgarte_quaternion_regularization,
         )

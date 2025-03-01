@@ -5,9 +5,9 @@ import functools
 from collections.abc import Sequence
 
 try:
-    from typing import override
+    from typing import Self, override
 except ImportError:
-    from typing_extensions import override
+    from typing_extensions import override, Self
 
 import jax
 import jax.numpy as jnp
@@ -21,11 +21,6 @@ import jaxsim.typing as jtp
 
 from . import common
 from .common import VelRepr
-
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
 
 
 @jax_dataclasses.pytree_dataclass
@@ -361,11 +356,14 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @js.common.named_scope
     @jax.jit
-    def reset_base_quaternion(self, base_quaternion: jtp.VectorLike) -> Self:
+    def reset_base_quaternion(
+        self, model: js.model.JaxSimModel, base_quaternion: jtp.VectorLike
+    ) -> Self:
         """
         Reset the base quaternion.
 
         Args:
+            model: The JaxSim model to use.
             base_quaternion: The base orientation as a quaternion.
 
         Returns:
@@ -377,15 +375,18 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         norm = jaxsim.math.safe_norm(W_Q_B, axis=-1)
         W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
 
-        return self.replace(validate=True, base_quaternion=W_Q_B)
+        return self.replace(model=model, base_quaternion=W_Q_B)
 
     @js.common.named_scope
     @jax.jit
-    def reset_base_pose(self, base_pose: jtp.MatrixLike) -> Self:
+    def reset_base_pose(
+        self, model: js.model.JaxSimModel, base_pose: jtp.MatrixLike
+    ) -> Self:
         """
         Reset the base pose.
 
         Args:
+            model: The JaxSim model to use.
             base_pose: The base pose as an SE(3) matrix.
 
         Returns:
@@ -396,6 +397,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_p_B = base_pose[0:3, 3]
         W_Q_B = jaxsim.math.Quaternion.from_dcm(dcm=base_pose[0:3, 0:3])
         return self.replace(
+            model=model,
             base_position=W_p_B,
             base_quaternion=W_Q_B,
         )

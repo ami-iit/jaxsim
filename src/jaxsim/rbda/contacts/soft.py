@@ -414,4 +414,4 @@ class SoftContacts(common.ContactModel):
 
         ṁ = ṁ.at[indices_of_enabled_collidable_points].set(ṁ_enabled)
 
-        return W_f, dict(m_dot=ṁ)
+        return W_f, {"m_dot": ṁ}

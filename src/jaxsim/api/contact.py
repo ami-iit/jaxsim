@@ -267,7 +267,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
 
     # Build the link-to-point transform from the displacement between the link frame L
     # and the implicit contact frame C.
-    L_H_C = jax.vmap(lambda L_p_C: jnp.eye(4).at[0:3, 3].set(L_p_C))(L_p_Ci)
+    L_H_C = jax.vmap(jnp.eye(4).at[0:3, 3].set)(L_p_Ci)
 
     # Compose the work-to-link and link-to-point transforms.
     return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
@@ -567,9 +567,7 @@ def link_contact_forces(
 
     # Compute the 6D forces applied to the links equivalent to the forces applied
     # to the frames associated to the collidable points.
-    W_f_L = link_forces_from_contact_forces(
-        model=model, data=data, contact_forces=W_f_C
-    )
+    W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
 
     return W_f_L, aux_dict
 
@@ -577,7 +575,6 @@ def link_contact_forces(
 @staticmethod
 def link_forces_from_contact_forces(
     model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
     *,
     contact_forces: jtp.MatrixLike,
 ) -> jtp.Matrix:
@@ -586,7 +583,6 @@ def link_forces_from_contact_forces(
 
     Args:
         model: The robot model considered by the contact model.
-        data: The data of the considered model.
         contact_forces: The contact forces computed by the contact model.
 
     Returns:

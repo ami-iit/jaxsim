@@ -302,7 +302,7 @@ def bias_acceleration(
             C_v_WC = W_v_WW = jnp.zeros(6)  # noqa: F841
 
             L_H_C = L_H_W = jax.vmap(  # noqa: F841
-                lambda W_H_L: jaxsim.math.Transform.inverse(W_H_L)
+                jaxsim.math.Transform.inverse(W_H_L)
             )(W_H_L)
 
             L_v_LC = L_v_LW = jax.vmap(  # noqa: F841

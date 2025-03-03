@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import dataclasses
 import functools
 
 import jax
@@ -9,6 +10,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim.math import STANDARD_GRAVITY
 from jaxsim.utils import JaxsimDataclass
 
 try:
@@ -79,6 +81,86 @@ class ContactsParams(JaxsimDataclass):
             The `ContactsParams` instance.
         """
         pass
+
+    def build_default_from_jaxsim_model(
+        self: type[Self],
+        model: js.model.JaxSimModel,
+        *,
+        stiffness: jtp.FloatLike | None = None,
+        damping: jtp.FloatLike | None = None,
+        standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
+        static_friction_coefficient: jtp.FloatLike = 0.5,
+        max_penetration: jtp.FloatLike = 0.001,
+        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+        damping_ratio: jtp.FloatLike = 1.0,
+        p: jtp.FloatLike = 0.5,
+        q: jtp.FloatLike = 0.5,
+        **kwargs,
+    ) -> Self:
+        """
+        Create a `ContactsParams` instance with default parameters.
+
+        Args:
+            model: The robot model considered by the contact model.
+            stiffness: The stiffness of the contact model.
+            damping: The damping of the contact model.
+            standard_gravity: The standard gravity acceleration.
+            static_friction_coefficient: The static friction coefficient.
+            max_penetration: The maximum penetration depth.
+            number_of_active_collidable_points_steady_state:
+                The number of active collidable points in steady state.
+            damping_ratio: The damping ratio.
+            p: The first parameter of the contact model.
+            q: The second parameter of the contact model.
+            **kwargs: Optional additional arguments.
+
+        Returns:
+            The `ContactsParams` instance.
+
+        Note:
+            The `stiffness` is intended as the terrain stiffness in the Soft Contacts model,
+            while it is the Baumgarte stabilization stiffness in the Rigid Contacts model.
+
+            The `damping` is intended as the terrain damping in the Soft Contacts model,
+            while it is the Baumgarte stabilization damping in the Rigid Contacts model.
+
+            The `damping_ratio` parameter allows to operate on the following conditions:
+            - ξ > 1.0: over-damped
+            - ξ = 1.0: critically damped
+            - ξ < 1.0: under-damped
+        """
+
+        # Use symbols for input parameters.
+        ξ = damping_ratio
+        δ_max = max_penetration
+        μc = static_friction_coefficient
+
+        # Compute the total mass of the model.
+        m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
+
+        # Rename the standard gravity.
+        g = standard_gravity
+
+        # Compute the average support force on each collidable point.
+        f_average = m * g / number_of_active_collidable_points_steady_state
+
+        # Compute the stiffness to get the desired steady-state penetration.
+        # Note that this is dependent on the non-linear exponent used in
+        # the damping term of the Hunt/Crossley model.
+        K = f_average / jnp.power(δ_max, 1 + p) if stiffness is None else stiffness
+
+        # Compute the damping using the damping ratio.
+        critical_damping = 2 * jnp.sqrt(K * m)
+        D = ξ * critical_damping if damping is None else damping
+
+        return self.build(
+            K=K,
+            D=D,
+            mu=μc,
+            p=p,
+            q=q,
+            **kwargs,
+        )
 
     @abc.abstractmethod
     def valid(self, **kwargs) -> jtp.BoolLike:
@@ -173,3 +255,99 @@ class ContactModel(JaxsimDataclass):
                 else cls.__class__.__name__ + "Params"
             ),
         )
+
+    def update_contact_state(
+        self: type[Self], old_contact_state: dict[str, jtp.Array]
+    ) -> dict[str, jtp.Array]:
+        """
+        Update the contact state.
+
+        Args:
+            old_contact_state: The old contact state.
+
+        Returns:
+            The updated contact state.
+        """
+
+        # Import the contact models to avoid circular imports.
+        from .relaxed_rigid import RelaxedRigidContacts
+        from .rigid import RigidContacts
+        from .soft import SoftContacts
+
+        match self:
+            case SoftContacts():
+                return {"tangential_deformation": old_contact_state["m_dot"]}
+            case RigidContacts() | RelaxedRigidContacts():
+                return {}
+
+    @jax.jit
+    @js.common.named_scope
+    def update_velocity_after_impact(
+        self: type[Self], model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    ) -> js.data.JaxSimModelData:
+        """
+        Update the velocity after an impact.
+
+        Args:
+            model: The robot model considered by the contact model.
+            data: The data of the considered model.
+
+        Returns:
+            The updated data of the considered model.
+        """
+
+        # Import the rigid contact model to avoid circular imports.
+        from jaxsim.api.common import VelRepr
+
+        from .rigid import RigidContacts
+
+        if isinstance(self, RigidContacts):
+            # Extract the indices corresponding to the enabled collidable points.
+            indices_of_enabled_collidable_points = (
+                model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+            )
+
+            W_p_C = js.contact.collidable_point_positions(model, data)[
+                indices_of_enabled_collidable_points
+            ]
+
+            # Compute the penetration depth of the collidable points.
+            δ, *_ = jax.vmap(
+                jaxsim.rbda.contacts.common.compute_penetration_data,
+                in_axes=(0, 0, None),
+            )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
+
+            with data.switch_velocity_representation(VelRepr.Mixed):
+                J_WC = js.contact.jacobian(model, data)[
+                    indices_of_enabled_collidable_points
+                ]
+                M = js.model.free_floating_mass_matrix(model, data)
+                BW_ν_pre_impact = data.generalized_velocity
+
+                # Compute the impact velocity.
+                # It may be discontinuous in case new contacts are made.
+                BW_ν_post_impact = (
+                    jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
+                        generalized_velocity=BW_ν_pre_impact,
+                        inactive_collidable_points=(δ <= 0),
+                        M=M,
+                        J_WC=J_WC,
+                    )
+                )
+
+                BW_ν_post_impact_inertial = data.other_representation_to_inertial(
+                    array=BW_ν_post_impact[0:6],
+                    other_representation=VelRepr.Mixed,
+                    transform=data._base_transform.at[0:3, 0:3].set(jnp.eye(3)),
+                    is_force=False,
+                )
+
+            # Reset the generalized velocity.
+            data = dataclasses.replace(
+                data,
+                _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
+                _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
+                _joint_velocities=BW_ν_post_impact[6:],
+            )
+
+        return data

@@ -5,6 +5,6 @@ from .collision import (
     MeshCollision,
     SphereCollision,
 )
-from .joint import JointDescription, JointGenericAxis, JointType
+from .joint import JointDescription, JointType
 from .link import LinkDescription
 from .model import ModelDescription

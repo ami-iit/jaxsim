@@ -44,7 +44,6 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     "sphinx_multiversion",
-    "enum_tools.autoenum",
     "myst_nb",
     "sphinx_gallery.gen_gallery",
     "sphinxcontrib.collections",

@@ -103,7 +103,7 @@ References
 Common
 ~~~~~~
 
-.. autoflag:: jaxsim.api.common.VelRepr
+.. autoclass:: jaxsim.api.common.VelRepr
     :members:
 
 .. autoclass:: jaxsim.api.common.ModelDataWithVelocityRepresentation

@@ -84,7 +84,7 @@ class Rotation:
         return R.transpose()
 
     @staticmethod
-    def log_SO3(R: jnp.ndarray) -> jtp.Vector:
+    def log_vee(R: jnp.ndarray) -> jtp.Vector:
         """
         Compute the logarithm map of an SO(3) rotation matrix.
 
@@ -92,7 +92,7 @@ class Rotation:
             R: The SO(3) rotation matrix.
 
         Returns:
-            The corresponding 3D Lie algebra element.
+            The corresponding SO(3) tangent vector.
         """
         cos_theta = (jnp.trace(R) - 1) / 2
         theta = jnp.arccos(jnp.clip(cos_theta, -1.0, 1.0))

@@ -286,15 +286,17 @@ class KinDynParameters(JaxsimDataclass):
         return hash(self) == hash(other)
 
     def __hash__(self) -> int:
-        return hash((
-            hash(self.number_of_links()),
-            hash(self.number_of_joints()),
-            hash(self.frame_parameters.name),
-            hash(self.frame_parameters.body),
-            hash(self._parent_array),
-            hash(self._support_body_array_bool),
-            hash(self.constraints),
-        ))
+        return hash(
+            (
+                hash(self.number_of_links()),
+                hash(self.number_of_joints()),
+                hash(self.frame_parameters.name),
+                hash(self.frame_parameters.body),
+                hash(self._parent_array),
+                hash(self._support_body_array_bool),
+                hash(self.constraints),
+            )
+        )
 
     # =============================
     # Helpers to extract parameters
@@ -349,7 +351,9 @@ class KinDynParameters(JaxsimDataclass):
             jnp.where(self.support_body_array_bool[link_index])[0], dtype=int
         )
 
-    def get_constraints(self, model:js.model.JaxSimModel) -> tuple[tuple[str, str, ConstraintType], ...]:
+    def get_constraints(
+        self, model: js.model.JaxSimModel
+    ) -> tuple[tuple[str, str, ConstraintType], ...]:
         r"""
         Return the constraints of the model.
         """
@@ -955,16 +959,15 @@ class ConstraintMap(JaxsimDataclass):
         Returns:
             A tuple, in which each element defines a kinematic constraint.
         """
-        return tuple(
+        return jnp.array(
             (
-                js.frame.name_to_idx(model, frame_name=frame_name_1),
-                js.frame.name_to_idx(model, frame_name=frame_name_2),
-                constraint_type,
+                jax.tree.map(
+                    lambda f1: js.frame.name_to_idx(model, frame_name=f1),
+                    self.frame_names_1,
+                ),
+                jax.tree.map(
+                    lambda f1: js.frame.name_to_idx(model, frame_name=f1),
+                    self.frame_names_2,
+                ),
             )
-            for frame_name_1, frame_name_2, constraint_type in zip(
-                self.frame_names_1,
-                self.frame_names_2,
-                self.constraint_types,
-                strict=True,
-            )
-        )
+        ).T

@@ -311,22 +311,21 @@ class RelaxedRigidContacts(common.ContactModel):
         W_H_C = js.contact.transforms(model=model, data=data)
 
         # Retrieve the kinematic constraints
-        constraints = model.kin_dyn_parameters.get_constraints(model)
-        constraints = jnp.array(constraints)
-        n_kin_constraints = 6 * len(constraints)
+        idxs = model.kin_dyn_parameters.get_constraints(model)
+        n_kin_constraints = 6 * len(idxs)
         jax.debug.print("n_kin_constraints: \n{}", n_kin_constraints)
 
         # TODO (xela-95): manage the case of contact constraint
-        def compute_constraint_jacobians(constraint):
-            frame_1_idx, frame_2_idx, constraint_type = constraint  # noqa: F841
+        def compute_constraint_jacobians(data, constraint):
+            frame_1_idx, frame_2_idx = constraint
 
             J_WF1 = js.frame.jacobian(model=model, data=data, frame_index=frame_1_idx)
             J_WF2 = js.frame.jacobian(model=model, data=data, frame_index=frame_2_idx)
 
             return J_WF1 - J_WF2
 
-        def compute_constraint_jacobians_derivative(constraint):
-            frame_1_idx, frame_2_idx, constraint_type = constraint  # noqa: F841
+        def compute_constraint_jacobians_derivative(data, constraint):
+            frame_1_idx, frame_2_idx = constraint
 
             J̇_WF1 = js.frame.jacobian_derivative(
                 model=model, data=data, frame_index=frame_1_idx
@@ -337,7 +336,9 @@ class RelaxedRigidContacts(common.ContactModel):
 
             return J̇_WF1 - J̇_WF2
 
-        def compute_constraint_baumgarte_term(J_constr, BW_ν, W_H_F1, W_H_F2):
+        def compute_constraint_baumgarte_term(data, J_constr, BW_ν, W_H_F):
+            W_H_F1, W_H_F2 = W_H_F
+
             W_p_F1 = W_H_F1[0:3, 3]
             W_p_F2 = W_H_F2[0:3, 3]
 
@@ -354,13 +355,13 @@ class RelaxedRigidContacts(common.ContactModel):
 
             return baumgarte_term
 
-        def compute_constraint_transforms(constraint):
-            frame_1_idx, frame_2_idx, constraint_type = constraint  # noqa: F841
+        def compute_constraint_transforms(data, constraint):
+            frame_1_idx, frame_2_idx = constraint
 
             W_H_F1 = js.frame.transform(model=model, data=data, frame_index=frame_1_idx)
             W_H_F2 = js.frame.transform(model=model, data=data, frame_index=frame_2_idx)
 
-            return W_H_F1, W_H_F2
+            return jnp.array((W_H_F1, W_H_F2))
 
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
@@ -393,33 +394,37 @@ class RelaxedRigidContacts(common.ContactModel):
                 ),
             )
 
-            J_constr = jnp.vstack(jax.vmap(compute_constraint_jacobians)(constraints))
+            J_constr = jnp.vstack(
+                jax.vmap(compute_constraint_jacobians, in_axes=(None, 0))(data, idxs)
+            )
             J̇_constr = jnp.vstack(
-                jax.vmap(compute_constraint_jacobians_derivative)(constraints)
+                jax.vmap(compute_constraint_jacobians_derivative, in_axes=(None, 0))(
+                    data, idxs
+                )
             )
 
             J = jnp.vstack([Jl_WC, J_constr])
             J̇ = jnp.vstack([J̇l_WC, J̇_constr])
 
         # Compute the regularization terms.
-        a_ref, R, *_ = self._regularizers(
+        a_ref, r, *_ = self._regularizers(
             model=model,
             position_constraint=position_constraint,
             velocity_constraint=velocity,
             parameters=model.contacts_params,
         )
 
-        W_H_constr = jnp.array(jax.vmap(compute_constraint_transforms)(constraints))
+        W_H_constr = jax.vmap(compute_constraint_transforms, in_axes=(None, 0))(
+            data, idxs
+        )
 
         constr_baumgarte_term = jnp.hstack(
-            jax.vmap(compute_constraint_baumgarte_term, in_axes=(None, None, 0, 0))(
-                J_constr, BW_ν, W_H_constr[0], W_H_constr[1]
-            )
+            jax.vmap(compute_constraint_baumgarte_term, in_axes=(None, None, None))(
+                data, J_constr, BW_ν, W_H_F=W_H_constr
+            ),
         ).squeeze()
 
-        R_constr = jnp.pad(
-            R, ((0, n_kin_constraints), (0, n_kin_constraints)), mode="constant"
-        )
+        R_constr = jnp.diag(jnp.hstack([r, jnp.zeros(n_kin_constraints)]))
         a_ref_constr = jnp.hstack([a_ref, -constr_baumgarte_term])
 
         # Compute the Delassus matrix and the free mixed linear acceleration of
@@ -517,12 +522,14 @@ class RelaxedRigidContacts(common.ContactModel):
             )[0]
         )(position, velocity).flatten()
 
-        init_params = jnp.hstack([
-            init_params,
-            jnp.zeros(
-                n_kin_constraints,
-            ),
-        ])
+        init_params = jnp.hstack(
+            [
+                init_params,
+                jnp.zeros(
+                    n_kin_constraints,
+                ),
+            ]
+        )
 
         # Get the solver options.
         solver_options = self.solver_options
@@ -545,36 +552,36 @@ class RelaxedRigidContacts(common.ContactModel):
         kin_constr_wrench_mixed = solution[-n_kin_constraints:].reshape(-1, 6)
 
         # Form an array of tuples with each wrench and its opposite using jax constructs
-        kin_constr_wrench_pairs_mixed = jax.vmap(lambda wrench: (wrench, -wrench))(
-            kin_constr_wrench_mixed
-        )
-        kin_constr_wrench_pairs_mixed = jnp.array(kin_constr_wrench_pairs_mixed)
+        kin_constr_wrench_pairs_mixed = jax.vmap(
+            lambda wrench: jnp.array((wrench, -wrench))
+        )(kin_constr_wrench_mixed)
 
         jax.debug.print(
             "kin_constr_wrench_pairs_mixed: \n{}", kin_constr_wrench_pairs_mixed.shape
         )
+
         # Transform each wrench in the pair to inertial representation using the appropriate transform
         def transform_wrench_pair_to_inertial(wrench_pair, transform):
-            return (
-            ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                array=wrench_pair[0],
-                transform=transform[0],
-                other_representation=VelRepr.Mixed,
-                is_force=True,
-            ),
-            ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                array=wrench_pair[1],
-                transform=transform[1],
-                other_representation=VelRepr.Mixed,
-                is_force=True,
-            ),
+            return jnp.array(
+                (
+                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                        array=wrench_pair[0],
+                        transform=transform[0],
+                        other_representation=VelRepr.Mixed,
+                        is_force=True,
+                    ),
+                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                        array=wrench_pair[1],
+                        transform=transform[1],
+                        other_representation=VelRepr.Mixed,
+                        is_force=True,
+                    ),
+                )
             )
 
         kin_constr_force_pairs_inertial = jax.vmap(
             transform_wrench_pair_to_inertial,
-            in_axes=(1, 1),
         )(kin_constr_wrench_pairs_mixed, W_H_constr)
-        kin_constr_force_pairs_inertial = jnp.array(kin_constr_force_pairs_inertial)
 
         jax.debug.print(
             "kin_constr_force_pairs_inertial: \n{}",
@@ -728,7 +735,7 @@ class RelaxedRigidContacts(common.ContactModel):
             ),
         )
 
-        return a_ref, jnp.diag(R), K, D
+        return a_ref, R, K, D
 
     @staticmethod
     @functools.partial(jax.jit, static_argnames=("terrain",))

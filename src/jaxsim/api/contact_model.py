@@ -44,18 +44,38 @@ def link_contact_forces(
     # to the frames associated to the collidable points.
     W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
 
-    # Add the forces coming from the kinematic constraints to the link on which the constraint is applied.
+    wrench_pair_constr_inertial = aux_data["constr_wrenches_inertial"]
 
-    # W_f_loop = aux_data["kin_constr_force"]
-    W_f_loop_F1 = aux_data["kin_constr_force_F1"]
-    W_f_loop_f2 = aux_data["kin_constr_force_F2"]
-    F1_idx = aux_data["F1_idx"]
-    F2_idx = aux_data["F2_idx"]
-    F1_parent_idx = js.frame.idx_of_parent_link(model, frame_index=F1_idx)
-    F2_parent_idx = js.frame.idx_of_parent_link(model, frame_index=F2_idx)
+    constraints = model.kin_dyn_parameters.get_constraints(model)
+    # Get the couples of parent link indices of each couple of frames.
+    frame_idxs_1, frame_idxs_2, types = zip(*constraints, strict=False)
+    frame_idxs_1 = jnp.array(frame_idxs_1)
+    frame_idxs_2 = jnp.array(frame_idxs_2)
 
-    W_f_L = W_f_L.at[F1_parent_idx].add(W_f_loop_F1)
-    W_f_L = W_f_L.at[F2_parent_idx].add(W_f_loop_f2)
+    jax.debug.print("frame_idxs_1: \n{}", frame_idxs_1)
+    jax.debug.print("frame_idxs_2: \n{}", frame_idxs_2)
+
+    parent_link_indices = jax.vmap(
+        lambda frame_idx_1, frame_idx_2: (
+            js.frame.idx_of_parent_link(model, frame_index=frame_idx_1),
+            js.frame.idx_of_parent_link(model, frame_index=frame_idx_2),
+        )
+    )(frame_idxs_1, frame_idxs_2)
+    parent_link_indices = jnp.array(parent_link_indices)
+    jax.debug.print("parent_link_indices: \n{}", parent_link_indices.shape)
+
+    # Apply each constraint wrench to its corresponding parent link in W_f_L.
+    def apply_wrench(i, W_f_L):
+        parent_indices = parent_link_indices[:, i]
+        wrench_pair = wrench_pair_constr_inertial[:, i]
+        jax.debug.print("parent_indices: \n{}", parent_indices)
+        jax.debug.print("wrench_pair: \n{}", wrench_pair)
+        W_f_L = W_f_L.at[parent_indices[0]].add(wrench_pair[0])
+        W_f_L = W_f_L.at[parent_indices[1]].add(wrench_pair[1])
+        return W_f_L
+
+    W_f_L = jax.lax.fori_loop(0, parent_link_indices.shape[0], apply_wrench, W_f_L)
+
     jax.debug.print("W_f_L: \n{}", W_f_L)
 
     return W_f_L

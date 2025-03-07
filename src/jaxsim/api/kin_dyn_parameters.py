@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 
 import jax.lax
 import jax.numpy as jnp
@@ -9,6 +10,7 @@ import numpy as np
 import numpy.typing as npt
 from jax_dataclasses import Static
 
+import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
@@ -51,6 +53,8 @@ class KinDynParameters(JaxsimDataclass):
     joint_model: JointModel
     joint_parameters: JointParameters | None
 
+    constraints: Static[ConstraintMap]
+
     @property
     def motion_subspaces(self) -> jtp.Matrix:
         r"""
@@ -73,12 +77,15 @@ class KinDynParameters(JaxsimDataclass):
         return self._support_body_array_bool.get()
 
     @staticmethod
-    def build(model_description: ModelDescription) -> KinDynParameters:
+    def build(
+        model_description: ModelDescription, constraints: ConstraintMap | None
+    ) -> KinDynParameters:
         """
         Construct the kinematic and dynamic parameters of the model.
 
         Args:
             model_description: The parsed model description to consider.
+            constraints: An object of type ConstraintMap specifying the kinematic constraint of the model.
 
         Returns:
             The kinematic and dynamic parameters of the model.
@@ -248,6 +255,12 @@ class KinDynParameters(JaxsimDataclass):
 
         motion_subspaces = jnp.vstack([jnp.zeros((6, 1))[jnp.newaxis, ...], S_J])
 
+        # ===========
+        # Constraints
+        # ===========
+
+        constraints = ConstraintMap() if constraints is None else constraints
+
         # =================================
         # Build and return KinDynParameters
         # =================================
@@ -262,6 +275,7 @@ class KinDynParameters(JaxsimDataclass):
             joint_parameters=joint_parameters,
             contact_parameters=contact_parameters,
             frame_parameters=frame_parameters,
+            constraints=constraints,
         )
 
     def __eq__(self, other: KinDynParameters) -> bool:
@@ -272,17 +286,15 @@ class KinDynParameters(JaxsimDataclass):
         return hash(self) == hash(other)
 
     def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.number_of_links()),
-                hash(self.number_of_joints()),
-                hash(self.frame_parameters.name),
-                hash(self.frame_parameters.body),
-                hash(self._parent_array),
-                hash(self._support_body_array_bool),
-            )
-        )
+        return hash((
+            hash(self.number_of_links()),
+            hash(self.number_of_joints()),
+            hash(self.frame_parameters.name),
+            hash(self.frame_parameters.body),
+            hash(self._parent_array),
+            hash(self._support_body_array_bool),
+            hash(self.constraints),
+        ))
 
     # =============================
     # Helpers to extract parameters
@@ -336,6 +348,13 @@ class KinDynParameters(JaxsimDataclass):
         return jnp.array(
             jnp.where(self.support_body_array_bool[link_index])[0], dtype=int
         )
+
+    def get_constraints(self, model:js.model.JaxSimModel) -> tuple[tuple[str, str, ConstraintType], ...]:
+        r"""
+        Return the constraints of the model.
+        """
+
+        return self.constraints.get_constraints(model)
 
     # ========================
     # Quantities used by RBDAs
@@ -882,3 +901,70 @@ class FrameParameters(JaxsimDataclass):
         assert fp.transform.shape[0] == len(fp.body), fp.transform.shape[0]
 
         return fp
+
+
+@enum.unique
+class ConstraintType(enum.IntEnum):
+    """
+    Enumeration of all supported constraint types.
+    """
+
+    Weld = enum.auto()
+    Connect = enum.auto()
+
+
+@jax_dataclasses.pytree_dataclass
+class ConstraintMap(JaxsimDataclass):
+    """
+    Class storing the kinematic constraints of a model.
+    """
+
+    frame_names_1: Static[tuple[str, ...]] = dataclasses.field(default_factory=tuple)
+    frame_names_2: Static[tuple[str, ...]] = dataclasses.field(default_factory=tuple)
+    constraint_types: Static[tuple[ConstraintType, ...]] = dataclasses.field(
+        default_factory=tuple
+    )
+
+    def add_constraint(
+        self, frame_name_1: str, frame_name_2: str, constraint_type: ConstraintType
+    ) -> ConstraintMap:
+        """
+        Add a constraint to the constraint map.
+
+        Args:
+            frame_name_1: The name of the first frame.
+            frame_name_2: The name of the second frame.
+            constraint_type: The type of constraint.
+
+        Returns:
+            A new ConstraintMap instance with the added constraint.
+        """
+        return self.replace(
+            frame_names_1=(*self.frame_names_1, frame_name_1),
+            frame_names_2=(*self.frame_names_2, frame_name_2),
+            constraint_types=(*self.constraint_types, constraint_type),
+            validate=False,
+        )
+
+    def get_constraints(
+        self, model: js.model.JaxSimModel
+    ) -> tuple[tuple[int, int, ConstraintType], ...]:
+        """
+        Get the list of constraints.
+
+        Returns:
+            A tuple, in which each element defines a kinematic constraint.
+        """
+        return tuple(
+            (
+                js.frame.name_to_idx(model, frame_name=frame_name_1),
+                js.frame.name_to_idx(model, frame_name=frame_name_2),
+                constraint_type,
+            )
+            for frame_name_1, frame_name_2, constraint_type in zip(
+                self.frame_names_1,
+                self.frame_names_2,
+                self.constraint_types,
+                strict=True,
+            )
+        )

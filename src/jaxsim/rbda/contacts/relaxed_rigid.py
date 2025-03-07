@@ -259,7 +259,7 @@ class RelaxedRigidContacts(common.ContactModel):
             model: The model to consider.
             data: The data of the considered model.
             link_forces:
-                Optional `(n_links, 6)` matrix of external forces acting on the links,
+                Optional `(n_links, 6)` matrix of external forces acting on the links,`
                 expressed in the same representation of data.
             joint_force_references:
                 Optional `(n_joints,)` vector of joint forces.
@@ -267,6 +267,9 @@ class RelaxedRigidContacts(common.ContactModel):
         Returns:
             A tuple containing as first element the computed contact forces in inertial representation.
         """
+
+        K_P = 0  # 1e1
+        K_D = 0  # 2 * jnp.sqrt(K_P)
 
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()
@@ -307,6 +310,58 @@ class RelaxedRigidContacts(common.ContactModel):
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
 
+        # Retrieve the kinematic constraints
+        constraints = model.kin_dyn_parameters.get_constraints(model)
+        constraints = jnp.array(constraints)
+        n_kin_constraints = 6 * len(constraints)
+        jax.debug.print("n_kin_constraints: \n{}", n_kin_constraints)
+
+        # TODO (xela-95): manage the case of contact constraint
+        def compute_constraint_jacobians(constraint):
+            frame_1_idx, frame_2_idx, constraint_type = constraint  # noqa: F841
+
+            J_WF1 = js.frame.jacobian(model=model, data=data, frame_index=frame_1_idx)
+            J_WF2 = js.frame.jacobian(model=model, data=data, frame_index=frame_2_idx)
+
+            return J_WF1 - J_WF2
+
+        def compute_constraint_jacobians_derivative(constraint):
+            frame_1_idx, frame_2_idx, constraint_type = constraint  # noqa: F841
+
+            J̇_WF1 = js.frame.jacobian_derivative(
+                model=model, data=data, frame_index=frame_1_idx
+            )
+            J̇_WF2 = js.frame.jacobian_derivative(
+                model=model, data=data, frame_index=frame_2_idx
+            )
+
+            return J̇_WF1 - J̇_WF2
+
+        def compute_constraint_baumgarte_term(J_constr, BW_ν, W_H_F1, W_H_F2):
+            W_p_F1 = W_H_F1[0:3, 3]
+            W_p_F2 = W_H_F2[0:3, 3]
+
+            W_R_F1 = W_H_F1[0:3, 0:3]
+            W_R_F2 = W_H_F2[0:3, 0:3]
+
+            vel_error = J_constr @ BW_ν
+            position_error = W_p_F1 - W_p_F2
+            R_error = W_R_F2.T @ W_R_F1
+            orientation_error = jaxsim.math.rotation.Rotation.log_vee(R_error)
+            baumgarte_term = (
+                K_P * jnp.hstack([position_error, orientation_error]) + K_D * vel_error
+            )
+
+            return baumgarte_term
+
+        def compute_constraint_transforms(constraint):
+            frame_1_idx, frame_2_idx, constraint_type = constraint  # noqa: F841
+
+            W_H_F1 = js.frame.transform(model=model, data=data, frame_index=frame_1_idx)
+            W_H_F2 = js.frame.transform(model=model, data=data, frame_index=frame_2_idx)
+
+            return W_H_F1, W_H_F2
+
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
             references.switch_velocity_representation(VelRepr.Mixed),
@@ -324,43 +379,27 @@ class RelaxedRigidContacts(common.ContactModel):
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
+            # Compute the linear part of the Jacobian of the collidable points
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, δ: J * (δ > 0))(
                     js.contact.jacobian(model=model, data=data)[:, :3, :], δ
                 )
             )
 
-            J̇_WC = jnp.vstack(
+            # Compute the linear part of the Jacobian derivative of the collidable points
+            J̇l_WC = jnp.vstack(
                 jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
 
-            # Compute the Jacobians for the closed-chain kinematic constraint\
-            F1_name = "BC1_frame"
-            F2_name = "BC2_frame"
-            F1_idx = js.frame.name_to_idx(model=model, frame_name=F1_name)
-            F2_idx = js.frame.name_to_idx(model=model, frame_name=F2_name)
-
-            W_H_F1 = js.frame.transform(model=model, data=data, frame_index=F1_idx)
-            W_H_F2 = js.frame.transform(model=model, data=data, frame_index=F2_idx)
-            W_p_F1 = W_H_F1[:3, 3]
-            W_p_F2 = W_H_F2[:3, 3]
-            W_R_F1 = W_H_F1[:3, :3]
-            W_R_F2 = W_H_F2[:3, :3]
-
-            J_WF1 = js.frame.jacobian(model=model, data=data, frame_index=F1_idx)
-            J_WF2 = js.frame.jacobian(model=model, data=data, frame_index=F2_idx)
-            J̇_WF1 = js.frame.jacobian_derivative(
-                model=model, data=data, frame_index=F1_idx
-            )
-            J̇_WF2 = js.frame.jacobian_derivative(
-                model=model, data=data, frame_index=F2_idx
+            J_constr = jnp.vstack(jax.vmap(compute_constraint_jacobians)(constraints))
+            J̇_constr = jnp.vstack(
+                jax.vmap(compute_constraint_jacobians_derivative)(constraints)
             )
 
-            # Add the kinematic constraint terms to the Jacobians
-            Jl_WC = jnp.vstack([Jl_WC, J_WF1 - J_WF2])
-            J̇_WC = jnp.vstack([J̇_WC, J̇_WF1 - J̇_WF2])
+            J = jnp.vstack([Jl_WC, J_constr])
+            J̇ = jnp.vstack([J̇l_WC, J̇_constr])
 
         # Compute the regularization terms.
         a_ref, R, *_ = self._regularizers(
@@ -370,38 +409,27 @@ class RelaxedRigidContacts(common.ContactModel):
             parameters=model.contacts_params,
         )
 
-        # jax.debug.print("a_ref.shape: \n{}", a_ref.shape)
-        # jax.debug.print("R.shape: \n{}", R.shape)
+        W_H_constr = jnp.array(jax.vmap(compute_constraint_transforms)(constraints))
 
-        dim_kin_constr = J_WF1.shape[0]
+        constr_baumgarte_term = jnp.hstack(
+            jax.vmap(compute_constraint_baumgarte_term, in_axes=(None, None, 0, 0))(
+                J_constr, BW_ν, W_H_constr[0], W_H_constr[1]
+            )
+        ).squeeze()
 
-        # Compute Baumgarte stabilization terms for the kinematic constraints
-
-        K_P = 100  # 1e1
-        K_D = 2 * jnp.sqrt(K_P)
-        K_D = jnp.diag(jnp.array([K_D, K_D, K_D, K_D, K_D, K_D]))
-        vel_error = (J_WF1 - J_WF2) @ BW_ν
-        position_error = W_p_F1 - W_p_F2
-        R_error = W_R_F2.T @ W_R_F1
-        orientation_error = jaxsim.math.rotation.Rotation.log_vee(R_error)
-        baumgarte_term = (
-            K_P * jnp.hstack([position_error, orientation_error]) + K_D @ vel_error
+        R_constr = jnp.pad(
+            R, ((0, n_kin_constraints), (0, n_kin_constraints)), mode="constant"
         )
-
-        # baumgarte_term = K_P * position_error + K_D * vel_error
-
-        R_ext = jnp.pad(R, ((0, dim_kin_constr), (0, dim_kin_constr)), mode="constant")
-        a_ref_ext = jnp.hstack([a_ref, -baumgarte_term])
-        # a_ref_ext = jnp.hstack([a_ref, jnp.zeros((3,))])
+        a_ref_constr = jnp.hstack([a_ref, -constr_baumgarte_term])
 
         # Compute the Delassus matrix and the free mixed linear acceleration of
         # the collidable points.
-        G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
-        CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
+        G = J @ jnp.linalg.pinv(M) @ J.T
+        CW_al_free_WC = J @ BW_ν̇_free + J̇ @ BW_ν
 
         # Calculate quantities for the linear optimization problem.
-        A = G + R_ext
-        b = CW_al_free_WC - a_ref_ext
+        A = G + R_constr
+        b = CW_al_free_WC - a_ref_constr
 
         # Create the objective function to minimize as a lambda computing the cost
         # from the optimized variables x.
@@ -492,7 +520,7 @@ class RelaxedRigidContacts(common.ContactModel):
         init_params = jnp.hstack([
             init_params,
             jnp.zeros(
-                dim_kin_constr,
+                n_kin_constraints,
             ),
         ])
 
@@ -513,35 +541,48 @@ class RelaxedRigidContacts(common.ContactModel):
             maxiter=maxiter,
         )
 
-        # Extract the last 6 values from the solution
-        kin_constr_force_mixed_F1 = solution[-dim_kin_constr:]
-        # jax.debug.print("f_loop_mixed: \n{}", kin_constr_force_mixed_linear)
+        # Extract the last n_kin_constr values from the solution and split them into 6D wrenches
+        kin_constr_wrench_mixed = solution[-n_kin_constraints:].reshape(-1, 6)
 
-        kin_constr_force_mixed_F2 = -kin_constr_force_mixed_F1
+        # Form an array of tuples with each wrench and its opposite using jax constructs
+        kin_constr_wrench_pairs_mixed = jax.vmap(lambda wrench: (wrench, -wrench))(
+            kin_constr_wrench_mixed
+        )
+        kin_constr_wrench_pairs_mixed = jnp.array(kin_constr_wrench_pairs_mixed)
 
-        # Transform the wrench in inertial representation
-        kin_constr_force_inertial_F1 = (
+        jax.debug.print(
+            "kin_constr_wrench_pairs_mixed: \n{}", kin_constr_wrench_pairs_mixed.shape
+        )
+        # Transform each wrench in the pair to inertial representation using the appropriate transform
+        def transform_wrench_pair_to_inertial(wrench_pair, transform):
+            return (
             ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                array=kin_constr_force_mixed_F1,
-                transform=W_H_F1,
+                array=wrench_pair[0],
+                transform=transform[0],
                 other_representation=VelRepr.Mixed,
                 is_force=True,
-            )
-        )
-
-        kin_constr_force_inertial_F2 = (
+            ),
             ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                array=kin_constr_force_mixed_F2,
-                transform=W_H_F2,
+                array=wrench_pair[1],
+                transform=transform[1],
                 other_representation=VelRepr.Mixed,
                 is_force=True,
+            ),
             )
+
+        kin_constr_force_pairs_inertial = jax.vmap(
+            transform_wrench_pair_to_inertial,
+            in_axes=(1, 1),
+        )(kin_constr_wrench_pairs_mixed, W_H_constr)
+        kin_constr_force_pairs_inertial = jnp.array(kin_constr_force_pairs_inertial)
+
+        jax.debug.print(
+            "kin_constr_force_pairs_inertial: \n{}",
+            kin_constr_force_pairs_inertial.shape,
         )
-        jax.debug.print("f_loop_inertial_F1: \n{}", kin_constr_force_inertial_F1)
-        jax.debug.print("f_loop_inertial_F2: \n{}", kin_constr_force_inertial_F2)
 
         # Reshape the optimized solution to be a matrix of 3D contact forces.
-        CW_fl_C = solution[0:-dim_kin_constr].reshape(-1, 3)
+        CW_fl_C = solution[0:-n_kin_constraints].reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
         W_f_C = jax.vmap(
@@ -556,11 +597,7 @@ class RelaxedRigidContacts(common.ContactModel):
         )(CW_fl_C, W_H_C)
 
         return W_f_C, {
-            "kin_constr_force_F1": kin_constr_force_inertial_F1,
-            "kin_constr_force_F2": kin_constr_force_inertial_F2,
-            # "kin_constr_force": kin_constr_force_mixed,
-            "F1_idx": F1_idx,
-            "F2_idx": F2_idx,
+            "constr_wrenches_inertial": kin_constr_force_pairs_inertial,
         }
 
     @staticmethod

@@ -17,6 +17,7 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim.api.kin_dyn_parameters import ConstraintMap
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
@@ -124,6 +125,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
+        constraints: ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -148,6 +150,8 @@ class JaxSimModel(JaxsimDataclass):
                 This is usually automatically inferred.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
+            constraints:
+                An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
 
         Returns:
             The built Model object.
@@ -177,6 +181,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model=contact_model,
             contacts_params=contact_params,
             integrator=integrator,
+            constraints=constraints,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
@@ -197,6 +202,7 @@ class JaxSimModel(JaxsimDataclass):
         contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
+        constraints: ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -218,6 +224,8 @@ class JaxSimModel(JaxsimDataclass):
             contacts_params: The parameters of the soft contacts.
             integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
+            constraints:
+                An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
 
         Returns:
             The built Model object.
@@ -263,7 +271,7 @@ class JaxSimModel(JaxsimDataclass):
         model = cls(
             model_name=model_name,
             kin_dyn_parameters=js.kin_dyn_parameters.KinDynParameters.build(
-                model_description=model_description
+                model_description=model_description, constraints=constraints
             ),
             time_step=time_step,
             terrain=terrain,

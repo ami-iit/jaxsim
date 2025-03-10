@@ -104,6 +104,9 @@ def test_soft_contact_model(
 ):
     model = jaxsim_model_ergocub_reduced
 
+    with model.editable(validate=False) as model:
+        model.contact_model = jaxsim.rbda.contacts.SoftContacts()
+
     benchmark_test_function(js.ode.system_dynamics, model, benchmark, batch_size)
 
 
@@ -129,3 +132,15 @@ def test_relaxed_rigid_contact_model(
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts()
 
     benchmark_test_function(js.ode.system_dynamics, model, benchmark, batch_size)
+
+
+@pytest.mark.benchmark
+def test_simulation_step(
+    jaxsim_model_ergocub_reduced: js.model.JaxSimModel, benchmark, batch_size
+):
+    model = jaxsim_model_ergocub_reduced
+
+    with model.editable(validate=False) as model:
+        model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts()
+
+    benchmark_test_function(js.model.step, model, benchmark, batch_size)

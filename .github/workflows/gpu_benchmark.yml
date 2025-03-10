@@ -1,0 +1,67 @@
+name: GPU Benchmarks
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0  * * 1" # Run At 00:00 on Monday
+
+permissions:
+  pull-requests: write
+  deployments: write
+  contents: write
+
+jobs:
+  benchmark:
+    runs-on: self-hosted
+    container:
+      image: ghcr.io/nvidia/jax:jax
+      options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          pip install .[all]
+
+      - name: Install Gazebo SDF
+        run: |
+            apt update && apt install -y lsb-release wget
+            sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+            wget http://packages.osrfoundation.org/gazebo.key -O - | apt-key add -
+            apt-get update
+            apt install -y libsdformat14-dev libsdformat14
+
+      - name: Performance regression check
+        uses: actions/checkout@v4
+
+      - name: Run benchmark and store result
+        run: |
+            pytest tests/test_benchmark.py -k 'not test_rigid_contact_model and not test_soft_contact_model' --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
+
+      - name: Download previous benchmark data
+        uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          external-data-json-path: ./cache/benchmark-data.json
+          fail-on-alert: true
+          summary-always: true
+          comment-always: true
+          alert-threshold: 150%
+          auto-push: false
+          gh-pages-branch: gh-pages
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push benchmark result
+        if: github.event_name != 'pull_request'
+        run: git push 'https://ami-iit:${{ secrets.GITHUB_TOKEN }}@github.com/ami-iit/jaxsim.git' gh-pages:gh-pages

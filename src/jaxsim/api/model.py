@@ -1120,6 +1120,34 @@ def forward_dynamics_crb(
 
 @jax.jit
 @js.common.named_scope
+def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.Matrix:
+    """
+    Compute the forward kinematics of the model.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The nL x 4 x 4 array containing the stacked homogeneous transformations
+        of the links. The first axis is the link index.
+    """
+
+    W_H_LL, _ = jaxsim.rbda.forward_kinematics_model(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_quaternion,
+        joint_positions=data.joint_positions,
+        joint_velocities=data.joint_velocities,
+        base_linear_velocity_inertial=data._base_linear_velocity,
+        base_angular_velocity_inertial=data._base_angular_velocity,
+    )
+
+    return W_H_LL
+
+
+@jax.jit
+@js.common.named_scope
 def free_floating_mass_matrix(
     model: JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:

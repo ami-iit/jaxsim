@@ -53,7 +53,7 @@ jobs:
             pytest tests/test_benchmark.py -k 'not test_rigid_contact_model and not test_soft_contact_model' --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
 
       - name: Compare benchmark results with main branch
-        uses: benchmark-action/github-action-benchmark@v1
+        uses: benchmark-action/github-action-benchmark@v1.20.4
         if: steps.cache.outputs.cache-hit == 'true'
         with:
           tool: 'pytest'
@@ -67,7 +67,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Store benchmark result for main branch
-        uses: benchmark-action/github-action-benchmark@v1
+        uses: benchmark-action/github-action-benchmark@v1.20.4
         if: ${{ github.ref_name == 'main' }}
         with:
           tool: 'pytest'
@@ -81,7 +81,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Benchmark Results to GitHub Pages
-        uses: benchmark-action/github-action-benchmark@v1
+        uses: benchmark-action/github-action-benchmark@v1.20.4
         if: ${{ github.ref_name == 'main' }}
         with:
           tool: 'pytest'

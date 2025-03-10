@@ -35,33 +35,69 @@ jobs:
             apt-get update
             apt install -y libsdformat14-dev libsdformat14
 
-      - name: Performance regression check
-        uses: actions/checkout@v4
+      - name: Get main branch SHA
+        id: get-main-branch-sha
+        run: |
+          SHA=$(git rev-parse origin/main)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Get benchmark results from main branch
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ./cache
+          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark
 
       - name: Run benchmark and store result
         run: |
             pytest tests/test_benchmark.py -k 'not test_rigid_contact_model and not test_soft_contact_model' --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
 
-      - name: Download previous benchmark data
-        uses: actions/cache@v4
-        with:
-          path: ./cache
-          key: ${{ runner.os }}-benchmark
-
-      - name: Store benchmark result
+      - name: Compare benchmark results with main branch
         uses: benchmark-action/github-action-benchmark@v1
+        if: steps.cache.outputs.cache-hit == 'true'
         with:
           tool: 'pytest'
           output-file-path: output.json
           external-data-json-path: ./cache/benchmark-data.json
+          save-data-file: false
           fail-on-alert: true
           summary-always: true
           comment-always: true
           alert-threshold: 150%
-          auto-push: false
-          gh-pages-branch: gh-pages
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push benchmark result
-        if: github.event_name != 'pull_request'
-        run: git push 'https://ami-iit:${{ secrets.GITHUB_TOKEN }}@github.com/ami-iit/jaxsim.git' gh-pages:gh-pages
+      - name: Store benchmark result for main branch
+        uses: benchmark-action/github-action-benchmark@v1
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          external-data-json-path: ./cache/benchmark-data.json
+          save-data-file: true
+          fail-on-alert: false
+          summary-always: true
+          comment-always: true
+          alert-threshold: 150%
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Benchmark Results to GitHub Pages
+        uses: benchmark-action/github-action-benchmark@v1
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          benchmark-data-dir-path: "benchmarks"
+          fail-on-alert: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          summary-always: true
+          save-data-file: true
+          alert-threshold: "150%"
+          auto-push: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+
+      - name: Update Benchmark Results cache
+        uses: actions/cache/save@v4
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          path: ./cache
+          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark

@@ -416,6 +416,12 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if base_position is None:
             base_position = self.base_position
 
+        # Normalize the quaternion to avoid numerical issues.
+        base_quaternion_norm = jaxsim.math.safe_norm(base_quaternion)
+        base_quaternion = base_quaternion / jnp.where(
+            base_quaternion_norm == 0, 1.0, base_quaternion_norm
+        )
+
         joint_positions = jnp.atleast_1d(joint_positions.squeeze()).astype(float)
         joint_velocities = jnp.atleast_1d(joint_velocities.squeeze()).astype(float)
         base_quaternion = jnp.atleast_1d(base_quaternion.squeeze()).astype(float)

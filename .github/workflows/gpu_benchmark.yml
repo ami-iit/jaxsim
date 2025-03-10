@@ -38,6 +38,7 @@ jobs:
       - name: Get main branch SHA
         id: get-main-branch-sha
         run: |
+          git config --global --add safe.directory /__w/jaxsim/jaxsim
           SHA=$(git rev-parse origin/main)
           echo "sha=$SHA" >> $GITHUB_OUTPUT
 

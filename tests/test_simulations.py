@@ -179,21 +179,11 @@ def run_simulation(
 
     for _ in T_ns:
 
-        match model.contact_model:
+        data = js.model.step(
+            model=model,
+            data=data,
+        )
 
-            case jaxsim.rbda.contacts.ViscoElasticContacts():
-
-                data = jaxsim.rbda.contacts.visco_elastic.step(
-                    model=model,
-                    data=data,
-                )
-
-            case _:
-
-                data = js.model.step(
-                    model=model,
-                    data=data,
-                )
     return data
 
 

@@ -268,8 +268,8 @@ class RelaxedRigidContacts(common.ContactModel):
             A tuple containing as first element the computed contact forces in inertial representation.
         """
 
-        K_P = 0  # 1e1
-        K_D = 0  # 2 * jnp.sqrt(K_P)
+        K_P = 100.0
+        K_D = 2 * jnp.sqrt(K_P)
 
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()

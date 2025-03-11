@@ -46,6 +46,8 @@ def link_contact_forces(
 
     wrench_pair_constr_inertial = aux_data["constr_wrenches_inertial"]
 
+    jax.debug.print("W_f_L_contact.shape {}", W_f_L_contact.shape)
+
     # Get the couples of parent link indices of each couple of frames.
     frame_idxs_1, frame_idxs_2 = model.kin_dyn_parameters.get_constraints(model).T
 
@@ -60,29 +62,19 @@ def link_contact_forces(
             )
         )
     )(frame_idxs_1, frame_idxs_2)
-    jax.debug.print("parent_link_indices: \n{}", parent_link_indices.shape)
+    jax.debug.print("parent_link_indices shape: {}", parent_link_indices.shape)
 
     # Apply each constraint wrench to its corresponding parent link in W_f_L.
-    # def apply_wrench(i, W_f_L):
-    #     parent_indices = parent_link_indices[:, i]
-    #     wrench_pair = wrench_pair_constr_inertial[:, i]
-    #     jax.debug.print("parent_indices: \n{}", parent_indices)
-    #     jax.debug.print("wrench_pair: \n{}", wrench_pair)
-    #     W_f_L = W_f_L.at[parent_indices[0]].add(wrench_pair[0])
-    #     W_f_L = W_f_L.at[parent_indices[1]].add(wrench_pair[1])
-    #     return W_f_L
+    def apply_wrench(W_f_L, parent_indices, wrench_pair):
+        W_f_L = W_f_L.at[parent_indices[0]].add(wrench_pair[0])
+        W_f_L = W_f_L.at[parent_indices[1]].add(wrench_pair[1])
+        return W_f_L
 
-    mask = jax.vmap(
-        lambda parent_link_idxs_couple: parent_link_idxs_couple[:, None]
-        == jnp.arange(model.number_of_links())
-    )(parent_link_indices)
+    W_f_L = jax.vmap(apply_wrench, in_axes=(None, 0, 0))(
+        W_f_L_contact, parent_link_indices, wrench_pair_constr_inertial
+    )
 
-    # b = Number of constraint, k = 2 (Constraint couple), j = Number of links, i = 6
-    W_f_L_constr = jnp.einsum("bkj,bki->bi", mask, wrench_pair_constr_inertial)
-
-    # W_f_L = jax.lax.fori_loop(0, parent_link_indices.shape[0], apply_wrench, W_f_L)
-
-    W_f_L = W_f_L_contact + W_f_L_constr
+    jax.debug.print("W_f_L: \n{}", W_f_L)
 
     jax.debug.print("W_f_L: \n{}", W_f_L)
 

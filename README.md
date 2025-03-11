@@ -341,7 +341,6 @@ The main differences between MJX/Brax and JaxSim are as follows:
 
 - JaxSim supports out-of-the-box all SDF models with [Pose Frame Semantics][PFS].
 - JaxSim only supports collisions between points rigidly attached to bodies and a compliant ground surface.
-- JaxSim experimentally supports variable-step integrators to mitigate the stiffness of the contact-aware system dynamics.
 
 [brax]: https://github.com/google/brax
 [mjx]: https://mujoco.readthedocs.io/en/3.0.0/mjx.html

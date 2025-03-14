@@ -154,10 +154,10 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     OW_array = jnp.einsum("bij,bj->bi", OW_Xv_W, W_array)
 
                 else:
-                    OW_Xf_W = Adjoint.from_transform(transform=W_H_OW)
-                    OW_array = jnp.einsum(
-                        "bij,bj->bi", OW_Xf_W.transpose(0, 2, 1), W_array
+                    OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).transpose(
+                        0, 2, 1
                     )
+                    OW_array = jnp.einsum("bij,bj->bi", OW_Xf_W, W_array)
 
                 return OW_array.reshape(array.shape[:-1] + (6,))
 
@@ -202,10 +202,10 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     W_array = jnp.einsum("bij,bj->bi", W_Xv_O, O_array)
 
                 else:
-                    W_Xf_O = Adjoint.from_transform(transform=W_H_O, inverse=True)
-                    W_array = jnp.einsum(
-                        "bij,bj->bi", W_Xf_O.transpose(0, 2, 1), O_array
-                    )
+                    W_Xf_O = Adjoint.from_transform(
+                        transform=W_H_O, inverse=True
+                    ).transpose(0, 2, 1)
+                    W_array = jnp.einsum("bij,bj->bi", W_Xf_O, O_array)
 
                 return W_array.reshape(array.shape[:-1] + (6,))
 
@@ -221,10 +221,10 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
                     W_array = jnp.einsum("bij,bj->bi", W_Xv_BW, O_array)
 
                 else:
-                    W_Xf_BW = Adjoint.from_transform(transform=W_H_OW, inverse=True)
-                    W_array = jnp.einsum(
-                        "bij,bj->bi", W_Xf_BW.transpose(0, 2, 1), O_array
-                    )
+                    W_Xf_BW = Adjoint.from_transform(
+                        transform=W_H_OW, inverse=True
+                    ).transpose(0, 2, 1)
+                    W_array = jnp.einsum("bij,bj->bi", W_Xf_BW, O_array)
 
                 return W_array.reshape(array.shape[:-1] + (6,))
 

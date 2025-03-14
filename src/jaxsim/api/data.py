@@ -272,7 +272,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         # we introduce a Baumgarte stabilization to let the quaternion converge to
         # a unit quaternion. In this case, it is not guaranteed that the quaternion
         # stored in the state is a unit quaternion.
-        norm = jaxsim.math.safe_norm(W_Q_B, axis=W_Q_B.ndim - 1)
+        norm = jaxsim.math.safe_norm(W_Q_B, axis=-1, keepdims=True)
         W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
         return W_Q_B
 
@@ -360,7 +360,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         W_Q_B = jnp.array(base_quaternion, dtype=float)
 
-        norm = jaxsim.math.safe_norm(W_Q_B, axis=W_Q_B.ndim - 1)
+        norm = jaxsim.math.safe_norm(W_Q_B, axis=-1)
         W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
 
         return self.replace(validate=True, base_quaternion=W_Q_B)
@@ -418,7 +418,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
         # Normalize the quaternion to avoid numerical issues.
         base_quaternion_norm = jaxsim.math.safe_norm(
-            base_quaternion, axis=base_quaternion.ndim - 1
+            base_quaternion, axis=-1, keepdims=True
         )
         base_quaternion = base_quaternion / jnp.where(
             base_quaternion_norm == 0, 1.0, base_quaternion_norm

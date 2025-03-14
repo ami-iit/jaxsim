@@ -387,15 +387,17 @@ def test_ad_safe_norm(
 
     # Test that the safe_norm function is compatible with batching.
     array = jnp.stack([array, array])
-    assert jaxsim.math.safe_norm(array, axis=1).shape == (2,)
+    assert jaxsim.math.safe_norm(array, axis=-1).shape == (2,)
 
     # Test that the safe_norm function is correctly computing the norm.
-    assert np.allclose(jaxsim.math.safe_norm(array), np.linalg.norm(array))
+    assert np.allclose(
+        jaxsim.math.safe_norm(array, axis=-1), np.linalg.norm(array, axis=-1)
+    )
 
     # Function exposing only the parameters to be differentiated.
     def safe_norm(array: jtp.Array) -> jtp.Array:
 
-        return jaxsim.math.safe_norm(array)
+        return jaxsim.math.safe_norm(array, axis=-1)
 
     # Check derivatives against finite differences.
     check_grads(

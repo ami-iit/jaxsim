@@ -699,7 +699,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Compute the direction of the tangential force.
         # To prevent dividing by zero, we use a switch statement.
-        norm = jaxsim.math.safe_norm(f_tangential, axis=f_tangential.ndim - 1)
+        norm = jaxsim.math.safe_norm(f_tangential, axis=-1)
         f_tangential_direction = f_tangential / (
             norm + jnp.finfo(float).eps * (norm == 0)
         )

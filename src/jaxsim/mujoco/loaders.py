@@ -5,7 +5,6 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
-import jax
 import jaxlie
 import mujoco as mj
 import numpy as np
@@ -282,11 +281,13 @@ class RodModelToMjcf:
         # Add a floating joint if floating-base
         # -------------------------------------
 
+        base_link_name = rod_model.get_canonical_link()
+
         if not rod_model.is_fixed_base():
             considered_joints |= {"world_to_base"}
             urdf_string = RodModelToMjcf.add_floating_joint(
                 urdf_string=urdf_string,
-                base_link_name=rod_model.get_canonical_link(),
+                base_link_name=base_link_name,
                 floating_joint_name="world_to_base",
             )
 
@@ -385,13 +386,15 @@ class RodModelToMjcf:
         # --------------
         # Add the frames
         # --------------
-        print("URDF string:")
-        print(urdf_string)
 
         for frame in rod_model.frames():
             frame: rod.Frame
             parent_name = frame.attached_to
             parent_element = mujoco_element.find(f".//body[@name='{parent_name}']")
+
+            if parent_element is None and parent_name == base_link_name:
+                parent_element = mujoco_element.find(".//worldbody")
+
             if parent_element is not None:
                 roll, pitch, yaw = frame.pose.rpy
                 quat = Quaternion.to_wxyz(
@@ -405,7 +408,7 @@ class RodModelToMjcf:
                     quat=" ".join(map(str, quat)),
                 )
             else:
-                jax.debug.print("Parent link '{}' not found", parent_name)
+                warnings.warn("Parent link '{}' not found", parent_name)
 
         # --------------
         # Add the motors

@@ -5,12 +5,15 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
+import jax
+import jaxlie
 import mujoco as mj
 import numpy as np
 import rod.urdf.exporter
 from lxml import etree as ET
 
 from jaxsim import logging
+from jaxsim.math.quaternion import Quaternion
 
 from .utils import MujocoCamera
 
@@ -378,6 +381,31 @@ class RodModelToMjcf:
 
         # Find the <mujoco> element (might be the root itself).
         mujoco_element: ET._Element = next(iter(root.iter("mujoco")))
+
+        # --------------
+        # Add the frames
+        # --------------
+        print("URDF string:")
+        print(urdf_string)
+
+        for frame in rod_model.frames():
+            frame: rod.Frame
+            parent_name = frame.attached_to
+            parent_element = mujoco_element.find(f".//body[@name='{parent_name}']")
+            if parent_element is not None:
+                roll, pitch, yaw = frame.pose.rpy
+                quat = Quaternion.to_wxyz(
+                    jaxlie.SO3.from_rpy_radians(roll, pitch, yaw).as_quaternion_xyzw()
+                )
+                _ = ET.SubElement(
+                    parent_element,
+                    "site",
+                    name=frame.name,
+                    pos=" ".join(map(str, frame.pose.xyz)),
+                    quat=" ".join(map(str, quat)),
+                )
+            else:
+                jax.debug.print("Parent link '{}' not found", parent_name)
 
         # --------------
         # Add the motors

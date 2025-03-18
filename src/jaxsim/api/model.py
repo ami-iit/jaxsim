@@ -179,7 +179,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model=contact_model,
             contacts_params=contact_params,
             integrator=integrator,
-            gravity=-gravity,
+            gravity=gravity,
         )
 
         # Store the origin of the model, in case downstream logic needs it.

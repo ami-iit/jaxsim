@@ -124,6 +124,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
+        gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -148,6 +149,7 @@ class JaxSimModel(JaxsimDataclass):
                 This is usually automatically inferred.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
+            gravity: The gravity constant. Normally passed as a positive value.
 
         Returns:
             The built Model object.
@@ -177,6 +179,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model=contact_model,
             contacts_params=contact_params,
             integrator=integrator,
+            gravity=gravity,
         )
 
         # Store the origin of the model, in case downstream logic needs it.

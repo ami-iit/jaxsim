@@ -268,7 +268,7 @@ class RelaxedRigidContacts(common.ContactModel):
             A tuple containing as first element the computed contact forces in inertial representation.
         """
 
-        K_P = 100.0
+        K_P = 100
         K_D = 2 * jnp.sqrt(K_P)
 
         link_forces = jnp.atleast_2d(
@@ -336,7 +336,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
             return J̇_WF1 - J̇_WF2
 
-        def compute_constraint_baumgarte_term(data, J_constr, BW_ν, W_H_F):
+        def compute_constraint_baumgarte_term(J_constr, BW_ν, W_H_F):
             W_H_F1, W_H_F2 = W_H_F
 
             W_p_F1 = W_H_F1[0:3, 3]
@@ -350,7 +350,8 @@ class RelaxedRigidContacts(common.ContactModel):
             R_error = W_R_F2.T @ W_R_F1
             orientation_error = jaxsim.math.rotation.Rotation.log_vee(R_error)
             baumgarte_term = (
-                K_P * jnp.hstack([position_error, orientation_error]) + K_D * vel_error
+                K_P * jnp.concatenate([position_error, orientation_error])
+                + K_D * vel_error
             )
 
             return baumgarte_term
@@ -394,17 +395,16 @@ class RelaxedRigidContacts(common.ContactModel):
                 ),
             )
 
-            J_constr = jnp.vstack(
-                jax.vmap(compute_constraint_jacobians, in_axes=(None, 0))(data, idxs)
-            )
-            J̇_constr = jnp.vstack(
-                jax.vmap(compute_constraint_jacobians_derivative, in_axes=(None, 0))(
-                    data, idxs
-                )
+            J_constr = jax.vmap(compute_constraint_jacobians, in_axes=(None, 0))(
+                data, idxs
             )
 
-            J = jnp.vstack([Jl_WC, J_constr])
-            J̇ = jnp.vstack([J̇l_WC, J̇_constr])
+            J̇_constr = jax.vmap(
+                compute_constraint_jacobians_derivative, in_axes=(None, 0)
+            )(data, idxs)
+
+            J = jnp.vstack([Jl_WC, jnp.vstack(J_constr)])
+            J̇ = jnp.vstack([J̇l_WC, jnp.vstack(J̇_constr)])
 
         # Compute the regularization terms.
         a_ref, r, *_ = self._regularizers(
@@ -414,15 +414,17 @@ class RelaxedRigidContacts(common.ContactModel):
             parameters=model.contacts_params,
         )
 
-        W_H_constr = jax.vmap(compute_constraint_transforms, in_axes=(None, 0))(
+        W_H_constr_pairs = jax.vmap(compute_constraint_transforms, in_axes=(None, 0))(
             data, idxs
         )
 
-        constr_baumgarte_term = jnp.hstack(
-            jax.vmap(compute_constraint_baumgarte_term, in_axes=(None, None, None))(
-                data, J_constr, BW_ν, W_H_F=W_H_constr
+        jax.debug.print("W_H_constr_pairs: \n{}", W_H_constr_pairs.shape)
+
+        constr_baumgarte_term = jnp.ravel(
+            jax.vmap(compute_constraint_baumgarte_term, in_axes=(0, None, 0))(
+                J_constr, BW_ν, W_H_constr_pairs
             ),
-        ).squeeze()
+        )
 
         R_constr = jnp.diag(jnp.hstack([r, jnp.zeros(n_kin_constraints)]))
         a_ref_constr = jnp.hstack([a_ref, -constr_baumgarte_term])
@@ -451,7 +453,6 @@ class RelaxedRigidContacts(common.ContactModel):
             maxiter: int,
             tol: float,
         ) -> tuple[jtp.Vector, optax.OptState]:
-
             # Get the function to compute the loss and the gradient w.r.t. its inputs.
             value_and_grad_fn = optax.value_and_grad_from_state(fun)
 
@@ -460,7 +461,6 @@ class RelaxedRigidContacts(common.ContactModel):
             init_carry: OptimizationCarry = (init_params, opt.init(params=init_params))
 
             def step(carry: OptimizationCarry) -> OptimizationCarry:
-
                 params, state = carry
 
                 value, grad = value_and_grad_fn(
@@ -487,7 +487,6 @@ class RelaxedRigidContacts(common.ContactModel):
 
             # TODO: maybe fix the number of iterations and switch to scan?
             def continuing_criterion(carry: OptimizationCarry) -> jtp.Bool:
-
                 _, state = carry
 
                 iter_num = optax.tree_utils.tree_get(state, "count")
@@ -581,7 +580,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         kin_constr_force_pairs_inertial = jax.vmap(
             transform_wrench_pair_to_inertial,
-        )(kin_constr_wrench_pairs_mixed, W_H_constr)
+        )(kin_constr_wrench_pairs_mixed, W_H_constr_pairs)
 
         jax.debug.print(
             "kin_constr_force_pairs_inertial: \n{}",
@@ -646,9 +645,7 @@ class RelaxedRigidContacts(common.ContactModel):
         )
 
         # Get the indices of the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-        )
+        indices_of_enabled_collidable_points = model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
 
         parent_link_idx_of_enabled_collidable_points = jnp.array(
             model.kin_dyn_parameters.contact_parameters.body, dtype=int
@@ -707,7 +704,6 @@ class RelaxedRigidContacts(common.ContactModel):
             pos: jtp.Vector,
             vel: jtp.Vector,
         ) -> tuple[jtp.Vector, jtp.Matrix, jtp.Vector, jtp.Vector]:
-
             # Compute the reference acceleration.
             ξ, a_ref, K, D = imp_aref(pos=pos, vel=vel)
 

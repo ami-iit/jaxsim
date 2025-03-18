@@ -72,11 +72,9 @@ def link_contact_forces(
 
     W_f_L = jax.vmap(apply_wrench, in_axes=(None, 0, 0))(
         W_f_L_contact, parent_link_indices, wrench_pair_constr_inertial
-    )
+    ).sum(axis=0)
 
-    jax.debug.print("W_f_L: \n{}", W_f_L)
-
-    jax.debug.print("W_f_L: \n{}", W_f_L)
+    jax.debug.print("W_f_L: \n{}", W_f_L.shape)
 
     return W_f_L
 

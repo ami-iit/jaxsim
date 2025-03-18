@@ -149,7 +149,7 @@ class JaxSimModel(JaxsimDataclass):
                 This is usually automatically inferred.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
-            gravity: The gravity constant.
+            gravity: The gravity constant. Normally passed as a positive value.
 
         Returns:
             The built Model object.
@@ -179,7 +179,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_model=contact_model,
             contacts_params=contact_params,
             integrator=integrator,
-            gravity=gravity,
+            gravity=-gravity,
         )
 
         # Store the origin of the model, in case downstream logic needs it.

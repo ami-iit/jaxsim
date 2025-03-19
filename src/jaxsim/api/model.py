@@ -122,7 +122,6 @@ class JaxSimModel(JaxsimDataclass):
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         integrator: IntegratorType | None = None,
-        gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
@@ -145,7 +144,6 @@ class JaxSimModel(JaxsimDataclass):
                 If not specified, a soft contacts model is used.
             contact_params: The parameters of the contact model.
             integrator: The integrator to use for the simulation.
-            gravity: The gravity constant. Normally passed as a positive value.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.

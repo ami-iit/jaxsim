@@ -342,25 +342,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Compute the Delassus matrix and the free mixed linear acceleration of
         # the collidable points.
-
-        # Pseudo-inverse solution with regularization.
-        # G = jnp.where(G > 0, G + 1e-8, G)
-        # G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
-
-        # Cholesky solution without regularization.
-        # G = Jl_WC @ jax.scipy.linalg.solve(M, Jl_WC.T, assume_a="pos")
-
-        # SVD solution with truncation.
-        # U, S, V = jnp.linalg.svd(M)
-        # S_max = S[0]  # Largest singular value
-        # S_inv = jnp.where(S > S_max * 1e-3, 1 / S, 0)  # Adjust threshold
-        # M_pinv = V.T @ jnp.diag(S_inv) @ U.T
-        # G = Jl_WC @ M_pinv @ Jl_WC.T
-
-        # Cholesky solution with regularization.
-        L = jax.scipy.linalg.cholesky(M + 1e-6 * jnp.eye(M.shape[0]), lower=True)
-        G = Jl_WC @ jax.scipy.linalg.cho_solve((L, True), Jl_WC.T)
-
+        G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
         CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
 
         # Calculate quantities for the linear optimization problem.

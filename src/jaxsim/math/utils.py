@@ -29,4 +29,4 @@ def safe_norm(array: jtp.ArrayLike, *, axis=None, keepdims: bool = False) -> jtp
 
     # Use `jnp.where` to set the norm to 0.0 where the input array was all zeros.
     # This usage supports potential batch processing for future scalability.
-    return jnp.where(is_zero, 0.0, norm).reshape(array.shape[:-1] + (1,))
+    return jnp.where(is_zero, 0.0, norm)

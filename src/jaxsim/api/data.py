@@ -514,6 +514,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if batch_size == 1:
             link_transforms = link_transforms.reshape(self._link_transforms.shape)
             link_velocities = link_velocities.reshape(self._link_velocities.shape)
+            joint_transforms = joint_transforms.reshape(self._joint_transforms.shape)
 
         return super().replace(
             _joint_positions=joint_positions,

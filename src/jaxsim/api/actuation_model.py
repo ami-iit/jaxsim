@@ -81,18 +81,11 @@ def compute_resultant_torques(
             model.kin_dyn_parameters.joint_parameters.friction_viscous
         ).astype(float)
 
-        ṡ = data.joint_velocities
-
-        v_thresh = 50.0
-
         # Compute the joint friction torque.
-        # τ_friction = -(
-        #     # jnp.diag(kc) @ jnp.sign(ṡ)
-        #     + jnp.diag(kv) @ (ṡ * v_thresh / (jnp.abs(ṡ) + v_thresh))
-        # )
-
-        # Vertical asymptote
-        τ_friction = -jnp.diag(kv) @ (ṡ / (v_thresh - jnp.abs(ṡ)))
+        τ_friction = -(
+            jnp.diag(kc) @ jnp.sign(data.joint_velocities)
+            + jnp.diag(kv) @ data.joint_velocities
+        )
 
     # ===============================
     # Compute the total joint forces.

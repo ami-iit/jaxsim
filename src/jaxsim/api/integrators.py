@@ -58,7 +58,7 @@ def semi_implicit_euler_integration(
         W_p_B = data.base_position + dt * W_ṗ_B
         W_Q_B = data.base_orientation + dt * W_Q̇_B
 
-        base_quaternion_norm = jaxsim.math.safe_norm(W_Q_B)
+        base_quaternion_norm = jaxsim.math.safe_norm(W_Q_B, axis=-1)
 
         W_Q_B = W_Q_B / jnp.where(base_quaternion_norm == 0, 1.0, base_quaternion_norm)
 
@@ -104,7 +104,7 @@ def rk4_integration(
                 joint_torques=joint_torques,
             )
 
-    base_quaternion_norm = jaxsim.math.safe_norm(data._base_quaternion)
+    base_quaternion_norm = jaxsim.math.safe_norm(data._base_quaternion, axis=-1)
     base_quaternion = data._base_quaternion / jnp.where(
         base_quaternion_norm == 0, 1.0, base_quaternion_norm
     )

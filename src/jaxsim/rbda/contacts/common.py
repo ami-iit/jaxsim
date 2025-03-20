@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import abc
-import dataclasses
 import functools
 
 import jax
@@ -238,7 +237,7 @@ class ContactModel(JaxsimDataclass):
         return {}
 
     @property
-    def _parameters_class(cls) -> type[ContactsParams]:
+    def _parameters_class(self) -> type[ContactsParams]:
         """
         Return the class of the contact parameters.
 
@@ -250,12 +249,13 @@ class ContactModel(JaxsimDataclass):
         return getattr(
             importlib.import_module("jaxsim.rbda.contacts"),
             (
-                cls.__name__ + "Params"
-                if isinstance(cls, type)
-                else cls.__class__.__name__ + "Params"
+                self.__name__ + "Params"
+                if isinstance(self, type)
+                else self.__class__.__name__ + "Params"
             ),
         )
 
+    @abc.abstractmethod
     def update_contact_state(
         self: type[Self], old_contact_state: dict[str, jtp.Array]
     ) -> dict[str, jtp.Array]:
@@ -269,19 +269,7 @@ class ContactModel(JaxsimDataclass):
             The updated contact state.
         """
 
-        # Import the contact models to avoid circular imports.
-        from .relaxed_rigid import RelaxedRigidContacts
-        from .rigid import RigidContacts
-        from .soft import SoftContacts
-
-        match self:
-            case SoftContacts():
-                return {"tangential_deformation": old_contact_state["m_dot"]}
-            case RigidContacts() | RelaxedRigidContacts():
-                return {}
-
-    @jax.jit
-    @js.common.named_scope
+    @abc.abstractmethod
     def update_velocity_after_impact(
         self: type[Self], model: js.model.JaxSimModel, data: js.data.JaxSimModelData
     ) -> js.data.JaxSimModelData:
@@ -295,59 +283,3 @@ class ContactModel(JaxsimDataclass):
         Returns:
             The updated data of the considered model.
         """
-
-        # Import the rigid contact model to avoid circular imports.
-        from jaxsim.api.common import VelRepr
-
-        from .rigid import RigidContacts
-
-        if isinstance(self, RigidContacts):
-            # Extract the indices corresponding to the enabled collidable points.
-            indices_of_enabled_collidable_points = (
-                model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-            )
-
-            W_p_C = js.contact.collidable_point_positions(model, data)[
-                indices_of_enabled_collidable_points
-            ]
-
-            # Compute the penetration depth of the collidable points.
-            δ, *_ = jax.vmap(
-                jaxsim.rbda.contacts.common.compute_penetration_data,
-                in_axes=(0, 0, None),
-            )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
-
-            with data.switch_velocity_representation(VelRepr.Mixed):
-                J_WC = js.contact.jacobian(model, data)[
-                    indices_of_enabled_collidable_points
-                ]
-                M = js.model.free_floating_mass_matrix(model, data)
-                BW_ν_pre_impact = data.generalized_velocity
-
-                # Compute the impact velocity.
-                # It may be discontinuous in case new contacts are made.
-                BW_ν_post_impact = (
-                    jaxsim.rbda.contacts.RigidContacts.compute_impact_velocity(
-                        generalized_velocity=BW_ν_pre_impact,
-                        inactive_collidable_points=(δ <= 0),
-                        M=M,
-                        J_WC=J_WC,
-                    )
-                )
-
-                BW_ν_post_impact_inertial = data.other_representation_to_inertial(
-                    array=BW_ν_post_impact[0:6],
-                    other_representation=VelRepr.Mixed,
-                    transform=data._base_transform.at[0:3, 0:3].set(jnp.eye(3)),
-                    is_force=False,
-                )
-
-            # Reset the generalized velocity.
-            data = dataclasses.replace(
-                data,
-                _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
-                _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
-                _joint_velocities=BW_ν_post_impact[6:],
-            )
-
-        return data

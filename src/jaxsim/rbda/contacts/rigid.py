@@ -374,6 +374,85 @@ class RigidContacts(ContactModel):
 
         return W_f_C, {}
 
+    @jax.jit
+    @js.common.named_scope
+    def update_velocity_after_impact(
+        self: type[Self], model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    ) -> js.data.JaxSimModelData:
+        """
+        Update the velocity after an impact.
+
+        Args:
+            model: The robot model considered by the contact model.
+            data: The data of the considered model.
+
+        Returns:
+            The updated data of the considered model.
+        """
+
+        # Extract the indices corresponding to the enabled collidable points.
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
+
+        W_p_C = js.contact.collidable_point_positions(model, data)[
+            indices_of_enabled_collidable_points
+        ]
+
+        # Compute the penetration depth of the collidable points.
+        δ, *_ = jax.vmap(
+            common.compute_penetration_data,
+            in_axes=(0, 0, None),
+        )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
+
+        with data.switch_velocity_representation(VelRepr.Mixed):
+            J_WC = js.contact.jacobian(model, data)[
+                indices_of_enabled_collidable_points
+            ]
+            M = js.model.free_floating_mass_matrix(model, data)
+            BW_ν_pre_impact = data.generalized_velocity
+
+            # Compute the impact velocity.
+            # It may be discontinuous in case new contacts are made.
+            BW_ν_post_impact = RigidContacts.compute_impact_velocity(
+                generalized_velocity=BW_ν_pre_impact,
+                inactive_collidable_points=(δ <= 0),
+                M=M,
+                J_WC=J_WC,
+            )
+
+            BW_ν_post_impact_inertial = data.other_representation_to_inertial(
+                array=BW_ν_post_impact[0:6],
+                other_representation=VelRepr.Mixed,
+                transform=data._base_transform.at[0:3, 0:3].set(jnp.eye(3)),
+                is_force=False,
+            )
+
+        # Reset the generalized velocity.
+        data = dataclasses.replace(
+            data,
+            _base_linear_velocity=BW_ν_post_impact_inertial[0:3],
+            _base_angular_velocity=BW_ν_post_impact_inertial[3:6],
+            _joint_velocities=BW_ν_post_impact[6:],
+        )
+
+        return data
+
+    def update_contact_state(
+        self: type[Self], old_contact_state: dict[str, jtp.Array]
+    ) -> dict[str, jtp.Array]:
+        """
+        Update the contact state.
+
+        Args:
+            old_contact_state: The old contact state.
+
+        Returns:
+            The updated contact state.
+        """
+
+        return {}
+
 
 @staticmethod
 def _delassus_matrix(

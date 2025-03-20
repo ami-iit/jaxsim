@@ -165,6 +165,37 @@ class SoftContacts(common.ContactModel):
 
         return {"tangential_deformation": tangential_deformation}
 
+    def update_contact_state(
+        self: type[Self], old_contact_state: dict[str, jtp.Array]
+    ) -> dict[str, jtp.Array]:
+        """
+        Update the contact state.
+
+        Args:
+            old_contact_state: The old contact state.
+
+        Returns:
+            The updated contact state.
+        """
+
+        return {"tangential_deformation": old_contact_state["m_dot"]}
+
+    def update_velocity_after_impact(
+        self: type[Self], model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    ) -> js.data.JaxSimModelData:
+        """
+        Update the velocity after an impact.
+
+        Args:
+            model: The robot model considered by the contact model.
+            data: The data of the considered model.
+
+        Returns:
+            The updated data of the considered model.
+        """
+
+        return data
+
     @staticmethod
     @functools.partial(jax.jit, static_argnames=("terrain",))
     def hunt_crossley_contact_model(

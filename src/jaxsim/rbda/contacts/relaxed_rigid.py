@@ -239,6 +239,37 @@ class RelaxedRigidContacts(common.ContactModel):
             **kwargs,
         )
 
+    def update_contact_state(
+        self: type[Self], old_contact_state: dict[str, jtp.Array]
+    ) -> dict[str, jtp.Array]:
+        """
+        Update the contact state.
+
+        Args:
+            old_contact_state: The old contact state.
+
+        Returns:
+            The updated contact state.
+        """
+
+        return {}
+
+    def update_velocity_after_impact(
+        self: type[Self], model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    ) -> js.data.JaxSimModelData:
+        """
+        Update the velocity after an impact.
+
+        Args:
+            model: The robot model considered by the contact model.
+            data: The data of the considered model.
+
+        Returns:
+            The updated data of the considered model.
+        """
+
+        return data
+
     @jax.jit
     def compute_contact_forces(
         self,

@@ -94,6 +94,9 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         )
 
     def __eq__(self, other: RelaxedRigidContactsParams) -> bool:
+        if not isinstance(other, RelaxedRigidContactsParams):
+            return False
+
         return hash(self) == hash(other)
 
     @classmethod

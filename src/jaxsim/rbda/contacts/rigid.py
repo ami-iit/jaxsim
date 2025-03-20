@@ -53,6 +53,9 @@ class RigidContactsParams(ContactsParams):
         )
 
     def __eq__(self, other: RigidContactsParams) -> bool:
+        if not isinstance(other, RigidContactsParams):
+            return False
+
         return hash(self) == hash(other)
 
     @classmethod

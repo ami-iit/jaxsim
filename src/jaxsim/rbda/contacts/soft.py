@@ -62,7 +62,7 @@ class SoftContactsParams(common.ContactsParams):
     def __eq__(self, other: SoftContactsParams) -> bool:
 
         if not isinstance(other, SoftContactsParams):
-            return NotImplemented
+            return False
 
         return hash(self) == hash(other)
 

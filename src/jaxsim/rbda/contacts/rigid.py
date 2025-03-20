@@ -65,6 +65,7 @@ class RigidContactsParams(ContactsParams):
         mu: jtp.FloatLike | None = None,
         K: jtp.FloatLike | None = None,
         D: jtp.FloatLike | None = None,
+        **kwargs,
     ) -> Self:
         """Create a `RigidContactParams` instance."""
 

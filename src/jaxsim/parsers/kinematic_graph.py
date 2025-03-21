@@ -9,9 +9,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
-import jaxsim.utils
 from jaxsim import logging
-from jaxsim.utils import Mutability
 
 from .descriptions.joint import JointDescription, JointType
 from .descriptions.link import LinkDescription
@@ -31,35 +29,53 @@ class RootPose:
         The root link of the kinematic graph is the base link.
     """
 
-    root_position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
-
-    root_quaternion: npt.NDArray = dataclasses.field(
-        default_factory=lambda: np.array([1.0, 0, 0, 0])
+    _root_position: tuple[float] = dataclasses.field(
+        default=tuple(np.zeros(3).tolist())
     )
 
-    def __hash__(self) -> int:
+    _root_quaternion: tuple[float] = dataclasses.field(
+        default=tuple(np.array([1.0, 0, 0, 0]).tolist())
+    )
 
-        from jaxsim.utils.wrappers import HashedNumpyArray
+    @property
+    def root_position(self) -> npt.NDArray:
+        """
+        Get the 3D position of the root link of the graph.
 
-        return hash(
-            (
-                HashedNumpyArray.hash_of_array(self.root_position),
-                HashedNumpyArray.hash_of_array(self.root_quaternion),
-            )
-        )
+        Returns:
+           The 3D position of the root link.
+        """
+        return np.array(self._root_position)
 
-    def __eq__(self, other: RootPose) -> bool:
+    @root_position.setter
+    def root_position(self, value: npt.NDArray) -> None:
+        """
+        Set the 3D position of the root link of the graph.
 
-        if not isinstance(other, RootPose):
-            return False
+        Args:
+            value: The new 3D position of the root link.
+        """
+        self._root_position = tuple(value.tolist())
 
-        if not np.allclose(self.root_position, other.root_position):
-            return False
+    @property
+    def root_quaternion(self) -> npt.NDArray:
+        """
+        Get the quaternion representing the rotation of the root link of the graph.
 
-        if not np.allclose(self.root_quaternion, other.root_quaternion):
-            return False
+        Returns:
+           The quaternion representing the rotation of the root link.
+        """
+        return np.array(self._root_quaternion)
 
-        return True
+    @root_quaternion.setter
+    def root_quaternion(self, value: npt.NDArray) -> None:
+        """
+        Set the quaternion representing the rotation of the root link of the graph.
+
+        Args:
+            value: The new quaternion representing the rotation of the root link.
+        """
+        self._root_quaternion = tuple(value.tolist())
 
 
 @dataclasses.dataclass(frozen=True)
@@ -131,7 +147,7 @@ class KinematicGraph(Sequence[LinkDescription]):
         # Here we assume the model being fixed-base, therefore the base link will
         # have index 0. We will deal with the floating base in a later stage.
         for index, link in enumerate(self):
-            link.mutable(validate=False).index = index
+            link.index = index
 
         # Get the names of the links, frames, and joints.
         link_names = [l.name for l in self]
@@ -152,15 +168,17 @@ class KinematicGraph(Sequence[LinkDescription]):
         # We assume the model being fixed-base, therefore the first frame will
         # have last_link_idx + 1.
         for index, frame in enumerate(self.frames):
-            with frame.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-                frame.index = int(index + len(self.link_names()))
+            frame.index = int(index + len(self.link_names()))
 
         # Number joints so that their index matches their child link index.
         # Therefore, the first joint has index 1.
         links_dict = {l.name: l for l in iter(self)}
-        for joint in self.joints:
-            with joint.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-                joint.index = links_dict[joint.child.name].index
+
+        joints = [
+            dataclasses.replace(joint, index=int(links_dict[joint.child.name].index))
+            for joint in self.joints
+        ]
+        super().__setattr__("joints", joints)
 
         # Check that joint indices are unique.
         assert len([j.index for j in self.joints]) == len(
@@ -262,9 +280,7 @@ class KinematicGraph(Sequence[LinkDescription]):
         """
 
         # Create a dictionary that maps the link name to the link, for easy retrieval.
-        links_dict: dict[str, LinkDescription] = {
-            l.name: l.mutable(validate=False) for l in links
-        }
+        links_dict: dict[str, LinkDescription] = {l.name: l for l in links}
 
         # Create an empty list of frames if not provided.
         frames = frames if frames is not None else []
@@ -306,8 +322,11 @@ class KinematicGraph(Sequence[LinkDescription]):
 
             # Assign link's children and make sure they are unique.
             if child_link.name not in {l.name for l in parent_link.children}:
-                with parent_link.mutable_context(Mutability.MUTABLE_NO_VALIDATION):
-                    parent_link.children = (*parent_link.children, child_link)
+                parent_link.children = (*parent_link.children, child_link)
+
+            # Update links_dict with the modified links.
+            links_dict[child_link.name] = child_link
+            links_dict[parent_link.name] = parent_link
 
         # Collect all the links of the kinematic graph.
         all_links_in_graph = list(
@@ -352,11 +371,14 @@ class KinematicGraph(Sequence[LinkDescription]):
         unconnected_links = [l for l in links if l.name not in all_link_names_in_graph]
 
         # Update the unconnected links by removing their children. The other properties
-        # are left untouched, it's caller responsibility to post-process them if needed.
-        for link in unconnected_links:
-            link.children = tuple()
-            msg = "Link '{}' won't be part of the kinematic graph because unconnected"
-            logging.debug(msg=msg.format(link.name))
+        # are left untouched; it's the caller's responsibility to post-process them if needed.
+        updated_unconnected_links = [
+            dataclasses.replace(link, children=tuple()) for link in unconnected_links
+        ]
+
+        for link in updated_unconnected_links:
+            msg = "Link '{}' won't be part of the kinematic graph because it's unconnected."
+            logging.debug(msg.format(link.name))
 
         # Collect all the frames that are not part of the kinematic graph.
         unconnected_frames = [
@@ -368,7 +390,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             logging.debug(msg=msg.format(frame.name))
 
         return (
-            links_dict[root_link_name].mutable(mutable=False),
+            links_dict[root_link_name],
             list(set(joints) - set(removed_joints)),
             all_frames_in_graph,
             unconnected_links,
@@ -508,13 +530,12 @@ class KinematicGraph(Sequence[LinkDescription]):
         for joint in joints_with_removed_parent_link:
             # Update the pose. Note that after the lumping process, the dict entry
             # links_dict[joint.parent.name] contains the final lumped link
-            with joint.mutable_context(mutability=Mutability.MUTABLE):
-                joint.pose = fk.relative_transform(
-                    relative_to=links_dict[joint.parent.name].name, name=joint.name
-                )
-            with joint.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-                # Update the parent link
-                joint.parent = links_dict[joint.parent.name]
+
+            joint.pose = fk.relative_transform(
+                relative_to=links_dict[joint.parent.name].name, name=joint.name
+            )
+            # Update the parent link
+            joint.parent = links_dict[joint.parent.name]
 
         # ===================================================================
         # 3. Create the reduced graph considering the removed links as frames
@@ -591,21 +612,20 @@ class KinematicGraph(Sequence[LinkDescription]):
                 logging.debug(msg=msg.format(frame.name, name_of_new_parent_link))
 
             # Always recompute the pose of the frame, and set zero inertial params.
-            with frame.mutable_context(jaxsim.utils.Mutability.MUTABLE_NO_VALIDATION):
 
-                # Update kinematic parameters of the frame.
-                # Note that here we compute the transform using the FK object of the
-                # full model, so that we are sure that the kinematic is not altered.
-                frame.pose = fk.relative_transform(
-                    relative_to=name_of_new_parent_link, name=frame.name
-                )
+            # Update kinematic parameters of the frame.
+            # Note that here we compute the transform using the FK object of the
+            # full model, so that we are sure that the kinematic is not altered.
+            frame.pose = fk.relative_transform(
+                relative_to=name_of_new_parent_link, name=frame.name
+            )
 
-                # Update the parent link such that the pose is expressed in its frame.
-                frame.parent_name = name_of_new_parent_link
+            # Update the parent link such that the pose is expressed in its frame.
+            frame.parent_name = name_of_new_parent_link
 
-                # Update dynamic parameters of the frame.
-                frame.mass = 0.0
-                frame.inertia = np.zeros_like(frame.inertia)
+            # Update dynamic parameters of the frame.
+            frame.mass = 0.0
+            frame.inertia = np.zeros_like(frame.inertia)
 
         # Return the reduced graph.
         return reduced_graph

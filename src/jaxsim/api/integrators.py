@@ -22,7 +22,7 @@ def semi_implicit_euler_integration(
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
         # Compute the system acceleration
-        W_v̇_WB, s̈ = js.ode.system_acceleration(
+        W_v̇_WB, s̈, contact_state_derivative = js.ode.system_acceleration(
             model=model,
             data=data,
             link_forces=link_forces,
@@ -58,11 +58,17 @@ def semi_implicit_euler_integration(
         W_p_B = data.base_position + dt * W_ṗ_B
         W_Q_B = data.base_orientation + dt * W_Q̇_B
 
-        base_quaternion_norm = jaxsim.math.safe_norm(W_Q_B)
+        base_quaternion_norm = jaxsim.math.safe_norm(W_Q_B, axis=-1)
 
         W_Q_B = W_Q_B / jnp.where(base_quaternion_norm == 0, 1.0, base_quaternion_norm)
 
         s = data.joint_positions + dt * ṡ
+
+        integrated_contact_state = jax.tree.map(
+            lambda x, x_dot: x + dt * x_dot,
+            data.contact_state,
+            contact_state_derivative,
+        )
 
     # TODO: Avoid double replace, e.g. by computing cached value here
     data = dataclasses.replace(
@@ -73,6 +79,7 @@ def semi_implicit_euler_integration(
         _joint_velocities=ṡ,
         _base_linear_velocity=W_v_B[0:3],
         _base_angular_velocity=W_ω_WB,
+        contact_state=integrated_contact_state,
     )
 
     # Update the cached computations.
@@ -104,7 +111,7 @@ def rk4_integration(
                 joint_torques=joint_torques,
             )
 
-    base_quaternion_norm = jaxsim.math.safe_norm(data._base_quaternion)
+    base_quaternion_norm = jaxsim.math.safe_norm(data._base_quaternion, axis=-1)
     base_quaternion = data._base_quaternion / jnp.where(
         base_quaternion_norm == 0, 1.0, base_quaternion_norm
     )
@@ -116,6 +123,7 @@ def rk4_integration(
         base_linear_velocity=data._base_linear_velocity,
         base_angular_velocity=data._base_angular_velocity,
         joint_velocities=data._joint_velocities,
+        contact_state=data.contact_state,
     )
 
     euler_mid = lambda x, dxdt: x + (0.5 * dt) * dxdt
@@ -136,14 +144,13 @@ def rk4_integration(
 
     data_tf = dataclasses.replace(
         data,
-        **{
-            "_base_position": x_tf["base_position"],
-            "_base_quaternion": x_tf["base_quaternion"],
-            "_joint_positions": x_tf["joint_positions"],
-            "_base_linear_velocity": x_tf["base_linear_velocity"],
-            "_base_angular_velocity": x_tf["base_angular_velocity"],
-            "_joint_velocities": x_tf["joint_velocities"],
-        },
+        _base_position=x_tf["base_position"],
+        _base_quaternion=x_tf["base_quaternion"],
+        _joint_positions=x_tf["joint_positions"],
+        _base_linear_velocity=x_tf["base_linear_velocity"],
+        _base_angular_velocity=x_tf["base_angular_velocity"],
+        _joint_velocities=x_tf["joint_velocities"],
+        contact_state=x_tf["contact_state"],
     )
 
     return data_tf.replace(model=model)

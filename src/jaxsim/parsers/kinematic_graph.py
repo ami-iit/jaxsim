@@ -993,7 +993,7 @@ class KinematicGraphTransforms:
 
         if frame.parent_name in self.graph.links_dict:
             return frame.parent_name
-        elif frame.parent_name in self.graph.frames_dict:
+        if frame.parent_name in self.graph.frames_dict:
             return self.find_parent_link_of_frame(name=frame.parent_name)
 
         msg = f"Failed to find parent element of frame '{name}' with name '{frame.parent_name}'"

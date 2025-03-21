@@ -1,0 +1,104 @@
+name: GPU Benchmarks
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0  * * 1" # Run At 00:00 on Monday
+
+permissions:
+  pull-requests: write
+  deployments: write
+  contents: write
+
+jobs:
+  benchmark:
+    runs-on: self-hosted
+    container:
+      image: ghcr.io/nvidia/jax:jax
+      options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          pip install .[all]
+
+      - name: Install Gazebo SDF
+        run: |
+            apt update && apt install -y lsb-release wget
+            sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+            wget http://packages.osrfoundation.org/gazebo.key -O - | apt-key add -
+            apt-get update
+            apt install -y libsdformat14-dev libsdformat14
+
+      - name: Get main branch SHA
+        id: get-main-branch-sha
+        run: |
+          git config --global --add safe.directory /__w/jaxsim/jaxsim
+          SHA=$(git rev-parse origin/main)
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Get benchmark results from main branch
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ./cache
+          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark
+
+      - name: Run benchmark and store result
+        run: |
+            pytest tests/test_benchmark.py --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
+
+      - name: Compare benchmark results with main branch
+        uses: benchmark-action/github-action-benchmark@v1.20.4
+        if: steps.cache.outputs.cache-hit == 'true'
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          external-data-json-path: ./cache/benchmark-data.json
+          save-data-file: false
+          fail-on-alert: true
+          summary-always: true
+          comment-always: true
+          alert-threshold: 150%
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Store benchmark result for main branch
+        uses: benchmark-action/github-action-benchmark@v1.20.4
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          external-data-json-path: ./cache/benchmark-data.json
+          save-data-file: true
+          fail-on-alert: false
+          summary-always: true
+          comment-always: true
+          alert-threshold: 150%
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Benchmark Results to GitHub Pages
+        uses: benchmark-action/github-action-benchmark@v1.20.4
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          tool: 'pytest'
+          output-file-path: output.json
+          benchmark-data-dir-path: "benchmarks"
+          fail-on-alert: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          summary-always: true
+          save-data-file: true
+          alert-threshold: "150%"
+          auto-push: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+
+      - name: Update Benchmark Results cache
+        uses: actions/cache/save@v4
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          path: ./cache
+          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark

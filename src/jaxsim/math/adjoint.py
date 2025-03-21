@@ -55,13 +55,13 @@ class Adjoint:
             The 6x6 adjoint matrix.
         """
 
-        A_H_B = jnp.reshape(transform, (-1, 4, 4))
+        A_H_B = transform
 
         return (
             jaxlie.SE3.from_matrix(matrix=A_H_B).adjoint()
             if not inverse
             else jaxlie.SE3.from_matrix(matrix=A_H_B).inverse().adjoint()
-        ).reshape(transform.shape[:-2] + (6, 6))
+        )
 
     @staticmethod
     def from_rotation_and_translation(

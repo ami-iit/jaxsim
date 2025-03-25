@@ -27,7 +27,7 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
     # Time constant
     time_constant: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.01, dtype=float)
+        default_factory=lambda: jnp.array(0.02, dtype=float)
     )
 
     # Adimensional damping coefficient
@@ -47,17 +47,17 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
     # Width
     width: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.0001, dtype=float)
+        default_factory=lambda: jnp.array(0.001, dtype=float)
     )
 
     # Midpoint
     midpoint: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.1, dtype=float)
+        default_factory=lambda: jnp.array(0.5, dtype=float)
     )
 
     # Power exponent
     power: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(1.0, dtype=float)
+        default_factory=lambda: jnp.array(2.0, dtype=float)
     )
 
     # Stiffness
@@ -72,7 +72,7 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
     # Friction coefficient
     mu: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.5, dtype=float)
+        default_factory=lambda: jnp.array(0.005, dtype=float)
     )
 
     def __hash__(self) -> int:

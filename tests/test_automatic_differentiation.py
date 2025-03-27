@@ -3,8 +3,6 @@ import os
 import jax
 import jax.numpy as jnp
 import numpy as np
-import optax
-import pytest
 from jax.test_util import check_grads
 
 import jaxsim.api as js
@@ -350,11 +348,6 @@ def test_ad_integration(
 
     model = jaxsim_models_types
 
-    # TODO: Remove when https://github.com/google-deepmind/optax/pull/1190 is included in a release.
-    # Skip if `optax` version is less or equal to "0.2.4" and the model is ergoCub.
-    if model.name() == "ergoCub" and optax.__version__ <= "0.2.4":
-        pytest.skip("Skipping ergoCub model with optax version <= 0.2.4.")
-
     _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
         model=model, velocity_representation=VelRepr.Inertial, key=subkey
@@ -416,13 +409,11 @@ def test_ad_integration(
         return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ
 
     # Check derivatives against finite differences.
-    # We set forward mode only because the backward mode is not supported by the
-    # current implementation of `optax` optimizers in the relaxed rigid contact model.
     check_grads(
         f=step,
         args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L),
         order=AD_ORDER,
-        modes=["fwd"],
+        modes=["fwd", "rev"],
         eps=ε,
     )
 

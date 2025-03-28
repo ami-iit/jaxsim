@@ -60,7 +60,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
     _link_velocities: jtp.Matrix = dataclasses.field(repr=False, default=None)
 
     # Extended state for soft and rigid contact models.
-    contact_state: dict[str, jtp.Array] = dataclasses.field(default=None)
+    contact_state: dict[str, jtp.Array] = dataclasses.field(default_factory=dict)
 
     @staticmethod
     def build(
@@ -174,7 +174,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         contact_state = contact_state or {}
 
         if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
-            contact_state.setdefault(
+            contact_state["tangential_deformation"] = contact_state.get(
                 "tangential_deformation",
                 jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
             )
@@ -420,11 +420,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         Replace the attributes of the `JaxSimModelData` object.
         """
 
-        # Extract the batch size.
-        batch_size = (
-            self._base_transform.shape[0] if self._base_transform.ndim > 2 else 1
-        )
-
         if joint_positions is None:
             joint_positions = self.joint_positions
         if joint_velocities is None:
@@ -437,10 +432,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             contact_state = self.contact_state
 
         if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
-            contact_state.setdefault(
-                "tangential_deformation",
-                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
-            )
+            contact_state = {
+                "tangential_deformation": jnp.zeros_like(
+                    contact_state["tangential_deformation"]
+                )
+            }
 
         # Normalize the quaternion to avoid numerical issues.
         base_quaternion_norm = jaxsim.math.safe_norm(
@@ -450,20 +446,18 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             base_quaternion_norm == 0, 1.0, base_quaternion_norm
         )
 
-        joint_positions = jnp.atleast_1d(joint_positions.squeeze()).astype(float)
-        joint_velocities = jnp.atleast_1d(joint_velocities.squeeze()).astype(float)
-        base_quaternion = jnp.atleast_1d(base_quaternion.squeeze()).astype(float)
-        base_position = jnp.atleast_1d(base_position.squeeze()).astype(float)
+        joint_positions = jnp.atleast_2d(joint_positions.squeeze()).astype(float)
+        joint_velocities = jnp.atleast_2d(joint_velocities.squeeze()).astype(float)
+        base_quaternion = jnp.atleast_2d(base_quaternion.squeeze()).astype(float)
+        base_position = jnp.atleast_2d(base_position.squeeze()).astype(float)
 
         base_transform = jaxsim.math.Transform.from_quaternion_and_translation(
             translation=base_position, quaternion=base_quaternion
-        )
+        ).reshape((-1, 4, 4))
 
         joint_transforms = jax.vmap(model.kin_dyn_parameters.joint_transforms)(
-            joint_positions=jnp.broadcast_to(
-                joint_positions, (batch_size, model.dofs())
-            ),
-            base_transform=jnp.broadcast_to(base_transform, (batch_size, 4, 4)),
+            joint_positions=joint_positions,
+            base_transform=base_transform,
         )
 
         if base_linear_velocity is None and base_angular_velocity is None:
@@ -494,27 +488,31 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             jaxsim.rbda.forward_kinematics_model, in_axes=(None,)
         )(
             model,
-            base_position=jnp.broadcast_to(base_position, (batch_size, 3)),
-            base_quaternion=jnp.broadcast_to(base_quaternion, (batch_size, 4)),
-            joint_positions=jnp.broadcast_to(
-                joint_positions, (batch_size, model.dofs())
-            ),
-            joint_velocities=jnp.broadcast_to(
-                joint_velocities, (batch_size, model.dofs())
-            ),
-            base_linear_velocity_inertial=jnp.broadcast_to(
-                base_linear_velocity_inertial, (batch_size, 3)
-            ),
-            base_angular_velocity_inertial=jnp.broadcast_to(
-                base_angular_velocity_inertial, (batch_size, 3)
+            base_position=base_position,
+            base_quaternion=base_quaternion,
+            joint_positions=joint_positions,
+            joint_velocities=joint_velocities,
+            base_linear_velocity_inertial=jnp.atleast_2d(base_linear_velocity_inertial),
+            base_angular_velocity_inertial=jnp.atleast_2d(
+                base_angular_velocity_inertial
             ),
         )
 
         # Adjust the output shapes.
-        if batch_size == 1:
-            link_transforms = link_transforms.reshape(self._link_transforms.shape)
-            link_velocities = link_velocities.reshape(self._link_velocities.shape)
-            joint_transforms = joint_transforms.reshape(self._joint_transforms.shape)
+        joint_positions = joint_positions.reshape(self._joint_positions.shape)
+        joint_velocities = joint_velocities.reshape(self._joint_velocities.shape)
+        base_quaternion = base_quaternion.reshape(self._base_quaternion.shape)
+        base_linear_velocity_inertial = base_linear_velocity_inertial.reshape(
+            self._base_linear_velocity.shape
+        )
+        base_angular_velocity_inertial = base_angular_velocity_inertial.reshape(
+            self._base_angular_velocity.shape
+        )
+        base_position = base_position.reshape(self._base_position.shape)
+        base_transform = base_transform.reshape(self._base_transform.shape)
+        joint_transforms = joint_transforms.reshape(self._joint_transforms.shape)
+        link_transforms = link_transforms.reshape(self._link_transforms.shape)
+        link_velocities = link_velocities.reshape(self._link_velocities.shape)
 
         return super().replace(
             _joint_positions=joint_positions,

@@ -477,13 +477,21 @@ class RelaxedRigidContacts(common.ContactModel):
         tol = solver_options.pop("tol")
         maxiter = solver_options.pop("maxiter")
 
-        # Compute the 3D linear force in C[W] frame.
-        solution, _ = run_optimization(
+        solve_fn = lambda *_: run_optimization(
             init_params=init_params,
             fun=objective,
             opt=optax.lbfgs(**solver_options),
             tol=tol,
             maxiter=maxiter,
+        )
+
+        # Compute the 3D linear force in C[W] frame.
+        solution, _ = jax.lax.custom_linear_solve(
+            lambda x: A @ x,
+            -b,
+            solve=solve_fn,
+            symmetric=True,
+            has_aux=True,
         )
 
         # Reshape the optimized solution to be a matrix of 3D contact forces.

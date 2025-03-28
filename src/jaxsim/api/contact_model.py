@@ -42,39 +42,34 @@ def link_contact_forces(
 
     # Compute the 6D forces applied to the links equivalent to the forces applied
     # to the frames associated to the collidable points.
-    W_f_L_contact = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
+    W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
 
     wrench_pair_constr_inertial = aux_data["constr_wrenches_inertial"]
-
-    jax.debug.print("W_f_L_contact.shape {}", W_f_L_contact.shape)
 
     # Get the couples of parent link indices of each couple of frames.
     frame_idxs_1, frame_idxs_2 = model.kin_dyn_parameters.get_constraints(model).T
 
-    jax.debug.print("frame_idxs_1: \n{}", frame_idxs_1)
-    jax.debug.print("frame_idxs_2: \n{}", frame_idxs_2)
+    n_kin_constraints = frame_idxs_1.shape[0]
 
-    parent_link_indices = jax.vmap(
-        lambda frame_idx_1, frame_idx_2: jnp.array(
-            (
+    if n_kin_constraints > 0:
+        parent_link_indices = jax.vmap(
+            lambda frame_idx_1, frame_idx_2: jnp.array((
                 js.frame.idx_of_parent_link(model, frame_index=frame_idx_1),
                 js.frame.idx_of_parent_link(model, frame_index=frame_idx_2),
-            )
-        )
-    )(frame_idxs_1, frame_idxs_2)
-    jax.debug.print("parent_link_indices shape: {}", parent_link_indices.shape)
+            ))
+        )(frame_idxs_1, frame_idxs_2)
 
-    # Apply each constraint wrench to its corresponding parent link in W_f_L.
-    def apply_wrench(W_f_L, parent_indices, wrench_pair):
-        W_f_L = W_f_L.at[parent_indices[0]].add(wrench_pair[0])
-        W_f_L = W_f_L.at[parent_indices[1]].add(wrench_pair[1])
-        return W_f_L
+        # Apply each constraint wrench to its corresponding parent link in W_f_L.
+        def apply_wrench(W_f_L, parent_indices, wrench_pair):
+            W_f_L = W_f_L.at[parent_indices[0]].add(wrench_pair[0])
+            W_f_L = W_f_L.at[parent_indices[1]].add(wrench_pair[1])
+            return W_f_L
 
-    W_f_L = jax.vmap(apply_wrench, in_axes=(None, 0, 0))(
-        W_f_L_contact, parent_link_indices, wrench_pair_constr_inertial
-    ).sum(axis=0)
+        W_f_L = jax.vmap(apply_wrench, in_axes=(None, 0, 0))(
+            W_f_L, parent_link_indices, wrench_pair_constr_inertial
+        ).sum(axis=0)
 
-    jax.debug.print("W_f_L: \n{}", W_f_L.shape)
+    # jax.debug.print("W_f_L: \n{}", W_f_L.shape)
 
     return W_f_L
 

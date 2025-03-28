@@ -92,5 +92,31 @@ def compute_resultant_torques(
     # ===============================
 
     τ_total = τ_references + τ_friction + τ_position_limit
+    # clipping torque considering tn curve 
+    torque_limits = tn_curve_fn(data.joint_velocities)
+    τ_total = jnp.clip(τ_total, -torque_limits, torque_limits)
 
     return τ_total
+
+
+
+def tn_curve_fn(velocities: jtp.Vector) -> jtp.Vector:
+    τ_max = 3000.0     # Max torque (Nm)
+    ω_th = 30.0        # Threshold speed (rad/s)
+    ω_max = 100.0      # Max speed for torque drop-off (rad/s)
+    # for now is hardcoded then it will became parameters 
+    abs_vel = jnp.abs(velocities)
+    # jax.debug.print()
+    # jax.debug.print("discount factor{}", (1 - (abs_vel - ω_th) / (ω_max - ω_th)))
+    # Piecewise linear torque limit
+    torque_limit = jnp.where(
+        abs_vel <= ω_th,
+        τ_max,
+        jnp.where(
+            abs_vel <= ω_max,
+            τ_max * (1 - (abs_vel - ω_th) / (ω_max - ω_th)),
+            0.0
+        )
+    )
+    # jax.debug.print("torque limit {}", torque_limit)
+    return torque_limit

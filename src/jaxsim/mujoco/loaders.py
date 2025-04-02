@@ -396,7 +396,7 @@ class RodModelToMjcf:
                 parent_element = mujoco_element.find(".//worldbody")
 
             if parent_element is not None:
-                roll, pitch, yaw = frame.pose.rpy
+                roll, pitch, yaw = np.array(frame.pose.rpy, dtype=float)
                 quat = Quaternion.to_wxyz(
                     jaxlie.SO3.from_rpy_radians(roll, pitch, yaw).as_quaternion_xyzw()
                 )
@@ -408,7 +408,7 @@ class RodModelToMjcf:
                     quat=" ".join(map(str, quat)),
                 )
             else:
-                warnings.warn("Parent link '{}' not found", parent_name)
+                warnings.warn(f"Parent link '{parent_name}' not found")
 
         # --------------
         # Add the motors

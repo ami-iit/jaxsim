@@ -525,6 +525,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             _joint_transforms=joint_transforms,
             _link_transforms=link_transforms,
             _link_velocities=link_velocities,
+            contact_state=contact_state,
             validate=validate,
         )
 

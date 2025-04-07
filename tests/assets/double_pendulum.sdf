@@ -1,0 +1,172 @@
+<?xml version="1.0"?>
+
+<sdf version="1.7">
+
+    <model name="double_pendulum">
+        <!-- <pose>0 0 0.2 0 0 0</pose> -->
+        <joint name="fixed_base" type="fixed">
+            <parent>world</parent>
+            <child>base_link</child>
+            <axis>
+                <xyz>1 0 0</xyz>
+                <limit>
+                    <lower>-5</lower>
+                    <upper>5</upper>
+                    <effort>100</effort>
+                    <velocity>100</velocity>
+                </limit>
+                <dynamics>
+                    <damping>0.0</damping>
+                    <spring_reference>0</spring_reference>
+                    <spring_stiffness>0.0</spring_stiffness>
+                </dynamics>
+            </axis>
+        </joint>
+        <link name='base_link'>
+            <inertial>
+                <pose>0 0 0 0 0 0</pose>
+                <mass>100</mass>
+                <inertia>
+                    <ixx>1</ixx>
+                    <ixy>0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>1</iyy>
+                    <iyz>0</iyz>
+                    <izz>1</izz>
+                </inertia>
+            </inertial>
+            <collision name='base_link_collision'>
+                <pose>0 0 1 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.20 0.20 2.15</size>
+                    </box>
+                </geometry>
+            </collision>
+            <visual name='base_link_visual'>
+                <pose>0 0 1 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.20 0.20 2.15</size>
+                    </box>
+                </geometry>
+            </visual>
+        </link>
+        <joint name='right_joint' type='revolute'>
+            <pose relative_to='base_link'>0.20 0 2 -3.1415 0 0</pose>
+            <parent>base_link</parent>
+            <child>right_link</child>
+            <axis>
+                <xyz>1 0 0</xyz>
+                <limit>
+                    <lower>-100</lower>
+                    <upper>100</upper>
+                    <effort>100</effort>
+                    <velocity>100</velocity>
+                </limit>
+                <dynamics>
+                    <damping>1.0</damping>
+                    <spring_reference>0</spring_reference>
+                    <spring_stiffness>0.0</spring_stiffness>
+                </dynamics>
+            </axis>
+        </joint>
+        <link name='right_link'>
+            <pose relative_to='right_joint'>0 0 0 0 0 0</pose>
+            <self_collide>0</self_collide>
+            <inertial>
+                <pose>0 0 0.5 0 0 0</pose>
+                <mass>1</mass>
+                <inertia>
+                    <ixx>1.0</ixx>
+                    <ixy>0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>1.0</iyy>
+                    <iyz>0</iyz>
+                    <izz>1.0</izz>
+                </inertia>
+            </inertial>
+            <!-- <collision name='right_link_collision'>
+                <pose>0 0 0.5 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.20 0.20 1.0</size>
+                    </box>
+                </geometry>
+            </collision> -->
+            <visual name='right_link_visual'>
+                <pose>0 0 0.5 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.20 0.20 1.0</size>
+                    </box>
+                </geometry>
+            </visual>
+        </link>
+
+        <joint name='left_joint' type='revolute'>
+            <pose relative_to='base_link'>-0.20 0 2 -3.1415 0 0</pose>
+            <parent>base_link</parent>
+            <child>left_link</child>
+            <axis>
+                <xyz>1 0 0</xyz>
+                <limit>
+                    <lower>-100</lower>
+                    <upper>100</upper>
+                    <effort>100</effort>
+                    <velocity>100</velocity>
+                </limit>
+                <dynamics>
+                    <damping>1.0</damping>
+                    <spring_reference>0</spring_reference>
+                    <spring_stiffness>0.0</spring_stiffness>
+                </dynamics>
+            </axis>
+        </joint>
+        <link name='left_link'>
+            <pose relative_to='left_joint'>0 0 0 0 0 0</pose>
+            <self_collide>0</self_collide>
+            <inertial>
+                <pose>0.0 0 0.5 0 0 0</pose>
+                <mass>1</mass>
+                <inertia>
+                    <ixx>1.0</ixx>
+                    <ixy>0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>1.0</iyy>
+                    <iyz>0</iyz>
+                    <izz>1.0</izz>
+                </inertia>
+            </inertial>
+            <!-- <collision name='left_link_collision'>
+                <pose>0.0 0 0.5 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.20 0.20 1.0</size>
+                    </box>
+                </geometry>
+            </collision> -->
+            <visual name='left_link_visual'>
+                <pose>0.0 0 0.5 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.20 0.20 1.0</size>
+                    </box>
+                </geometry>
+            </visual>
+        </link>
+        <frame name="base_link_middle_right_frame" attached_to="base_link">
+            <pose relative_to="base_link">0.20 0 1 0 0 0</pose>
+        </frame>
+        <frame name="base_link_middle_left_frame" attached_to="base_link">
+            <pose relative_to="base_link">-0.20 0 1 0 0 0</pose>
+        </frame>
+        <frame name="right_link_extremity_frame" attached_to="right_link">
+            <pose relative_to="right_link"> -0.2 0 1 3.14 0 0</pose>
+        </frame>
+        <frame name="left_link_extremity_frame" attached_to="left_link">
+            <pose relative_to="left_link"> 0.2 0 1 3.14 0 0</pose>
+        </frame>
+    </model>
+
+</sdf>

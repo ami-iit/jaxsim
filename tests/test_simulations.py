@@ -294,3 +294,80 @@ def test_joint_limits(
         np.max(np.array(data_tf.joint_positions), axis=0) - tolerance
         <= position_limits_max
     )
+
+
+@pytest.mark.parametrize(
+    "initial_joint_positions",
+    [
+        jnp.array([0, 0]),
+        np.pi / 180 * jnp.array([5, -5]),
+    ],
+)
+def test_simulation_with_kinematic_constraints(
+    jaxsim_model_double_pendulum: js.model.JaxSimModel,
+    initial_joint_positions: jtp.Array,
+):
+    """
+    Test kinematic constraints by simulating a model with constraints
+    and verifying the final state.
+    """
+
+    # ========
+    # Arrange
+    # ========
+
+    tf = 5.0  # Final simulation time in seconds.
+
+    model = jaxsim_model_double_pendulum
+
+    frame_1_name = "right_link_extremity_frame"
+    frame_2_name = "left_link_extremity_frame"
+    frame_1_idx = js.frame.name_to_idx(model, frame_name=frame_1_name)
+    frame_2_idx = js.frame.name_to_idx(model, frame_name=frame_2_name)
+
+    # Define the kinematic constraints.
+    constraints = js.kin_dyn_parameters.ConstraintMap()
+    constraints = constraints.add_constraint(
+        frame_1_name,
+        frame_2_name,
+        js.kin_dyn_parameters.ConstraintType.Weld,
+    )
+
+    # Set the constraints in the model.
+    with model.editable(validate=False) as model:
+        model.kin_dyn_parameters.constraints = constraints
+        model.gravity = 0.0
+
+    # Build the initial data for the model.
+    data_t0 = js.data.JaxSimModelData.build(
+        model=model,
+        velocity_representation=VelRepr.Inertial,
+        joint_positions=initial_joint_positions,
+    )
+
+    # ====
+    # Act
+    # ====
+
+    # Simulate the model for a given time and time step.
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=tf)
+
+    # =========
+    # Assert
+    # =========
+
+    # Assert that the chosen frames exist in the model
+    assert frame_1_name in model.frame_names()
+    assert frame_2_name in model.frame_names()
+
+    # Verify the final result or error.
+
+    actual_s_tf = jnp.abs(data_tf.joint_positions[0] - data_tf.joint_positions[1])
+    expected_s_tf = 0.0
+
+    print(f"Final joint positions[deg]: {data_tf.joint_positions * 180 / np.pi}")
+    print(f"Joint position difference[deg]: {actual_s_tf * 180 / np.pi}")
+
+    assert expected_s_tf == pytest.approx(actual_s_tf, abs=1e-3), (
+        "Joint positions do not match expected value."
+    )

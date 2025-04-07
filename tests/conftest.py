@@ -87,6 +87,21 @@ def pytest_configure(config) -> None:
         check_gpu_usage()
 
 
+def load_model_from_file(file_path: pathlib.Path, is_urdf=False) -> rod.Sdf:
+    """
+    Load an SDF or URDF model from a file.
+
+    Args:
+        file_path: The path to the model file.
+        is_urdf: Whether the file is in URDF or SDF format.
+
+    Returns:
+        The corresponding rod model.
+    """
+
+    return rod.Sdf.load(file_path, is_urdf=is_urdf)
+
+
 # ================
 # Generic fixtures
 # ================
@@ -458,6 +473,21 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
     )
 
     model = build_jaxsim_model(model_description=urdf_string)
+
+    return model
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_double_pendulum() -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a double pendulum.
+    Returns:
+        The JaxSim model of a double pendulum.
+    """
+
+    model_path = pathlib.Path(__file__).parent / "assets" / "double_pendulum.sdf"
+    rod_model = load_model_from_file(model_path)
+    model = build_jaxsim_model(model_description=rod_model)
 
     return model
 

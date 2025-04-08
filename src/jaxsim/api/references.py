@@ -434,17 +434,24 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
         if not_tracing(forces) and not data.valid(model=model):
             raise ValueError("The provided data is not valid for the model")
 
-        W_H_L = data._link_transforms
-
-        # Convert a single 6D force to the inertial representation
+        # Helper function to convert a single 6D force to the inertial representation
         # considering as body the link (i.e. L_f_L and LW_f_L).
+        def convert_using_link_frame(
+            f_L: jtp.MatrixLike, W_H_L: jtp.ArrayLike
+        ) -> jtp.Matrix:
+
+            return jax.vmap(
+                lambda f_L, W_H_L: JaxSimModelReferences.other_representation_to_inertial(
+                    array=f_L,
+                    other_representation=self.velocity_representation,
+                    transform=W_H_L,
+                    is_force=True,
+                )
+            )(f_L, W_H_L)
+
         # The f_L input is either L_f_L or LW_f_L, depending on the representation.
-        W_f_L = JaxSimModelReferences.other_representation_to_inertial(
-            array=f_L,
-            other_representation=self.velocity_representation,
-            transform=W_H_L[link_idxs] if model.number_of_links() > 1 else W_H_L,
-            is_force=True,
-        )
+        W_H_L = data._link_transforms
+        W_f_L = convert_using_link_frame(f_L=f_L, W_H_L=W_H_L[link_idxs, :, :])
 
         return replace(forces=self._link_forces.at[link_idxs, :].set(W_f0_L + W_f_L))
 

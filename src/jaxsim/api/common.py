@@ -121,8 +121,14 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             The 6D quantity in the other representation.
         """
 
-        W_array = array
-        W_H_O = transform
+        W_array = array.squeeze()
+        W_H_O = transform.squeeze()
+
+        if W_array.size != 6:
+            raise ValueError(W_array.size, 6)
+
+        if W_H_O.shape != (4, 4):
+            raise ValueError(W_H_O.shape, (4, 4))
 
         match other_representation:
 
@@ -133,24 +139,25 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
 
                 if not is_force:
                     O_Xv_W = Adjoint.from_transform(transform=W_H_O, inverse=True)
-                    O_array = jnp.einsum("...ij,...j->...i", O_Xv_W, W_array)
+                    O_array = O_Xv_W @ W_array
 
                 else:
-                    O_Xf_W = Adjoint.from_transform(transform=W_H_O).swapaxes(-1, -2)
-                    O_array = jnp.einsum("...ij,...j->...i", O_Xf_W, W_array)
+                    O_Xf_W = Adjoint.from_transform(transform=W_H_O).T
+                    O_array = O_Xf_W @ W_array
 
                 return O_array
 
             case VelRepr.Mixed:
-                W_H_OW = W_H_O.at[..., 0:3, 0:3].set(jnp.eye(3))
+                W_p_O = W_H_O[0:3, 3]
+                W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
                 if not is_force:
                     OW_Xv_W = Adjoint.from_transform(transform=W_H_OW, inverse=True)
-                    OW_array = jnp.einsum("...ij,...j->...i", OW_Xv_W, W_array)
+                    OW_array = OW_Xv_W @ W_array
 
                 else:
-                    OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).swapaxes(-1, -2)
-                    OW_array = jnp.einsum("...ij,...j->...i", OW_Xf_W, W_array)
+                    OW_Xf_W = Adjoint.from_transform(transform=W_H_OW).T
+                    OW_array = OW_Xf_W @ W_array
 
                 return OW_array
 
@@ -181,40 +188,45 @@ class ModelDataWithVelocityRepresentation(JaxsimDataclass, abc.ABC):
             The 6D quantity in the inertial-fixed representation.
         """
 
-        O_array = array
-        W_H_O = transform
+        W_array = array.squeeze()
+        W_H_O = transform.squeeze()
+
+        if W_array.size != 6:
+            raise ValueError(W_array.size, 6)
+
+        if W_H_O.shape != (4, 4):
+            raise ValueError(W_H_O.shape, (4, 4))
 
         match other_representation:
             case VelRepr.Inertial:
-                return O_array
+                W_array = array
+                return W_array
 
             case VelRepr.Body:
+                O_array = array
 
                 if not is_force:
-                    W_Xv_O = Adjoint.from_transform(W_H_O)
-                    W_array = jnp.einsum("...ij,...j->...i", W_Xv_O, O_array)
+                    W_Xv_O: jtp.Array = Adjoint.from_transform(W_H_O)
+                    W_array = W_Xv_O @ O_array
 
                 else:
-                    W_Xf_O = Adjoint.from_transform(
-                        transform=W_H_O, inverse=True
-                    ).swapaxes(-1, -2)
-                    W_array = jnp.einsum("...ij,...j->...i", W_Xf_O, O_array)
+                    W_Xf_O = Adjoint.from_transform(transform=W_H_O, inverse=True).T
+                    W_array = W_Xf_O @ O_array
 
                 return W_array
 
             case VelRepr.Mixed:
-
-                W_H_OW = W_H_O.at[..., 0:3, 0:3].set(jnp.eye(3))
+                BW_array = array
+                W_p_O = W_H_O[0:3, 3]
+                W_H_OW = jnp.eye(4).at[0:3, 3].set(W_p_O)
 
                 if not is_force:
-                    W_Xv_BW = Adjoint.from_transform(W_H_OW)
-                    W_array = jnp.einsum("...ij,...j->...i", W_Xv_BW, O_array)
+                    W_Xv_BW: jtp.Array = Adjoint.from_transform(W_H_OW)
+                    W_array = W_Xv_BW @ BW_array
 
                 else:
-                    W_Xf_BW = Adjoint.from_transform(
-                        transform=W_H_OW, inverse=True
-                    ).swapaxes(-1, -2)
-                    W_array = jnp.einsum("...ij,...j->...i", W_Xf_BW, O_array)
+                    W_Xf_BW = Adjoint.from_transform(transform=W_H_OW, inverse=True).T
+                    W_array = W_Xf_BW @ BW_array
 
                 return W_array
 

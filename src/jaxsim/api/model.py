@@ -2069,12 +2069,14 @@ def step(
     )
 
     # Get the external forces in inertial-fixed representation.
-    W_f_L_external = js.data.JaxSimModelData.other_representation_to_inertial(
-        O_f_L_external,
-        other_representation=data.velocity_representation,
-        transform=data._link_transforms,
-        is_force=True,
-    )
+    W_f_L_external = jax.vmap(
+        lambda f_L, W_H_L: js.data.JaxSimModelData.other_representation_to_inertial(
+            f_L,
+            other_representation=data.velocity_representation,
+            transform=W_H_L,
+            is_force=True,
+        )
+    )(O_f_L_external, data._link_transforms)
 
     τ_references = jnp.atleast_1d(
         jnp.array(joint_force_references, dtype=float).squeeze()

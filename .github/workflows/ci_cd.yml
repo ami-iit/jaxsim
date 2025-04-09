@@ -100,28 +100,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            conf: &conf
-              - 'pyproject.toml'
-              - 'setup.cfg'
-              - 'setup.py'
-            src: &src
-              - 'src/**'
-            tests: &tests
-              - 'tests/**'
-            all:
-              - *conf
-              - *src
-              - *tests
-
       - name: Install 'gz sdf' system command
         if: |
           contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.all == 'true')
+          (github.event_name != 'pull_request')
         run: |
           sudo apt-get update
           sudo apt-get install lsb-release gnupg
@@ -133,8 +115,7 @@ jobs:
       - name: Run the Python tests
         if: |
           contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.all == 'true')
+          (github.event_name != 'pull_request')
         run: pytest
         env:
           # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591

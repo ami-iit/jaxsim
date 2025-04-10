@@ -509,7 +509,7 @@ class JaxSimModel(JaxsimDataclass):
 
     def update_hw_parameters(
         self, scaling_parameters: dict[str, dict[str, float]]
-    ) -> JaxSimModel:
+    ) -> None:
         """
         Update the hardware parameters of the model by scaling the parameters of the links.
 
@@ -521,10 +521,7 @@ class JaxSimModel(JaxsimDataclass):
         Returns:
             The updated JaxSimModel object.
         """
-        updated_kin_dyn_parameters = self.kin_dyn_parameters.update_hw_parameters(
-            scaling_parameters
-        )
-        return self.replace(kin_dyn_parameters=updated_kin_dyn_parameters)
+        self.kin_dyn_parameters.update_hw_parameters(scaling_parameters)
 
     # ==========
     # Properties

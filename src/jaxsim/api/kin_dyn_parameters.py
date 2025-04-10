@@ -14,7 +14,7 @@ from jax_dataclasses import Static
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
-from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
+from jaxsim.utils import HashedNumpyArray, JaxsimDataclass, Mutability
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -488,7 +488,7 @@ class KinDynParameters(JaxsimDataclass):
 
     def update_hw_parameters(
         self, scaling_parameters: dict[str, dict[str, float]]
-    ) -> KinDynParameters:
+    ) -> None:
         """
         Update the parameters of the model by scaling the hardware parameters
         of the links.
@@ -510,6 +510,7 @@ class KinDynParameters(JaxsimDataclass):
         # )
 
         updated_link_parameters = self.link_parameters
+        updated_hw_link_metadata = self.hw_link_metadata
 
         for link_name, scaling_factors in scaling_parameters.items():
             # Verify that the link name exists in the metadata
@@ -537,7 +538,7 @@ class KinDynParameters(JaxsimDataclass):
                 )
 
             # Apply scaling factors based on the link's shape type
-            updated_link_parameters, _ = jax.lax.switch(
+            updated_link_parameters, updated_metadata = jax.lax.switch(
                 metadata["shape"]["type"],
                 (
                     KinDynParameters.apply_parameters_box,
@@ -550,9 +551,12 @@ class KinDynParameters(JaxsimDataclass):
                 scaling_factors,
             )
 
-        updated_kin_dyn = self.replace(link_parameters=updated_link_parameters)
+            # Update the hw_link_metadata dictionary
+            updated_hw_link_metadata[link_name] = updated_metadata
 
-        return updated_kin_dyn
+        with self.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            self.link_parameters = updated_link_parameters
+            self.hw_link_metadata = updated_hw_link_metadata
 
     @staticmethod
     def apply_parameters_box(
@@ -560,7 +564,7 @@ class KinDynParameters(JaxsimDataclass):
         link_index: jtp.IntLike,
         link_metadata: dict[str, Any],
         scaling_factors: dict[str, float],
-    ) -> tuple[LinkParameters, jtp.Matrix]:
+    ) -> tuple[LinkParameters, dict[str, Any]]:
         """
         Apply scaling factors to a link having a box shape.
         """
@@ -598,7 +602,15 @@ class KinDynParameters(JaxsimDataclass):
             ),
         )
 
-        return link_parameters, jnp.eye(4)  # Return identity for visual transform
+        # Update metadata with scaled parameters
+        updated_metadata = link_metadata.copy()
+        updated_metadata["shape"]["parameters"]["x"] = x̅
+        updated_metadata["shape"]["parameters"]["y"] = y̅
+        updated_metadata["shape"]["parameters"]["z"] = z̅
+        updated_metadata["dyn"]["density"] = ρ̅
+        updated_metadata["dyn"]["mass"] = m̅
+
+        return link_parameters, updated_metadata
 
     @staticmethod
     def apply_parameters_sphere(

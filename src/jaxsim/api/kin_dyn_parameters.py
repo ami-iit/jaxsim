@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
+from typing import Any
 
 import jax.lax
 import jax.numpy as jnp
@@ -50,6 +52,9 @@ class KinDynParameters(JaxsimDataclass):
     # Joints
     joint_model: JointModel
     joint_parameters: JointParameters | None
+
+    # Hardware parameters
+    hw_link_metadata: Static[dict[str, Any]] = dataclasses.field(default_factory=dict)
 
     @property
     def motion_subspaces(self) -> jtp.Matrix:
@@ -481,6 +486,207 @@ class KinDynParameters(JaxsimDataclass):
 
         return self.replace(link_parameters=link_parameters)
 
+    def update_hw_parameters(
+        self, scaling_parameters: dict[str, dict[str, float]]
+    ) -> KinDynParameters:
+        """
+        Update the parameters of the model by scaling the hardware parameters
+        of the links.
+
+        Args:
+            scaling_parameters: A dictionary where keys are link names and values are
+                                dictionaries containing scaling factors for parameters
+                                (e.g., shape multipliers, density).
+
+        Returns:
+            The updated KinDynParameters object.
+        """
+        # raise_runtime_error_if(
+        #     condition=len(
+        #         set(scaling_parameters.keys()) - set(self.hw_link_metadata.keys())
+        #     )
+        #     != 0,
+        #     msg="Found scaling parameters for links not part of the hardware model",
+        # )
+
+        updated_link_parameters = self.link_parameters
+
+        for link_name, scaling_factors in scaling_parameters.items():
+            # Verify that the link name exists in the metadata
+            if link_name not in self.hw_link_metadata:
+                raise ValueError(
+                    f"Link name '{link_name}' not found in hardware metadata."
+                )
+            # Verify that the link name exists in the link names
+            if link_name not in self.link_names:
+                raise ValueError(f"Link name '{link_name}' not found in link names.")
+
+            metadata = self.hw_link_metadata[link_name]
+            link_index = self.link_names.index(link_name)  # TODO to be verified
+
+            jax.debug.print("==== link metadata:\n{}", metadata)
+            jax.debug.print("Processing link: {}", link_name)
+            jax.debug.print("Link index: {}", link_index)
+            jax.debug.print("Shape type: {}", metadata["shape"]["type"])
+            jax.debug.print("Scaling factors: {}", scaling_factors)
+
+            # Verify that the shape type is valid
+            if metadata["shape"]["type"] not in [0, 1, 2]:
+                raise ValueError(
+                    f"Unexpected shape type: {metadata['shape']['type']} for link {link_name}"
+                )
+
+            # Apply scaling factors based on the link's shape type
+            updated_link_parameters, _ = jax.lax.switch(
+                metadata["shape"]["type"],
+                (
+                    KinDynParameters.apply_parameters_box,
+                    # KinDynParameters.apply_parameters_sphere,
+                    # KinDynParameters.apply_parameters_cylinder,
+                ),
+                updated_link_parameters,
+                link_index,
+                metadata,
+                scaling_factors,
+            )
+
+        updated_kin_dyn = self.replace(link_parameters=updated_link_parameters)
+
+        return updated_kin_dyn
+
+    @staticmethod
+    def apply_parameters_box(
+        link_parameters: LinkParameters,
+        link_index: jtp.IntLike,
+        link_metadata: dict[str, Any],
+        scaling_factors: dict[str, float],
+    ) -> tuple[LinkParameters, jtp.Matrix]:
+        """
+        Apply scaling factors to a link having a box shape.
+        """
+        jax.debug.print(f"applying box parameters for link {link_index}")
+        # Extract nominal parameters
+        x = link_metadata["shape"]["parameters"]["x"]
+        y = link_metadata["shape"]["parameters"]["y"]
+        z = link_metadata["shape"]["parameters"]["z"]
+        density = link_metadata["dyn"]["density"]
+
+        # Apply scaling factors
+        kx = scaling_factors.get("shape", {}).get("kx", 1.0)
+        ky = scaling_factors.get("shape", {}).get("ky", 1.0)
+        kz = scaling_factors.get("shape", {}).get("kz", 1.0)
+        kρ = scaling_factors.get("dyn", {}).get("kρ", 1.0)
+
+        # Compute updated parameters
+        x̅, y̅, z̅ = kx * x, ky * y, kz * z
+        ρ̅ = kρ * density
+        m̅ = ρ̅ * x̅ * y̅ * z̅
+
+        # Update link parameters
+        inertia_tensor = jnp.array([
+            [m̅ * (y̅**2 + z̅**2) / 12, 0, 0],
+            [0, m̅ * (x̅**2 + z̅**2) / 12, 0],
+            [0, 0, m̅ * (x̅**2 + y̅**2) / 12],
+        ])
+        link_parameters = link_parameters.replace(
+            mass=link_parameters.mass.at[link_index].set(m̅),
+            center_of_mass=link_parameters.center_of_mass.at[link_index].set(
+                jnp.zeros(3)
+            ),
+            inertia_elements=link_parameters.inertia_elements.at[link_index].set(
+                LinkParameters.flatten_inertia_tensor(inertia_tensor)
+            ),
+        )
+
+        return link_parameters, jnp.eye(4)  # Return identity for visual transform
+
+    @staticmethod
+    def apply_parameters_sphere(
+        link_parameters: LinkParameters,
+        link_index: jtp.IntLike,
+        link_metadata: dict[str, Any],
+        scaling_factors: dict[str, float],
+    ) -> tuple[LinkParameters, jtp.Matrix]:
+        """
+        Apply scaling factors to a link having a sphere shape.
+        """
+        jax.debug.print(f"applying sphere parameters for link {link_index}")
+
+        # Extract nominal parameters
+        r = link_metadata["shape"]["parameters"]["r"]
+        density = link_metadata["dyn"]["density"]
+
+        # Apply scaling factors
+        kr = scaling_factors.get("kr", 1.0)
+        kρ = scaling_factors.get("kρ", 1.0)
+
+        # Compute updated parameters
+        r̅ = kr * r
+        ρ̅ = kρ * density
+        m̅ = ρ̅ * (4 / 3 * jnp.pi * r̅**3)
+
+        # Update link parameters
+        inertia_tensor = jnp.eye(3) * (2 / 5 * m̅ * r̅**2)
+        link_parameters = link_parameters.replace(
+            mass=link_parameters.mass.at[link_index].set(m̅),
+            center_of_mass=link_parameters.center_of_mass.at[link_index].set(
+                jnp.zeros(3)
+            ),
+            inertia_elements=link_parameters.inertia_elements.at[link_index].set(
+                LinkParameters.flatten_inertia_tensor(inertia_tensor)
+            ),
+        )
+
+        return link_parameters, jnp.eye(4)  # Return identity for visual transform
+
+    @staticmethod
+    def apply_parameters_cylinder(
+        link_parameters: LinkParameters,
+        link_index: jtp.IntLike,
+        link_metadata: dict[str, Any],
+        scaling_factors: dict[str, float],
+    ) -> tuple[LinkParameters, jtp.Matrix]:
+        """
+        Apply scaling factors to a link having a cylinder shape.
+        """
+        jax.debug.print(
+            f"applying cylinder parameters for link {link_index}", ordered=True
+        )
+
+        # Extract nominal parameters
+        r = link_metadata["shape"]["parameters"]["r"]
+        l = link_metadata["shape"]["parameters"]["l"]
+        density = link_metadata["dyn"]["density"]
+
+        # Apply scaling factors
+        kr = scaling_factors.get("kr", 1.0)
+        kl = scaling_factors.get("kl", 1.0)
+        kρ = scaling_factors.get("kρ", 1.0)
+
+        # Compute updated parameters
+        r̅ = kr * r
+        l̅ = kl * l
+        ρ̅ = kρ * density
+        m̅ = ρ̅ * (jnp.pi * r̅**2 * l̅)
+
+        # Update link parameters
+        inertia_tensor = jnp.array([
+            [m̅ * (3 * r̅**2 + l̅**2) / 12, 0, 0],
+            [0, m̅ * (3 * r̅**2 + l̅**2) / 12, 0],
+            [0, 0, m̅ * (r̅**2) / 2],
+        ])
+        link_parameters = link_parameters.replace(
+            mass=link_parameters.mass.at[link_index].set(m̅),
+            center_of_mass=link_parameters.center_of_mass.at[link_index].set(
+                jnp.zeros(3)
+            ),
+            inertia_elements=link_parameters.inertia_elements.at[link_index].set(
+                LinkParameters.flatten_inertia_tensor(inertia_tensor)
+            ),
+        )
+
+        return link_parameters, jnp.eye(4)  # Return identity for visual transform
+
 
 @jax_dataclasses.pytree_dataclass
 class JointParameters(JaxsimDataclass):
@@ -882,3 +1088,14 @@ class FrameParameters(JaxsimDataclass):
         assert fp.transform.shape[0] == len(fp.body), fp.transform.shape[0]
 
         return fp
+
+
+@enum.unique
+class LinkParametrizableShape(enum.IntEnum):
+    """
+    Enum of all the supported shapes for HW parametrization.
+    """
+
+    Box = 0
+    Sphere = 1
+    Cylinder = 2

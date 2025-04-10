@@ -6,6 +6,7 @@ import enum
 import functools
 import pathlib
 from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -17,6 +18,8 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim import logging
+from jaxsim.api.kin_dyn_parameters import LinkParametrizableShape
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
@@ -186,6 +189,10 @@ class JaxSimModel(JaxsimDataclass):
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
 
+        # Compute the hw parametrization metadata of the model
+        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata()
+
         return model
 
     @classmethod
@@ -282,6 +289,242 @@ class JaxSimModel(JaxsimDataclass):
         )
 
         return model
+
+    def compute_hw_link_metadata(self) -> dict[str, dict[str, Any]]:
+        """
+        Compute the parametric metadata of the links in the model.
+
+        Returns:
+            A dictionary containing the metadata of the links.
+        """
+
+        match self.built_from:
+            case str():
+                rod_model = rod.Sdf.load(sdf=self.built_from).models()[0]
+                assert rod_model.name == self.name()
+
+            case rod.Model():
+                rod_model = self.built_from
+
+            case _:
+                msg = "Invalid type for model.built_from ({})"
+                raise ValueError(msg.format(type(self.built_from)))
+
+        # Make sure to use the URDF frame convention. This ensures that the pose of
+        # the /link/visual elements are relative to the link frame.
+        rod_model.switch_frame_convention(
+            frame_convention=rod.FrameConvention.Urdf, explicit_frames=True
+        )
+
+        rod_links_dict = {}
+        metadata = {}
+
+        # Get all the links that support being parameterized.
+        for rod_link in rod_model.links():
+            # We expect that the link only has one visual shape.
+            # This is the shape that we will parameterize.
+            if len(rod_link.visuals()) != 1:
+                msg = "Skipping link '{}' because it has multiple visual shapes"
+                logging.debug(msg.format(rod_link.name))
+                continue
+
+            # We only support a subset of primitive visual shapes.
+            if not isinstance(
+                rod_link.visual.geometry.geometry(), rod.Box | rod.Sphere | rod.Cylinder
+            ):
+                msg = (
+                    "Skipping link '{}' because its visual is not a supported primitive"
+                )
+                logging.debug(msg.format(rod_link.name))
+                continue
+
+            rod_links_dict[rod_link.name] = rod_link
+
+        parametric_link_names = rod_links_dict.keys()
+
+        def geometry_to_parameters(
+            geometry: rod.Geometry, mass: float
+        ) -> tuple[jtp.Float, dict[str, jtp.Float], jtp.FloatLike]:
+            actual_geometry_shape = geometry.geometry()
+
+            match actual_geometry_shape:
+                case rod.Box():
+                    actual_geometry_shape: rod.Box
+                    x, y, z = actual_geometry_shape.size
+
+                    ρ = mass / (x * y * z)
+
+                    return (
+                        jnp.array(ρ, dtype=float),
+                        dict(
+                            x=jnp.array(x, dtype=float),
+                            y=jnp.array(y, dtype=float),
+                            z=jnp.array(z, dtype=float),
+                        ),
+                        LinkParametrizableShape.Box,
+                    )
+
+                case rod.Sphere():
+                    actual_geometry_shape: rod.Sphere
+                    r = actual_geometry_shape.radius
+
+                    ρ = mass / (4 / 3 * jnp.pi * r**3)
+
+                    return (
+                        jnp.array(ρ, dtype=float),
+                        dict(r=jnp.array(r, dtype=float)),
+                        LinkParametrizableShape.Sphere,
+                    )
+
+                case rod.Cylinder():
+                    actual_geometry_shape: rod.Cylinder
+                    r = actual_geometry_shape.radius
+                    l = actual_geometry_shape.length
+
+                    ρ = mass / (jnp.pi * r**2 * l)
+
+                    return (
+                        jnp.array(ρ, dtype=float),
+                        dict(r=jnp.array(r, dtype=float), l=jnp.array(l, dtype=float)),
+                        LinkParametrizableShape.Cylinder,
+                    )
+
+                case _:
+                    msg = "Unsupported geometry type: {}"
+                    raise ValueError(msg.format(type(actual_geometry_shape)))
+
+        # Get all joints connected (as children) to the parameterized links.
+        joints_dict = {
+            j.name: j
+            for j in rod_model.joints()
+            if j.parent in set(self.link_names()) and j.child in set(self.link_names())
+        }
+
+        dummy_data = js.data.random_model_data(model=self)
+
+        # Initialize the metadata.
+        for link_name in parametric_link_names:
+            if link_name not in set(self.link_names()):
+                msg = "Skipping link '{}' because it is not part of the JaxSim model"
+                logging.debug(msg.format(link_name))
+                continue
+
+            # Get the link index in the JaxSim model.
+            i = js.link.name_to_idx(model=self, link_name=link_name)
+
+            # Get all child joints. These are the joints that need to be moved when
+            # the link shape changes.
+            child_joints_indices = [
+                js.joint.name_to_idx(model=self, joint_name=j.name)
+                for j in joints_dict.values()
+                if j.parent == link_name
+            ]
+
+            # We do not support these kind of links. Note that this transform is only
+            # possible in SDF models. All URDF models do not allow this transform.
+            # In fact, in URDF, the link frame must be located on the parent joint frame.
+            if not jnp.allclose(
+                self.kin_dyn_parameters.joint_model.suc_H_i[i], jnp.eye(4)
+            ):
+                raise ValueError("Unsupported link having non-trivial `suc_H_link`")
+
+            # Compute the nominal parameters of the shape.
+            ρ, shape_parameters, shape_type = geometry_to_parameters(
+                geometry=rod_links_dict[link_name].visual.geometry,
+                mass=float(self.kin_dyn_parameters.link_parameters.mass[i]),
+            )
+
+            # Note: here below we assume suc_H_link=eye(4). If this is not true, the
+            #       other transforms are wrong. If we start supporting this additional
+            #       transform, we need to properly rethink the parametric kinematics.
+            metadata[link_name] = dict(
+                # Shape nominal parameters.
+                shape=dict(
+                    type=jnp.array(shape_type, dtype=int), parameters=shape_parameters
+                ),
+                # Kinematics nominal parameters.
+                kin=dict(
+                    suc_H_link=self.kin_dyn_parameters.joint_model.suc_H_i[i],
+                    link_H_pre={
+                        int(joint_index): self.kin_dyn_parameters.joint_model.λ_H_pre[
+                            joint_index + 1
+                        ]
+                        for joint_index in jnp.array(child_joints_indices).sort()
+                    },
+                    suc_H_com=jnp.array(
+                        rod_links_dict[link_name].inertial.pose.transform(), dtype=float
+                    ),
+                    suc_H_vis=jnp.array(
+                        rod_links_dict[link_name].visual.pose.transform(), dtype=float
+                    ),
+                ),
+                # Dynamics nominal parameters.
+                dyn=dict(density=jnp.array(ρ, dtype=float)),
+            )
+
+            # ======================================================
+            # Exclude links that do not match between JaxSim and ROD
+            # ======================================================
+
+            dummy_data = js.data.random_model_data(model=self)
+
+            W_p_CoM_jaxsim = js.link.com_position(
+                model=self,
+                data=dummy_data,
+                link_index=i,
+                in_link_frame=True,
+            )
+
+            W_p_CoM_rod = metadata[link_name]["kin"]["suc_H_com"][0:3, 3]
+
+            if not jnp.allclose(W_p_CoM_jaxsim, W_p_CoM_rod):
+                msg = "Skipping link '{}' because the CoM location does not match"
+                msg += " between JaxSim and ROD (maybe due to lumping process)"
+                logging.debug(msg.format(link_name))
+                _ = metadata.pop(link_name)
+                continue
+
+            # TODO: check if the nominal 3x3 inertia tensor is valid considering the
+            #       visual shape. We do not read it from the model description, as we
+            #       recalculate it from the parameterization of the visual shape.
+            I_CoM = rod_links_dict[link_name].inertial.inertia.matrix()
+            L_R_G = metadata[link_name]["kin"]["suc_H_com"][0:3, 0:3]
+
+            L_I_CoM_jaxsim = js.link.spatial_inertia(model=self, link_index=i)
+
+            L_I_CoM_rod = jaxsim.math.Inertia.to_sixd(
+                mass=self.kin_dyn_parameters.link_parameters.mass[i],
+                com=metadata[link_name]["kin"]["suc_H_com"][0:3, 3],
+                I=L_R_G @ I_CoM @ L_R_G.T,
+            )
+
+            if not jnp.allclose(L_I_CoM_jaxsim, L_I_CoM_rod):
+                msg = "Skipping link '{}' because the inertia tensor does not match"
+                msg += " between JaxSim and ROD (maybe due to lumping process)"
+                logging.debug(msg.format(link_name))
+                _ = metadata.pop(link_name)
+                continue
+
+        return metadata
+
+    def update_hw_parameters(
+        self, scaling_parameters: dict[str, dict[str, float]]
+    ) -> JaxSimModel:
+        """
+        Update the hardware parameters of the model by scaling the parameters of the links.
+
+        Args:
+            scaling_parameters: A dictionary where keys are link names and values are
+                                dictionaries containing scaling factors for parameters
+                                (e.g., shape multipliers, density).
+
+        Returns:
+            The updated JaxSimModel object.
+        """
+        updated_kin_dyn_parameters = self.kin_dyn_parameters.update_hw_parameters(
+            scaling_parameters
+        )
+        return self.replace(kin_dyn_parameters=updated_kin_dyn_parameters)
 
     # ==========
     # Properties

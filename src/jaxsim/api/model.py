@@ -305,7 +305,7 @@ class JaxSimModel(JaxsimDataclass):
         """
 
         match self.built_from:
-            case str():
+            case str() | pathlib.Path():
                 rod_model = rod.Sdf.load(sdf=self.built_from).models()[0]
                 assert rod_model.name == self.name()
 

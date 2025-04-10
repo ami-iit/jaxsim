@@ -232,24 +232,64 @@ def test_hw_link_parameters_creation(jaxsim_model_garpez: js.model.JaxSimModel):
     model = jaxsim_model_garpez
 
     # Assert initial hardware parameters
-    initial_length = model.kin_dyn_parameters.hw_link_metadata["link1"]["shape"][
-        "parameters"
-    ]["x"]
+    initial_length = model.kin_dyn_parameters.hw_link_metadata["link1"].shape.x
+    initial_ky = model.kin_dyn_parameters.hw_link_metadata["link1"].shape.y
+    initial_kr_link2 = model.kin_dyn_parameters.hw_link_metadata["link2"].shape.r
+    initial_kl_link3 = model.kin_dyn_parameters.hw_link_metadata["link3"].shape.l
+    initial_kr_link3 = model.kin_dyn_parameters.hw_link_metadata["link3"].shape.r
+    initial_kx_link4 = model.kin_dyn_parameters.hw_link_metadata["link4"].shape.x
 
     # Create the scaling factors
-    scaling_factor = 10.0
     scaling_parameters = {
-        "link1": {"shape": {"kx": jnp.array(scaling_factor, dtype=float)}}
+        "link1": {
+            "kx": 10.0,
+            "ky": 4.0,
+        },
+        "link2": {
+            "kr": 2.0,
+        },
+        "link3": {
+            "kl": 1.5,
+            "kr": 0.5,
+        },
+        "link4": {
+            "kx": 3.0,
+        },
     }
 
     # Update the model using the scaling factors
-    model.update_hw_parameters(scaling_parameters)
+    model.kin_dyn_parameters.update_hw_parameters(scaling_parameters)
 
     # Assert updated hardware parameters
-    updated_length = model.kin_dyn_parameters.hw_link_metadata["link1"]["shape"][
-        "parameters"
-    ]["x"]
-    assert updated_length == pytest.approx(initial_length * scaling_factor, abs=1e-6)
+    updated_length = model.kin_dyn_parameters.hw_link_metadata["link1"].shape.x
+    assert updated_length == pytest.approx(
+        initial_length * scaling_parameters["link1"]["kx"], abs=1e-6
+    )
+
+    updated_ky = model.kin_dyn_parameters.hw_link_metadata["link1"].shape.y
+    assert updated_ky == pytest.approx(
+        initial_ky * scaling_parameters["link1"]["ky"], abs=1e-6
+    )
+
+    updated_kr_link2 = model.kin_dyn_parameters.hw_link_metadata["link2"].shape.r
+    assert updated_kr_link2 == pytest.approx(
+        initial_kr_link2 * scaling_parameters["link2"]["kr"], abs=1e-6
+    )
+
+    updated_kl_link3 = model.kin_dyn_parameters.hw_link_metadata["link3"].shape.l
+    assert updated_kl_link3 == pytest.approx(
+        initial_kl_link3 * scaling_parameters["link3"]["kl"], abs=1e-6
+    )
+
+    updated_kr_link3 = model.kin_dyn_parameters.hw_link_metadata["link3"].shape.r
+    assert updated_kr_link3 == pytest.approx(
+        initial_kr_link3 * scaling_parameters["link3"]["kr"], abs=1e-6
+    )
+
+    updated_kx_link4 = model.kin_dyn_parameters.hw_link_metadata["link4"].shape.x
+    assert updated_kx_link4 == pytest.approx(
+        initial_kx_link4 * scaling_parameters["link4"]["kx"], abs=1e-6
+    )
 
 
 def test_model_properties(

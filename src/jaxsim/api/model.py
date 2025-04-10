@@ -6,7 +6,6 @@ import enum
 import functools
 import pathlib
 from collections.abc import Sequence
-from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +18,14 @@ import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.api.kin_dyn_parameters import LinkParametrizableShape
+from jaxsim.api.kin_dyn_parameters import (
+    Box,
+    Cylinder,
+    HwLinkMetadata,
+    KinParameters,
+    PrimitiveShape,
+    Sphere,
+)
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
@@ -290,7 +296,7 @@ class JaxSimModel(JaxsimDataclass):
 
         return model
 
-    def compute_hw_link_metadata(self) -> dict[str, dict[str, Any]]:
+    def compute_hw_link_metadata(self) -> dict[str, HwLinkMetadata]:
         """
         Compute the parametric metadata of the links in the model.
 
@@ -342,52 +348,33 @@ class JaxSimModel(JaxsimDataclass):
 
         parametric_link_names = rod_links_dict.keys()
 
-        def geometry_to_parameters(
+        def geometry_to_shape(
             geometry: rod.Geometry, mass: float
-        ) -> tuple[jtp.Float, dict[str, jtp.Float], jtp.FloatLike]:
+        ) -> tuple[PrimitiveShape, jtp.float]:
             actual_geometry_shape = geometry.geometry()
 
             match actual_geometry_shape:
                 case rod.Box():
                     actual_geometry_shape: rod.Box
                     x, y, z = actual_geometry_shape.size
-
-                    ρ = mass / (x * y * z)
-
-                    return (
-                        jnp.array(ρ, dtype=float),
-                        dict(
-                            x=jnp.array(x, dtype=float),
-                            y=jnp.array(y, dtype=float),
-                            z=jnp.array(z, dtype=float),
-                        ),
-                        LinkParametrizableShape.Box,
-                    )
+                    density = mass / (x * y * z)
+                    shape = Box(x=x, y=y, z=z)
+                    return shape, density
 
                 case rod.Sphere():
                     actual_geometry_shape: rod.Sphere
                     r = actual_geometry_shape.radius
-
-                    ρ = mass / (4 / 3 * jnp.pi * r**3)
-
-                    return (
-                        jnp.array(ρ, dtype=float),
-                        dict(r=jnp.array(r, dtype=float)),
-                        LinkParametrizableShape.Sphere,
-                    )
+                    density = mass / (4 / 3 * jnp.pi * r**3)
+                    shape = Sphere(r=r)
+                    return shape, density
 
                 case rod.Cylinder():
                     actual_geometry_shape: rod.Cylinder
                     r = actual_geometry_shape.radius
                     l = actual_geometry_shape.length
-
-                    ρ = mass / (jnp.pi * r**2 * l)
-
-                    return (
-                        jnp.array(ρ, dtype=float),
-                        dict(r=jnp.array(r, dtype=float), l=jnp.array(l, dtype=float)),
-                        LinkParametrizableShape.Cylinder,
-                    )
+                    density = mass / (jnp.pi * r**2 * l)
+                    shape = Cylinder(r=r, l=l)
+                    return shape, density
 
                 case _:
                     msg = "Unsupported geometry type: {}"
@@ -429,7 +416,7 @@ class JaxSimModel(JaxsimDataclass):
                 raise ValueError("Unsupported link having non-trivial `suc_H_link`")
 
             # Compute the nominal parameters of the shape.
-            ρ, shape_parameters, shape_type = geometry_to_parameters(
+            shape, density = geometry_to_shape(
                 geometry=rod_links_dict[link_name].visual.geometry,
                 mass=float(self.kin_dyn_parameters.link_parameters.mass[i]),
             )
@@ -437,19 +424,16 @@ class JaxSimModel(JaxsimDataclass):
             # Note: here below we assume suc_H_link=eye(4). If this is not true, the
             #       other transforms are wrong. If we start supporting this additional
             #       transform, we need to properly rethink the parametric kinematics.
-            metadata[link_name] = dict(
-                # Shape nominal parameters.
-                shape=dict(
-                    type=jnp.array(shape_type, dtype=int), parameters=shape_parameters
-                ),
-                # Kinematics nominal parameters.
-                kin=dict(
+            metadata[link_name] = HwLinkMetadata(
+                shape=shape,
+                density=density,
+                kin=KinParameters(
                     suc_H_link=self.kin_dyn_parameters.joint_model.suc_H_i[i],
                     link_H_pre={
                         int(joint_index): self.kin_dyn_parameters.joint_model.λ_H_pre[
                             joint_index + 1
                         ]
-                        for joint_index in jnp.array(child_joints_indices).sort()
+                        for joint_index in sorted(child_joints_indices)
                     },
                     suc_H_com=jnp.array(
                         rod_links_dict[link_name].inertial.pose.transform(), dtype=float
@@ -458,8 +442,6 @@ class JaxSimModel(JaxsimDataclass):
                         rod_links_dict[link_name].visual.pose.transform(), dtype=float
                     ),
                 ),
-                # Dynamics nominal parameters.
-                dyn=dict(density=jnp.array(ρ, dtype=float)),
             )
 
             # ======================================================
@@ -475,7 +457,7 @@ class JaxSimModel(JaxsimDataclass):
                 in_link_frame=True,
             )
 
-            W_p_CoM_rod = metadata[link_name]["kin"]["suc_H_com"][0:3, 3]
+            W_p_CoM_rod = metadata[link_name].kin.suc_H_com[0:3, 3]
 
             if not jnp.allclose(W_p_CoM_jaxsim, W_p_CoM_rod):
                 msg = "Skipping link '{}' because the CoM location does not match"
@@ -488,13 +470,13 @@ class JaxSimModel(JaxsimDataclass):
             #       visual shape. We do not read it from the model description, as we
             #       recalculate it from the parameterization of the visual shape.
             I_CoM = rod_links_dict[link_name].inertial.inertia.matrix()
-            L_R_G = metadata[link_name]["kin"]["suc_H_com"][0:3, 0:3]
+            L_R_G = metadata[link_name].kin.suc_H_com[0:3, 0:3]
 
             L_I_CoM_jaxsim = js.link.spatial_inertia(model=self, link_index=i)
 
             L_I_CoM_rod = jaxsim.math.Inertia.to_sixd(
                 mass=self.kin_dyn_parameters.link_parameters.mass[i],
-                com=metadata[link_name]["kin"]["suc_H_com"][0:3, 3],
+                com=metadata[link_name].kin.suc_H_com[0:3, 3],
                 I=L_R_G @ I_CoM @ L_R_G.T,
             )
 

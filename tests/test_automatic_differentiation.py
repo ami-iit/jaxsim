@@ -9,7 +9,6 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
-from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
@@ -286,58 +285,6 @@ def test_ad_jacobian(
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,
-    )
-
-
-def test_ad_soft_contacts(
-    jaxsim_models_types: js.model.JaxSimModel,
-    prng_key: jax.Array,
-):
-
-    model = jaxsim_models_types
-
-    with model.editable(validate=False) as model:
-        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build(model=model)
-
-    _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
-    p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
-    v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
-    m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
-
-    # Get the soft contacts parameters.
-    parameters = js.contact.estimate_good_contact_parameters(model=model)
-
-    # ====
-    # Test
-    # ====
-
-    # Get a closure exposing only the parameters to be differentiated.
-    def close_over_inputs_and_parameters(
-        p: jtp.VectorLike,
-        v: jtp.VectorLike,
-        m: jtp.VectorLike,
-        params: SoftContactsParams,
-    ) -> tuple[jtp.Vector, jtp.Vector]:
-
-        W_f_Ci, CW_ṁ = SoftContacts.compute_contact_force(
-            position=p,
-            velocity=v,
-            tangential_deformation=m,
-            parameters=params,
-            terrain=model.terrain,
-        )
-
-        return W_f_Ci, CW_ṁ
-
-    # Check derivatives against finite differences.
-    check_grads(
-        f=close_over_inputs_and_parameters,
-        args=(p, v, m, parameters),
-        order=AD_ORDER,
-        modes=["rev", "fwd"],
-        eps=ε,
-        # On GPU, the tolerance needs to be increased.
-        rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
     )
 
 

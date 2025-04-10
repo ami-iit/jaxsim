@@ -5,9 +5,9 @@ import functools
 from collections.abc import Sequence
 
 try:
-    from typing import Self, override
+    from typing import override
 except ImportError:
-    from typing_extensions import override, Self
+    from typing_extensions import override
 
 import jax
 import jax.numpy as jnp
@@ -21,6 +21,11 @@ import jaxsim.typing as jtp
 
 from . import common
 from .common import VelRepr
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 @jax_dataclasses.pytree_dataclass
@@ -71,7 +76,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.VectorLike | None = None,
         base_angular_velocity: jtp.VectorLike | None = None,
         joint_velocities: jtp.VectorLike | None = None,
-        contact_state: dict[str, jtp.Array] | None = None,
         velocity_representation: VelRepr = VelRepr.Mixed,
     ) -> JaxSimModelData:
         """
@@ -88,7 +92,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
                 The base angular velocity in the selected representation.
             joint_velocities: The joint velocities.
             velocity_representation: The velocity representation to use. It defaults to mixed if not provided.
-            contact_state: The optional contact state.
 
         Returns:
             A `JaxSimModelData` initialized with the given state.
@@ -171,14 +174,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             )
         )
 
-        contact_state = contact_state or {}
-
-        if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
-            contact_state.setdefault(
-                "tangential_deformation",
-                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
-            )
-
         model_data = JaxSimModelData(
             velocity_representation=velocity_representation,
             _base_quaternion=base_quaternion,
@@ -191,7 +186,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             _joint_transforms=joint_transforms,
             _link_transforms=link_transforms,
             _link_velocities=link_velocities_inertial,
-            contact_state=contact_state,
         )
 
         if not model_data.valid(model=model):
@@ -359,14 +353,11 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
 
     @js.common.named_scope
     @jax.jit
-    def reset_base_quaternion(
-        self, model: js.model.JaxSimModel, base_quaternion: jtp.VectorLike
-    ) -> Self:
+    def reset_base_quaternion(self, base_quaternion: jtp.VectorLike) -> Self:
         """
         Reset the base quaternion.
 
         Args:
-            model: The JaxSim model to use.
             base_quaternion: The base orientation as a quaternion.
 
         Returns:
@@ -378,18 +369,15 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         norm = jaxsim.math.safe_norm(W_Q_B)
         W_Q_B = W_Q_B / (norm + jnp.finfo(float).eps * (norm == 0))
 
-        return self.replace(model=model, base_quaternion=W_Q_B)
+        return self.replace(validate=True, base_quaternion=W_Q_B)
 
     @js.common.named_scope
     @jax.jit
-    def reset_base_pose(
-        self, model: js.model.JaxSimModel, base_pose: jtp.MatrixLike
-    ) -> Self:
+    def reset_base_pose(self, base_pose: jtp.MatrixLike) -> Self:
         """
         Reset the base pose.
 
         Args:
-            model: The JaxSim model to use.
             base_pose: The base pose as an SE(3) matrix.
 
         Returns:
@@ -400,7 +388,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         W_p_B = base_pose[0:3, 3]
         W_Q_B = jaxsim.math.Quaternion.from_dcm(dcm=base_pose[0:3, 0:3])
         return self.replace(
-            model=model,
             base_position=W_p_B,
             base_quaternion=W_Q_B,
         )
@@ -415,8 +402,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         base_linear_velocity: jtp.Vector | None = None,
         base_angular_velocity: jtp.Vector | None = None,
         base_position: jtp.Vector | None = None,
-        *,
-        contact_state: dict[str, jtp.Array] | None = None,
         validate: bool = False,
     ) -> Self:
         """

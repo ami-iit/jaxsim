@@ -47,13 +47,13 @@ class JaxSimModel(JaxsimDataclass):
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
-    gravity: Static[float] = -jaxsim.math.STANDARD_GRAVITY
+    gravity: Static[float] = jaxsim.math.STANDARD_GRAVITY
 
     contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
         default=None, repr=False
     )
 
-    contact_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
+    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -177,9 +177,9 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            contact_params=contact_params,
+            contacts_params=contact_params,
             integrator=integrator,
-            gravity=-gravity,
+            gravity=gravity,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
@@ -197,7 +197,7 @@ class JaxSimModel(JaxsimDataclass):
         time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
-        contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
@@ -217,8 +217,8 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model overriding the physics model name.
             contact_model:
                 The contact model to consider.
-                If not specified, a relaxed-constraints rigid contacts model is used.
-            contact_params: The parameters of the contact model.
+                If not specified, a soft contacts model is used.
+            contacts_params: The parameters of the soft contacts.
             integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
 
@@ -252,8 +252,8 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
-        if contact_params is None:
-            contact_params = contact_model._parameters_class()
+        if contacts_params is None:
+            contacts_params = contact_model._parameters_class()
 
         # Consider the default integrator if not specified.
         integrator = (
@@ -271,7 +271,7 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            contact_params=contact_params,
+            contacts_params=contacts_params,
             integrator=integrator,
             gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we
@@ -473,7 +473,7 @@ def reduce(
         time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
-        contact_params=model.contact_params,
+        contacts_params=model.contacts_params,
         gravity=model.gravity,
         integrator=model.integrator,
     )
@@ -2092,6 +2092,29 @@ def step(
         model, data, joint_force_references=τ_references
     )
 
+    # ======================
+    # Compute contact forces
+    # ======================
+
+    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
+
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain = js.contact_model.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=W_f_L_external,
+            joint_torques=τ_total,
+        )
+
+    # ==============================
+    # Compute the total link forces
+    # ==============================
+
+    W_f_L_total = W_f_L_external + W_f_L_terrain
+
     # =============================
     # Advance the simulation state
     # =============================
@@ -2101,14 +2124,7 @@ def step(
     integrator_fn = _INTEGRATORS_MAP[model.integrator]
 
     data_tf = integrator_fn(
-        model=model,
-        data=data,
-        link_forces=W_f_L_external,
-        joint_torques=τ_total,
-    )
-
-    data_tf = model.contact_model.update_velocity_after_impact(
-        model=model, data=data_tf
+        model=model, data=data, link_forces=W_f_L_total, joint_torques=τ_total
     )
 
     return data_tf

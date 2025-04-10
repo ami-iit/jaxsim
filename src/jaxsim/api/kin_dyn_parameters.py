@@ -541,9 +541,9 @@ class KinDynParameters(JaxsimDataclass):
             updated_link_parameters, updated_metadata = jax.lax.switch(
                 metadata["shape"]["type"],
                 (
-                    KinDynParameters.apply_parameters_box,
-                    # KinDynParameters.apply_parameters_sphere,
-                    # KinDynParameters.apply_parameters_cylinder,
+                    KinDynParameters._apply_parameters_box,
+                    KinDynParameters._apply_parameters_cylinder,
+                    KinDynParameters._apply_parameters_sphere,
                 ),
                 updated_link_parameters,
                 link_index,
@@ -559,7 +559,7 @@ class KinDynParameters(JaxsimDataclass):
             self.hw_link_metadata = updated_hw_link_metadata
 
     @staticmethod
-    def apply_parameters_box(
+    def _apply_parameters_box(
         link_parameters: LinkParameters,
         link_index: jtp.IntLike,
         link_metadata: dict[str, Any],
@@ -579,7 +579,7 @@ class KinDynParameters(JaxsimDataclass):
         kx = scaling_factors.get("shape", {}).get("kx", 1.0)
         ky = scaling_factors.get("shape", {}).get("ky", 1.0)
         kz = scaling_factors.get("shape", {}).get("kz", 1.0)
-        kρ = scaling_factors.get("dyn", {}).get("kρ", 1.0)
+        kρ = scaling_factors.get("dyn", {}).get("kdensity", 1.0)
 
         # Compute updated parameters
         x̅, y̅, z̅ = kx * x, ky * y, kz * z
@@ -613,12 +613,12 @@ class KinDynParameters(JaxsimDataclass):
         return link_parameters, updated_metadata
 
     @staticmethod
-    def apply_parameters_sphere(
+    def _apply_parameters_sphere(
         link_parameters: LinkParameters,
         link_index: jtp.IntLike,
         link_metadata: dict[str, Any],
         scaling_factors: dict[str, float],
-    ) -> tuple[LinkParameters, jtp.Matrix]:
+    ) -> tuple[LinkParameters, dict[str, Any]]:
         """
         Apply scaling factors to a link having a sphere shape.
         """
@@ -630,7 +630,7 @@ class KinDynParameters(JaxsimDataclass):
 
         # Apply scaling factors
         kr = scaling_factors.get("kr", 1.0)
-        kρ = scaling_factors.get("kρ", 1.0)
+        kρ = scaling_factors.get("kdensity", 1.0)
 
         # Compute updated parameters
         r̅ = kr * r
@@ -649,15 +649,21 @@ class KinDynParameters(JaxsimDataclass):
             ),
         )
 
-        return link_parameters, jnp.eye(4)  # Return identity for visual transform
+        # Update metadata with scaled parameters
+        updated_metadata = link_metadata.copy()
+        updated_metadata["shape"]["parameters"]["r"] = r̅
+        updated_metadata["dyn"]["density"] = ρ̅
+        updated_metadata["dyn"]["mass"] = m̅
+
+        return link_parameters, updated_metadata
 
     @staticmethod
-    def apply_parameters_cylinder(
+    def _apply_parameters_cylinder(
         link_parameters: LinkParameters,
         link_index: jtp.IntLike,
         link_metadata: dict[str, Any],
         scaling_factors: dict[str, float],
-    ) -> tuple[LinkParameters, jtp.Matrix]:
+    ) -> tuple[LinkParameters, dict[str, Any]]:
         """
         Apply scaling factors to a link having a cylinder shape.
         """
@@ -673,7 +679,7 @@ class KinDynParameters(JaxsimDataclass):
         # Apply scaling factors
         kr = scaling_factors.get("kr", 1.0)
         kl = scaling_factors.get("kl", 1.0)
-        kρ = scaling_factors.get("kρ", 1.0)
+        kρ = scaling_factors.get("kdensity", 1.0)
 
         # Compute updated parameters
         r̅ = kr * r
@@ -697,7 +703,14 @@ class KinDynParameters(JaxsimDataclass):
             ),
         )
 
-        return link_parameters, jnp.eye(4)  # Return identity for visual transform
+        # Update metadata with scaled parameters
+        updated_metadata = link_metadata.copy()
+        updated_metadata["shape"]["parameters"]["r"] = r̅
+        updated_metadata["shape"]["parameters"]["l"] = l̅
+        updated_metadata["dyn"]["density"] = ρ̅
+        updated_metadata["dyn"]["mass"] = m̅
+
+        return link_parameters, updated_metadata
 
 
 @jax_dataclasses.pytree_dataclass
@@ -1109,5 +1122,5 @@ class LinkParametrizableShape(enum.IntEnum):
     """
 
     Box = 0
-    Sphere = 1
-    Cylinder = 2
+    Cylinder = 1
+    Sphere = 2

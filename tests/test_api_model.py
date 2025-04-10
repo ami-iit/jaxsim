@@ -224,6 +224,34 @@ def test_model_creation_and_reduction(
         ), frame_name
 
 
+def test_hw_link_parameters_creation(jaxsim_model_garpez: js.model.JaxSimModel):
+    """
+    Test that the hardware parameters of the model are updated correctly.
+    """
+
+    model = jaxsim_model_garpez
+
+    # Assert initial hardware parameters
+    initial_length = model.kin_dyn_parameters.hw_link_metadata["link1"]["shape"][
+        "parameters"
+    ]["x"]
+
+    # Create the scaling factors
+    scaling_factor = 10.0
+    scaling_parameters = {
+        "link1": {"shape": {"kx": jnp.array(scaling_factor, dtype=float)}}
+    }
+
+    # Update the model using the scaling factors
+    model.update_hw_parameters(scaling_parameters)
+
+    # Assert updated hardware parameters
+    updated_length = model.kin_dyn_parameters.hw_link_metadata["link1"]["shape"][
+        "parameters"
+    ]["x"]
+    assert updated_length == pytest.approx(initial_length * scaling_factor, abs=1e-6)
+
+
 def test_model_properties(
     jaxsim_models_types: js.model.JaxSimModel,
     velocity_representation: VelRepr,

@@ -69,7 +69,7 @@ testing = [
     "pytest >=6.0",
     "pytest-benchmark",
     "pytest-icdiff",
-    "robot-descriptions",
+    "robot-descriptions >= 1.16.0",
     "icub-models",
 ]
 viz = [
@@ -258,7 +258,7 @@ pre-commit = "*"
 pytest = "*"
 pytest-benchmark = "*"
 pytest-icdiff = "*"
-robot_descriptions = "*"
+robot_descriptions = ">=1.16.0"
 
 # ----------------
 # feature.examples
@@ -269,7 +269,7 @@ examples = { cmd = "jupyter notebook ./examples" }
 
 [tool.pixi.feature.examples.dependencies]
 notebook = "*"
-robot_descriptions = "*"
+robot_descriptions = ">=1.16.0"
 
 # -----------
 # feature.gpu

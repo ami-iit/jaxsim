@@ -269,7 +269,7 @@ def ergocub_model_description_path() -> pathlib.Path:
     """
 
     try:
-        os.environ["ROBOT_DESCRIPTION_COMMIT"] = "v0.7.1"
+        os.environ["ROBOT_DESCRIPTION_COMMIT"] = "v0.7.7"
 
         import robot_descriptions.ergocub_description
 
@@ -278,7 +278,7 @@ def ergocub_model_description_path() -> pathlib.Path:
 
     model_urdf_path = pathlib.Path(
         robot_descriptions.ergocub_description.URDF_PATH.replace(
-            "ergoCubSN000", "ergoCubSN001"
+            "ergoCubSN002", "ergoCubSN001"
         )
     )
 

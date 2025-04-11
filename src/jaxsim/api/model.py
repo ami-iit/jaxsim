@@ -314,8 +314,10 @@ class JaxSimModel(JaxsimDataclass):
                 rod_model = self.built_from
 
             case _:
-                msg = "Invalid type for model.built_from ({})"
-                raise ValueError(msg.format(type(self.built_from)))
+                logging.debug(
+                    f"Invalid type for model.built_from ({type(self.built_from)}). Skipping."
+                )
+                return {}
 
         # Make sure to use the URDF frame convention. This ensures that the pose of
         # the /link/visual elements are relative to the link frame.
@@ -378,8 +380,10 @@ class JaxSimModel(JaxsimDataclass):
                     return shape, density
 
                 case _:
-                    msg = "Unsupported geometry type: {}"
-                    raise ValueError(msg.format(type(actual_geometry_shape)))
+                    logging.warning(
+                        f"Unsupported geometry type: {type(actual_geometry_shape)}. Skipping."
+                    )
+                    return None, None
 
         # Get all joints connected (as children) to the parameterized links.
         joints_dict = {
@@ -414,13 +418,22 @@ class JaxSimModel(JaxsimDataclass):
             if not jnp.allclose(
                 self.kin_dyn_parameters.joint_model.suc_H_i[i], jnp.eye(4)
             ):
-                raise ValueError("Unsupported link having non-trivial `suc_H_link`")
+                logging.debug(
+                    f"Skipping link '{link_name}' due to unsupported non-trivial `suc_H_link`."
+                )
+                continue
 
             # Compute the nominal parameters of the shape.
             shape, density = geometry_to_shape(
                 geometry=rod_links_dict[link_name].visual.geometry,
                 mass=float(self.kin_dyn_parameters.link_parameters.mass[i]),
             )
+
+            if shape is None or density is None:
+                logging.debug(
+                    f"Skipping link '{link_name}' due to unsupported geometry or density."
+                )
+                continue
 
             # Note: here below we assume suc_H_link=eye(4). If this is not true, the
             #       other transforms are wrong. If we start supporting this additional

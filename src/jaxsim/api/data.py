@@ -431,13 +431,6 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if contact_state is None:
             contact_state = self.contact_state
 
-        if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
-            contact_state = {
-                "tangential_deformation": jnp.zeros_like(
-                    contact_state["tangential_deformation"]
-                )
-            }
-
         # Normalize the quaternion to avoid numerical issues.
         base_quaternion_norm = jaxsim.math.safe_norm(
             base_quaternion, axis=-1, keepdims=True
@@ -525,6 +518,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
             _joint_transforms=joint_transforms,
             _link_transforms=link_transforms,
             _link_velocities=link_velocities,
+            contact_state=contact_state,
             validate=validate,
         )
 

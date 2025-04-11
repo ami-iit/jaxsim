@@ -16,7 +16,7 @@ jobs:
   benchmark:
     runs-on: self-hosted
     container:
-      image: ghcr.io/nvidia/jax:jax
+      image: ghcr.io/nvidia/jax@sha256:fdc493f32727405514caaecd9f0ea508a56cf645424cc66e03fedd8141c493bb
       options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
 
     steps:

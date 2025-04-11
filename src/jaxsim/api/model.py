@@ -29,6 +29,7 @@ class IntegratorType(enum.IntEnum):
 
     SemiImplicitEuler = enum.auto()
     RungeKutta4 = enum.auto()
+    RungeKutta4Fast = enum.auto()
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)

@@ -57,6 +57,10 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
+    actuation_params: Static[jaxsim.rbda.actuation.ActuationParams] = dataclasses.field(
+        default=None, repr=False
+    )
+
     kin_dyn_parameters: js.kin_dyn_parameters.KinDynParameters | None = (
         dataclasses.field(default=None, repr=False)
     )
@@ -121,6 +125,7 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        actuation_params: jaxsim.rbda.actuation.ActuationParams | None = None,
         integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
@@ -143,6 +148,7 @@ class JaxSimModel(JaxsimDataclass):
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
             contact_params: The parameters of the contact model.
+            actuation_params: The parameters of the actuation model.
             integrator: The integrator to use for the simulation.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
@@ -177,6 +183,7 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
+            actuation_params=actuation_params,
             contact_params=contact_params,
             integrator=integrator,
             gravity=-gravity,
@@ -198,6 +205,7 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        actuation_params: jaxsim.rbda.actuation.ActuationParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     ) -> JaxSimModel:
@@ -219,6 +227,7 @@ class JaxSimModel(JaxsimDataclass):
                 The contact model to consider.
                 If not specified, a relaxed-constraints rigid contacts model is used.
             contact_params: The parameters of the contact model.
+            actuation_params: The parameters of the actuation model.
             integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
 
@@ -255,6 +264,9 @@ class JaxSimModel(JaxsimDataclass):
         if contact_params is None:
             contact_params = contact_model._parameters_class()
 
+        if actuation_params is None:
+            actuation_params = jaxsim.rbda.actuation.ActuationParams()
+
         # Consider the default integrator if not specified.
         integrator = (
             integrator
@@ -272,6 +284,7 @@ class JaxSimModel(JaxsimDataclass):
             terrain=terrain,
             contact_model=contact_model,
             contact_params=contact_params,
+            actuation_params=actuation_params,
             integrator=integrator,
             gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we

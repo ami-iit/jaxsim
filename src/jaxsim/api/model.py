@@ -23,6 +23,7 @@ from jaxsim.api.kin_dyn_parameters import (
     Cylinder,
     HwLinkMetadata,
     KinParameters,
+    LinkParameters,
     PrimitiveShape,
     Sphere,
 )
@@ -503,6 +504,96 @@ class JaxSimModel(JaxsimDataclass):
             The updated JaxSimModel object.
         """
         self.kin_dyn_parameters.update_hw_parameters(scaling_parameters)
+
+    def export_updated_model(self) -> rod.Model:
+        """
+        Export the JaxSim model to a ROD model for visualization purposes.
+
+        Returns:
+            A ROD model with updated hardware parameters and visual information.
+
+        Note:
+            This method is not meant to be used in JIT-compiled functions.
+        """
+        if isinstance(jnp.zeros(0), jax.core.Tracer):
+            raise RuntimeError("This method cannot be used in JIT-compiled functions")
+
+        # Ensure `built_from` is a ROD model and create `rod_model_output`
+        if isinstance(self.built_from, rod.Model):
+            rod_model_output = copy.deepcopy(self.built_from)
+        elif isinstance(self.built_from, (str, pathlib.Path)):
+            rod_model_output = rod.Sdf.load(sdf=self.built_from).models()[0]
+        else:
+            raise ValueError(
+                "The JaxSim model must be built from a valid ROD model source"
+            )
+
+        # Switch to URDF frame convention for easier mapping
+        rod_model_output.switch_frame_convention(
+            frame_convention=rod.FrameConvention.Urdf,
+            explicit_frames=True,
+            attach_frames_to_links=True,
+        )
+
+        # Get links and joints from the ROD model
+        links_dict = {link.name: link for link in rod_model_output.links()}
+        joints_dict = {joint.name: joint for joint in rod_model_output.joints()}
+
+        # Iterate over the hardware metadata to update the ROD model
+        for link_name, metadata in self.kin_dyn_parameters.hw_link_metadata.items():
+            if link_name not in links_dict:
+                continue
+
+            # Get the link index in the JaxSim model
+            link_index = js.link.name_to_idx(model=self, link_name=link_name)
+
+            # Update mass and inertia
+            mass = self.kin_dyn_parameters.link_parameters.mass[link_index]
+            center_of_mass = self.kin_dyn_parameters.link_parameters.center_of_mass[
+                link_index
+            ]
+            inertia_tensor = LinkParameters.unflatten_inertia_tensor(
+                self.kin_dyn_parameters.link_parameters.inertia_elements[link_index]
+            )
+
+            links_dict[link_name].inertial.mass = float(mass)
+            links_dict[link_name].inertial.pose = rod.Pose.from_transform(
+                transform=jnp.eye(4).at[0:3, 3].set(center_of_mass)
+            )
+            links_dict[link_name].inertial.inertia = rod.Inertia.from_inertia_tensor(
+                inertia_tensor=jnp.array(inertia_tensor), validate=True
+            )
+
+            # Update visual shape
+            shape = metadata.shape
+            if isinstance(shape, Box):
+                links_dict[link_name].visual.geometry.box.size = [
+                    float(shape.x),
+                    float(shape.y),
+                    float(shape.z),
+                ]
+            elif isinstance(shape, Sphere):
+                links_dict[link_name].visual.geometry.sphere.radius = float(shape.r)
+            elif isinstance(shape, Cylinder):
+                links_dict[link_name].visual.geometry.cylinder.radius = float(shape.r)
+                links_dict[link_name].visual.geometry.cylinder.length = float(shape.l)
+            else:
+                raise ValueError(f"Unsupported shape type for link '{link_name}'")
+
+            # Update visual pose
+            links_dict[link_name].visual.pose = rod.Pose.from_transform(
+                transform=jnp.array(metadata.kin.L_H_vis)
+            )
+
+            # Update joint poses
+            for joint_index, L_H_pre in metadata.kin.L_H_pre.items():
+                joint_name = js.joint.idx_to_name(model=self, joint_index=joint_index)
+                if joint_name in joints_dict:
+                    joints_dict[joint_name].pose = rod.Pose.from_transform(
+                        transform=jnp.array(L_H_pre)
+                    )
+
+        return rod_model_output
 
     # ==========
     # Properties

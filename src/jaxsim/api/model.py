@@ -487,6 +487,7 @@ def reduce(
         terrain=model.terrain,
         contact_model=model.contact_model,
         contact_params=model.contact_params,
+        actuation_params=model.actuation_params,
         gravity=model.gravity,
         integrator=model.integrator,
     )

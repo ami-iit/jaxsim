@@ -10,9 +10,9 @@ def test_tn_curve(jaxsim_model_single_pendulum: js.model.JaxSimModel):
     model = jaxsim_model_single_pendulum
     new_act_params = jaxsim.rbda.actuation.ActuationParams()
     with new_act_params.editable(validate=False) as new_act_params:
-        new_act_params.τ_max = 10
-        new_act_params.ω_th = 1
-        new_act_params.ω_max = 2
+        new_act_params.torque_max = 10
+        new_act_params.omega_th = 1
+        new_act_params.omega_max = 2
     with model.editable(validate=False) as model:
         model.actuation_params = new_act_params
     data = js.data.JaxSimModelData.build(

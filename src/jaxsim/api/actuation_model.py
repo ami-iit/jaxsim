@@ -111,9 +111,9 @@ def tn_curve_fn(
         The torque limits.
     """
 
-    τ_max = model.actuation_params.τ_max  # Max torque (Nm)
-    ω_th = model.actuation_params.ω_th  # Threshold speed (rad/s)
-    ω_max = model.actuation_params.ω_max  # Max speed for torque drop-off (rad/s)
+    τ_max = model.actuation_params.torque_max  # Max torque (Nm)
+    ω_th = model.actuation_params.omega_th  # Threshold speed (rad/s)
+    ω_max = model.actuation_params.omega_max  # Max speed for torque drop-off (rad/s)
     abs_vel = jnp.abs(data.joint_velocities)
     τ_lim = jnp.where(
         abs_vel <= ω_th,

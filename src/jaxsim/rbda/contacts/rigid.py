@@ -357,7 +357,7 @@ class RigidContacts(ContactModel):
         #      G x ≤ h
         #
         # TODO: add possibility to notify if the QP problem did not converge.
-        solution, _, _, _, converged, _ = qpax.solve_qp(
+        solution, _, _, _, converged, _ = qpax.solve_qp(  # noqa: F841
             Q=Q, q=q, A=A, b=b, G=G, h=h_bounds, **self.solver_options
         )
 

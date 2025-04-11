@@ -464,7 +464,62 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
 
 @pytest.fixture(scope="session")
 def jaxsim_model_garpez() -> js.model.JaxSimModel:
-    """Build a simple model to test the parameterization."""
+    """Fixture to create the original (unscaled) Garpez model."""
+
+    rod_model = create_scalable_garpez_model()
+
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
+    )
+
+    return build_jaxsim_model(model_description=urdf_string)
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_garpez_scaled(request) -> js.model.JaxSimModel:
+    """Fixture to create the scaled version of the Garpez model."""
+
+    # Get the link scales from the request.
+    link1_scale = request.param.get("link1_scale", 1.0)
+    link2_scale = request.param.get("link2_scale", 1.0)
+    link3_scale = request.param.get("link3_scale", 1.0)
+    link4_scale = request.param.get("link4_scale", 1.0)
+
+    rod_model = create_scalable_garpez_model(
+        link1_scale=link1_scale,
+        link2_scale=link2_scale,
+        link3_scale=link3_scale,
+        link4_scale=link4_scale,
+    )
+
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
+    )
+
+    return build_jaxsim_model(model_description=urdf_string)
+
+
+def create_scalable_garpez_model(
+    link1_scale: float = 1.0,
+    link2_scale: float = 1.0,
+    link3_scale: float = 1.0,
+    link4_scale: float = 1.0,
+) -> rod.Model:
+    """
+    Build a scalable rod model to test parameterization and scaling.
+
+    Args:
+        link1_scale: Scale factor for link 1.
+        link2_scale: Scale factor for link 2.
+        link3_scale: Scale factor for link 3.
+        link4_scale: Scale factor for link 4.
+
+    Returns:
+        A rod model with the specified link scales.
+
+    Note:
+        The model is built assuming a constant link density, hence scaling the link will also have an impact on the link mass.
+    """
 
     import numpy as np
     from rod.builder import primitives
@@ -473,15 +528,36 @@ def jaxsim_model_garpez() -> js.model.JaxSimModel:
     # Create the link builders
     # ========================
 
-    link1_builder = primitives.BoxBuilder(name="link1", mass=1.0, x=0.3, y=0.2, z=0.2)
+    density = 1000.0  # Fixed density in kg/m^3
 
-    link2_builder = primitives.SphereBuilder(name="link2", mass=0.5, radius=0.1)
-
-    link3_builder = primitives.CylinderBuilder(
-        name="link3", mass=0.1, radius=0.05, length=0.5
+    l1_x, l1_y, l1_z = 0.3 * link1_scale, 0.2, 0.2
+    l1_volume = l1_x * l1_y * l1_z
+    l1_mass = density * l1_volume
+    link1_builder = primitives.BoxBuilder(
+        name="link1", mass=l1_mass, x=l1_x, y=l1_y, z=l1_z
     )
 
-    link4_builder = primitives.BoxBuilder(name="link4", mass=0.1, x=0.3, y=0.2, z=0.1)
+    l2_radius = 0.1 * link2_scale
+    l2_volume = 4 / 3 * np.pi * l2_radius**3
+    l2_mass = density * l2_volume
+    link2_builder = primitives.SphereBuilder(
+        name="link2", mass=l2_mass, radius=l2_radius
+    )
+
+    l3_radius = 0.05
+    l3_length = 0.5 * link3_scale
+    l3_volume = np.pi * l3_radius**2 * l3_length
+    l3_mass = density * l3_volume
+    link3_builder = primitives.CylinderBuilder(
+        name="link3", mass=l3_mass, radius=l3_radius, length=l3_length
+    )
+
+    l4_x, l4_y, l4_z = 0.3 * link4_scale, 0.2, 0.1
+    l4_volume = l4_x * l4_y * l4_z
+    l4_mass = density * l4_volume
+    link4_builder = primitives.BoxBuilder(
+        name="link4", mass=l4_mass, x=l4_x, y=l4_y, z=l4_z
+    )
 
     # =================
     # Create the joints
@@ -616,9 +692,9 @@ def jaxsim_model_garpez() -> js.model.JaxSimModel:
         sdf=rod_model
     )
 
-    model = build_jaxsim_model(model_description=urdf_string)
+    assert rod.Sdf(model=rod_model, version="1.10").serialize(validate=True)
 
-    return model
+    return rod_model
 
 
 # ============================
@@ -656,6 +732,8 @@ def get_jaxsim_model_fixture(
             return request.getfixturevalue(jaxsim_model_single_pendulum.__name__)
         case "garpez":
             return request.getfixturevalue(jaxsim_model_garpez.__name__)
+        case "garpez_scaled":
+            return request.getfixturevalue(jaxsim_model_garpez_scaled.__name__)
         case _:
             raise ValueError(model_name)
 

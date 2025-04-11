@@ -224,7 +224,7 @@ def test_model_creation_and_reduction(
         ), frame_name
 
 
-def test_hw_link_parameters_creation(jaxsim_model_garpez: js.model.JaxSimModel):
+def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
     """
     Test that the hardware parameters of the model are updated correctly.
     """
@@ -241,20 +241,10 @@ def test_hw_link_parameters_creation(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Create the scaling factors
     scaling_parameters = {
-        "link1": {
-            "kx": 10.0,
-            "ky": 4.0,
-        },
-        "link2": {
-            "kr": 2.0,
-        },
-        "link3": {
-            "kl": 1.5,
-            "kr": 0.5,
-        },
-        "link4": {
-            "kx": 3.0,
-        },
+        "link1": {"kx": 2.0, "ky": 1.5, "kz": 1.0},
+        "link2": {"kr": 1.2},
+        "link3": {"kl": 1.5, "kr": 0.8},
+        "link4": {"kx": 1.5, "ky": 1.0, "kz": 0.8},
     }
 
     # Update the model using the scaling factors
@@ -290,6 +280,77 @@ def test_hw_link_parameters_creation(jaxsim_model_garpez: js.model.JaxSimModel):
     assert updated_kx_link4 == pytest.approx(
         initial_kx_link4 * scaling_parameters["link4"]["kx"], abs=1e-6
     )
+
+
+@pytest.mark.parametrize(
+    "jaxsim_model_garpez_scaled",
+    [
+        {
+            "link1_scale": 4.0,
+            "link2_scale": 3.0,
+            "link3_scale": 2.0,
+            "link4_scale": 1.5,
+        }
+    ],
+    indirect=True,
+)
+def test_model_scaling_against_rod(
+    jaxsim_model_garpez: js.model.JaxSimModel,
+    jaxsim_model_garpez_scaled: js.model.JaxSimModel,
+):
+    """
+    Test that scaling the HW parameters of JaxSim model matches the kin/dyn quantities of a JaxSim model obtained from a pre-scaled rod model.
+    """
+
+    # Define scaling parameters
+    # NOTE: these scaling factors have to be the same as the ones used in the
+    #       creation of the model fixture.
+    scaling_parameters = {
+        "link1": {"kx": 4.0},
+        "link2": {"kr": 3.0},
+        "link3": {"kl": 2.0},
+        "link4": {"kx": 1.5},
+    }
+
+    # Apply scaling to the original JaxSim model
+    jaxsim_model_garpez.kin_dyn_parameters.update_hw_parameters(scaling_parameters)
+
+    # Compare hardware parameters of the scaled JaxSim model with the pre-scaled JaxSim model
+    for link_name in scaling_parameters.keys():
+        # Get the metadata for the link from both models
+        scaled_metadata = jaxsim_model_garpez.kin_dyn_parameters.hw_link_metadata[
+            link_name
+        ]
+        pre_scaled_metadata = (
+            jaxsim_model_garpez_scaled.kin_dyn_parameters.hw_link_metadata[link_name]
+        )
+
+        # Compare shape dimensions
+        for dim in vars(scaled_metadata.shape).keys():
+            scaled_value = getattr(scaled_metadata.shape, dim)
+            pre_scaled_value = getattr(pre_scaled_metadata.shape, dim)
+            assert scaled_value == pytest.approx(pre_scaled_value, abs=1e-6), (
+                f"Mismatch in shape dimension '{dim}' for link '{link_name}'"
+            )
+
+        # Compare density --> skipped since the density is initialized based on link shape and mass, so it's different between the two models
+        # assert scaled_metadata.density == pytest.approx(
+        #     pre_scaled_metadata.density, abs=1e-6
+        # ), f"Mismatch in density for link '{link_name}'"
+
+        # Compare mass
+        scaled_mass = scaled_metadata.compute_mass()
+        pre_scaled_mass = pre_scaled_metadata.compute_mass()
+        assert scaled_mass == pytest.approx(pre_scaled_mass, abs=1e-6), (
+            f"Mismatch in mass for link '{link_name}'"
+        )
+
+        # Compare inertia tensors
+        scaled_inertia = scaled_metadata.compute_inertia(scaled_mass)
+        pre_scaled_inertia = pre_scaled_metadata.compute_inertia(pre_scaled_mass)
+        assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6), (
+            f"Mismatch in inertia tensor for link '{link_name}'"
+        )
 
 
 def test_model_properties(

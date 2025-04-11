@@ -133,6 +133,7 @@ def velocity_representation(request) -> jaxsim.VelRepr:
     params=[
         pytest.param(IntegratorType.SemiImplicitEuler, id="semi_implicit_euler"),
         pytest.param(IntegratorType.RungeKutta4, id="runge_kutta_4"),
+        pytest.param(IntegratorType.RungeKutta4Fast, id="runge_kutta_4_fast"),
     ],
 )
 def integrator(request) -> str:

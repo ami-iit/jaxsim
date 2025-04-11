@@ -29,7 +29,7 @@ dependencies:
   - pytest
   - pytest-benchmark
   - pytest-icdiff
-  - robot_descriptions
+  - robot_descriptions >= 1.16.0
   - icub-models
   # [viz]
   - lxml

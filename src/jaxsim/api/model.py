@@ -428,17 +428,16 @@ class JaxSimModel(JaxsimDataclass):
                 shape=shape,
                 density=density,
                 kin=KinParameters(
-                    suc_H_link=self.kin_dyn_parameters.joint_model.suc_H_i[i],
-                    link_H_pre={
+                    L_H_pre={
                         int(joint_index): self.kin_dyn_parameters.joint_model.λ_H_pre[
                             joint_index + 1
                         ]
                         for joint_index in sorted(child_joints_indices)
                     },
-                    suc_H_com=jnp.array(
+                    L_H_G=jnp.array(
                         rod_links_dict[link_name].inertial.pose.transform(), dtype=float
                     ),
-                    suc_H_vis=jnp.array(
+                    L_H_vis=jnp.array(
                         rod_links_dict[link_name].visual.pose.transform(), dtype=float
                     ),
                 ),
@@ -457,7 +456,7 @@ class JaxSimModel(JaxsimDataclass):
                 in_link_frame=True,
             )
 
-            W_p_CoM_rod = metadata[link_name].kin.suc_H_com[0:3, 3]
+            W_p_CoM_rod = metadata[link_name].kin.L_H_G[0:3, 3]
 
             if not jnp.allclose(W_p_CoM_jaxsim, W_p_CoM_rod):
                 msg = "Skipping link '{}' because the CoM location does not match"
@@ -470,13 +469,13 @@ class JaxSimModel(JaxsimDataclass):
             #       visual shape. We do not read it from the model description, as we
             #       recalculate it from the parameterization of the visual shape.
             I_CoM = rod_links_dict[link_name].inertial.inertia.matrix()
-            L_R_G = metadata[link_name].kin.suc_H_com[0:3, 0:3]
+            L_R_G = metadata[link_name].kin.L_H_G[0:3, 0:3]
 
             L_I_CoM_jaxsim = js.link.spatial_inertia(model=self, link_index=i)
 
             L_I_CoM_rod = jaxsim.math.Inertia.to_sixd(
                 mass=self.kin_dyn_parameters.link_parameters.mass[i],
-                com=metadata[link_name].kin.suc_H_com[0:3, 3],
+                com=metadata[link_name].kin.L_H_G[0:3, 3],
                 I=L_R_G @ I_CoM @ L_R_G.T,
             )
 

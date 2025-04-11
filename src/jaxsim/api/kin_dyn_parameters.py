@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 from jax_dataclasses import Static
 
+import jaxsim
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
@@ -58,6 +59,19 @@ class PrimitiveShape(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_scale_vector(self, scaling_factors: dict[str, float]) -> jtp.Vector:
+        """
+        Get the scaling vector for the shape to be applied to the position vector.
+
+        Args:
+            scaling_factors: A dictionary containing scaling factors for the shape.
+
+        Returns:
+            A vector containing the scaling factors for the x, y, and z axes.
+        """
+        pass
+
 
 @dataclasses.dataclass
 class Box(PrimitiveShape):
@@ -83,6 +97,12 @@ class Box(PrimitiveShape):
             [0, 0, mass * (self.x**2 + self.y**2) / 12],
         ])
 
+    def get_scale_vector(self, scaling_factors: dict[str, float]) -> jtp.Vector:
+        kx = scaling_factors.get("kx", 1.0)
+        ky = scaling_factors.get("ky", 1.0)
+        kz = scaling_factors.get("kz", 1.0)
+        return jnp.array([kx, ky, kz])
+
 
 @dataclasses.dataclass
 class Sphere(PrimitiveShape):
@@ -97,6 +117,10 @@ class Sphere(PrimitiveShape):
 
     def compute_inertia(self, mass: float) -> jtp.Matrix:
         return jnp.eye(3) * (2 / 5 * mass * self.r**2)
+
+    def get_scale_vector(self, scaling_factors: dict[str, float]) -> jtp.Vector:
+        kr = scaling_factors.get("kr", 1.0)
+        return jnp.array([kr, kr, kr])
 
 
 @dataclasses.dataclass
@@ -120,17 +144,30 @@ class Cylinder(PrimitiveShape):
             [0, 0, mass * (self.r**2) / 2],
         ])
 
+    def get_scale_vector(self, scaling_factors: dict[str, float]) -> jtp.Vector:
+        kr = scaling_factors.get("kr", 1.0)
+        kl = scaling_factors.get("kl", 1.0)
+        return jnp.array([kr, kr, kl])
+
 
 @dataclasses.dataclass
 class KinParameters:
     """
     Class storing the kinematic parameters of a link.
+
+    Attributes:
+        L_H_G: The homogeneous transformation matrix from the link frame to the CoM frame G.
+        L_H_vis: The homogeneous transformation matrix from the link frame to the visual frame.
+        L_H_pre: The homogeneous transformation matrices from the link frame to the joint frames.
+
+    Note:
+        The frame G is defined as the frame with orugin at the CoM and aligned with the
+        link principal axes (hence with an orientation potentially different from the link frame L).
     """
 
-    suc_H_link: jtp.Matrix
-    link_H_pre: dict[int, jtp.Matrix]
-    suc_H_com: jtp.Matrix
-    suc_H_vis: jtp.Matrix
+    L_H_G: jtp.Matrix
+    L_H_vis: jtp.Matrix
+    L_H_pre: dict[int, jtp.Matrix]
 
 
 @dataclasses.dataclass
@@ -143,13 +180,58 @@ class HwLinkMetadata:
     density: float
     kin: KinParameters
 
-    def apply_scaling(self, scaling_factors: dict[str, float]) -> None:
+    def apply_scaling(self, scaling_factors: dict[str, float]) -> jtp.Vector:
         """
-        Apply scaling factors to the hardware parameters.
+        Apply scaling to the hardware parameters.
         """
+
+        # ==================================
+        # Update the kinematics of the link
+        # ==================================
+
+        # Get the nominal transforms
+        L_H_G = self.kin.L_H_G
+        L_H_vis = self.kin.L_H_vis
+        L_H_pre_dict = self.kin.L_H_pre
+
+        # Express the transforms in the G frame
+        G_H_L = jaxsim.math.Transform.inverse(L_H_G)
+        G_H_vis = G_H_L @ L_H_vis
+        G_H_pre_dict = jax.tree.map(lambda L_H_pre: G_H_L @ L_H_pre, L_H_pre_dict)
+
+        # Apply the scaling to the position vectors
+        scale = self.shape.get_scale_vector(scaling_factors)
+        G_H̅_L = G_H_L.at[:3, 3].set(scale * G_H_L[:3, 3])
+        G_H̅_vis = G_H_vis.at[:3, 3].set(scale * G_H_vis[:3, 3])
+        G_H̅_pre_dict = jax.tree.map(
+            lambda G_H_pre: G_H_pre.at[:3, 3].set(scale * G_H_pre[:3, 3]),
+            G_H_pre_dict,
+        )
+
+        # Get back to the link frame
+        L_H̅_G = jaxsim.math.Transform.inverse(G_H̅_L)
+        L_H̅_vis = L_H̅_G @ G_H̅_vis
+        L_H̅_pre_dict = jax.tree.map(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre, G_H̅_pre_dict)
+
+        # Set the new transforms
+        self.kin.L_H_G = L_H̅_G
+        self.kin.L_H_vis = L_H̅_vis
+        self.kin.L_H_pre = L_H̅_pre_dict
+
+        # ============================
+        # Update the shape parameters
+        # ============================
+
+        self.shape.apply_parameters(scaling_factors)
+
+        # ==============================
+        # Scale the density of the link
+        # ==============================
+
         kdensity = scaling_factors.get("kdensity", 1.0)
         self.density *= kdensity
-        self.shape.apply_parameters(scaling_factors)
+
+        return scale
 
     def compute_mass(self) -> float:
         """
@@ -157,11 +239,14 @@ class HwLinkMetadata:
         """
         return self.shape.compute_mass(self.density)
 
-    def compute_inertia(self, mass: float) -> jtp.Matrix:
+    def compute_inertia_link(self, mass: float) -> jtp.Matrix:
         """
         Compute the inertia tensor of the link based on its shape and mass.
         """
-        return self.shape.compute_inertia(mass)
+        I_com = self.shape.compute_inertia(mass)
+        L_H_G = self.kin.L_H_G
+        L_R_G = L_H_G[:3, :3]
+        return L_R_G @ I_com @ L_R_G.T
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -661,18 +746,33 @@ class KinDynParameters(JaxsimDataclass):
             metadata = self.hw_link_metadata[link_name]
             link_index = self.link_names.index(link_name)
 
-            metadata.apply_scaling(scaling_factors)
+            scale: jtp.Vector = metadata.apply_scaling(scaling_factors)
+            L_H_pre_dict = metadata.kin.L_H_pre
+            L_H_G = metadata.kin.L_H_G
+            L_p_G = L_H_G[:3, 3]
+
+            # Update KinDynParameters with the new metadata
+            with self.mutable_context():
+                self.joint_model.λ_H_pre = jnp.stack([
+                    L_H_pre_dict.get(
+                        joint_index - 1,
+                        self.joint_model.λ_H_pre[joint_index],
+                    )
+                    for joint_index in range(self.number_of_joints() + 1)
+                ])
 
             # Update link parameters
             mass = metadata.compute_mass()
+            I_L_flattened = self._compute_inertia_tensor_flattened(metadata)
+
             updated_link_parameters = updated_link_parameters.replace(
                 mass=updated_link_parameters.mass.at[link_index].set(mass),
                 center_of_mass=updated_link_parameters.center_of_mass.at[
                     link_index
-                ].set(jnp.zeros(3)),
+                ].set(L_p_G),
                 inertia_elements=updated_link_parameters.inertia_elements.at[
                     link_index
-                ].set(self._compute_inertia_tensor(metadata)),
+                ].set(I_L_flattened),
             )
 
             updated_hw_link_metadata[link_name] = metadata
@@ -682,7 +782,7 @@ class KinDynParameters(JaxsimDataclass):
             self.hw_link_metadata = updated_hw_link_metadata
 
     @staticmethod
-    def _compute_inertia_tensor(metadata: HwLinkMetadata) -> jtp.Vector:
+    def _compute_inertia_tensor_flattened(metadata: HwLinkMetadata) -> jtp.Vector:
         """
         Compute the inertia tensor of a link based on the shape and mass.
 
@@ -693,7 +793,7 @@ class KinDynParameters(JaxsimDataclass):
             The flattened inertia tensor as a vector.
         """
         mass = metadata.compute_mass()
-        inertia_tensor = metadata.compute_inertia(mass)
+        inertia_tensor = metadata.compute_inertia_link(mass)
         return LinkParameters.flatten_inertia_tensor(inertia_tensor)
 
 

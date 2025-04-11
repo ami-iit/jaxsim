@@ -231,7 +231,7 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
 
     model = jaxsim_model_garpez
 
-    # Assert initial hardware parameters
+    # Store initial hardware parameters
     initial_length = model.kin_dyn_parameters.hw_link_metadata["link1"].shape.x
     initial_ky = model.kin_dyn_parameters.hw_link_metadata["link1"].shape.y
     initial_kr_link2 = model.kin_dyn_parameters.hw_link_metadata["link2"].shape.r
@@ -346,11 +346,33 @@ def test_model_scaling_against_rod(
         )
 
         # Compare inertia tensors
-        scaled_inertia = scaled_metadata.compute_inertia(scaled_mass)
-        pre_scaled_inertia = pre_scaled_metadata.compute_inertia(pre_scaled_mass)
+        scaled_inertia = scaled_metadata.compute_inertia_link(scaled_mass)
+        pre_scaled_inertia = pre_scaled_metadata.compute_inertia_link(pre_scaled_mass)
         assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6), (
             f"Mismatch in inertia tensor for link '{link_name}'"
         )
+
+        # Define scaled_kin and pre_scaled_kin
+        scaled_kin = scaled_metadata.kin
+        pre_scaled_kin = pre_scaled_metadata.kin
+
+        # Compare L_H_G (link-to-CoM transformation)
+        assert jnp.allclose(scaled_kin.L_H_G, pre_scaled_kin.L_H_G, atol=1e-6), (
+            f"Mismatch in L_H_G for link '{link_name}'"
+        )
+
+        # Compare L_H_vis (link-to-visual transformation)
+        assert jnp.allclose(scaled_kin.L_H_vis, pre_scaled_kin.L_H_vis, atol=1e-6), (
+            f"Mismatch in L_H_vis for link '{link_name}'"
+        )
+
+        # Compare L_H_pre (link-to-joint transformations)
+        for joint_idx in scaled_kin.L_H_pre.keys():
+            assert jnp.allclose(
+                scaled_kin.L_H_pre[joint_idx],
+                pre_scaled_kin.L_H_pre[joint_idx],
+                atol=1e-6,
+            ), f"Mismatch in L_H_pre for joint {joint_idx} of link '{link_name}'"
 
 
 def test_model_properties(

@@ -75,7 +75,7 @@ def extract_model_data(
             )
 
     # Log model name.
-    logging.debug(msg=f"Found model '{sdf_model.name}' in SDF resource")
+    logging.info(msg=f"Found model '{sdf_model.name}' in SDF resource")
 
     # Jaxsim supports only models compatible with URDF, i.e. those having all links
     # directly attached to their parent joint without additional roto-translations.
@@ -187,7 +187,7 @@ def extract_model_data(
         base_link_name = joints_with_world_parent[0].child.name
 
         msg = "Combining the pose of base link '{}' with the pose of joint '{}'"
-        logging.info(msg.format(base_link_name, joints_with_world_parent[0].name))
+        logging.debug(msg.format(base_link_name, joints_with_world_parent[0].name))
 
         # Combine the pose of the base link (child of the found fixed joint)
         # with the pose of the fixed joint connecting with the world.

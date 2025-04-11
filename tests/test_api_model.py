@@ -375,6 +375,78 @@ def test_model_scaling_against_rod(
             ), f"Mismatch in L_H_pre for joint {joint_idx} of link '{link_name}'"
 
 
+@pytest.mark.parametrize(
+    "jaxsim_model_garpez_scaled",
+    [
+        {
+            "link1_scale": 4.0,
+            "link2_scale": 3.0,
+            "link3_scale": 2.0,
+            "link4_scale": 1.5,
+        }
+    ],
+    indirect=True,
+)
+def test_export_updated_model(
+    jaxsim_model_garpez: js.model.JaxSimModel,
+    jaxsim_model_garpez_scaled: js.model.JaxSimModel,
+):
+    """
+    Test the export of an updated model using js.model.export_updated_model.
+    """
+
+    model = jaxsim_model_garpez
+
+    # Define scaling parameters
+    # NOTE: these scaling factors have to be the same as the ones used in the
+    #       creation of the model fixture.
+    scaling_parameters = {
+        "link1": {"kx": 4.0},
+        "link2": {"kr": 3.0},
+        "link3": {"kl": 2.0},
+        "link4": {"kx": 1.5},
+    }
+    # Update the model with the scaling parameters
+    model.update_hw_parameters(scaling_parameters)
+
+    # Export the updated model
+    exported_model = model.export_updated_model()
+    assert isinstance(exported_model, rod.Model)
+
+    # Get the pre-scaled ROD model
+    pre_scaled_model = rod.Sdf.load(jaxsim_model_garpez_scaled.built_from).models()[0]
+    assert isinstance(pre_scaled_model, rod.Model)
+
+    # Validate that the exported model matches the pre-scaled model
+    for link_name in scaling_parameters.keys():
+        exported_link = next(
+            link for link in exported_model.links() if link.name == link_name
+        )
+        pre_scaled_link = next(
+            link for link in pre_scaled_model.links() if link.name == link_name
+        )
+
+        # Validate visual geometry dimensions
+        exported_geometry = exported_link.visual.geometry.geometry()
+        pre_scaled_geometry = pre_scaled_link.visual.geometry.geometry()
+        for dim in vars(exported_geometry).keys():
+            exported_dim = getattr(exported_geometry, dim)
+            pre_scaled_dim = getattr(pre_scaled_geometry, dim)
+            assert exported_dim == pytest.approx(pre_scaled_dim, abs=1e-6)
+
+        # Validate mass
+        assert exported_link.inertial.mass == pytest.approx(
+            pre_scaled_link.inertial.mass, abs=1e-6
+        )
+
+        # Validate inertia tensor
+        assert jnp.allclose(
+            exported_link.inertial.inertia.matrix(),
+            pre_scaled_link.inertial.inertia.matrix(),
+            atol=1e-6,
+        )
+
+
 def test_model_properties(
     jaxsim_models_types: js.model.JaxSimModel,
     velocity_representation: VelRepr,

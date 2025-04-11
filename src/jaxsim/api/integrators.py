@@ -172,18 +172,22 @@ def rk4fast_integration(
 
     dt = model.time_step
 
-    def f0(x) -> dict[str, jtp.Matrix]:
+    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
-        with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
+        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+        # with the terrain.
+        W_f_L_terrain, contact_state_derivative = js.contact.link_contact_forces(
+            model=model,
+            data=data,
+            link_forces=link_forces,
+            joint_torques=joint_torques,
+        )
 
-            data_ti = data.replace(model=model, **x)
+    W_f_L_total = link_forces + W_f_L_terrain
 
-            return js.ode.system_dynamics(
-                model=model,
-                data=data_ti,
-                link_forces=link_forces,
-                joint_torques=joint_torques,
-            )
+    # Update the contact state data. This is necessary only for the contact models
+    # that require propagation and integration of contact state.
+    contact_state = model.contact_model.update_contact_state(contact_state_derivative)
 
     def f(x) -> dict[str, jtp.Matrix]:
 
@@ -195,7 +199,7 @@ def rk4fast_integration(
                 model=model,
                 data=data_ti,
                 joint_forces=joint_torques,
-                link_forces=link_forces,
+                link_forces=W_f_L_total,
             )
 
             W_ṗ_B, W_Q̇_B, ṡ = js.ode.system_position_dynamics(
@@ -226,13 +230,13 @@ def rk4fast_integration(
         base_linear_velocity=data._base_linear_velocity,
         base_angular_velocity=data._base_angular_velocity,
         joint_velocities=data._joint_velocities,
-        contact_state=data.contact_state,
+        contact_state=contact_state,
     )
 
     euler_mid = lambda x, dxdt: x + (0.5 * dt) * dxdt
     euler_fin = lambda x, dxdt: x + dt * dxdt
 
-    k1 = f0(x_t0)
+    k1 = f(x_t0)
     k2 = f(jax.tree.map(euler_mid, x_t0, k1))
     k3 = f(jax.tree.map(euler_mid, x_t0, k2))
     k4 = f(jax.tree.map(euler_fin, x_t0, k3))

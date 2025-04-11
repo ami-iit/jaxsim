@@ -82,7 +82,7 @@ jobs:
       - name: Install wheel (ubuntu)
         if: contains(matrix.os, 'ubuntu')
         shell: bash
-        run: pip install "$(find dist/ -type f -name '*.whl')[all]"
+        run: pip install "$(find dist/ -type f -name '*.whl')"
 
       - name: Install wheel (macos|windows)
         if: contains(matrix.os, 'macos') || contains(matrix.os, 'windows')
@@ -98,44 +98,21 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          lfs: true
 
-      - uses: dorny/paths-filter@v3
-        id: changes
+      - uses: prefix-dev/setup-pixi@v0.8.5
+        if: contains(matrix.os, 'ubuntu')
         with:
-          filters: |
-            conf: &conf
-              - 'pyproject.toml'
-              - 'setup.cfg'
-              - 'setup.py'
-            src: &src
-              - 'src/**'
-            tests: &tests
-              - 'tests/**'
-            all:
-              - *conf
-              - *src
-              - *tests
-
-      - name: Install 'gz sdf' system command
-        if: |
-          contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.all == 'true')
-        run: |
-          sudo apt-get update
-          sudo apt-get install lsb-release gnupg
-          sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install gz-ionic sdf
+          pixi-version: "latest"
+          frozen: true
+          cache: true
+          cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
 
       - name: Run the Python tests
         if: |
           contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.all == 'true')
-        run: pytest
+          (github.event_name != 'pull_request')
+        run: pixi run --frozen test
         env:
           # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591
           PY_COLORS: "1"

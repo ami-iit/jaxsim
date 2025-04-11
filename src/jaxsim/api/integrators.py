@@ -194,7 +194,7 @@ def rk4fast_integration(
             W_v̇_WB, s̈ = js.model.forward_dynamics_aba(
                 model=model,
                 data=data_ti,
-                joint_torques=joint_torques,
+                joint_forces=joint_torques,
                 link_forces=link_forces,
             )
 

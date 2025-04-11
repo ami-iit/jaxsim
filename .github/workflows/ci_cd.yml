@@ -83,7 +83,7 @@ jobs:
       - name: Install wheel (ubuntu)
         if: contains(matrix.os, 'ubuntu')
         shell: bash
-        run: pip install "$(find dist/ -type f -name '*.whl')[all]"
+        run: pip install "$(find dist/ -type f -name '*.whl')"
 
       - name: Install wheel (macos|windows)
         if: contains(matrix.os, 'macos') || contains(matrix.os, 'windows')

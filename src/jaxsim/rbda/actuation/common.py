@@ -4,7 +4,7 @@ from jaxsim.utils import JaxsimDataclass
 
 class ActuationParams(JaxsimDataclass):
     """
-    Abstract class representing the parameters of an actuation model.
+    Parameters class for the actuation model.
     """
 
     τ_max: jtp.Float = 3000.0  # Max torque (Nm)

@@ -26,7 +26,9 @@ class PrimitiveShape(ABC):
     def apply_parameters(self, scaling_factors: dict[str, float]) -> None:
         """
         Apply scaling factors to the shape's dimensions.
-        This method must be implemented by subclasses.
+
+        Args:
+            scaling_factors: A dictionary containing scaling factors for the shape.
         """
         pass
 
@@ -34,7 +36,12 @@ class PrimitiveShape(ABC):
     def compute_mass(self, density: float) -> float:
         """
         Compute the mass of the shape based on its dimensions and density.
-        This method must be implemented by subclasses.
+
+        Args:
+            density: The density of the shape.
+
+        Returns:
+            The mass of the shape.
         """
         pass
 
@@ -42,7 +49,12 @@ class PrimitiveShape(ABC):
     def compute_inertia(self, mass: float) -> jtp.Matrix:
         """
         Compute the inertia tensor of the shape based on its dimensions and mass.
-        This method must be implemented by subclasses.
+
+        Args:
+            mass: The mass of the shape.
+
+        Returns:
+            The inertia tensor of the shape.
         """
         pass
 

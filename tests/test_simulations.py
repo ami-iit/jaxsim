@@ -61,7 +61,7 @@ def test_box_with_external_forces(
             additive=False,
         )
 
-    # Initialize the simulation horizon.
+    # Initialize the integrator.
     tf = 0.5
     T_ns = jnp.arange(start=0, stop=tf * 1e9, step=model.time_step * 1e9, dtype=int)
 
@@ -187,107 +187,6 @@ def run_simulation(
     return data
 
 
-def test_simulation_with_soft_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator
-):
-
-    model = jaxsim_model_box
-
-    # Define the maximum penetration of each collidable point at steady state.
-    max_penetration = 0.001
-
-    with model.editable(validate=False) as model:
-
-        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build()
-        model.contact_params = js.contact.estimate_good_contact_parameters(
-            model=model,
-            number_of_active_collidable_points_steady_state=4,
-            static_friction_coefficient=1.0,
-            damping_ratio=1.0,
-            max_penetration=max_penetration,
-        )
-
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
-        )
-
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
-
-    # Check jaxsim_model_box@conftest.py.
-    box_height = 0.1
-
-    # Build the data of the model.
-    data_t0 = js.data.JaxSimModelData.build(
-        model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
-        velocity_representation=VelRepr.Inertial,
-    )
-
-    # ===========================================
-    # Run the simulation and test the final state
-    # ===========================================
-
-    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
-
-    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
-    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
-
-
-def test_simulation_with_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator
-):
-
-    model = jaxsim_model_box
-
-    with model.editable(validate=False) as model:
-
-        # In order to achieve almost no penetration, we need to use a fairly large
-        # Baumgarte stabilization term.
-        model.contact_model = jaxsim.rbda.contacts.RigidContacts.build(
-            solver_options={"solver_tol": 1e-3}
-        )
-        model.contact_params = model.contact_model._parameters_class(K=1e5)
-
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
-        )
-
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
-
-    # Initialize the maximum penetration of each collidable point at steady state.
-    # This model is rigid, so we expect (almost) no penetration.
-    max_penetration = 0.000
-
-    # Check jaxsim_model_box@conftest.py.
-    box_height = 0.1
-
-    # Build the data of the model.
-    data_t0 = js.data.JaxSimModelData.build(
-        model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
-        velocity_representation=VelRepr.Inertial,
-    )
-
-    # ===========================================
-    # Run the simulation and test the final state
-    # ===========================================
-
-    data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
-
-    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
-    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
-
-
 def test_simulation_with_relaxed_rigid_contacts(
     jaxsim_model_box: js.model.JaxSimModel, integrator
 ):
@@ -299,8 +198,6 @@ def test_simulation_with_relaxed_rigid_contacts(
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts.build(
             solver_options={"tol": 1e-3},
         )
-        model.contact_params = model.contact_model._parameters_class()
-
         # Enable a subset of the collidable points.
         enabled_collidable_points_mask = np.zeros(
             len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool

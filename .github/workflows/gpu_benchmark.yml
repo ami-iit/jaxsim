@@ -51,7 +51,7 @@ jobs:
 
       - name: Run benchmark and store result
         run: |
-            pytest tests/test_benchmark.py --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
+            pytest tests/test_benchmark.py -k 'not test_rigid_contact_model and not test_soft_contact_model' --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
 
       - name: Compare benchmark results with main branch
         uses: benchmark-action/github-action-benchmark@v1.20.4

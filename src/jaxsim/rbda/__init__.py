@@ -1,4 +1,4 @@
-from . import contacts
+from . import actuation, contacts
 from .aba import aba
 from .collidable_points import collidable_points_pos_vel
 from .crba import crba

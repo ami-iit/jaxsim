@@ -92,5 +92,34 @@ def compute_resultant_torques(
     # ===============================
 
     τ_total = τ_references + τ_friction + τ_position_limit
-
+    τ_lim = tn_curve_fn(model=model, data=data)
+    τ_total = jnp.clip(τ_total, -τ_lim, τ_lim)
     return τ_total
+
+
+def tn_curve_fn(
+    model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Vector:
+    """
+    Compute the torque limits using the tn curve.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The torque limits.
+    """
+
+    τ_max = model.actuation_params.torque_max  # Max torque (Nm)
+    ω_th = model.actuation_params.omega_th  # Threshold speed (rad/s)
+    ω_max = model.actuation_params.omega_max  # Max speed for torque drop-off (rad/s)
+    abs_vel = jnp.abs(data.joint_velocities)
+    τ_lim = jnp.where(
+        abs_vel <= ω_th,
+        τ_max,
+        jnp.where(
+            abs_vel <= ω_max, τ_max * (1 - (abs_vel - ω_th) / (ω_max - ω_th)), 0.0
+        ),
+    )
+    return τ_lim

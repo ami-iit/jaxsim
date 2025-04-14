@@ -128,9 +128,9 @@ def aba(
     pass_1_carry: Pass1Carry = (v, c, MA, pA, i_X_0)
 
     # Propagate kinematics and initialize AB inertia and AB bias forces.
-    def loop_body_pass1(carry: Pass1Carry, i: jtp.Int) -> tuple[Pass1Carry, None]:
-
-        ii = i - 1
+    def loop_body_pass1(carry: Pass1Carry, i: jtp.Int) -> tuple[Pass1Carry]:
+        ii = i
+        i = i + 1
         v, c, MA, pA, i_X_0 = carry
 
         # Project the joint velocity into its motion subspace.
@@ -158,16 +158,10 @@ def aba(
         pA_i = Cross.vx_star(v[i]) @ M[i] @ v[i] - i_Xf_W @ jnp.vstack(W_f[i])
         pA = pA.at[i].set(pA_i)
 
-        return (v, c, MA, pA, i_X_0), None
+        return (v, c, MA, pA, i_X_0)
 
-    (v, c, MA, pA, i_X_0), _ = (
-        jax.lax.scan(
-            f=loop_body_pass1,
-            init=pass_1_carry,
-            xs=jnp.arange(start=1, stop=model.number_of_links()),
-        )
-        if model.number_of_links() > 1
-        else [(v, c, MA, pA, i_X_0), None]
+    (v, c, MA, pA, i_X_0) = jax.vmap(loop_body_pass1)(
+        pass_1_carry, jnp.arange(start=0, stop=model.number_of_links())
     )
 
     # ======
@@ -181,9 +175,9 @@ def aba(
     Pass2Carry = tuple[jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix, jtp.Matrix]
     pass_2_carry: Pass2Carry = (U, d, u, MA, pA)
 
-    def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> tuple[Pass2Carry, None]:
-
-        ii = i - 1
+    def loop_body_pass2(carry: Pass2Carry, i: jtp.Int) -> tuple[Pass2Carry]:
+        ii = i
+        i = i + 1
         U, d, u, MA, pA = carry
 
         U_i = MA[i] @ S[i]
@@ -201,9 +195,8 @@ def aba(
 
         # Propagate them to the parent, handling the base link.
         def propagate(
-            MA_pA: tuple[jtp.Matrix, jtp.Matrix]
-        ) -> tuple[jtp.Matrix, jtp.Matrix]:
-
+            MA_pA: tuple[jtp.Array, jtp.Array]
+        ) -> tuple[jtp.Array, jtp.Array]:
             MA, pA = MA_pA
 
             MA_λi = MA[λ[i]] + i_X_λi[i].T @ Ma @ i_X_λi[i]
@@ -221,16 +214,10 @@ def aba(
             operand=(MA, pA),
         )
 
-        return (U, d, u, MA, pA), None
+        return (U, d, u, MA, pA)
 
-    (U, d, u, MA, pA), _ = (
-        jax.lax.scan(
-            f=loop_body_pass2,
-            init=pass_2_carry,
-            xs=jnp.flip(jnp.arange(start=1, stop=model.number_of_links())),
-        )
-        if model.number_of_links() > 1
-        else [(U, d, u, MA, pA), None]
+    (U, d, u, MA, pA) = jax.vmap(loop_body_pass2)(
+        pass_2_carry, jnp.flip(jnp.arange(start=0, stop=model.number_of_links()))
     )
 
     # ======
@@ -248,9 +235,9 @@ def aba(
     Pass3Carry = tuple[jtp.Matrix, jtp.Vector]
     pass_3_carry = (a, s̈)
 
-    def loop_body_pass3(carry: Pass3Carry, i: jtp.Int) -> tuple[Pass3Carry, None]:
-
-        ii = i - 1
+    def loop_body_pass3(carry: Pass3Carry, i: jtp.Int) -> tuple[Pass3Carry]:
+        ii = i
+        i = i + 1
         a, s̈ = carry
 
         # Propagate the link acceleration.
@@ -264,16 +251,10 @@ def aba(
         a_i = a_i + S[i] * s̈[ii]
         a = a.at[i].set(a_i)
 
-        return (a, s̈), None
+        return (a, s̈)
 
-    (a, s̈), _ = (
-        jax.lax.scan(
-            f=loop_body_pass3,
-            init=pass_3_carry,
-            xs=jnp.arange(1, model.number_of_links()),
-        )
-        if model.number_of_links() > 1
-        else [(a, s̈), None]
+    (a, s̈) = jax.vmap(loop_body_pass3)(
+        pass_3_carry, jnp.arange(1, model.number_of_links())
     )
 
     # ==============

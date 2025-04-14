@@ -201,7 +201,7 @@ def aba(
 
         # Propagate them to the parent, handling the base link.
         def propagate(
-            MA_pA: tuple[jtp.Matrix, jtp.Matrix]
+            MA_pA: tuple[jtp.Matrix, jtp.Matrix],
         ) -> tuple[jtp.Matrix, jtp.Matrix]:
 
             MA, pA = MA_pA

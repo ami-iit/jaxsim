@@ -167,7 +167,7 @@ class ModelDescription(KinematicGraph):
         logging.warning(
             "The joint order in the model description is not preserved when reducing "
             "the model. Consider using the `names_to_indices` method to get the correct "
-            "order of the joints."
+            "order of the joints, or use the `joint_names()` method to inspect the internal joint ordering."
         )
 
         if len(set(considered_joints) - set(self.joint_names())) != 0:

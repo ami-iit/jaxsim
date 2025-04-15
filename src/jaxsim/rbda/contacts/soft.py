@@ -147,7 +147,7 @@ class SoftContacts(common.ContactModel):
         """
 
         if len(kwargs) != 0:
-            logging.debug(msg=f"Ignoring extra arguments: {kwargs}")
+            logging.warning(msg=f"Ignoring extra arguments: {kwargs}")
 
         return cls(**kwargs)
 

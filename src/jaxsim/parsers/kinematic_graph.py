@@ -453,7 +453,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             parent_of_link_to_remove = links_dict[link.parent_name]
 
             msg = "Lumping chain: {}->({})->{}"
-            logging.info(
+            logging.debug(
                 msg.format(
                     link_to_remove.name,
                     self.joints_connection_dict[

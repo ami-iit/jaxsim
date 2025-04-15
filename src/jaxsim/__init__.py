@@ -67,39 +67,42 @@ def _is_editable() -> bool:
     return jaxsim_package_dir not in site.getsitepackages()
 
 
-def _get_default_logging_level(env_var: str) -> logging.LoggingLevel:
+def _get_default_logging_level() -> logging.LoggingLevel:
     """
     Get the default logging level.
-
-    Args:
-        env_var: The environment variable to check.
 
     Returns:
         The logging level to set.
     """
 
     import os
+    import sys
 
-    # Define the default logging level depending on the installation mode.
-    default_logging_level = (
-        logging.LoggingLevel.DEBUG
+    # Allow to override the default logging level with an environment variable.
+    if overriden_logging_level := os.environ.get("JAXSIM_LOGGING_LEVEL"):
+        try:
+            return logging.LoggingLevel[overriden_logging_level.upper()]
+
+        except KeyError as exc:
+            msg = "Invalid logging level defined in JAXSIM_LOGGING_LEVEL"
+            raise RuntimeError(msg) from exc
+
+    # If running under a debugger, set the logging level to DEBUG.
+    if getattr(sys, "gettrace", lambda: None)():
+        return logging.LoggingLevel.DEBUG
+
+    # If not running under a debugger, set the logging level to INFO or WARNING.
+    # INFO for editable installations, WARNING for non-editable installations.
+    # This is to avoid too verbose logging in non-editable installations.
+    return (
+        logging.LoggingLevel.INFO
         if _is_editable()  # noqa: F821
         else logging.LoggingLevel.WARNING
     )
 
-    # Allow to override the default logging level with an environment variable.
-    try:
-        return logging.LoggingLevel[
-            os.environ.get(env_var, default_logging_level.name).upper()
-        ]
-
-    except KeyError as exc:
-        msg = f"Invalid logging level defined in {env_var}='{os.environ[env_var]}'"
-        raise RuntimeError(msg) from exc
-
 
 # Configure the logger with the default logging level.
-logging.configure(level=_get_default_logging_level(env_var="JAXSIM_LOGGING_LEVEL"))
+logging.configure(level=_get_default_logging_level())
 
 
 # Configure JAX.

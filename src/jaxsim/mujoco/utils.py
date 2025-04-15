@@ -145,6 +145,7 @@ class MujocoCamera:
     @staticmethod
     def build_from_target_view(
         camera_name: str,
+        mode: str = "fixed",
         lookat: Sequence[float | int] | npt.NDArray = (0, 0, 0),
         distance: float | int | npt.NDArray = 3,
         azimuth: float | int | npt.NDArray = 90,
@@ -166,6 +167,12 @@ class MujocoCamera:
 
         Args:
             camera_name: The name of the camera.
+            mode: Camera positioning mode:
+                - **"fixed"**: Fixed position and orientation relative to the body.
+                - **"track"**: Fixed offset from the body in world coordinates, constant orientation.
+                - **"trackcom"**: Like `"track"`, but relative to the center of mass of the subtree.
+                - **"targetbody"**: Fixed position in body frame, oriented toward a target body.
+                - **"targetbodycom"**: Like `"targetbody"`, but targets the subtree's center of mass.
             lookat: The target point to look at (origin of `T`).
             distance:
                 The distance from the target point (displacement between the origins
@@ -214,7 +221,7 @@ class MujocoCamera:
 
         return MujocoCamera.build(
             name=camera_name,
-            mode="fixed",
+            mode=mode,
             fovy=f"{fovy if degrees else np.rad2deg(fovy)}",
             pos=" ".join(p.astype(str).tolist()),
             quat=" ".join(Q.astype(str).tolist()),

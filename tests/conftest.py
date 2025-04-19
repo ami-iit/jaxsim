@@ -463,6 +463,237 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
     return model
 
 
+@pytest.fixture(scope="session")
+def jaxsim_model_garpez() -> js.model.JaxSimModel:
+    """Fixture to create the original (unscaled) Garpez model."""
+
+    rod_model = create_scalable_garpez_model()
+
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
+    )
+
+    return build_jaxsim_model(model_description=urdf_string)
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_garpez_scaled(request) -> js.model.JaxSimModel:
+    """Fixture to create the scaled version of the Garpez model."""
+
+    # Get the link scales from the request.
+    link1_scale = request.param.get("link1_scale", 1.0)
+    link2_scale = request.param.get("link2_scale", 1.0)
+    link3_scale = request.param.get("link3_scale", 1.0)
+    link4_scale = request.param.get("link4_scale", 1.0)
+
+    rod_model = create_scalable_garpez_model(
+        link1_scale=link1_scale,
+        link2_scale=link2_scale,
+        link3_scale=link3_scale,
+        link4_scale=link4_scale,
+    )
+
+    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
+        sdf=rod_model
+    )
+
+    return build_jaxsim_model(model_description=urdf_string)
+
+
+def create_scalable_garpez_model(
+    link1_scale: float = 1.0,
+    link2_scale: float = 1.0,
+    link3_scale: float = 1.0,
+    link4_scale: float = 1.0,
+) -> rod.Model:
+    """
+    Build a scalable rod model to test parameterization and scaling.
+
+    Args:
+        link1_scale: Scale factor for link 1.
+        link2_scale: Scale factor for link 2.
+        link3_scale: Scale factor for link 3.
+        link4_scale: Scale factor for link 4.
+
+    Returns:
+        A rod model with the specified link scales.
+
+    Note:
+        The model is built assuming a constant link density, hence scaling the link will also have an impact on the link mass.
+    """
+
+    import numpy as np
+    from rod.builder import primitives
+
+    # ========================
+    # Create the link builders
+    # ========================
+
+    density = 1000.0  # Fixed density in kg/m^3
+
+    l1_x, l1_y, l1_z = 0.3 * link1_scale, 0.2, 0.2
+    l1_volume = l1_x * l1_y * l1_z
+    l1_mass = density * l1_volume
+    link1_builder = primitives.BoxBuilder(
+        name="link1", mass=l1_mass, x=l1_x, y=l1_y, z=l1_z
+    )
+
+    l2_radius = 0.1 * link2_scale
+    l2_volume = 4 / 3 * np.pi * l2_radius**3
+    l2_mass = density * l2_volume
+    link2_builder = primitives.SphereBuilder(
+        name="link2", mass=l2_mass, radius=l2_radius
+    )
+
+    l3_radius = 0.05
+    l3_length = 0.5 * link3_scale
+    l3_volume = np.pi * l3_radius**2 * l3_length
+    l3_mass = density * l3_volume
+    link3_builder = primitives.CylinderBuilder(
+        name="link3", mass=l3_mass, radius=l3_radius, length=l3_length
+    )
+
+    l4_x, l4_y, l4_z = 0.3 * link4_scale, 0.2, 0.1
+    l4_volume = l4_x * l4_y * l4_z
+    l4_mass = density * l4_volume
+    link4_builder = primitives.BoxBuilder(
+        name="link4", mass=l4_mass, x=l4_x, y=l4_y, z=l4_z
+    )
+
+    # =================
+    # Create the joints
+    # =================
+
+    link1_to_link2 = rod.Joint(
+        name="link1_to_link2",
+        type="revolute",
+        parent=link1_builder.name,
+        child=link2_builder.name,
+        pose=primitives.PrimitiveBuilder.build_pose(
+            relative_to=link1_builder.name,
+            pos=np.array([link1_builder.x, link1_builder.y / 2, link1_builder.z / 2]),
+        ),
+        axis=rod.Axis(xyz=rod.Xyz(xyz=[0, 1, 0]), limit=rod.Limit()),
+    )
+
+    link2_to_link3 = rod.Joint(
+        name="link2_to_link3",
+        type="revolute",
+        parent=link2_builder.name,
+        child=link3_builder.name,
+        pose=primitives.PrimitiveBuilder.build_pose(
+            relative_to=link2_builder.name,
+            pos=np.array([link2_builder.radius, 0, -link2_builder.radius]),
+        ),
+        axis=rod.Axis(xyz=rod.Xyz(xyz=[0, 0, 1]), limit=rod.Limit()),
+    )
+
+    link3_to_link4 = rod.Joint(
+        name="link3_to_link4",
+        type="revolute",
+        parent=link3_builder.name,
+        child=link4_builder.name,
+        pose=primitives.PrimitiveBuilder.build_pose(
+            relative_to=link3_builder.name,
+            pos=np.array([-link3_builder.radius, 0, -link3_builder.length]),
+        ),
+        axis=rod.Axis(xyz=rod.Xyz(xyz=[1, 0, 0]), limit=rod.Limit()),
+    )
+
+    # ================
+    # Create the links
+    # ================
+
+    link1_elements_pose = primitives.PrimitiveBuilder.build_pose(
+        pos=np.array([link1_builder.x, link1_builder.y, link1_builder.z]) / 2
+    )
+
+    link1 = (
+        link1_builder.build_link(
+            name=link1_builder.name,
+            pose=primitives.PrimitiveBuilder.build_pose(relative_to="__model__"),
+        )
+        .add_inertial(pose=link1_elements_pose)
+        .add_visual(pose=link1_elements_pose)
+        .add_collision(pose=link1_elements_pose)
+        .build()
+    )
+
+    link2_elements_pose = primitives.PrimitiveBuilder.build_pose(
+        pos=np.array([link2_builder.radius, 0, 0])
+    )
+
+    link2 = (
+        link2_builder.build_link(
+            name=link2_builder.name,
+            pose=primitives.PrimitiveBuilder.build_pose(
+                relative_to=link1_to_link2.name
+            ),
+        )
+        .add_inertial(pose=link2_elements_pose)
+        .add_visual(pose=link2_elements_pose)
+        .add_collision(pose=link2_elements_pose)
+        .build()
+    )
+
+    link3_elements_pose = primitives.PrimitiveBuilder.build_pose(
+        pos=np.array([0, 0, -link3_builder.length / 2])
+    )
+
+    link3 = (
+        link3_builder.build_link(
+            name=link3_builder.name,
+            pose=primitives.PrimitiveBuilder.build_pose(
+                relative_to=link2_to_link3.name
+            ),
+        )
+        .add_inertial(pose=link3_elements_pose)
+        .add_visual(pose=link3_elements_pose)
+        .add_collision(pose=link3_elements_pose)
+        .build()
+    )
+
+    link4_elements_pose = primitives.PrimitiveBuilder.build_pose(
+        # pos=np.array([0, 0, -link4_builder.z / 2])
+        pos=np.array([link4_builder.x / 2, 0, -link4_builder.z / 2])
+    )
+
+    link4 = (
+        link4_builder.build_link(
+            name=link4_builder.name,
+            pose=primitives.PrimitiveBuilder.build_pose(
+                relative_to=link3_to_link4.name
+            ),
+        )
+        .add_inertial(pose=link4_elements_pose)
+        .add_visual(pose=link4_elements_pose)
+        .add_collision(pose=link4_elements_pose)
+        .build()
+    )
+
+    # ===========
+    # Build model
+    # ===========
+
+    # Create model
+    rod_model = rod.Model(
+        name="model_demo",
+        canonical_link=link1.name,
+        link=[link1, link2, link3, link4],
+        joint=[link1_to_link2, link2_to_link3, link3_to_link4],
+    )
+
+    rod_model.switch_frame_convention(
+        frame_convention=rod.FrameConvention.Urdf,
+        explicit_frames=True,
+        attach_frames_to_links=True,
+    )
+
+    assert rod.Sdf(model=rod_model, version="1.10").serialize(validate=True)
+
+    return rod_model
+
+
 # ============================
 # Collections of JaxSim models
 # ============================
@@ -496,6 +727,10 @@ def get_jaxsim_model_fixture(
             return request.getfixturevalue(jaxsim_model_ur10.__name__)
         case "single_pendulum":
             return request.getfixturevalue(jaxsim_model_single_pendulum.__name__)
+        case "garpez":
+            return request.getfixturevalue(jaxsim_model_garpez.__name__)
+        case "garpez_scaled":
+            return request.getfixturevalue(jaxsim_model_garpez_scaled.__name__)
         case _:
             raise ValueError(model_name)
 

@@ -10,10 +10,11 @@ import jaxsim.typing as jtp
 from jaxsim.math import Rotation
 from jaxsim.parsers.descriptions import JointGenericAxis, JointType, ModelDescription
 from jaxsim.parsers.kinematic_graph import KinematicGraphTransforms
+from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass
-class JointModel:
+class JointModel(JaxsimDataclass):
     """
     Class describing the joint kinematics of a robot model.
 

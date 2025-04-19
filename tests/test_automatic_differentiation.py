@@ -460,3 +460,58 @@ def test_ad_safe_norm(
         modes=["rev", "fwd"],
         eps=ε,
     )
+
+
+def test_ad_hw_parameters(
+    jaxsim_model_garpez: js.model.JaxSimModel,
+    prng_key: jax.Array,
+):
+    """
+    Test the automatic differentiation capability for hardware parameters of the model links.
+    """
+
+    model = jaxsim_model_garpez
+    data = js.data.JaxSimModelData.build(model=model)
+
+    min_val, max_val = 0.5, 10.0
+
+    # Generate random scaling factors for testing.
+    _, subkey1, subkey2 = jax.random.split(prng_key, num=3)
+    dims_scaling = jax.random.uniform(
+        subkey1, shape=(model.number_of_links(), 3), minval=min_val, maxval=max_val
+    )
+    density_scaling = jax.random.uniform(
+        subkey2, shape=(model.number_of_links(),), minval=min_val, maxval=max_val
+    )
+
+    scaling_factors = js.kin_dyn_parameters.ScalingFactors(
+        dims=dims_scaling, density=density_scaling
+    )
+
+    link_idx = js.link.name_to_idx(model, link_name="link4")
+
+    # Define a function that updates hardware parameters and computes FK for link 4.
+    def update_hw_params_and_compute_fk_and_mass(
+        scaling_factors: js.kin_dyn_parameters.ScalingFactors,
+    ):
+        # Update hardware parameters.
+        updated_model = js.model.update_hw_parameters(
+            model=model, scaling_factors=scaling_factors
+        )
+
+        # Compute forward kinematics for link 4.
+        W_H_L4 = js.model.forward_kinematics(model=updated_model, data=data)[link_idx]
+
+        # Compute the free floating mass matrix of the updated model.
+        M = js.model.free_floating_mass_matrix(updated_model, data)
+
+        return W_H_L4[:3, 3], M
+
+    # Check derivatives against finite differences.
+    check_grads(
+        f=update_hw_params_and_compute_fk_and_mass,
+        args=(scaling_factors,),
+        order=AD_ORDER,
+        modes=["fwd"],  # TODO: not working in rev mode
+        eps=ε,
+    )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import ClassVar
 
 import jax.lax
 import jax.numpy as jnp
@@ -9,8 +10,10 @@ import numpy as np
 import numpy.typing as npt
 from jax_dataclasses import Static
 
+import jaxsim
 import jaxsim.typing as jtp
-from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
+from jaxsim.math import Inertia, JointModel, supported_joint_motion
+from jaxsim.math.adjoint import Adjoint
 from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
@@ -30,6 +33,7 @@ class KinDynParameters(JaxsimDataclass):
         contact_parameters: The parameters of the collidable points.
         joint_model: The joint model of the model.
         joint_parameters: The parameters of the joints.
+        hw_link_metadata: The hardware parameters of the model links.
     """
 
     # Static
@@ -50,6 +54,9 @@ class KinDynParameters(JaxsimDataclass):
     # Joints
     joint_model: JointModel
     joint_parameters: JointParameters | None
+
+    # Model hardware parameters
+    hw_link_metadata: HwLinkMetadata | None = dataclasses.field(default=None)
 
     @property
     def motion_subspaces(self) -> jtp.Matrix:
@@ -197,7 +204,6 @@ class KinDynParameters(JaxsimDataclass):
             carry0 = κb, link_index
 
             def scan_body(carry: tuple, i: jtp.Int) -> tuple[tuple, None]:
-
                 κb, active_link_index = carry
 
                 κb, active_link_index = jax.lax.cond(
@@ -224,7 +230,6 @@ class KinDynParameters(JaxsimDataclass):
         )
 
         def motion_subspace(joint_type: int, axis: npt.ArrayLike) -> npt.ArrayLike:
-
             S = {
                 JointType.Fixed: np.zeros(shape=(6, 1)),
                 JointType.Revolute: np.vstack(np.hstack([np.zeros(3), axis.axis])),
@@ -234,14 +239,12 @@ class KinDynParameters(JaxsimDataclass):
             return S[joint_type]
 
         S_J = (
-            jnp.array(
-                [
-                    motion_subspace(joint_type, axis)
-                    for joint_type, axis in zip(
-                        joint_model.joint_types[1:], joint_model.joint_axis, strict=True
-                    )
-                ]
-            )
+            jnp.array([
+                motion_subspace(joint_type, axis)
+                for joint_type, axis in zip(
+                    joint_model.joint_types[1:], joint_model.joint_axis, strict=True
+                )
+            ])
             if len(joint_model.joint_axis) != 0
             else jnp.empty((0, 6, 1))
         )
@@ -265,24 +268,20 @@ class KinDynParameters(JaxsimDataclass):
         )
 
     def __eq__(self, other: KinDynParameters) -> bool:
-
         if not isinstance(other, KinDynParameters):
             return False
 
         return hash(self) == hash(other)
 
     def __hash__(self) -> int:
-
-        return hash(
-            (
-                hash(self.number_of_links()),
-                hash(self.number_of_joints()),
-                hash(self.frame_parameters.name),
-                hash(self.frame_parameters.body),
-                hash(self._parent_array),
-                hash(self._support_body_array_bool),
-            )
-        )
+        return hash((
+            hash(self.number_of_links()),
+            hash(self.number_of_joints()),
+            hash(self.frame_parameters.name),
+            hash(self.frame_parameters.body),
+            hash(self._parent_array),
+            hash(self._support_body_array_bool),
+        ))
 
     # =============================
     # Helpers to extract parameters
@@ -369,12 +368,10 @@ class KinDynParameters(JaxsimDataclass):
             .adjoint()
         )(jnp.arange(1, self.number_of_joints() + 1))
 
-        return jnp.vstack(
-            [
-                jnp.zeros(shape=(1, 6, 6), dtype=float),
-                pre_Xi_λ,
-            ]
-        )
+        return jnp.vstack([
+            jnp.zeros(shape=(1, 6, 6), dtype=float),
+            pre_Xi_λ,
+        ])
 
     @jax.jit
     def joint_transforms(
@@ -397,12 +394,10 @@ class KinDynParameters(JaxsimDataclass):
         W_H_B = base_transform
 
         # Extract the parent-to-predecessor fixed transforms of the joints.
-        λ_H_pre = jnp.vstack(
-            [
-                jnp.eye(4)[jnp.newaxis],
-                self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
-            ]
-        )
+        λ_H_pre = jnp.vstack([
+            jnp.eye(4)[jnp.newaxis],
+            self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
+        ])
         if self.number_of_joints() == 0:
             pre_H_suc_J = jnp.empty((0, 4, 4))
         else:
@@ -670,9 +665,11 @@ class LinkParameters(JaxsimDataclass):
         """
 
         return (
-            jnp.hstack(
-                [params.mass, params.center_of_mass.squeeze(), params.inertia_elements]
-            )
+            jnp.hstack([
+                params.mass,
+                params.center_of_mass.squeeze(),
+                params.inertia_elements,
+            ])
             .squeeze()
             .astype(float)
         )
@@ -882,3 +879,268 @@ class FrameParameters(JaxsimDataclass):
         assert fp.transform.shape[0] == len(fp.body), fp.transform.shape[0]
 
         return fp
+
+
+@dataclasses.dataclass(frozen=True)
+class LinkParametrizableShape:
+    """
+    Enum-like class listing the supported shapes for HW parametrization.
+    """
+
+    Unsupported: ClassVar[int] = -1
+    Box: ClassVar[int] = 0
+    Cylinder: ClassVar[int] = 1
+    Sphere: ClassVar[int] = 2
+
+
+@jax_dataclasses.pytree_dataclass
+class HwLinkMetadata(JaxsimDataclass):
+    """
+    Class storing the hardware parameters of a link.
+
+    Attributes:
+        shape: The shape of the link.
+            0 = box, 1 = sphere, 2 = cylinder, -1 = unsupported.
+        dims: The dimensions of the link.
+            box: [lx,ly,lz], sphere: [r,0,0], cylinder: [r,l,0]
+        density: The density of the link.
+        L_H_G: The homogeneous transformation matrix from the link frame to the CoM frame G.
+        L_H_vis: The homogeneous transformation matrix from the link frame to the visual frame.
+        L_H_pre_mask: The mask indicating the link's child joint indices.
+        L_H_pre: The homogeneous transforms for child joints.
+    """
+
+    shape: jtp.Vector
+    dims: jtp.Vector
+    density: jtp.Float
+    L_H_G: jtp.Matrix
+    L_H_vis: jtp.Matrix
+    L_H_pre_mask: jtp.Vector
+    L_H_pre: jtp.Matrix
+
+    @staticmethod
+    def compute_mass_and_inertia(
+        hw_link_metadata: HwLinkMetadata,
+    ) -> tuple[jtp.Float, jtp.Matrix]:
+        """
+        Compute the mass and inertia of a hardware link based on its metadata.
+
+        This function calculates the mass and inertia tensor of a hardware link
+        using its shape, dimensions, and density. The computation is performed
+        by using shape-specific methods.
+
+        Args:
+            hw_link_metadata: Metadata describing the hardware link,
+                including its shape, dimensions, and density.
+
+        Returns:
+            tuple: A tuple containing:
+                - mass: The computed mass of the hardware link.
+                - inertia: The computed inertia tensor of the hardware link.
+        """
+
+        mass, inertia = jax.lax.switch(
+            hw_link_metadata.shape,
+            [
+                HwLinkMetadata._box,
+                HwLinkMetadata._cylinder,
+                HwLinkMetadata._sphere,
+            ],
+            hw_link_metadata.dims,
+            hw_link_metadata.density,
+        )
+        return mass, inertia
+
+    @staticmethod
+    def _box(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+        lx, ly, lz = dims
+
+        mass = density * lx * ly * lz
+
+        inertia = jnp.array([
+            [mass * (ly**2 + lz**2) / 12, 0, 0],
+            [0, mass * (lx**2 + lz**2) / 12, 0],
+            [0, 0, mass * (lx**2 + ly**2) / 12],
+        ])
+        return mass, inertia
+
+    @staticmethod
+    def _cylinder(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+        r, l, _ = dims
+
+        mass = density * (jnp.pi * r**2 * l)
+
+        inertia = jnp.array([
+            [mass * (3 * r**2 + l**2) / 12, 0, 0],
+            [0, mass * (3 * r**2 + l**2) / 12, 0],
+            [0, 0, mass * (r**2) / 2],
+        ])
+
+        return mass, inertia
+
+    @staticmethod
+    def _sphere(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+        r = dims[0]
+
+        mass = density * (4 / 3 * jnp.pi * r**3)
+
+        inertia = jnp.eye(3) * (2 / 5 * mass * r**2)
+
+        return mass, inertia
+
+    @staticmethod
+    def _convert_scaling_to_3d_vector(
+        shape: jtp.Int, scaling_factors: jtp.Vector
+    ) -> jtp.Vector:
+        """
+        Convert scaling factors for specific shape dimensions into a 3D scaling vector.
+
+        Args:
+            shape: The shape of the link (e.g., box, sphere, cylinder).
+            scaling_factors: The scaling factors for the shape dimensions.
+
+        Returns:
+            A 3D scaling vector to apply to position vectors.
+
+        Note:
+            The scaling factors are applied as follows to generate the 3D scale vector:
+            - Box: [lx, ly, lz]
+            - Cylinder: [r, r, l]
+            - Sphere: [r, r, r]
+        """
+        return jax.lax.switch(
+            shape,
+            branches=[
+                # Box
+                lambda: scaling_factors,
+                # Cylinder
+                lambda: jnp.array([
+                    scaling_factors[0],
+                    scaling_factors[0],
+                    scaling_factors[1],
+                ]),
+                # Sphere
+                lambda: jnp.array([
+                    scaling_factors[0],
+                    scaling_factors[0],
+                    scaling_factors[0],
+                ]),
+            ],
+        )
+
+    @staticmethod
+    def compute_inertia_link(I_com, mass, L_H_G) -> jtp.Matrix:
+        """
+        Compute the inertia tensor of the link based on its shape and mass.
+        """
+
+        L_R_G = L_H_G[:3, :3]
+        return L_R_G @ I_com @ L_R_G.T
+
+    @staticmethod
+    def apply_scaling(
+        hw_metadata: HwLinkMetadata, scaling_factors: ScalingFactors
+    ) -> HwLinkMetadata:
+        """
+        Apply scaling to the hardware parameters and return a new HwLinkMetadata object.
+
+        Args:
+            hw_metadata: the original HwLinkMetadata object.
+            scaling_factors: the scaling factors to apply.
+
+        Returns:
+            A new HwLinkMetadata object with updated parameters.
+        """
+
+        # ==================================
+        # Handle unsupported links
+        # ==================================
+        def unsupported_case(hw_metadata, scaling_factors):
+            # Return the metadata unchanged for unsupported links
+            return hw_metadata
+
+        def supported_case(hw_metadata, scaling_factors):
+            # ==================================
+            # Update the kinematics of the link
+            # ==================================
+
+            # Get the nominal transforms
+            L_H_G = hw_metadata.L_H_G
+            L_H_vis = hw_metadata.L_H_vis
+            L_H_pre_array = hw_metadata.L_H_pre
+            L_H_pre_mask = hw_metadata.L_H_pre_mask
+
+            # Compute the 3D scaling vector
+            scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
+                hw_metadata.shape, scaling_factors.dims
+            )
+
+            # Express the transforms in the G frame
+            G_H_L = jaxsim.math.Transform.inverse(L_H_G)
+            G_H_vis = G_H_L @ L_H_vis
+            G_H_pre_array = jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+
+            # Apply the scaling to the position vectors
+            G_H̅_L = G_H_L.at[:3, 3].set(scale_vector * G_H_L[:3, 3])
+            G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
+            # Apply scaling to the position vectors in G_H_pre_array based on the mask
+            G_H̅_pre_array = jax.vmap(
+                lambda G_H_pre, mask: jnp.where(
+                    # Expand mask for broadcasting
+                    mask[..., None, None],
+                    # Apply scaling
+                    G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
+                    # Keep unchanged if mask is False
+                    G_H_pre,
+                )
+            )(G_H_pre_array, L_H_pre_mask)
+
+            # Get back to the link frame
+            L_H̅_G = jaxsim.math.Transform.inverse(G_H̅_L)
+            L_H̅_vis = L_H̅_G @ G_H̅_vis
+            L_H̅_pre_array = jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+
+            # ============================
+            # Update the shape parameters
+            # ============================
+
+            updated_dims = hw_metadata.dims * scaling_factors.dims
+
+            # ==============================
+            # Scale the density of the link
+            # ==============================
+
+            updated_density = hw_metadata.density * scaling_factors.density
+
+            # ============================
+            # Return updated HwLinkMetadata
+            # ============================
+
+            return hw_metadata.replace(
+                dims=updated_dims,
+                density=updated_density,
+                L_H_G=L_H̅_G,
+                L_H_vis=L_H̅_vis,
+                L_H_pre=L_H̅_pre_array,
+            )
+
+        # Use jax.lax.cond to handle unsupported links
+        return jax.lax.cond(
+            hw_metadata.shape == LinkParametrizableShape.Unsupported,
+            lambda: unsupported_case(hw_metadata, scaling_factors),
+            lambda: supported_case(hw_metadata, scaling_factors),
+        )
+
+
+@jax_dataclasses.pytree_dataclass
+class ScalingFactors(JaxsimDataclass):
+    """
+    Class storing scaling factors for hardware parameters.
+
+    Attributes:
+        dims: Scaling factors for shape dimensions.
+        density: Scaling factor for density.
+    """
+
+    dims: jtp.Vector
+    density: jtp.Float

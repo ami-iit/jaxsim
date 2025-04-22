@@ -43,7 +43,7 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
             lambda x, link_idx=link_idx: x[link_idx], initial_metadata
         )
 
-        # Compute the 3D scaling vector
+        # TODO: Compute the 3D scaling vector
         # scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
         #     initial_metadata_link.shape, scaling_parameters.dims[link_idx]
         # )

@@ -71,9 +71,7 @@ def mujoco_data_from_jaxsim(
 
         model_helper.set_joint_positions(
             joint_names=list(jaxsim_model.joint_names()),
-            positions=np.array(
-                jaxsim_data.joint_positions
-            ),
+            positions=np.array(jaxsim_data.joint_positions),
         )
 
     # Updating these joints is not necessary after the first time.

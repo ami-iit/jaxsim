@@ -113,12 +113,14 @@ class JaxSimModel(JaxsimDataclass):
         return True
 
     def __hash__(self) -> int:
-        return hash((
-            hash(self.model_name),
-            hash(self.time_step),
-            hash(self.kin_dyn_parameters),
-            hash(self.contact_model),
-        ))
+        return hash(
+            (
+                hash(self.model_name),
+                hash(self.time_step),
+                hash(self.kin_dyn_parameters),
+                hash(self.contact_model),
+            )
+        )
 
     # ========================
     # Initialization and state
@@ -386,8 +388,6 @@ class JaxSimModel(JaxsimDataclass):
         L_H_pre_masks = []
         L_H_pres = []
 
-        dummy_data = js.data.random_model_data(model=self)
-
         # Process each link
         for link_description in ordered_links:
             link_name = link_description.name
@@ -450,16 +450,22 @@ class JaxSimModel(JaxsimDataclass):
             densities.append(density)
             L_H_Gs.append(rod_link.inertial.pose.transform())
             L_H_vises.append(rod_link.visual.pose.transform())
-            L_H_pre_masks.append([
-                int(joint_index in child_joints_indices)
-                for joint_index in range(self.number_of_joints())
-            ])
-            L_H_pres.append([
-                self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
-                if joint_index in child_joints_indices
-                else jnp.eye(4)
-                for joint_index in range(self.number_of_joints())
-            ])
+            L_H_pre_masks.append(
+                [
+                    int(joint_index in child_joints_indices)
+                    for joint_index in range(self.number_of_joints())
+                ]
+            )
+            L_H_pres.append(
+                [
+                    (
+                        self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
+                        if joint_index in child_joints_indices
+                        else jnp.eye(4)
+                    )
+                    for joint_index in range(self.number_of_joints())
+                ]
+            )
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(

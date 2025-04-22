@@ -19,12 +19,14 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Create the scaling factors
     scaling_parameters = ScalingFactors(
-        dims=jnp.array([
-            [2.0, 1.5, 1.0],  # Scale x, y, z for link1
-            [1.2, 1.0, 1.0],  # Scale r for link2
-            [1.5, 0.8, 1.0],  # Scale r, l for link3
-            [1.5, 1.0, 0.8],  # Scale x, y, z for link4
-        ]),
+        dims=jnp.array(
+            [
+                [2.0, 1.5, 1.0],  # Scale x, y, z for link1
+                [1.2, 1.0, 1.0],  # Scale r for link2
+                [1.5, 0.8, 1.0],  # Scale r, l for link3
+                [1.5, 1.0, 0.8],  # Scale x, y, z for link4
+            ]
+        ),
         density=jnp.ones(4),
     )
 
@@ -34,10 +36,11 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
     # Compare updated hardware parameters
     for link_idx, link_name in enumerate(model.link_names()):
         updated_metadata = jax.tree_util.tree_map(
-            lambda x: x[link_idx], updated_model.kin_dyn_parameters.hw_link_metadata
+            lambda x, link_idx=link_idx: x[link_idx],
+            updated_model.kin_dyn_parameters.hw_link_metadata,
         )
         initial_metadata_link = jax.tree_util.tree_map(
-            lambda x: x[link_idx], initial_metadata
+            lambda x, link_idx=link_idx: x[link_idx], initial_metadata
         )
 
         # Compute the 3D scaling vector
@@ -50,9 +53,7 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
             updated_metadata.dims,
             initial_metadata_link.dims * scaling_parameters.dims[link_idx],
             atol=1e-6,
-        ), (
-            f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.dims * scaling_parameters.dims[link_idx]}, got {updated_metadata.dims}"
-        )
+        ), f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.dims * scaling_parameters.dims[link_idx]}, got {updated_metadata.dims}"
 
 
 @pytest.mark.parametrize(
@@ -77,12 +78,14 @@ def test_model_scaling_against_rod(
 
     # Define scaling parameters
     scaling_parameters = ScalingFactors(
-        dims=jnp.array([
-            [4.0, 1.0, 1.0],  # Scale only x-dimension for link1
-            [3.0, 1.0, 1.0],  # Scale only r-dimension for link2
-            [1.0, 2.0, 1.0],  # Scale l dimension for link3
-            [1.5, 1.0, 1.0],  # Scale only x-dimension for link4
-        ]),
+        dims=jnp.array(
+            [
+                [4.0, 1.0, 1.0],  # Scale only x-dimension for link1
+                [3.0, 1.0, 1.0],  # Scale only r-dimension for link2
+                [1.0, 2.0, 1.0],  # Scale l dimension for link3
+                [1.5, 1.0, 1.0],  # Scale only x-dimension for link4
+            ]
+        ),
         density=jnp.ones(4),
     )
 
@@ -94,10 +97,11 @@ def test_model_scaling_against_rod(
     # Compare hardware parameters of the scaled JaxSim model with the pre-scaled JaxSim model
     for link_idx, link_name in enumerate(jaxsim_model_garpez.link_names()):
         scaled_metadata = jax.tree_util.tree_map(
-            lambda x: x[link_idx], updated_model.kin_dyn_parameters.hw_link_metadata
+            lambda x, link_idx=link_idx: x[link_idx],
+            updated_model.kin_dyn_parameters.hw_link_metadata,
         )
         pre_scaled_metadata = jax.tree_util.tree_map(
-            lambda x: x[link_idx],
+            lambda x, link_idx=link_idx: x[link_idx],
             jaxsim_model_garpez_scaled.kin_dyn_parameters.hw_link_metadata,
         )
 
@@ -205,12 +209,14 @@ def test_export_updated_model(
 
     # Define scaling parameters
     scaling_parameters = ScalingFactors(
-        dims=jnp.array([
-            [4.0, 1.0, 1.0],  # Scale x-dimension for link1
-            [3.0, 1.0, 1.0],  # Scale r-dimension for link2
-            [1.0, 2.0, 1.0],  # Scale l-dimension for link3
-            [1.5, 1.0, 1.0],  # Scale x-dimension for link4
-        ]),
+        dims=jnp.array(
+            [
+                [4.0, 1.0, 1.0],  # Scale x-dimension for link1
+                [3.0, 1.0, 1.0],  # Scale r-dimension for link2
+                [1.0, 2.0, 1.0],  # Scale l-dimension for link3
+                [1.5, 1.0, 1.0],  # Scale x-dimension for link4
+            ]
+        ),
         density=jnp.ones(4),
     )
 
@@ -226,21 +232,21 @@ def test_export_updated_model(
 
     # Convert the URDF string to a ROD model
     exported_model_sdf = rod.Sdf.load(exported_model_urdf, is_urdf=True)
-    assert isinstance(exported_model_sdf, rod.Sdf), (
-        "Failed to load exported model as ROD Sdf."
-    )
-    assert len(exported_model_sdf.models()) == 1, (
-        "Exported ROD model does not contain exactly one model."
-    )
+    assert isinstance(
+        exported_model_sdf, rod.Sdf
+    ), "Failed to load exported model as ROD Sdf."
+    assert (
+        len(exported_model_sdf.models()) == 1
+    ), "Exported ROD model does not contain exactly one model."
     exported_model_rod = exported_model_sdf.models()[0]
 
     # Get the pre-scaled ROD model
     pre_scaled_model_rod = rod.Sdf.load(jaxsim_model_garpez_scaled.built_from).models()[
         0
     ]
-    assert isinstance(pre_scaled_model_rod, rod.Model), (
-        "Failed to load pre-scaled model as ROD Model."
-    )
+    assert isinstance(
+        pre_scaled_model_rod, rod.Model
+    ), "Failed to load pre-scaled model as ROD Model."
 
     # Validate that the exported model matches the pre-scaled model
     for link_idx, link_name in enumerate(model.link_names()):
@@ -263,16 +269,20 @@ def test_export_updated_model(
         pre_scaled_geometry = pre_scaled_link.visual.geometry.geometry()
 
         # Ensure both geometries have the same attributes for comparison
-        exported_values = jnp.array([
-            getattr(exported_geometry, attr, 0)
-            for attr in vars(exported_geometry)
-            if hasattr(pre_scaled_geometry, attr)
-        ])
-        pre_scaled_values = jnp.array([
-            getattr(pre_scaled_geometry, attr, 0)
-            for attr in vars(pre_scaled_geometry)
-            if hasattr(exported_geometry, attr)
-        ])
+        exported_values = jnp.array(
+            [
+                getattr(exported_geometry, attr, 0)
+                for attr in vars(exported_geometry)
+                if hasattr(pre_scaled_geometry, attr)
+            ]
+        )
+        pre_scaled_values = jnp.array(
+            [
+                getattr(pre_scaled_geometry, attr, 0)
+                for attr in vars(pre_scaled_geometry)
+                if hasattr(exported_geometry, attr)
+            ]
+        )
 
         assert jnp.allclose(exported_values, pre_scaled_values, atol=1e-6), (
             f"Mismatch in geometry dimensions for link {link_name}: "
@@ -315,13 +325,15 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
     link_idx = js.link.name_to_idx(model, link_name="link4")
 
     # Define the initial hardware parameters (scaling factors).
-    initial_dims = jnp.ones((
-        model.number_of_links(),
-        3,
-    ))  # Initial dimensions (1.0 for all links).
-    initial_density = jnp.ones((
-        model.number_of_links(),
-    ))  # Initial density (1.0 for all links).
+    initial_dims = jnp.ones(
+        (
+            model.number_of_links(),
+            3,
+        )
+    )  # Initial dimensions (1.0 for all links).
+    initial_density = jnp.ones(
+        (model.number_of_links(),)
+    )  # Initial density (1.0 for all links).
     scaling_factors = js.kin_dyn_parameters.ScalingFactors(
         dims=initial_dims, density=initial_density
     )

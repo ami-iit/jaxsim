@@ -239,12 +239,14 @@ class KinDynParameters(JaxsimDataclass):
             return S[joint_type]
 
         S_J = (
-            jnp.array([
-                motion_subspace(joint_type, axis)
-                for joint_type, axis in zip(
-                    joint_model.joint_types[1:], joint_model.joint_axis, strict=True
-                )
-            ])
+            jnp.array(
+                [
+                    motion_subspace(joint_type, axis)
+                    for joint_type, axis in zip(
+                        joint_model.joint_types[1:], joint_model.joint_axis, strict=True
+                    )
+                ]
+            )
             if len(joint_model.joint_axis) != 0
             else jnp.empty((0, 6, 1))
         )
@@ -274,14 +276,16 @@ class KinDynParameters(JaxsimDataclass):
         return hash(self) == hash(other)
 
     def __hash__(self) -> int:
-        return hash((
-            hash(self.number_of_links()),
-            hash(self.number_of_joints()),
-            hash(self.frame_parameters.name),
-            hash(self.frame_parameters.body),
-            hash(self._parent_array),
-            hash(self._support_body_array_bool),
-        ))
+        return hash(
+            (
+                hash(self.number_of_links()),
+                hash(self.number_of_joints()),
+                hash(self.frame_parameters.name),
+                hash(self.frame_parameters.body),
+                hash(self._parent_array),
+                hash(self._support_body_array_bool),
+            )
+        )
 
     # =============================
     # Helpers to extract parameters
@@ -368,10 +372,12 @@ class KinDynParameters(JaxsimDataclass):
             .adjoint()
         )(jnp.arange(1, self.number_of_joints() + 1))
 
-        return jnp.vstack([
-            jnp.zeros(shape=(1, 6, 6), dtype=float),
-            pre_Xi_λ,
-        ])
+        return jnp.vstack(
+            [
+                jnp.zeros(shape=(1, 6, 6), dtype=float),
+                pre_Xi_λ,
+            ]
+        )
 
     @jax.jit
     def joint_transforms(
@@ -394,10 +400,12 @@ class KinDynParameters(JaxsimDataclass):
         W_H_B = base_transform
 
         # Extract the parent-to-predecessor fixed transforms of the joints.
-        λ_H_pre = jnp.vstack([
-            jnp.eye(4)[jnp.newaxis],
-            self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
-        ])
+        λ_H_pre = jnp.vstack(
+            [
+                jnp.eye(4)[jnp.newaxis],
+                self.joint_model.λ_H_pre[1 : 1 + self.number_of_joints()],
+            ]
+        )
         if self.number_of_joints() == 0:
             pre_H_suc_J = jnp.empty((0, 4, 4))
         else:
@@ -665,11 +673,13 @@ class LinkParameters(JaxsimDataclass):
         """
 
         return (
-            jnp.hstack([
-                params.mass,
-                params.center_of_mass.squeeze(),
-                params.inertia_elements,
-            ])
+            jnp.hstack(
+                [
+                    params.mass,
+                    params.center_of_mass.squeeze(),
+                    params.inertia_elements,
+                ]
+            )
             .squeeze()
             .astype(float)
         )
@@ -957,11 +967,13 @@ class HwLinkMetadata(JaxsimDataclass):
 
         mass = density * lx * ly * lz
 
-        inertia = jnp.array([
-            [mass * (ly**2 + lz**2) / 12, 0, 0],
-            [0, mass * (lx**2 + lz**2) / 12, 0],
-            [0, 0, mass * (lx**2 + ly**2) / 12],
-        ])
+        inertia = jnp.array(
+            [
+                [mass * (ly**2 + lz**2) / 12, 0, 0],
+                [0, mass * (lx**2 + lz**2) / 12, 0],
+                [0, 0, mass * (lx**2 + ly**2) / 12],
+            ]
+        )
         return mass, inertia
 
     @staticmethod
@@ -970,11 +982,13 @@ class HwLinkMetadata(JaxsimDataclass):
 
         mass = density * (jnp.pi * r**2 * l)
 
-        inertia = jnp.array([
-            [mass * (3 * r**2 + l**2) / 12, 0, 0],
-            [0, mass * (3 * r**2 + l**2) / 12, 0],
-            [0, 0, mass * (r**2) / 2],
-        ])
+        inertia = jnp.array(
+            [
+                [mass * (3 * r**2 + l**2) / 12, 0, 0],
+                [0, mass * (3 * r**2 + l**2) / 12, 0],
+                [0, 0, mass * (r**2) / 2],
+            ]
+        )
 
         return mass, inertia
 
@@ -1014,17 +1028,21 @@ class HwLinkMetadata(JaxsimDataclass):
                 # Box
                 lambda: scaling_factors,
                 # Cylinder
-                lambda: jnp.array([
-                    scaling_factors[0],
-                    scaling_factors[0],
-                    scaling_factors[1],
-                ]),
+                lambda: jnp.array(
+                    [
+                        scaling_factors[0],
+                        scaling_factors[0],
+                        scaling_factors[1],
+                    ]
+                ),
                 # Sphere
-                lambda: jnp.array([
-                    scaling_factors[0],
-                    scaling_factors[0],
-                    scaling_factors[0],
-                ]),
+                lambda: jnp.array(
+                    [
+                        scaling_factors[0],
+                        scaling_factors[0],
+                        scaling_factors[0],
+                    ]
+                ),
             ],
         )
 

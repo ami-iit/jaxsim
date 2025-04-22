@@ -342,7 +342,8 @@ class JaxSimModel(JaxsimDataclass):
                 rod_model = self.built_from
             case _:
                 logging.debug(
-                    f"Invalid type for model.built_from ({type(self.built_from)}). Skipping."
+                    f"Invalid type for model.built_from ({type(self.built_from)})."
+                    "Skipping for hardware parametrization."
                 )
                 return HwLinkMetadata(
                     shape=jnp.array([]),
@@ -365,7 +366,7 @@ class JaxSimModel(JaxsimDataclass):
         for rod_link in rod_model.links():
             if len(rod_link.visuals()) != 1:
                 logging.debug(
-                    f"Skipping link '{rod_link.name}' due to multiple visuals."
+                    f"Skipping link '{rod_link.name}' for hardware parametrization due to multiple visuals."
                 )
                 continue
 
@@ -373,7 +374,7 @@ class JaxSimModel(JaxsimDataclass):
                 rod_link.visual.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
             ):
                 logging.debug(
-                    f"Skipping link '{rod_link.name}' due to unsupported geometry."
+                    f"Skipping link '{rod_link.name}' for hardware parametrization due to unsupported geometry."
                 )
                 continue
 
@@ -394,13 +395,13 @@ class JaxSimModel(JaxsimDataclass):
 
             if link_name not in self.link_names():
                 logging.debug(
-                    f"Skipping link '{link_name}' as it is not part of the JaxSim model."
+                    f"Skipping link '{link_name}' for hardware parametrization as it is not part of the JaxSim model."
                 )
                 continue
 
             if link_name not in rod_links_dict:
                 logging.debug(
-                    f"Skipping link '{link_name}' as it is not part of the ROD model."
+                    f"Skipping link '{link_name}' for hardware parametrization as it is not part of the ROD model."
                 )
                 continue
 
@@ -419,7 +420,7 @@ class JaxSimModel(JaxsimDataclass):
                 self.kin_dyn_parameters.joint_model.suc_H_i[link_index], jnp.eye(4)
             ):
                 logging.debug(
-                    f"Skipping link '{link_name}' due to unsupported suc_H_link."
+                    f"Skipping link '{link_name}' for hardware parametrization due to unsupported suc_H_link."
                 )
                 continue
 
@@ -443,7 +444,7 @@ class JaxSimModel(JaxsimDataclass):
                 shapes.append(LinkParametrizableShape.Cylinder)
             else:
                 logging.debug(
-                    f"Skipping link '{link_name}' due to unsupported geometry."
+                    f"Skipping link '{link_name}' for hardware parametrization due to unsupported geometry."
                 )
                 continue
 

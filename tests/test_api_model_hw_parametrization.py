@@ -221,10 +221,9 @@ def test_export_updated_model(
     )
 
     # Update the model with the scaling parameters
-    with jax.disable_jit():
-        updated_model: js.model.JaxSimModel = js.model.update_hw_parameters(
-            model, scaling_parameters
-        )
+    updated_model: js.model.JaxSimModel = js.model.update_hw_parameters(
+        model, scaling_parameters
+    )
 
     # Export the updated model
     exported_model_urdf = updated_model.export_updated_model()

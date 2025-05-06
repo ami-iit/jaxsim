@@ -451,22 +451,18 @@ class JaxSimModel(JaxsimDataclass):
             densities.append(density)
             L_H_Gs.append(rod_link.inertial.pose.transform())
             L_H_vises.append(rod_link.visual.pose.transform())
-            L_H_pre_masks.append(
-                [
-                    int(joint_index in child_joints_indices)
-                    for joint_index in range(self.number_of_joints())
-                ]
-            )
-            L_H_pres.append(
-                [
-                    (
-                        self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
-                        if joint_index in child_joints_indices
-                        else jnp.eye(4)
-                    )
-                    for joint_index in range(self.number_of_joints())
-                ]
-            )
+            L_H_pre_masks.append([
+                int(joint_index in child_joints_indices)
+                for joint_index in range(0, self.number_of_joints())
+            ])
+            L_H_pres.append([
+                (
+                    self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
+                    if joint_index in child_joints_indices
+                    else jnp.eye(4)
+                )
+                for joint_index in range(0, self.number_of_joints())
+            ])
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
@@ -2380,18 +2376,24 @@ def update_hw_parameters(
         return jax.lax.cond(
             jnp.any(L_H_pre_mask_for_joint),
             lambda: selected_transform,
-            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index],
+            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index + 1],
         )
 
+    # lambda_H_pre should be 1+ numb of joints dim with the zero equal to  λ_H_pre.at[0].set(jnp.eye(4))
     # Apply the update function to all joint indices
     updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
-        jnp.arange(kin_dyn_params.number_of_joints() + 1)
+        jnp.arange(0, kin_dyn_params.number_of_joints())
     )
+    with_base = jnp.concatenate((jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0)
+
     # Replace the joint model with the updated transforms
-    updated_joint_model = kin_dyn_params.joint_model.replace(λ_H_pre=updated_λ_H_pre)
+    updated_joint_model = kin_dyn_params.joint_model.replace(
+        validate=False, λ_H_pre=with_base
+    )
 
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(
+        validate=False,
         link_parameters=updated_link_parameters,
         hw_link_metadata=updated_hw_link_metadata,
         joint_model=updated_joint_model,

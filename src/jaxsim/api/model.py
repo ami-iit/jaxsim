@@ -777,9 +777,16 @@ def reduce(
         integrator=model.integrator,
     )
 
-    # Store the origin of the model, in case downstream logic needs it.
     with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+        # Store the origin of the model, in case downstream logic needs it.
         reduced_model.built_from = model.built_from
+
+        # Compute the hw parametrization metadata of the reduced model
+        # TODO: move the building of the metadata to KinDynParameters.build()
+        #       and use the model_description instead of model.built_from.
+        reduced_model.kin_dyn_parameters.hw_link_metadata = (
+            reduced_model.compute_hw_link_metadata()
+        )
 
     return reduced_model
 

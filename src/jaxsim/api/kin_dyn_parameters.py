@@ -1026,23 +1026,29 @@ class HwLinkMetadata(JaxsimDataclass):
             shape,
             branches=[
                 # Box
-                lambda: jnp.array([
-                    scaling_factors[0],
-                    scaling_factors[1],
-                    scaling_factors[2],
-                ]),
+                lambda: jnp.array(
+                    [
+                        scaling_factors[0],
+                        scaling_factors[1],
+                        scaling_factors[2],
+                    ]
+                ),
                 # Cylinder
-                lambda: jnp.array([
-                    scaling_factors[0],
-                    scaling_factors[0],
-                    scaling_factors[1],
-                ]),
+                lambda: jnp.array(
+                    [
+                        scaling_factors[0],
+                        scaling_factors[0],
+                        scaling_factors[1],
+                    ]
+                ),
                 # Sphere
-                lambda: jnp.array([
-                    scaling_factors[0],
-                    scaling_factors[0],
-                    scaling_factors[0],
-                ]),
+                lambda: jnp.array(
+                    [
+                        scaling_factors[0],
+                        scaling_factors[0],
+                        scaling_factors[0],
+                    ]
+                ),
             ],
         )
 

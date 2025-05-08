@@ -77,8 +77,6 @@ def link_contact_forces(
                 W_f_L, parent_link_indices, wrench_pair_constr_inertial
             ).sum(axis=0)
 
-        # jax.debug.print("W_f_L: \n{}", W_f_L.shape)
-
     return W_f_L
 
 

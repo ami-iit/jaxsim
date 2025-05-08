@@ -439,7 +439,7 @@ class RelaxedRigidContacts(common.ContactModel):
         # Calculate quantities for the linear optimization problem.
         A = G + R
         b = CW_al_free_WC - a_ref
-        # jax.debug.print("CW_al_free_WC: {}", CW_al_free_WC)
+
         # Create the objective function to minimize as a lambda computing the cost
         # from the optimized variables x.
         objective = lambda x, A, b: jnp.sum(jnp.square(A @ x + b))

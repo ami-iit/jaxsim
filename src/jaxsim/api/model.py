@@ -19,6 +19,7 @@ import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
+from jaxsim.rbda.kinematic_constraints import ConstraintMap
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr

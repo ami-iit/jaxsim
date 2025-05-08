@@ -197,12 +197,6 @@ def compute_constraint_baumgarte_term(
     R_error = W_R_F2.T @ W_R_F1
     orientation_error = Rotation.log_vee(R_error)
 
-    # jax.debug.print(
-    #     "Position error: {}\nOrientation error: {}\nVelocity error: {}",
-    #     position_error,
-    #     orientation_error,
-    #     vel_error,
-    # )
     baumgarte_term = (
         K_P * jnp.concatenate([position_error, orientation_error])
         + K_D * vel_error

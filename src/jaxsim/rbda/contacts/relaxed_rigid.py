@@ -14,6 +14,12 @@ import jaxsim.api as js
 import jaxsim.rbda.contacts
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
+from jaxsim.rbda.kinematic_constraints import (
+    compute_constraint_baumgarte_term,
+    compute_constraint_jacobians,
+    compute_constraint_jacobians_derivative,
+    compute_constraint_transforms,
+)
 from jaxsim.terrain.terrain import Terrain
 
 from . import common
@@ -268,7 +274,7 @@ class RelaxedRigidContacts(common.ContactModel):
             A tuple containing as first element the computed contact forces in inertial representation.
         """
 
-        K_P = 100
+        K_P = 1000
         K_D = 2 * jnp.sqrt(K_P)
 
         link_forces = jnp.atleast_2d(
@@ -322,78 +328,6 @@ class RelaxedRigidContacts(common.ContactModel):
         idxs = model.kin_dyn_parameters.get_constraints(model)
         n_kin_constraints = 6 * len(idxs)
 
-        # TODO (xela-95): manage the case of contact constraint
-        def compute_constraint_jacobians(data, constraint):
-            frame_1_idx, frame_2_idx = constraint
-
-            J_WF1 = js.frame.jacobian(
-                model=model,
-                data=data,
-                frame_index=frame_1_idx,
-                output_vel_repr=VelRepr.Inertial,
-            )
-            J_WF2 = js.frame.jacobian(
-                model=model,
-                data=data,
-                frame_index=frame_2_idx,
-                output_vel_repr=VelRepr.Inertial,
-            )
-
-            return J_WF1 - J_WF2
-
-        def compute_constraint_jacobians_derivative(data, constraint):
-            frame_1_idx, frame_2_idx = constraint
-
-            J̇_WF1 = js.frame.jacobian_derivative(
-                model=model,
-                data=data,
-                frame_index=frame_1_idx,
-                output_vel_repr=VelRepr.Inertial,
-            )
-            J̇_WF2 = js.frame.jacobian_derivative(
-                model=model,
-                data=data,
-                frame_index=frame_2_idx,
-                output_vel_repr=VelRepr.Inertial,
-            )
-
-            return J̇_WF1 - J̇_WF2
-
-        def compute_constraint_baumgarte_term(J_constr, BW_ν, W_H_F):
-            W_H_F1, W_H_F2 = W_H_F
-
-            W_p_F1 = W_H_F1[0:3, 3]
-            W_p_F2 = W_H_F2[0:3, 3]
-
-            W_R_F1 = W_H_F1[0:3, 0:3]
-            W_R_F2 = W_H_F2[0:3, 0:3]
-
-            vel_error = J_constr @ BW_ν
-            position_error = W_p_F1 - W_p_F2
-            R_error = W_R_F2.T @ W_R_F1
-            orientation_error = jaxsim.math.rotation.Rotation.log_vee(R_error)
-
-            jax.debug.print(
-                "Position error: {}\nOrientation error: {}\nVelocity error: {}",
-                position_error,
-                orientation_error,
-                vel_error,
-            )
-            baumgarte_term = (
-                K_P * jnp.concatenate([position_error, orientation_error])
-                + K_D * vel_error
-            )
-
-            return baumgarte_term
-
-        def compute_constraint_transforms(data, constraint):
-            frame_1_idx, frame_2_idx = constraint
-
-            W_H_F1 = js.frame.transform(model=model, data=data, frame_index=frame_1_idx)
-            W_H_F2 = js.frame.transform(model=model, data=data, frame_index=frame_2_idx)
-
-            return jnp.array((W_H_F1, W_H_F2))
-
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
             references.switch_velocity_representation(VelRepr.Mixed),
@@ -431,22 +365,23 @@ class RelaxedRigidContacts(common.ContactModel):
                 data.switch_velocity_representation(VelRepr.Mixed),
                 references.switch_velocity_representation(VelRepr.Mixed),
             ):
-                J_constr = jax.vmap(compute_constraint_jacobians, in_axes=(None, 0))(
-                    data, idxs
-                )
+                J_constr = jax.vmap(
+                    compute_constraint_jacobians, in_axes=(None, None, 0)
+                )(model, data, idxs)
 
                 J̇_constr = jax.vmap(
-                    compute_constraint_jacobians_derivative, in_axes=(None, 0)
-                )(data, idxs)
+                    compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
+                )(model, data, idxs)
 
                 W_H_constr_pairs = jax.vmap(
-                    compute_constraint_transforms, in_axes=(None, 0)
-                )(data, idxs)
+                    compute_constraint_transforms, in_axes=(None, None, 0)
+                )(model, data, idxs)
 
                 constr_baumgarte_term = jnp.ravel(
-                    jax.vmap(compute_constraint_baumgarte_term, in_axes=(0, None, 0))(
-                        J_constr, BW_ν, W_H_constr_pairs
-                    ),
+                    jax.vmap(
+                        compute_constraint_baumgarte_term,
+                        in_axes=(0, None, 0, None, None),
+                    )(J_constr, BW_ν, W_H_constr_pairs, K_P, K_D),
                 )
 
                 J_constr = jnp.vstack(J_constr)

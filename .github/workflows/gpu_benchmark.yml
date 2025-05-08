@@ -22,12 +22,16 @@ jobs:
     steps:
       - name: Install Git and Git-LFS
         run: |
-            pixi global install git git-lfs
+            apt update && apt install -y git git-lfs
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
+
+      - name: Fetch LFS objects
+        run: |
+          git lfs checkout
 
       - name: Get main branch SHA
         id: get-main-branch-sha

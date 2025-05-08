@@ -378,3 +378,49 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Assert that the final loss is close to zero.
     assert current_loss < 1e-3, "Optimization did not converge to the target height."
+
+
+def test_hw_parameters_collision_scaling(jaxsim_model_sphere: js.model.JaxSimModel):
+    """
+    Test that the collision elements of the model are updated correctly during the scaling of the model hw parameters.
+    """
+
+    model = jaxsim_model_sphere
+
+    # Define the scaling factor for the sphere's radius
+    scaling_factor = 2.0
+
+    # Define the nominal radius of the sphere
+    nominal_radius = jaxsim_model_sphere.kin_dyn_parameters.hw_link_metadata.dims[0, 0]
+
+    # Define scaling parameters
+    scaling_parameters = ScalingFactors(
+        dims=jnp.ones((model.number_of_links(), 3)).at[0, 0].set(scaling_factor),
+        density=jnp.array([1.0]),
+    )
+
+    # Update the model with the scaling parameters
+    updated_model = js.model.update_hw_parameters(
+        jaxsim_model_sphere, scaling_parameters
+    )
+
+    # Simulate the sphere falling under gravity
+    data = js.data.JaxSimModelData.build(model=updated_model)
+    num_steps = 1000  # Number of simulation steps
+
+    for _ in range(num_steps):
+        data = js.model.step(
+            model=updated_model,
+            data=data,
+        )
+
+    # Get the final height of the sphere's base
+    updated_base_height = data.base_position[2]
+
+    # Compute the expected height (nominal radius * scaling factor)
+    expected_height = nominal_radius * scaling_factor
+
+    # Assert that the sphere settles at the expected height
+    assert jnp.isclose(
+        updated_base_height, expected_height, atol=1e-3
+    ), f"model base height mismatch: expected {expected_height}, got {updated_base_height}"

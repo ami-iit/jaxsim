@@ -9,11 +9,10 @@ import numpy as np
 import numpy.typing as npt
 from jax_dataclasses import Static
 
-import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Inertia, JointModel, supported_joint_motion
 from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
-from jaxsim.rbda.kinematic_constraints import ConstraintMap, ConstraintType
+from jaxsim.rbda.kinematic_constraints import ConstraintMap
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 
@@ -54,7 +53,7 @@ class KinDynParameters(JaxsimDataclass):
     joint_model: JointModel
     joint_parameters: JointParameters | None
 
-    constraints: Static[ConstraintMap]
+    constraints: ConstraintMap
 
     @property
     def motion_subspaces(self) -> jtp.Matrix:
@@ -351,15 +350,6 @@ class KinDynParameters(JaxsimDataclass):
         return jnp.array(
             jnp.where(self.support_body_array_bool[link_index])[0], dtype=int
         )
-
-    def get_constraints(
-        self, model: js.model.JaxSimModel
-    ) -> tuple[tuple[str, str, ConstraintType], ...]:
-        r"""
-        Return the constraints of the model.
-        """
-
-        return self.constraints.get_constraints(model)
 
     # ========================
     # Quantities used by RBDAs

@@ -7,6 +7,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
+from jaxsim.rbda.kinematic_constraints import ConstraintType
 
 
 def test_box_with_external_forces(
@@ -318,19 +319,24 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
 
     frame_1_name = "right_link_extremity_frame"
     frame_2_name = "left_link_extremity_frame"
+    frame_1_idx = js.frame.name_to_idx(model=model, frame_name=frame_1_name)
+    frame_2_idx = js.frame.name_to_idx(model=model, frame_name=frame_2_name)
 
     # Define the kinematic constraints.
     constraints = js.kin_dyn_parameters.ConstraintMap()
     constraints = constraints.add_constraint(
-        frame_1_name,
-        frame_2_name,
-        js.kin_dyn_parameters.ConstraintType.Weld,
+        frame_1_idx,
+        frame_2_idx,
+        ConstraintType.Weld,
     )
 
     # Set the constraints in the model.
     with model.editable(validate=False) as model:
         model.kin_dyn_parameters.constraints = constraints
         model.gravity = 0.0
+
+    # Set the initial joint positions.
+    initial_joint_positions = jnp.array([0.0, 0.0])
 
     # Build the initial data for the model.
     data_t0 = js.data.JaxSimModelData.build(
@@ -382,9 +388,9 @@ def test_simulation_with_kinematic_constraints_cartpole(
     # Define the kinematic constraints.
     constraints = js.kin_dyn_parameters.ConstraintMap()
     constraints = constraints.add_constraint(
-        frame_1_name,
-        frame_2_name,
-        js.kin_dyn_parameters.ConstraintType.Weld,
+        frame_1_idx,
+        frame_2_idx,
+        ConstraintType.Weld,
     )
 
     # Set the initial joint positions with the cart displaced from the rail zero position.

@@ -15,6 +15,7 @@ import jaxsim.rbda.contacts
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.rbda.kinematic_constraints import (
+    ConstraintMap,
     compute_constraint_baumgarte_term,
     compute_constraint_jacobians,
     compute_constraint_jacobians_derivative,
@@ -274,9 +275,6 @@ class RelaxedRigidContacts(common.ContactModel):
             A tuple containing as first element the computed contact forces in inertial representation.
         """
 
-        K_P = 1000
-        K_D = 2 * jnp.sqrt(K_P)
-
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
@@ -324,9 +322,9 @@ class RelaxedRigidContacts(common.ContactModel):
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
 
-        # Retrieve the kinematic constraints
-        idxs = model.kin_dyn_parameters.get_constraints(model)
-        n_kin_constraints = 6 * len(idxs)
+        # Retrieve the kinematic constraints, if any.
+        kin_constraints: ConstraintMap = model.kin_dyn_parameters.constraints
+        n_kin_constraints: int = 6 * kin_constraints.frame_idxs_1.shape[0]
 
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
@@ -367,21 +365,26 @@ class RelaxedRigidContacts(common.ContactModel):
             ):
                 J_constr = jax.vmap(
                     compute_constraint_jacobians, in_axes=(None, None, 0)
-                )(model, data, idxs)
+                )(model, data, kin_constraints)
 
                 J̇_constr = jax.vmap(
                     compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
-                )(model, data, idxs)
+                )(model, data, kin_constraints)
 
                 W_H_constr_pairs = jax.vmap(
                     compute_constraint_transforms, in_axes=(None, None, 0)
-                )(model, data, idxs)
+                )(model, data, kin_constraints)
 
                 constr_baumgarte_term = jnp.ravel(
                     jax.vmap(
                         compute_constraint_baumgarte_term,
-                        in_axes=(0, None, 0, None, None),
-                    )(J_constr, BW_ν, W_H_constr_pairs, K_P, K_D),
+                        in_axes=(0, None, 0, 0),
+                    )(
+                        J_constr,
+                        BW_ν,
+                        W_H_constr_pairs,
+                        kin_constraints,
+                    ),
                 )
 
                 J_constr = jnp.vstack(J_constr)

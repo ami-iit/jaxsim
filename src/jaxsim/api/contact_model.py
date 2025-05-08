@@ -48,8 +48,12 @@ def link_contact_forces(
     if "constr_wrenches_inertial" in aux_data:
         wrench_pair_constr_inertial = aux_data["constr_wrenches_inertial"]
 
-        # Get the couples of parent link indices of each couple of frames.
-        frame_idxs_1, frame_idxs_2 = model.kin_dyn_parameters.get_constraints(model).T
+        # Retrieve the constraint map from the model's kinematic parameters.
+        constraint_map = model.kin_dyn_parameters.constraints
+
+        # Extract the frame indices of the constraints.
+        frame_idxs_1 = constraint_map.frame_idxs_1
+        frame_idxs_2 = constraint_map.frame_idxs_2
 
         n_kin_constraints = frame_idxs_1.shape[0]
 

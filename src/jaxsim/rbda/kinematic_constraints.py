@@ -1,15 +1,91 @@
-
 from __future__ import annotations
 
+import dataclasses
+import enum
+
+import jax
 import jax.numpy as jnp
+import jax_dataclasses
+from jax_dataclasses import Static
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import VelRepr
 from jaxsim.math.rotation import Rotation
+from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
 
 
-def compute_constraint_jacobians(model: js.model.JaxSimModel, data: js.data.JaxSimModelData, constraint: tuple[int, int]) -> jtp.Matrix:
+@enum.unique
+class ConstraintType(enum.IntEnum):
+    """
+    Enumeration of all supported constraint types.
+    """
+
+    Weld = enum.auto()
+    Connect = enum.auto()
+
+
+@jax_dataclasses.pytree_dataclass
+class ConstraintMap(JaxsimDataclass):
+    """
+    Class storing the kinematic constraints of a model.
+    """
+
+    frame_names_1: Static[tuple[str, ...]] = dataclasses.field(default_factory=tuple)
+    frame_names_2: Static[tuple[str, ...]] = dataclasses.field(default_factory=tuple)
+    constraint_types: Static[tuple[ConstraintType, ...]] = dataclasses.field(
+        default_factory=tuple
+    )
+
+    def add_constraint(
+        self, frame_name_1: str, frame_name_2: str, constraint_type: ConstraintType
+    ) -> ConstraintMap:
+        """
+        Add a constraint to the constraint map.
+
+        Args:
+            frame_name_1: The name of the first frame.
+            frame_name_2: The name of the second frame.
+            constraint_type: The type of constraint.
+
+        Returns:
+            A new ConstraintMap instance with the added constraint.
+        """
+        return self.replace(
+            frame_names_1=(*self.frame_names_1, frame_name_1),
+            frame_names_2=(*self.frame_names_2, frame_name_2),
+            constraint_types=(*self.constraint_types, constraint_type),
+            validate=False,
+        )
+
+    def get_constraints(
+        self, model: js.model.JaxSimModel
+    ) -> tuple[tuple[int, int, ConstraintType], ...]:
+        """
+        Get the list of constraints.
+
+        Returns:
+            A tuple, in which each element defines a kinematic constraint.
+        """
+        return jnp.array(
+            (
+                jax.tree.map(
+                    lambda f1: js.frame.name_to_idx(model, frame_name=f1),
+                    self.frame_names_1,
+                ),
+                jax.tree.map(
+                    lambda f1: js.frame.name_to_idx(model, frame_name=f1),
+                    self.frame_names_2,
+                ),
+            )
+        ).T
+
+
+def compute_constraint_jacobians(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    constraint: tuple[int, int],
+) -> jtp.Matrix:
     """
     Compute the constraint Jacobian matrix representing the kinematic constraints between two frames.
 

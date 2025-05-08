@@ -19,7 +19,6 @@ import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
-from jaxsim.rbda.kinematic_constraints import ConstraintMap
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
@@ -125,7 +124,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
-        constraints: ConstraintMap | None = None,
+        constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -202,7 +201,7 @@ class JaxSimModel(JaxsimDataclass):
         contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
-        constraints: ConstraintMap | None = None,
+        constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.

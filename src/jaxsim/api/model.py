@@ -452,19 +452,21 @@ class JaxSimModel(JaxsimDataclass):
             L_H_Gs.append(rod_link.inertial.pose.transform())
             L_H_vises.append(rod_link.visual.pose.transform())
             L_H_pre_masks.append(
-                [
+                [0]  # world_to-base joint
+                + [
                     int(joint_index in child_joints_indices)
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
             L_H_pre.append(
-                [
+                [jnp.eye(4)]  # world_to-base joint
+                + [
                     (
                         self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
                         if joint_index in child_joints_indices
                         else jnp.eye(4)
                     )
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
 

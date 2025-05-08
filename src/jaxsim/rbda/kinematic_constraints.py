@@ -21,7 +21,8 @@ class ConstraintType:
     """
 
     Weld: ClassVar[int] = 0
-    Connected: ClassVar[int] = 1
+    # TODO: handle Connect constraint
+    # Connect: ClassVar[int] = 1
 
 
 @jax_dataclasses.pytree_dataclass

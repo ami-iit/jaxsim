@@ -32,6 +32,7 @@ class KinDynParameters(JaxsimDataclass):
         contact_parameters: The parameters of the collidable points.
         joint_model: The joint model of the model.
         joint_parameters: The parameters of the joints.
+        constraints: The kinematic constraints of the model.
     """
 
     # Static

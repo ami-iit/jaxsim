@@ -2107,6 +2107,7 @@ def step(
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
         # with the terrain.
+        # NOTE: for relaxed-rigid contact model, these forces include also kinematic constraint forces if any.
         W_f_L_terrain = js.contact_model.link_contact_forces(
             model=model,
             data=data,

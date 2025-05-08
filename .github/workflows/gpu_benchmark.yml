@@ -16,24 +16,18 @@ jobs:
   benchmark:
     runs-on: self-hosted
     container:
-      image: ghcr.io/nvidia/jax@sha256:fdc493f32727405514caaecd9f0ea508a56cf645424cc66e03fedd8141c493bb
+      image: ghcr.io/prefix-dev/pixi:0.46.0-noble-cuda-12.6.3@sha256:bdb2f0c62dd963b03d0cb28760a8ad8e12230554c2b610c250dcef7d2532fe47
       options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
 
     steps:
+      - name: Install Git and Git-LFS
+        run: |
+            pixi global install git git-lfs
+
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up environment
-        run: |
-          pip install .[all]
-
-      - name: Install Gazebo SDF
-        run: |
-            apt update && apt install -y lsb-release wget
-            sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
-            wget http://packages.osrfoundation.org/gazebo.key -O - | apt-key add -
-            apt-get update
-            apt install -y libsdformat14-dev libsdformat14
+        with:
+          lfs: true
 
       - name: Get main branch SHA
         id: get-main-branch-sha
@@ -51,7 +45,7 @@ jobs:
 
       - name: Run benchmark and store result
         run: |
-            pytest tests/test_benchmark.py --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
+            pixi run --frozen --environment gpu benchmark --batch-size 128 --benchmark-json output.json
 
       - name: Compare benchmark results with main branch
         uses: benchmark-action/github-action-benchmark@v1.20.4

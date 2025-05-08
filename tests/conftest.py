@@ -492,6 +492,21 @@ def jaxsim_model_double_pendulum() -> js.model.JaxSimModel:
     return model
 
 
+@pytest.fixture(scope="session")
+def jaxsim_model_cartpole() -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a cartpole.
+    Returns:
+        The JaxSim model of a cartpole.
+    """
+
+    model_path = pathlib.Path(__file__).parent / "assets" / "cartpole.urdf"
+    rod_model = load_model_from_file(model_path, is_urdf=True)
+    model = build_jaxsim_model(model_description=rod_model)
+
+    return model
+
+
 # ============================
 # Collections of JaxSim models
 # ============================

@@ -298,7 +298,6 @@ class KinDynParameters(JaxsimDataclass):
                 hash(self.frame_parameters.body),
                 hash(self._parent_array),
                 hash(self._support_body_array_bool),
-                hash(self.constraints),
             )
         )
 

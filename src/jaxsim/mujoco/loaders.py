@@ -408,7 +408,7 @@ class RodModelToMjcf:
                     quat=" ".join(map(str, quat)),
                 )
             else:
-                warnings.warn(f"Parent link '{parent_name}' not found")
+                warnings.warn(f"Parent link '{parent_name}' not found", stacklevel=2)
 
         # --------------
         # Add the motors

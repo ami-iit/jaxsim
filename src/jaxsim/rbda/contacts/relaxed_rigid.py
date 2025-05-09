@@ -456,13 +456,18 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Combine the Delassus matrices for contacts and constraints if constraints exist.
         if G_constraints.shape[0] > 0:
-            G = jnp.block([
-                [G_contacts, jnp.zeros((G_contacts.shape[0], G_constraints.shape[1]))],
+            G = jnp.block(
                 [
-                    jnp.zeros((G_constraints.shape[0], G_contacts.shape[1])),
-                    G_constraints,
-                ],
-            ])
+                    [
+                        G_contacts,
+                        jnp.zeros((G_contacts.shape[0], G_constraints.shape[1])),
+                    ],
+                    [
+                        jnp.zeros((G_constraints.shape[0], G_contacts.shape[1])),
+                        G_constraints,
+                    ],
+                ]
+            )
         else:
             G = G_contacts
 
@@ -557,12 +562,14 @@ class RelaxedRigidContacts(common.ContactModel):
         )(position, velocity).flatten()
 
         if n_kin_constraints > 0:
-            init_params = jnp.hstack([
-                init_params,
-                jnp.zeros(
-                    n_kin_constraints,
-                ),
-            ])
+            init_params = jnp.hstack(
+                [
+                    init_params,
+                    jnp.zeros(
+                        n_kin_constraints,
+                    ),
+                ]
+            )
 
         # Get the solver options.
         solver_options = self.solver_options
@@ -655,7 +662,9 @@ class RelaxedRigidContacts(common.ContactModel):
         )
 
         # Get the indices of the enabled collidable points.
-        indices_of_enabled_collidable_points = model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        indices_of_enabled_collidable_points = (
+            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+        )
 
         parent_link_idx_of_enabled_collidable_points = jnp.array(
             model.kin_dyn_parameters.contact_parameters.body, dtype=int

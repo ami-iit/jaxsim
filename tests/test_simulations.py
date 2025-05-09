@@ -467,9 +467,9 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     actual_delta_s_tf = jnp.abs(data_tf.joint_positions[0] - data_tf.joint_positions[1])
     expected_delta_s_tf = 0.0
 
-    assert expected_delta_s_tf == pytest.approx(actual_delta_s_tf, abs=1e-3), (
-        f"Joint positions do not match expected value. Position difference [deg]: {actual_delta_s_tf * 180 / np.pi}"
-    )
+    assert expected_delta_s_tf == pytest.approx(
+        actual_delta_s_tf, abs=1e-3
+    ), f"Joint positions do not match expected value. Position difference [deg]: {actual_delta_s_tf * 180 / np.pi}"
 
 
 def test_simulation_with_kinematic_constraints_cartpole(
@@ -540,6 +540,6 @@ def test_simulation_with_kinematic_constraints_cartpole(
     actual_frame_error = jnp.linalg.inv(H_frame1) @ H_frame2
     expected_frame_error = jnp.eye(4)
 
-    assert actual_frame_error == pytest.approx(expected_frame_error, abs=1e-3), (
-        f"Frames do not match expected value. Frame error:\n{actual_frame_error}\nPosition error [m]: {H_frame1[:3, 3] - H_frame2[:3, 3]}"
-    )
+    assert actual_frame_error == pytest.approx(
+        expected_frame_error, abs=1e-3
+    ), f"Frames do not match expected value. Frame error:\n{actual_frame_error}\nPosition error [m]: {H_frame1[:3, 3] - H_frame2[:3, 3]}"

@@ -115,8 +115,7 @@ def compute_constraint_baumgarte_term(
     orientation_error = Rotation.log_vee(R_error)
 
     baumgarte_term = (
-        K_P * jnp.concatenate([position_error, orientation_error])
-        + K_D * vel_error
+        K_P * jnp.concatenate([position_error, orientation_error]) + K_D * vel_error
     )
 
     return baumgarte_term

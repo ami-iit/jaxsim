@@ -11,14 +11,26 @@ import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import rod
+import rod.urdf
 from jax_dataclasses import Static
+from rod.urdf.exporter import UrdfExporter
 
 import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
+from jaxsim import logging
+from jaxsim.api.kin_dyn_parameters import (
+    HwLinkMetadata,
+    KinDynParameters,
+    LinkParameters,
+    LinkParametrizableShape,
+    ScalingFactors,
+)
 from jaxsim.math import Adjoint, Cross
 from jaxsim.parsers.descriptions import ModelDescription
+from jaxsim.parsers.descriptions.joint import JointDescription
+from jaxsim.parsers.descriptions.link import LinkDescription
 from jaxsim.utils import JaxsimDataclass, Mutability, wrappers
 
 from .common import VelRepr
@@ -29,6 +41,7 @@ class IntegratorType(enum.IntEnum):
 
     SemiImplicitEuler = enum.auto()
     RungeKutta4 = enum.auto()
+    RungeKutta4Fast = enum.auto()
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -47,13 +60,17 @@ class JaxSimModel(JaxsimDataclass):
         default_factory=jaxsim.terrain.FlatTerrain.build, repr=False
     )
 
-    gravity: Static[float] = jaxsim.math.STANDARD_GRAVITY
+    gravity: Static[float] = -jaxsim.math.STANDARD_GRAVITY
 
     contact_model: Static[jaxsim.rbda.contacts.ContactModel | None] = dataclasses.field(
         default=None, repr=False
     )
 
-    contacts_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
+    contact_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
+        default=None, repr=False
+    )
+
+    actuation_params: Static[jaxsim.rbda.actuation.ActuationParams] = dataclasses.field(
         default=None, repr=False
     )
 
@@ -81,7 +98,6 @@ class JaxSimModel(JaxsimDataclass):
         return self._description.get()
 
     def __eq__(self, other: JaxSimModel) -> bool:
-
         if not isinstance(other, JaxSimModel):
             return False
 
@@ -97,7 +113,6 @@ class JaxSimModel(JaxsimDataclass):
         return True
 
     def __hash__(self) -> int:
-
         return hash(
             (
                 hash(self.model_name),
@@ -121,9 +136,11 @@ class JaxSimModel(JaxsimDataclass):
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
         contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        actuation_params: jaxsim.rbda.actuation.ActuationParams | None = None,
         integrator: IntegratorType | None = None,
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
+        gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
@@ -143,12 +160,14 @@ class JaxSimModel(JaxsimDataclass):
                 The contact model to consider.
                 If not specified, a soft contacts model is used.
             contact_params: The parameters of the contact model.
+            actuation_params: The parameters of the actuation model.
             integrator: The integrator to use for the simulation.
             is_urdf:
                 The optional flag to force the model description to be parsed as a URDF.
                 This is usually automatically inferred.
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
+            gravity: The gravity constant. Normally passed as a positive value.
             constraints:
                 An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
 
@@ -178,14 +197,22 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            contacts_params=contact_params,
+            actuation_params=actuation_params,
+            contact_params=contact_params,
             integrator=integrator,
+            gravity=-gravity,
             constraints=constraints,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
+
+        # Compute the hw parametrization metadata of the model
+        # TODO: move the building of the metadata to KinDynParameters.build()
+        #       and use the model_description instead of model.built_from.
+        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata()
 
         return model
 
@@ -198,7 +225,8 @@ class JaxSimModel(JaxsimDataclass):
         time_step: jtp.FloatLike | None = None,
         terrain: jaxsim.terrain.Terrain | None = None,
         contact_model: jaxsim.rbda.contacts.ContactModel | None = None,
-        contacts_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        contact_params: jaxsim.rbda.contacts.ContactsParams | None = None,
+        actuation_params: jaxsim.rbda.actuation.ActuationParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
@@ -219,8 +247,9 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model overriding the physics model name.
             contact_model:
                 The contact model to consider.
-                If not specified, a soft contacts model is used.
-            contacts_params: The parameters of the soft contacts.
+                If not specified, a relaxed-constraints rigid contacts model is used.
+            contact_params: The parameters of the contact model.
+            actuation_params: The parameters of the actuation model.
             integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
             constraints:
@@ -256,8 +285,11 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
-        if contacts_params is None:
-            contacts_params = contact_model._parameters_class()
+        if contact_params is None:
+            contact_params = contact_model._parameters_class()
+
+        if actuation_params is None:
+            actuation_params = jaxsim.rbda.actuation.ActuationParams()
 
         # Consider the default integrator if not specified.
         integrator = (
@@ -275,7 +307,8 @@ class JaxSimModel(JaxsimDataclass):
             time_step=time_step,
             terrain=terrain,
             contact_model=contact_model,
-            contacts_params=contacts_params,
+            contact_params=contact_params,
+            actuation_params=actuation_params,
             integrator=integrator,
             gravity=gravity,
             # The following is wrapped as hashless since it's a static argument, and we
@@ -286,6 +319,274 @@ class JaxSimModel(JaxsimDataclass):
         )
 
         return model
+
+    def compute_hw_link_metadata(self) -> HwLinkMetadata:
+        """
+        Compute the parametric metadata of the links in the model.
+
+        Returns:
+            An instance of HwLinkMetadata containing the metadata of all links.
+        """
+        model_description = self.description
+
+        # Get ordered links and joints from the model description
+        ordered_links: list[LinkDescription] = sorted(
+            list(model_description.links_dict.values()),
+            key=lambda l: l.index,
+        )
+        ordered_joints: list[JointDescription] = sorted(
+            list(model_description.joints_dict.values()),
+            key=lambda j: j.index,
+        )
+
+        # Ensure the model was built from a valid source
+        rod_model = None
+        match self.built_from:
+            case str() | pathlib.Path():
+                rod_model = rod.Sdf.load(sdf=self.built_from).models()[0]
+                assert rod_model.name == self.name()
+            case rod.Model():
+                rod_model = self.built_from
+            case _:
+                logging.debug(
+                    f"Invalid type for model.built_from ({type(self.built_from)})."
+                    "Skipping for hardware parametrization."
+                )
+                return HwLinkMetadata(
+                    shape=jnp.array([]),
+                    dims=jnp.array([]),
+                    density=jnp.array([]),
+                    L_H_G=jnp.array([]),
+                    L_H_vis=jnp.array([]),
+                    L_H_pre_mask=jnp.array([]),
+                    L_H_pre=jnp.array([]),
+                )
+
+        # Use URDF frame convention for consistent pose representation
+        rod_model.switch_frame_convention(
+            frame_convention=rod.FrameConvention.Urdf, explicit_frames=True
+        )
+
+        rod_links_dict = {}
+
+        # Filter links that support parameterization
+        for rod_link in rod_model.links():
+            if len(rod_link.visuals()) != 1:
+                logging.debug(
+                    f"Skipping link '{rod_link.name}' for hardware parametrization due to multiple visuals."
+                )
+                continue
+
+            if not isinstance(
+                rod_link.visual.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
+            ):
+                logging.debug(
+                    f"Skipping link '{rod_link.name}' for hardware parametrization due to unsupported geometry."
+                )
+                continue
+
+            rod_links_dict[rod_link.name] = rod_link
+
+        # Initialize lists to collect metadata for all links
+        shapes = []
+        dims = []
+        densities = []
+        L_H_Gs = []
+        L_H_vises = []
+        L_H_pre_masks = []
+        L_H_pres = []
+
+        # Process each link
+        for link_description in ordered_links:
+            link_name = link_description.name
+
+            if link_name not in self.link_names():
+                logging.debug(
+                    f"Skipping link '{link_name}' for hardware parametrization as it is not part of the JaxSim model."
+                )
+                continue
+
+            if link_name not in rod_links_dict:
+                logging.debug(
+                    f"Skipping link '{link_name}' for hardware parametrization as it is not part of the ROD model."
+                )
+                continue
+
+            rod_link = rod_links_dict[link_name]
+            link_index = int(js.link.name_to_idx(model=self, link_name=link_name))
+
+            # Get child joints for the link
+            child_joints_indices = [
+                js.joint.name_to_idx(model=self, joint_name=j.name)
+                for j in ordered_joints
+                if j.parent.name == link_name
+            ]
+
+            # Skip unsupported links
+            if not jnp.allclose(
+                self.kin_dyn_parameters.joint_model.suc_H_i[link_index], jnp.eye(4)
+            ):
+                logging.debug(
+                    f"Skipping link '{link_name}' for hardware parametrization due to unsupported suc_H_link."
+                )
+                continue
+
+            # Compute density and dimensions
+            mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
+            geometry = rod_link.visual.geometry.geometry()
+            if isinstance(geometry, rod.Box):
+                lx, ly, lz = geometry.size
+                density = mass / (lx * ly * lz)
+                dims.append([lx, ly, lz])
+                shapes.append(LinkParametrizableShape.Box)
+            elif isinstance(geometry, rod.Sphere):
+                r = geometry.radius
+                density = mass / (4 / 3 * jnp.pi * r**3)
+                dims.append([r, 0, 0])
+                shapes.append(LinkParametrizableShape.Sphere)
+            elif isinstance(geometry, rod.Cylinder):
+                r, l = geometry.radius, geometry.length
+                density = mass / (jnp.pi * r**2 * l)
+                dims.append([r, l, 0])
+                shapes.append(LinkParametrizableShape.Cylinder)
+            else:
+                logging.debug(
+                    f"Skipping link '{link_name}' for hardware parametrization due to unsupported geometry."
+                )
+                continue
+
+            densities.append(density)
+            L_H_Gs.append(rod_link.inertial.pose.transform())
+            L_H_vises.append(rod_link.visual.pose.transform())
+            L_H_pre_masks.append(
+                [
+                    int(joint_index in child_joints_indices)
+                    for joint_index in range(self.number_of_joints())
+                ]
+            )
+            L_H_pres.append(
+                [
+                    (
+                        self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
+                        if joint_index in child_joints_indices
+                        else jnp.eye(4)
+                    )
+                    for joint_index in range(self.number_of_joints())
+                ]
+            )
+
+        # Stack collected data into JAX arrays
+        return HwLinkMetadata(
+            shape=jnp.array(shapes, dtype=int),
+            dims=jnp.array(dims, dtype=float),
+            density=jnp.array(densities, dtype=float),
+            L_H_G=jnp.array(L_H_Gs, dtype=float),
+            L_H_vis=jnp.array(L_H_vises, dtype=float),
+            L_H_pre_mask=jnp.array(L_H_pre_masks, dtype=bool),
+            L_H_pre=jnp.array(L_H_pres, dtype=float),
+        )
+
+    def export_updated_model(self) -> str:
+        """
+        Export the JaxSim model to URDF with the current hardware parameters.
+
+        Returns:
+            The URDF string of the updated model.
+
+        Note:
+            This method is not meant to be used in JIT-compiled functions.
+        """
+
+        import numpy as np
+
+        if isinstance(jnp.zeros(0), jax.core.Tracer):
+            raise RuntimeError("This method cannot be used in JIT-compiled functions")
+
+        # Ensure `built_from` is a ROD model and create `rod_model_output`
+        if isinstance(self.built_from, rod.Model):
+            rod_model_output = copy.deepcopy(self.built_from)
+        elif isinstance(self.built_from, (str, pathlib.Path)):
+            rod_model_output = rod.Sdf.load(sdf=self.built_from).models()[0]
+        else:
+            raise ValueError(
+                "The JaxSim model must be built from a valid ROD model source"
+            )
+
+        # Switch to URDF frame convention for easier mapping
+        rod_model_output.switch_frame_convention(
+            frame_convention=rod.FrameConvention.Urdf,
+            explicit_frames=True,
+            attach_frames_to_links=True,
+        )
+
+        # Get links and joints from the ROD model
+        links_dict = {link.name: link for link in rod_model_output.links()}
+        joints_dict = {joint.name: joint for joint in rod_model_output.joints()}
+
+        # Iterate over the hardware metadata to update the ROD model
+        hw_metadata = self.kin_dyn_parameters.hw_link_metadata
+        for link_index, link_name in enumerate(self.link_names()):
+            if link_name not in links_dict:
+                continue
+
+            # Update mass and inertia
+            mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
+            center_of_mass = np.array(
+                self.kin_dyn_parameters.link_parameters.center_of_mass[link_index]
+            )
+            inertia_tensor = LinkParameters.unflatten_inertia_tensor(
+                self.kin_dyn_parameters.link_parameters.inertia_elements[link_index]
+            )
+
+            links_dict[link_name].inertial.mass = mass
+            L_H_COM = np.eye(4)
+            L_H_COM[0:3, 3] = center_of_mass
+            links_dict[link_name].inertial.pose = rod.Pose.from_transform(
+                transform=L_H_COM,
+                relative_to=links_dict[link_name].inertial.pose.relative_to,
+            )
+            links_dict[link_name].inertial.inertia = rod.Inertia.from_inertia_tensor(
+                inertia_tensor=inertia_tensor, validate=True
+            )
+
+            # Update visual shape
+            shape = hw_metadata.shape[link_index]
+            dims = hw_metadata.dims[link_index]
+            if shape == LinkParametrizableShape.Box:
+                links_dict[link_name].visual.geometry.box.size = dims.tolist()
+            elif shape == LinkParametrizableShape.Sphere:
+                links_dict[link_name].visual.geometry.sphere.radius = float(dims[0])
+            elif shape == LinkParametrizableShape.Cylinder:
+                links_dict[link_name].visual.geometry.cylinder.radius = float(dims[0])
+                links_dict[link_name].visual.geometry.cylinder.length = float(dims[1])
+            else:
+                logging.debug(f"Skipping unsupported shape for link '{link_name}'")
+                continue
+
+            # Update visual pose
+            links_dict[link_name].visual.pose = rod.Pose.from_transform(
+                transform=np.array(hw_metadata.L_H_vis[link_index]),
+                relative_to=links_dict[link_name].visual.pose.relative_to,
+            )
+
+            # Update joint poses
+            for joint_index in range(self.number_of_joints()):
+                if hw_metadata.L_H_pre_mask[link_index, joint_index]:
+                    joint_name = js.joint.idx_to_name(
+                        model=self, joint_index=joint_index
+                    )
+                    if joint_name in joints_dict:
+                        joints_dict[joint_name].pose = rod.Pose.from_transform(
+                            transform=np.array(
+                                hw_metadata.L_H_pre[link_index, joint_index]
+                            ),
+                            relative_to=joints_dict[joint_name].pose.relative_to,
+                        )
+
+        # Export the URDF string.
+        urdf_string = UrdfExporter(pretty=True).to_urdf_string(sdf=rod_model_output)
+
+        return urdf_string
 
     # ==========
     # Properties
@@ -477,7 +778,8 @@ def reduce(
         time_step=model.time_step,
         terrain=model.terrain,
         contact_model=model.contact_model,
-        contacts_params=model.contacts_params,
+        contact_params=model.contact_params,
+        actuation_params=model.actuation_params,
         gravity=model.gravity,
         integrator=model.integrator,
     )
@@ -574,9 +876,7 @@ def generalized_free_floating_jacobian(
     # ======================================================================
 
     match data.velocity_representation:
-
         case VelRepr.Inertial:
-
             W_H_B = data._base_transform
             B_X_W = Adjoint.from_transform(transform=W_H_B, inverse=True)
 
@@ -586,11 +886,9 @@ def generalized_free_floating_jacobian(
             )
 
         case VelRepr.Body:
-
             B_J_full_WX_I = B_J_full_WX_B
 
         case VelRepr.Mixed:
-
             W_R_B = jaxsim.math.Quaternion.to_dcm(data.base_orientation)
             BW_H_B = jnp.eye(4).at[0:3, 0:3].set(W_R_B)
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
@@ -622,9 +920,7 @@ def generalized_free_floating_jacobian(
     # =======================================================================
 
     match output_vel_repr:
-
         case VelRepr.Inertial:
-
             W_H_B = data._base_transform
             W_X_B = jaxsim.math.Adjoint.from_transform(W_H_B)
 
@@ -633,7 +929,6 @@ def generalized_free_floating_jacobian(
             )(B_J_WL_I)
 
         case VelRepr.Body:
-
             O_J_WL_I = L_J_WL_I = jax.vmap(  # noqa: F841
                 lambda B_H_L, B_J_WL_I: jaxsim.math.Adjoint.from_transform(
                     B_H_L, inverse=True
@@ -642,7 +937,6 @@ def generalized_free_floating_jacobian(
             )(B_H_L, B_J_WL_I)
 
         case VelRepr.Mixed:
-
             W_H_B = data._base_transform
 
             LW_H_L = jax.vmap(
@@ -727,9 +1021,7 @@ def generalized_free_floating_jacobian_derivative(
     On = jnp.zeros(shape=(model.dofs(), model.dofs()))
 
     match data.velocity_representation:
-
         case VelRepr.Inertial:
-
             B_X_W = jaxsim.math.Adjoint.from_transform(transform=W_H_B, inverse=True)
 
             W_v_WB = data.base_velocity
@@ -741,7 +1033,6 @@ def generalized_free_floating_jacobian_derivative(
             Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_W, On)
 
         case VelRepr.Body:
-
             B_X_B = jaxsim.math.Adjoint.from_rotation_and_translation(
                 translation=jnp.zeros(3), rotation=jnp.eye(3)
             )
@@ -754,7 +1045,6 @@ def generalized_free_floating_jacobian_derivative(
             Ṫ = jax.scipy.linalg.block_diag(B_Ẋ_B, On)
 
         case VelRepr.Mixed:
-
             BW_H_B = W_H_B.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
 
@@ -777,9 +1067,7 @@ def generalized_free_floating_jacobian_derivative(
     # ======================================================
 
     match output_vel_repr:
-
         case VelRepr.Inertial:
-
             O_X_B = W_X_B = jaxsim.math.Adjoint.from_transform(transform=W_H_B)
 
             with data.switch_velocity_representation(VelRepr.Body):
@@ -788,7 +1076,6 @@ def generalized_free_floating_jacobian_derivative(
             O_Ẋ_B = W_Ẋ_B = W_X_B @ jaxsim.math.Cross.vx(B_v_WB)  # noqa: F841
 
         case VelRepr.Body:
-
             O_X_B = L_X_B = jaxsim.math.Adjoint.from_transform(
                 transform=B_H_L, inverse=True
             )
@@ -806,7 +1093,6 @@ def generalized_free_floating_jacobian_derivative(
             )
 
         case VelRepr.Mixed:
-
             W_H_L = W_H_B @ B_H_L
             LW_H_L = W_H_L.at[:, 0:3, 3].set(jnp.zeros_like(W_H_L[:, 0:3, 3]))
             LW_H_B = LW_H_L @ jaxsim.math.Transform.inverse(B_H_L)
@@ -1179,14 +1465,12 @@ def free_floating_mass_matrix(
             return M_body
 
         case VelRepr.Inertial:
-
             B_X_W = Adjoint.from_transform(transform=data._base_transform, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
             return invT.T @ M_body @ invT
 
         case VelRepr.Mixed:
-
             BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
             invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
@@ -1222,7 +1506,6 @@ def free_floating_coriolis_matrix(
     # The Coriolis matrix computed in this representation is converted later
     # to the active representation stored in data.
     with data.switch_velocity_representation(VelRepr.Body):
-
         B_ν = data.generalized_velocity
 
         # Doubly-left free-floating Jacobian.
@@ -1240,7 +1523,6 @@ def free_floating_coriolis_matrix(
 
     # Compute the contribution of each link to the Coriolis matrix.
     def compute_link_contribution(M, v, J, J̇) -> jtp.Array:
-
         return J.T @ ((Cross.vx_star(v) @ M + M @ Cross.vx(v)) @ J + M @ J̇)
 
     C_B_links = jax.vmap(compute_link_contribution)(
@@ -1263,12 +1545,10 @@ def free_floating_coriolis_matrix(
     # Adjust the representation of the Coriolis matrix.
     # Refer to https://github.com/traversaro/traversaro-phd-thesis, Section 3.6.
     match data.velocity_representation:
-
         case VelRepr.Body:
             return C_B
 
         case VelRepr.Inertial:
-
             n = model.dofs()
             W_H_B = data._base_transform
             B_X_W = jaxsim.math.Adjoint.from_transform(W_H_B, inverse=True)
@@ -1288,7 +1568,6 @@ def free_floating_coriolis_matrix(
             return C
 
         case VelRepr.Mixed:
-
             n = model.dofs()
             BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = jaxsim.math.Adjoint.from_transform(transform=BW_H_B, inverse=True)
@@ -1709,9 +1988,7 @@ def average_velocity_jacobian(
     G_J = js.com.average_centroidal_velocity_jacobian(model=model, data=data)
 
     match output_vel_repr:
-
         case VelRepr.Inertial:
-
             GW_J = G_J
             W_p_CoM = js.com.com_position(model=model, data=data)
 
@@ -1721,7 +1998,6 @@ def average_velocity_jacobian(
             return W_X_GW @ GW_J
 
         case VelRepr.Body:
-
             GB_J = G_J
             W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
@@ -1733,7 +2009,6 @@ def average_velocity_jacobian(
             return B_X_GB @ GB_J
 
         case VelRepr.Mixed:
-
             GW_J = G_J
             W_p_B = data.base_position
             W_p_CoM = js.com.com_position(model=model, data=data)
@@ -2028,6 +2303,104 @@ def potential_energy(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp.F
     return jnp.sum((m * W_p̃_CoM)[2] * model.gravity)
 
 
+# ===================
+# Hw parametrization
+# ===================
+
+
+@jax.jit
+@js.common.named_scope
+def update_hw_parameters(
+    model: JaxSimModel, scaling_factors: ScalingFactors
+) -> JaxSimModel:
+    """
+    Update the hardware parameters of the model by scaling the parameters of the links.
+
+    This function applies scaling factors to the hardware metadata of the links,
+    updating their shape, dimensions, density, and other related parameters. It
+    recalculates the mass and inertia tensors of the links based on the updated
+    metadata and adjusts the joint model transforms accordingly.
+
+    Args:
+        model: The JaxSimModel object to update.
+        scaling_factors: A ScalingFactors object containing scaling factors for
+                         dimensions and density of the links.
+
+    Returns:
+        The updated JaxSimModel object with modified hardware parameters.
+    """
+    kin_dyn_params: KinDynParameters = model.kin_dyn_parameters
+    link_parameters: LinkParameters = kin_dyn_params.link_parameters
+    hw_link_metadata: HwLinkMetadata = kin_dyn_params.hw_link_metadata
+
+    # Apply scaling to hw_link_metadata using vmap
+    updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling)(
+        hw_link_metadata, scaling_factors
+    )
+
+    # Compute mass and inertia once and unpack the results
+    m_updated, I_com_updated = jax.vmap(HwLinkMetadata.compute_mass_and_inertia)(
+        updated_hw_link_metadata
+    )
+
+    # Rotate the inertia tensor at CoM with the link orientation, and store
+    # it in KynDynParameters.
+    I_L_updated = jax.vmap(
+        lambda metadata, I_com: metadata.L_H_G[:3, :3]
+        @ I_com
+        @ metadata.L_H_G[:3, :3].T
+    )(updated_hw_link_metadata, I_com_updated)
+
+    # Update link parameters
+    updated_link_parameters = link_parameters.replace(
+        mass=m_updated,
+        inertia_elements=jax.vmap(LinkParameters.flatten_inertia_tensor)(I_L_updated),
+        center_of_mass=jax.vmap(lambda metadata: metadata.L_H_G[:3, 3])(
+            updated_hw_link_metadata
+        ),
+    )
+
+    # Update joint model transforms (λ_H_pre)
+    def update_λ_H_pre(joint_index):
+        # Extract the transforms and masks for the current joint index across all links
+        L_H_pre_for_joint = updated_hw_link_metadata.L_H_pre[:, joint_index]
+        L_H_pre_mask_for_joint = updated_hw_link_metadata.L_H_pre_mask[:, joint_index]
+
+        # Use the mask to select the first valid transform or fall back to the original
+        valid_transforms = jnp.where(
+            L_H_pre_mask_for_joint[:, None, None],  # Expand mask for broadcasting
+            L_H_pre_for_joint,  # Use the transform if the mask is True
+            jnp.zeros_like(L_H_pre_for_joint),  # Otherwise, use a zero matrix
+        )
+
+        # Sum the valid transforms (only one will be non-zero due to the mask)
+        selected_transform = jnp.sum(valid_transforms, axis=0)
+
+        # If no valid transform exists, fall back to the original λ_H_pre
+        return jax.lax.cond(
+            jnp.any(L_H_pre_mask_for_joint),
+            lambda: selected_transform,
+            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index],
+        )
+
+    # Apply the update function to all joint indices
+    updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
+        jnp.arange(kin_dyn_params.number_of_joints() + 1)
+    )
+    # Replace the joint model with the updated transforms
+    updated_joint_model = kin_dyn_params.joint_model.replace(λ_H_pre=updated_λ_H_pre)
+
+    # Replace the kin_dyn_parameters with updated values
+    updated_kin_dyn_params = kin_dyn_params.replace(
+        link_parameters=updated_link_parameters,
+        hw_link_metadata=updated_hw_link_metadata,
+        joint_model=updated_joint_model,
+    )
+
+    # Return the updated model
+    return model.replace(kin_dyn_parameters=updated_kin_dyn_params)
+
+
 # ==========
 # Simulation
 # ==========
@@ -2073,14 +2446,12 @@ def step(
     )
 
     # Get the external forces in inertial-fixed representation.
-    W_f_L_external = jax.vmap(
-        lambda f_L, W_H_L: js.data.JaxSimModelData.other_representation_to_inertial(
-            f_L,
-            other_representation=data.velocity_representation,
-            transform=W_H_L,
-            is_force=True,
-        )
-    )(O_f_L_external, data._link_transforms)
+    W_f_L_external = js.data.JaxSimModelData.other_representation_to_inertial(
+        O_f_L_external,
+        other_representation=data.velocity_representation,
+        transform=data._link_transforms,
+        is_force=True,
+    )
 
     τ_references = jnp.atleast_1d(
         jnp.array(joint_force_references, dtype=float).squeeze()
@@ -2096,30 +2467,6 @@ def step(
         model, data, joint_force_references=τ_references
     )
 
-    # ======================
-    # Compute contact forces
-    # ======================
-
-    W_f_L_terrain = jnp.zeros_like(W_f_L_external)
-
-    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
-
-        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-        # with the terrain.
-        # NOTE: for relaxed-rigid contact model, these forces include also kinematic constraint forces if any.
-        W_f_L_terrain = js.contact_model.link_contact_forces(
-            model=model,
-            data=data,
-            link_forces=W_f_L_external,
-            joint_torques=τ_total,
-        )
-
-    # ==============================
-    # Compute the total link forces
-    # ==============================
-
-    W_f_L_total = W_f_L_external + W_f_L_terrain
-
     # =============================
     # Advance the simulation state
     # =============================
@@ -2129,7 +2476,14 @@ def step(
     integrator_fn = _INTEGRATORS_MAP[model.integrator]
 
     data_tf = integrator_fn(
-        model=model, data=data, link_forces=W_f_L_total, joint_torques=τ_total
+        model=model,
+        data=data,
+        link_forces=W_f_L_external,
+        joint_torques=τ_total,
+    )
+
+    data_tf = model.contact_model.update_velocity_after_impact(
+        model=model, data=data_tf
     )
 
     return data_tf

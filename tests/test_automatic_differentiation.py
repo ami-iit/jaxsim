@@ -3,14 +3,13 @@ import os
 import jax
 import jax.numpy as jnp
 import numpy as np
-import optax
-import pytest
 from jax.test_util import check_grads
 
 import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
+from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams
 
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
@@ -290,17 +289,64 @@ def test_ad_jacobian(
     )
 
 
-def test_ad_integration(
+def test_ad_soft_contacts(
     jaxsim_models_types: js.model.JaxSimModel,
     prng_key: jax.Array,
 ):
 
     model = jaxsim_models_types
 
-    # TODO: Remove when https://github.com/google-deepmind/optax/pull/1190 is included in a release.
-    # Skip if `optax` version is less or equal to "0.2.4" and the model is ergoCub.
-    if model.name() == "ergoCub" and optax.__version__ <= "0.2.4":
-        pytest.skip("Skipping ergoCub model with optax version <= 0.2.4.")
+    with model.editable(validate=False) as model:
+        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build(model=model)
+
+    _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
+    p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
+    v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
+    m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
+
+    # Get the soft contacts parameters.
+    parameters = js.contact.estimate_good_contact_parameters(model=model)
+
+    # ====
+    # Test
+    # ====
+
+    # Get a closure exposing only the parameters to be differentiated.
+    def close_over_inputs_and_parameters(
+        p: jtp.VectorLike,
+        v: jtp.VectorLike,
+        m: jtp.VectorLike,
+        params: SoftContactsParams,
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+
+        W_f_Ci, CW_ṁ = SoftContacts.compute_contact_force(
+            position=p,
+            velocity=v,
+            tangential_deformation=m,
+            parameters=params,
+            terrain=model.terrain,
+        )
+
+        return W_f_Ci, CW_ṁ
+
+    # Check derivatives against finite differences.
+    check_grads(
+        f=close_over_inputs_and_parameters,
+        args=(p, v, m, parameters),
+        order=AD_ORDER,
+        modes=["rev", "fwd"],
+        eps=ε,
+        # On GPU, the tolerance needs to be increased.
+        rtol=0.02 if "gpu" in {d.platform for d in p.devices()} else None,
+    )
+
+
+def test_ad_integration(
+    jaxsim_models_types: js.model.JaxSimModel,
+    prng_key: jax.Array,
+):
+
+    model = jaxsim_models_types
 
     _, subkey = jax.random.split(prng_key, num=2)
     data, references = get_random_data_and_references(
@@ -363,13 +409,11 @@ def test_ad_integration(
         return xf_W_p_B, xf_W_Q_B, xf_s, xf_W_v_WB, xf_ṡ
 
     # Check derivatives against finite differences.
-    # We set forward mode only because the backward mode is not supported by the
-    # current implementation of `optax` optimizers in the relaxed rigid contact model.
     check_grads(
         f=step,
         args=(W_p_B, W_Q_B, s, W_v_WB, ṡ, τ, W_f_L),
         order=AD_ORDER,
-        modes=["fwd"],
+        modes=["fwd", "rev"],
         eps=ε,
     )
 
@@ -387,15 +431,17 @@ def test_ad_safe_norm(
 
     # Test that the safe_norm function is compatible with batching.
     array = jnp.stack([array, array])
-    assert jaxsim.math.safe_norm(array, axis=1).shape == (2,)
+    assert jaxsim.math.safe_norm(array, axis=-1).shape == (2,)
 
     # Test that the safe_norm function is correctly computing the norm.
-    assert np.allclose(jaxsim.math.safe_norm(array), np.linalg.norm(array))
+    assert np.allclose(
+        jaxsim.math.safe_norm(array, axis=-1), np.linalg.norm(array, axis=-1)
+    )
 
     # Function exposing only the parameters to be differentiated.
     def safe_norm(array: jtp.Array) -> jtp.Array:
 
-        return jaxsim.math.safe_norm(array)
+        return jaxsim.math.safe_norm(array, axis=-1)
 
     # Check derivatives against finite differences.
     check_grads(
@@ -412,5 +458,60 @@ def test_ad_safe_norm(
         args=(jnp.zeros_like(array),),
         order=AD_ORDER,
         modes=["rev", "fwd"],
+        eps=ε,
+    )
+
+
+def test_ad_hw_parameters(
+    jaxsim_model_garpez: js.model.JaxSimModel,
+    prng_key: jax.Array,
+):
+    """
+    Test the automatic differentiation capability for hardware parameters of the model links.
+    """
+
+    model = jaxsim_model_garpez
+    data = js.data.JaxSimModelData.build(model=model)
+
+    min_val, max_val = 0.5, 10.0
+
+    # Generate random scaling factors for testing.
+    _, subkey1, subkey2 = jax.random.split(prng_key, num=3)
+    dims_scaling = jax.random.uniform(
+        subkey1, shape=(model.number_of_links(), 3), minval=min_val, maxval=max_val
+    )
+    density_scaling = jax.random.uniform(
+        subkey2, shape=(model.number_of_links(),), minval=min_val, maxval=max_val
+    )
+
+    scaling_factors = js.kin_dyn_parameters.ScalingFactors(
+        dims=dims_scaling, density=density_scaling
+    )
+
+    link_idx = js.link.name_to_idx(model, link_name="link4")
+
+    # Define a function that updates hardware parameters and computes FK for link 4.
+    def update_hw_params_and_compute_fk_and_mass(
+        scaling_factors: js.kin_dyn_parameters.ScalingFactors,
+    ):
+        # Update hardware parameters.
+        updated_model = js.model.update_hw_parameters(
+            model=model, scaling_factors=scaling_factors
+        )
+
+        # Compute forward kinematics for link 4.
+        W_H_L4 = js.model.forward_kinematics(model=updated_model, data=data)[link_idx]
+
+        # Compute the free floating mass matrix of the updated model.
+        M = js.model.free_floating_mass_matrix(updated_model, data)
+
+        return W_H_L4[:3, 3], M
+
+    # Check derivatives against finite differences.
+    check_grads(
+        f=update_hw_params_and_compute_fk_and_mass,
+        args=(scaling_factors,),
+        order=AD_ORDER,
+        modes=["fwd"],  # TODO: not working in rev mode
         eps=ε,
     )

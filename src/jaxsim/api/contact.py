@@ -11,7 +11,7 @@ import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform
-from jaxsim.rbda import contacts
+from jaxsim.rbda.contacts import SoftContacts
 
 from .common import VelRepr
 
@@ -37,14 +37,11 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    # Switch to inertial-fixed since the RBDAs expect velocities in this representation.
-    with data.switch_velocity_representation(VelRepr.Inertial):
-
-        W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
-            model=model,
-            link_transforms=data._link_transforms,
-            link_velocities=data._link_velocities,
-        )
+    W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+        model=model,
+        link_transforms=data._link_transforms,
+        link_velocities=data._link_velocities,
+    )
 
     return W_p_Ci, W_ṗ_Ci
 
@@ -164,18 +161,23 @@ def estimate_good_soft_contacts_parameters(
 def estimate_good_contact_parameters(
     model: js.model.JaxSimModel,
     *,
+    standard_gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     static_friction_coefficient: jtp.FloatLike = 0.5,
-    **kwargs,
+    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+    damping_ratio: jtp.FloatLike = 1.0,
+    max_penetration: jtp.FloatLike | None = None,
 ) -> jaxsim.rbda.contacts.ContactParamsTypes:
     """
     Estimate good contact parameters.
 
     Args:
         model: The model to consider.
+        standard_gravity: The standard gravity acceleration.
         static_friction_coefficient: The static friction coefficient.
-        kwargs:
-            Additional model-specific parameters passed to the builder method of
-            the parameters class.
+        number_of_active_collidable_points_steady_state:
+            The number of active collidable points in steady state.
+        damping_ratio: The damping ratio.
+        max_penetration: The maximum penetration allowed.
 
     Returns:
         The estimated good contacts parameters.
@@ -190,20 +192,41 @@ def estimate_good_contact_parameters(
         specific application.
     """
 
-    match model.contact_model:
+    def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
+        """
+        Displacement between the CoM and the lowest collidable point using zero
+        joint positions.
+        """
 
-        case contacts.RelaxedRigidContacts():
-            assert isinstance(model.contact_model, contacts.RelaxedRigidContacts)
+        zero_data = js.data.JaxSimModelData.build(
+            model=model,
+        )
 
-            parameters = contacts.RelaxedRigidContactsParams.build(
-                mu=static_friction_coefficient,
-                **kwargs,
-            )
+        W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
 
-        case _:
-            raise ValueError(f"Invalid contact model: {model.contact_model}")
+        if model.floating_base():
+            W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
+            return 2 * (W_pz_CoM - W_pz_C.min())
 
-    return parameters
+        return 2 * W_pz_CoM
+
+    max_δ = (
+        max_penetration
+        if max_penetration is not None
+        # Consider as default a 0.5% of the model height.
+        else 0.005 * estimate_model_height(model=model)
+    )
+
+    nc = number_of_active_collidable_points_steady_state
+
+    return model.contact_model._parameters_class().build_default_from_jaxsim_model(
+        model=model,
+        standard_gravity=standard_gravity,
+        static_friction_coefficient=static_friction_coefficient,
+        max_penetration=max_δ,
+        number_of_active_collidable_points_steady_state=nc,
+        damping_ratio=damping_ratio,
+    )
 
 
 @jax.jit
@@ -244,7 +267,7 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
 
     # Build the link-to-point transform from the displacement between the link frame L
     # and the implicit contact frame C.
-    L_H_C = jax.vmap(lambda L_p_C: jnp.eye(4).at[0:3, 3].set(L_p_C))(L_p_Ci)
+    L_H_C = jax.vmap(jnp.eye(4).at[0:3, 3].set)(L_p_Ci)
 
     # Compose the work-to-link and link-to-point transforms.
     return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
@@ -504,3 +527,129 @@ def jacobian_derivative(
     )
 
     return O_J̇_WC
+
+
+@jax.jit
+@js.common.named_scope
+def link_contact_forces(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    link_forces: jtp.MatrixLike | None = None,
+    joint_torques: jtp.VectorLike | None = None,
+) -> tuple[jtp.Matrix, dict[str, jtp.Matrix]]:
+    """
+    Compute the 6D contact forces of all links of the model in inertial representation.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+        link_forces:
+            The 6D external forces to apply to the links expressed in inertial representation
+        joint_torques:
+            The joint torques acting on the joints.
+
+    Returns:
+        A `(nL, 6)` array containing the stacked 6D contact forces of the links,
+        expressed in inertial representation.
+    """
+
+    # Compute the contact forces for each collidable point with the active contact model.
+    W_f_C, aux_dict = model.contact_model.compute_contact_forces(
+        model=model,
+        data=data,
+        **(
+            dict(link_forces=link_forces, joint_force_references=joint_torques)
+            if not isinstance(model.contact_model, SoftContacts)
+            else {}
+        ),
+    )
+
+    # Compute the 6D forces applied to the links equivalent to the forces applied
+    # to the frames associated to the collidable points.
+    W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
+
+    # Process constraint wrenches if present.
+    if "constr_wrenches_inertial" in aux_dict:
+        wrench_pair_constr_inertial = aux_dict["constr_wrenches_inertial"]
+
+        # Retrieve the constraint map from the model's kinematic parameters.
+        constraint_map = model.kin_dyn_parameters.constraints
+
+        # Extract the frame indices of the constraints.
+        frame_idxs_1 = constraint_map.frame_idxs_1
+        frame_idxs_2 = constraint_map.frame_idxs_2
+
+        n_kin_constraints = frame_idxs_1.shape[0]
+
+        if n_kin_constraints > 0:
+            parent_link_indices = jax.vmap(
+                lambda frame_idx_1, frame_idx_2: jnp.array(
+                    (
+                        js.frame.idx_of_parent_link(model, frame_index=frame_idx_1),
+                        js.frame.idx_of_parent_link(model, frame_index=frame_idx_2),
+                    )
+                )
+            )(frame_idxs_1, frame_idxs_2)
+
+            # Apply each constraint wrench to its corresponding parent link in W_f_L.
+            def apply_wrench(W_f_L, parent_indices, wrench_pair):
+                W_f_L = W_f_L.at[parent_indices[0]].add(wrench_pair[0])
+                W_f_L = W_f_L.at[parent_indices[1]].add(wrench_pair[1])
+                return W_f_L
+
+            W_f_L = jax.vmap(apply_wrench, in_axes=(None, 0, 0))(
+                W_f_L, parent_link_indices, wrench_pair_constr_inertial
+            ).sum(axis=0)
+
+    return W_f_L, aux_dict
+
+
+@staticmethod
+def link_forces_from_contact_forces(
+    model: js.model.JaxSimModel,
+    *,
+    contact_forces: jtp.MatrixLike,
+) -> jtp.Matrix:
+    """
+    Compute the link forces from the contact forces.
+
+    Args:
+        model: The robot model considered by the contact model.
+        contact_forces: The contact forces computed by the contact model.
+
+    Returns:
+        The 6D contact forces applied to the links and expressed in the frame of
+        the velocity representation of data.
+    """
+
+    # Get the object storing the contact parameters of the model.
+    contact_parameters = model.kin_dyn_parameters.contact_parameters
+
+    # Extract the indices corresponding to the enabled collidable points.
+    indices_of_enabled_collidable_points = (
+        contact_parameters.indices_of_enabled_collidable_points
+    )
+
+    # Convert the contact forces to a JAX array.
+    W_f_C = jnp.atleast_2d(jnp.array(contact_forces, dtype=float).squeeze())
+
+    # Construct the vector defining the parent link index of each collidable point.
+    # We use this vector to sum the 6D forces of all collidable points rigidly
+    # attached to the same link.
+    parent_link_index_of_collidable_points = jnp.array(
+        contact_parameters.body, dtype=int
+    )[indices_of_enabled_collidable_points]
+
+    # Create the mask that associate each collidable point to their parent link.
+    # We use this mask to sum the collidable points to the right link.
+    mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
+        model.number_of_links()
+    )
+
+    # Sum the forces of all collidable points rigidly attached to a body.
+    # Since the contact forces W_f_C are expressed in the world frame,
+    # we don't need any coordinate transformation.
+    W_f_L = mask.T @ W_f_C
+
+    return W_f_L

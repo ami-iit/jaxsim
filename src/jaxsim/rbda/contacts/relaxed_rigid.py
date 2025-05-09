@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import functools
 from collections.abc import Callable
 from typing import Any
 
@@ -11,7 +10,6 @@ import jax_dataclasses
 import optax
 
 import jaxsim.api as js
-import jaxsim.rbda.contacts
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.rbda.kinematic_constraints import (
@@ -23,7 +21,7 @@ from jaxsim.rbda.kinematic_constraints import (
 )
 from jaxsim.terrain.terrain import Terrain
 
-from . import common
+from . import common, soft
 
 try:
     from typing import Self
@@ -37,7 +35,7 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
     # Time constant
     time_constant: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.01, dtype=float)
+        default_factory=lambda: jnp.array(0.02, dtype=float)
     )
 
     # Adimensional damping coefficient
@@ -57,32 +55,32 @@ class RelaxedRigidContactsParams(common.ContactsParams):
 
     # Width
     width: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.0001, dtype=float)
+        default_factory=lambda: jnp.array(0.001, dtype=float)
     )
 
     # Midpoint
     midpoint: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.1, dtype=float)
+        default_factory=lambda: jnp.array(0.5, dtype=float)
     )
 
     # Power exponent
     power: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(1.0, dtype=float)
+        default_factory=lambda: jnp.array(2.0, dtype=float)
     )
 
     # Stiffness
-    stiffness: jtp.Float = dataclasses.field(
+    K: jtp.Float = dataclasses.field(
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
     # Damping
-    damping: jtp.Float = dataclasses.field(
+    D: jtp.Float = dataclasses.field(
         default_factory=lambda: jnp.array(0.0, dtype=float)
     )
 
     # Friction coefficient
     mu: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array(0.5, dtype=float)
+        default_factory=lambda: jnp.array(0.005, dtype=float)
     )
 
     def __hash__(self) -> int:
@@ -97,13 +95,16 @@ class RelaxedRigidContactsParams(common.ContactsParams):
                 HashedNumpyArray(self.width),
                 HashedNumpyArray(self.midpoint),
                 HashedNumpyArray(self.power),
-                HashedNumpyArray(self.stiffness),
-                HashedNumpyArray(self.damping),
+                HashedNumpyArray(self.K),
+                HashedNumpyArray(self.D),
                 HashedNumpyArray(self.mu),
             )
         )
 
     def __eq__(self, other: RelaxedRigidContactsParams) -> bool:
+        if not isinstance(other, RelaxedRigidContactsParams):
+            return False
+
         return hash(self) == hash(other)
 
     @classmethod
@@ -117,9 +118,10 @@ class RelaxedRigidContactsParams(common.ContactsParams):
         width: jtp.FloatLike | None = None,
         midpoint: jtp.FloatLike | None = None,
         power: jtp.FloatLike | None = None,
-        stiffness: jtp.FloatLike | None = None,
-        damping: jtp.FloatLike | None = None,
+        K: jtp.FloatLike | None = None,
+        D: jtp.FloatLike | None = None,
         mu: jtp.FloatLike | None = None,
+        **kwargs,
     ) -> Self:
         """Create a `RelaxedRigidContactsParams` instance."""
 
@@ -158,13 +160,11 @@ class RelaxedRigidContactsParams(common.ContactsParams):
             power=jnp.array(
                 power if power is not None else default("power"), dtype=float
             ),
-            stiffness=jnp.array(
-                stiffness if stiffness is not None else default("stiffness"),
+            K=jnp.array(
+                K if K is not None else default("K"),
                 dtype=float,
             ),
-            damping=jnp.array(
-                damping if damping is not None else default("damping"), dtype=float
-            ),
+            D=jnp.array(D if D is not None else default("D"), dtype=float),
             mu=jnp.array(mu if mu is not None else default("mu"), dtype=float),
         )
 
@@ -250,6 +250,37 @@ class RelaxedRigidContacts(common.ContactModel):
             **kwargs,
         )
 
+    def update_contact_state(
+        self: type[Self], old_contact_state: dict[str, jtp.Array]
+    ) -> dict[str, jtp.Array]:
+        """
+        Update the contact state.
+
+        Args:
+            old_contact_state: The old contact state.
+
+        Returns:
+            The updated contact state.
+        """
+
+        return {}
+
+    def update_velocity_after_impact(
+        self: type[Self], model: js.model.JaxSimModel, data: js.data.JaxSimModelData
+    ) -> js.data.JaxSimModelData:
+        """
+        Update the velocity after an impact.
+
+        Args:
+            model: The robot model considered by the contact model.
+            data: The data of the considered model.
+
+        Returns:
+            The updated data of the considered model.
+        """
+
+        return data
+
     @jax.jit
     def compute_contact_forces(
         self,
@@ -333,11 +364,11 @@ class RelaxedRigidContacts(common.ContactModel):
             BW_ν = data.generalized_velocity
 
             BW_ν̇_free = jnp.hstack(
-                js.ode.system_acceleration(
+                js.model.forward_dynamics_aba(
                     model=model,
                     data=data,
                     link_forces=references.link_forces(model=model, data=data),
-                    joint_torques=references.joint_force_references(model=model),
+                    joint_forces=references.joint_force_references(model=model),
                 )
             )
 
@@ -509,7 +540,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Initialize the optimized forces with a linear Hunt/Crossley model.
         init_params = jax.vmap(
-            lambda p, v: self._hunt_crossley_contact_model(
+            lambda p, v: soft.SoftContacts.hunt_crossley_contact_model(
                 position=p,
                 velocity=v,
                 terrain=model.terrain,
@@ -539,13 +570,21 @@ class RelaxedRigidContacts(common.ContactModel):
         tol = solver_options.pop("tol")
         maxiter = solver_options.pop("maxiter")
 
-        # Compute the 3D linear force in C[W] frame.
-        solution, _ = run_optimization(
+        solve_fn = lambda *_: run_optimization(
             init_params=init_params,
             fun=objective,
             opt=optax.lbfgs(**solver_options),
             tol=tol,
             maxiter=maxiter,
+        )
+
+        # Compute the 3D linear force in C[W] frame.
+        solution, _ = jax.lax.custom_linear_solve(
+            lambda x: A @ x,
+            -b,
+            solve=solve_fn,
+            symmetric=True,
+            has_aux=True,
         )
 
         if n_kin_constraints > 0:
@@ -564,16 +603,12 @@ class RelaxedRigidContacts(common.ContactModel):
             CW_fl_C = solution.reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
-        W_f_C = jax.vmap(
-            lambda CW_fl_C, W_H_C: (
-                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
-                    transform=W_H_C,
-                    other_representation=VelRepr.Mixed,
-                    is_force=True,
-                )
-            ),
-        )(CW_fl_C, W_H_C)
+        W_f_C = ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+            array=jnp.zeros((W_H_C.shape[0], 6)).at[:, :3].set(CW_fl_C),
+            transform=W_H_C,
+            other_representation=VelRepr.Mixed,
+            is_force=True,
+        )
 
         return W_f_C, {
             "constr_wrenches_inertial": kin_constr_wrench_pairs_inertial,
@@ -611,8 +646,8 @@ class RelaxedRigidContacts(common.ContactModel):
                 "width",
                 "midpoint",
                 "power",
-                "stiffness",
-                "damping",
+                "K",
+                "D",
                 "mu",
             )
         )

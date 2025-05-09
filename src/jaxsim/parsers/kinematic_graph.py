@@ -453,7 +453,7 @@ class KinematicGraph(Sequence[LinkDescription]):
             parent_of_link_to_remove = links_dict[link.parent_name]
 
             msg = "Lumping chain: {}->({})->{}"
-            logging.info(
+            logging.debug(
                 msg.format(
                     link_to_remove.name,
                     self.joints_connection_dict[
@@ -973,7 +973,7 @@ class KinematicGraphTransforms:
 
         if frame.parent_name in self.graph.links_dict:
             return frame.parent_name
-        elif frame.parent_name in self.graph.frames_dict:
+        if frame.parent_name in self.graph.frames_dict:
             return self.find_parent_link_of_frame(name=frame.parent_name)
 
         msg = f"Failed to find parent element of frame '{name}' with name '{frame.parent_name}'"

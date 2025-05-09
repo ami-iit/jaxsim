@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jaxsim.typing as jtp
 
 
-def safe_norm(array: jtp.ArrayLike, axis=None) -> jtp.Array:
+def safe_norm(array: jtp.ArrayLike, *, axis=None, keepdims: bool = False) -> jtp.Array:
     """
     Compute an array norm handling NaNs and making sure that
     it is safe to get the gradient.
@@ -11,6 +11,7 @@ def safe_norm(array: jtp.ArrayLike, axis=None) -> jtp.Array:
     Args:
         array: The array for which to compute the norm.
         axis: The axis for which to compute the norm.
+        keepdims: Whether to keep the dimensions of the input
 
     Returns:
         The norm of the array with handling for zero arrays to avoid NaNs.
@@ -24,7 +25,7 @@ def safe_norm(array: jtp.ArrayLike, axis=None) -> jtp.Array:
     array = jnp.where(is_zero, jnp.ones_like(array), array)
 
     # Compute the norm of the array along the specified axis.
-    norm = jnp.linalg.norm(array, axis=axis)
+    norm = jnp.linalg.norm(array, axis=axis, keepdims=keepdims)
 
     # Use `jnp.where` to set the norm to 0.0 where the input array was all zeros.
     # This usage supports potential batch processing for future scalability.

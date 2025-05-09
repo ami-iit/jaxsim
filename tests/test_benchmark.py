@@ -106,6 +106,7 @@ def test_soft_contact_model(
 
     with model.editable(validate=False) as model:
         model.contact_model = jaxsim.rbda.contacts.SoftContacts()
+        model.contact_params = js.contact.estimate_good_contact_parameters(model=model)
 
     benchmark_test_function(js.ode.system_dynamics, model, benchmark, batch_size)
 
@@ -118,6 +119,7 @@ def test_rigid_contact_model(
 
     with model.editable(validate=False) as model:
         model.contact_model = jaxsim.rbda.contacts.RigidContacts()
+        model.contact_params = js.contact.estimate_good_contact_parameters(model=model)
 
     benchmark_test_function(js.ode.system_dynamics, model, benchmark, batch_size)
 
@@ -130,6 +132,7 @@ def test_relaxed_rigid_contact_model(
 
     with model.editable(validate=False) as model:
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts()
+        model.contact_params = js.contact.estimate_good_contact_parameters(model=model)
 
     benchmark_test_function(js.ode.system_dynamics, model, benchmark, batch_size)
 
@@ -142,5 +145,6 @@ def test_simulation_step(
 
     with model.editable(validate=False) as model:
         model.contact_model = jaxsim.rbda.contacts.RelaxedRigidContacts()
+        model.contact_params = js.contact.estimate_good_contact_parameters(model=model)
 
     benchmark_test_function(js.model.step, model, benchmark, batch_size)

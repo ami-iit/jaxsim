@@ -64,7 +64,7 @@ class MujocoVideoRecorder:
 
         self.frames = []
 
-        self.data = [data] if data is not None else self.data
+        self.data = data if data is not None else self.data
         self.data = self.data if isinstance(self.data, list) else [self.data]
 
         self.model = model if model is not None else self.model

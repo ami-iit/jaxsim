@@ -164,6 +164,12 @@ class ModelDescription(KinematicGraph):
             A `ModelDescription` instance that only includes the considered joints.
         """
 
+        logging.warning(
+            "The joint order in the model description is not preserved when reducing "
+            "the model. Consider using the `names_to_indices` method to get the correct "
+            "order of the joints, or use the `joint_names()` method to inspect the internal joint ordering."
+        )
+
         if len(set(considered_joints) - set(self.joint_names())) != 0:
             extra_joints = set(considered_joints) - set(self.joint_names())
             msg = f"Found joints not part of the model: {extra_joints}"

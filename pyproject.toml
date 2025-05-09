@@ -11,7 +11,8 @@ maintainers = [
     { name = "Filippo Luca Ferretti", email = "filippo.ferretti@iit.it" },
     { name = "Alessandro Croci", email = "alessandro.croci@iit.it" },
 ]
-license.file = "LICENSE"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 keywords = [
     "physics",
     "physics engine",
@@ -29,7 +30,6 @@ classifiers = [
     "Framework :: Robot Framework",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS",
     "Operating System :: Microsoft",
@@ -69,7 +69,7 @@ testing = [
     "pytest >=6.0",
     "pytest-benchmark",
     "pytest-icdiff",
-    "robot-descriptions",
+    "robot-descriptions >= 1.16.0",
     "icub-models",
 ]
 viz = [
@@ -258,7 +258,7 @@ pre-commit = "*"
 pytest = "*"
 pytest-benchmark = "*"
 pytest-icdiff = "*"
-robot_descriptions = "*"
+robot_descriptions = ">=1.16.0"
 
 # ----------------
 # feature.examples
@@ -269,7 +269,7 @@ examples = { cmd = "jupyter notebook ./examples" }
 
 [tool.pixi.feature.examples.dependencies]
 notebook = "*"
-robot_descriptions = "*"
+robot_descriptions = ">=1.16.0"
 
 # -----------
 # feature.gpu

@@ -100,41 +100,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            conf: &conf
-              - 'pyproject.toml'
-              - 'setup.cfg'
-              - 'setup.py'
-            src: &src
-              - 'src/**'
-            tests: &tests
-              - 'tests/**'
-            all:
-              - *conf
-              - *src
-              - *tests
-
       - name: Install 'gz sdf' system command
         if: |
           contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.all == 'true')
+          (github.event_name != 'pull_request')
         run: |
+          sudo apt update && sudo apt install -y lsb-release wget
+          sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+          wget http://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
           sudo apt-get update
-          sudo apt-get install lsb-release gnupg
-          sudo curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install gz-ionic sdf
+          sudo apt install -y libsdformat14-dev libsdformat14
 
       - name: Run the Python tests
         if: |
           contains(matrix.os, 'ubuntu') &&
-          (github.event_name != 'pull_request' ||
-           steps.changes.outputs.all == 'true')
+          (github.event_name != 'pull_request')
         run: pytest
         env:
           # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591

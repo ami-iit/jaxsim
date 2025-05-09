@@ -55,6 +55,8 @@ jobs:
       - name: Run benchmark and store result
         run: |
             pixi run --frozen --environment gpu benchmark --batch-size 128 --benchmark-json output.json
+        env:
+            PY_COLORS: "1"
 
       - name: Compare benchmark results with main branch
         uses: benchmark-action/github-action-benchmark@v1.20.4

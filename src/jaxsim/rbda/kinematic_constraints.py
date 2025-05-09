@@ -1,95 +1,12 @@
 from __future__ import annotations
 
-import dataclasses
-from math import sqrt
-from typing import ClassVar
-
 import jax.numpy as jnp
-import jax_dataclasses
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import VelRepr
+from jaxsim.api.kin_dyn_parameters import ConstraintMap
 from jaxsim.math.rotation import Rotation
-from jaxsim.utils.jaxsim_dataclass import JaxsimDataclass
-
-
-@dataclasses.dataclass(frozen=True)
-class ConstraintType:
-    """
-    Enumeration of all supported constraint types.
-    """
-
-    Weld: ClassVar[int] = 0
-    # TODO: handle Connect constraint
-    # Connect: ClassVar[int] = 1
-
-
-@jax_dataclasses.pytree_dataclass
-class ConstraintMap(JaxsimDataclass):
-    """
-    Class storing the kinematic constraints of a model.
-    """
-
-    frame_idxs_1: jtp.Int = dataclasses.field(
-        default_factory=lambda: jnp.array([], dtype=int)
-    )
-    frame_idxs_2: jtp.Int = dataclasses.field(
-        default_factory=lambda: jnp.array([], dtype=int)
-    )
-    constraint_types: jtp.Int = dataclasses.field(
-        default_factory=lambda: jnp.array([], dtype=int)
-    )
-    K_P: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array([], dtype=float)
-    )
-    K_D: jtp.Float = dataclasses.field(
-        default_factory=lambda: jnp.array([], dtype=float)
-    )
-
-    def add_constraint(
-        self,
-        frame_idx_1: int,
-        frame_idx_2: int,
-        constraint_type: int,
-        K_P: float | None = None,
-        K_D: float | None = None,
-    ) -> ConstraintMap:
-        """
-        Add a constraint to the constraint map.
-
-        Args:
-            frame_name_1: The name of the first frame.
-            frame_name_2: The name of the second frame.
-            constraint_type: The type of constraint.
-            K_P: The proportional gain for Baumgarte stabilization (default: 1000).
-            K_D: The derivative gain for Baumgarte stabilization (default: 2 * sqrt(K_P)).
-
-        Returns:
-            A new ConstraintMap instance with the added constraint.
-        """
-
-        # Set default values for Baumgarte coefficients if not provided
-        if K_P is None:
-            K_P = 1000
-        if K_D is None:
-            K_D = 2 * sqrt(K_P)
-
-        # Create new arrays with the input elements appended
-        new_frame_idxs_1 = jnp.append(self.frame_idxs_1, frame_idx_1)
-        new_frame_idxs2 = jnp.append(self.frame_idxs_2, frame_idx_2)
-        new_constraint_types = jnp.append(self.constraint_types, constraint_type)
-        new_K_P = jnp.append(self.K_P, K_P)
-        new_K_D = jnp.append(self.K_D, K_D)
-
-        # Return a new ConstraintMap object with updated attributes
-        return ConstraintMap(
-            frame_idxs_1=new_frame_idxs_1,
-            frame_idxs_2=new_frame_idxs2,
-            constraint_types=new_constraint_types,
-            K_P=new_K_P,
-            K_D=new_K_D,
-        )
 
 
 def compute_constraint_jacobians(

@@ -7,7 +7,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
-from jaxsim.rbda.kinematic_constraints import ConstraintType
+from jaxsim.api.kin_dyn_parameters import ConstraintType
 
 
 def test_box_with_external_forces(

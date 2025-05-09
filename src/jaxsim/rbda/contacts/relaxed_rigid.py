@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 from collections.abc import Callable
 from typing import Any
 
@@ -9,6 +10,7 @@ import jax.numpy as jnp
 import jax_dataclasses
 import optax
 
+import jaxsim
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr

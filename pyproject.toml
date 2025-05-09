@@ -240,6 +240,9 @@ pip = "*"
 [tool.pixi.pypi-dependencies]
 jaxsim = { path = "./", editable = true }
 
+[tool.pixi.pypi-options]
+no-build-isolation = ["jaxsim"]
+
 # ------------
 # feature.test
 # ------------

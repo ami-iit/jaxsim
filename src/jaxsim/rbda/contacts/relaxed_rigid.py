@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 from collections.abc import Callable
 from typing import Any
 
@@ -9,9 +10,18 @@ import jax.numpy as jnp
 import jax_dataclasses
 import optax
 
+import jaxsim
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
+from jaxsim.rbda.kinematic_constraints import (
+    ConstraintMap,
+    compute_constraint_baumgarte_term,
+    compute_constraint_jacobians,
+    compute_constraint_jacobians_derivative,
+    compute_constraint_transforms,
+)
+from jaxsim.terrain.terrain import Terrain
 
 from . import common, soft
 
@@ -289,7 +299,7 @@ class RelaxedRigidContacts(common.ContactModel):
             model: The model to consider.
             data: The data of the considered model.
             link_forces:
-                Optional `(n_links, 6)` matrix of external forces acting on the links,
+                Optional `(n_links, 6)` matrix of external forces acting on the links,`
                 expressed in the same representation of data.
             joint_force_references:
                 Optional `(n_joints,)` vector of joint forces.
@@ -333,9 +343,21 @@ class RelaxedRigidContacts(common.ContactModel):
         # Compute the position in the constraint frame.
         position_constraint = jax.vmap(lambda δ, n̂: -δ * n̂)(δ, n̂)
 
+        # Compute the regularization terms.
+        a_ref, r, *_ = self._regularizers(
+            model=model,
+            position_constraint=position_constraint,
+            velocity_constraint=velocity,
+            parameters=model.contact_params,
+        )
+
         # Compute the transforms of the implicit frames corresponding to the
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
+
+        # Retrieve the kinematic constraints, if any.
+        kin_constraints: ConstraintMap = model.kin_dyn_parameters.constraints
+        n_kin_constraints: int = 6 * kin_constraints.frame_idxs_1.shape[0]
 
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
@@ -354,30 +376,103 @@ class RelaxedRigidContacts(common.ContactModel):
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
+            # Compute the linear part of the Jacobian of the collidable points
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, δ: J * (δ > 0))(
                     js.contact.jacobian(model=model, data=data)[:, :3, :], δ
                 )
             )
 
-            J̇_WC = jnp.vstack(
+            # Compute the linear part of the Jacobian derivative of the collidable points
+            J̇l_WC = jnp.vstack(
                 jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
 
-        # Compute the regularization terms.
-        a_ref, R, *_ = self._regularizers(
-            model=model,
-            position_constraint=position_constraint,
-            velocity_constraint=velocity,
-            parameters=model.contact_params,
-        )
+        # Check if there are any kinematic constraints
+        if n_kin_constraints > 0:
+            with (
+                data.switch_velocity_representation(VelRepr.Mixed),
+                references.switch_velocity_representation(VelRepr.Mixed),
+            ):
+                J_constr = jax.vmap(
+                    compute_constraint_jacobians, in_axes=(None, None, 0)
+                )(model, data, kin_constraints)
 
-        # Compute the Delassus matrix and the free mixed linear acceleration of
-        # the collidable points.
-        G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
-        CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
+                J̇_constr = jax.vmap(
+                    compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
+                )(model, data, kin_constraints)
+
+                W_H_constr_pairs = jax.vmap(
+                    compute_constraint_transforms, in_axes=(None, None, 0)
+                )(model, data, kin_constraints)
+
+                constr_baumgarte_term = jnp.ravel(
+                    jax.vmap(
+                        compute_constraint_baumgarte_term,
+                        in_axes=(0, None, 0, 0),
+                    )(
+                        J_constr,
+                        BW_ν,
+                        W_H_constr_pairs,
+                        kin_constraints,
+                    ),
+                )
+
+                J_constr = jnp.vstack(J_constr)
+                J̇_constr = jnp.vstack(J̇_constr)
+
+                R = jnp.diag(jnp.hstack([r, jnp.zeros(n_kin_constraints)]))
+                a_ref = jnp.hstack([a_ref, -constr_baumgarte_term])
+
+                J = jnp.vstack([Jl_WC, J_constr])
+                J̇ = jnp.vstack([J̇l_WC, J̇_constr])
+
+        else:
+            R = jnp.diag(r)
+
+            J = Jl_WC
+            J̇ = J̇l_WC
+
+        # Compute the Delassus matrix for contacts (mixed representation).
+        G_contacts = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
+
+        # Compute the Delassus matrix for constraints (inertial representation) if constraints exist.
+        with data.switch_velocity_representation(VelRepr.Inertial):
+            if n_kin_constraints > 0:
+                G_constraints = (
+                    J_constr
+                    @ jnp.linalg.pinv(
+                        js.model.free_floating_mass_matrix(
+                            model=model,
+                            data=data,
+                        )
+                    )
+                    @ J_constr.T
+                )
+            else:
+                G_constraints = jnp.zeros((0, 0))
+
+        # Combine the Delassus matrices for contacts and constraints if constraints exist.
+        if G_constraints.shape[0] > 0:
+            G = jnp.block(
+                [
+                    [
+                        G_contacts,
+                        jnp.zeros((G_contacts.shape[0], G_constraints.shape[1])),
+                    ],
+                    [
+                        jnp.zeros((G_constraints.shape[0], G_contacts.shape[1])),
+                        G_constraints,
+                    ],
+                ]
+            )
+        else:
+            G = G_contacts
+
+        # Compute the free mixed linear acceleration of the collidable points.
+        CW_al_free_WC = J @ BW_ν̇_free + J̇ @ BW_ν
 
         # Calculate quantities for the linear optimization problem.
         A = G + R
@@ -398,7 +493,6 @@ class RelaxedRigidContacts(common.ContactModel):
             maxiter: int,
             tol: float,
         ) -> tuple[jtp.Vector, optax.OptState]:
-
             # Get the function to compute the loss and the gradient w.r.t. its inputs.
             value_and_grad_fn = optax.value_and_grad_from_state(fun)
 
@@ -407,7 +501,6 @@ class RelaxedRigidContacts(common.ContactModel):
             init_carry: OptimizationCarry = (init_params, opt.init(params=init_params))
 
             def step(carry: OptimizationCarry) -> OptimizationCarry:
-
                 params, state = carry
 
                 value, grad = value_and_grad_fn(
@@ -434,7 +527,6 @@ class RelaxedRigidContacts(common.ContactModel):
 
             # TODO: maybe fix the number of iterations and switch to scan?
             def continuing_criterion(carry: OptimizationCarry) -> jtp.Bool:
-
                 _, state = carry
 
                 iter_num = optax.tree_utils.tree_get(state, "count")
@@ -469,6 +561,16 @@ class RelaxedRigidContacts(common.ContactModel):
             )[0]
         )(position, velocity).flatten()
 
+        if n_kin_constraints > 0:
+            init_params = jnp.hstack(
+                [
+                    init_params,
+                    jnp.zeros(
+                        n_kin_constraints,
+                    ),
+                ]
+            )
+
         # Get the solver options.
         solver_options = self.solver_options
 
@@ -494,8 +596,20 @@ class RelaxedRigidContacts(common.ContactModel):
             has_aux=True,
         )
 
-        # Reshape the optimized solution to be a matrix of 3D contact forces.
-        CW_fl_C = solution.reshape(-1, 3)
+        if n_kin_constraints > 0:
+            # Extract the last n_kin_constr values from the solution and split them into 6D wrenches
+            kin_constr_wrench_inertial = solution[-n_kin_constraints:].reshape(-1, 6)
+
+            # Form an array of tuples with each wrench and its opposite using jax constructs
+            kin_constr_wrench_pairs_inertial = jax.vmap(
+                lambda wrench: jnp.array((wrench, -wrench))
+            )(kin_constr_wrench_inertial)
+
+            # Reshape the optimized solution to be a matrix of 3D contact forces.
+            CW_fl_C = solution[0:-n_kin_constraints].reshape(-1, 3)
+        else:
+            kin_constr_wrench_pairs_inertial = jnp.zeros((0, 2, 6))
+            CW_fl_C = solution.reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
         W_f_C = ModelDataWithVelocityRepresentation.other_representation_to_inertial(
@@ -505,7 +619,9 @@ class RelaxedRigidContacts(common.ContactModel):
             is_force=True,
         )
 
-        return W_f_C, {}
+        return W_f_C, {
+            "constr_wrenches_inertial": kin_constr_wrench_pairs_inertial,
+        }
 
     @staticmethod
     def _regularizers(
@@ -607,7 +723,6 @@ class RelaxedRigidContacts(common.ContactModel):
             pos: jtp.Vector,
             vel: jtp.Vector,
         ) -> tuple[jtp.Vector, jtp.Matrix, jtp.Vector, jtp.Vector]:
-
             # Compute the reference acceleration.
             ξ, a_ref, K, D = imp_aref(pos=pos, vel=vel)
 
@@ -635,4 +750,150 @@ class RelaxedRigidContacts(common.ContactModel):
             ),
         )
 
-        return a_ref, jnp.diag(R), K, D
+        return a_ref, R, K, D
+
+    @staticmethod
+    @functools.partial(jax.jit, static_argnames=("terrain",))
+    def _hunt_crossley_contact_model(
+        position: jtp.VectorLike,
+        velocity: jtp.VectorLike,
+        tangential_deformation: jtp.VectorLike,
+        terrain: Terrain,
+        K: jtp.FloatLike,
+        D: jtp.FloatLike,
+        mu: jtp.FloatLike,
+        p: jtp.FloatLike = 0.5,
+        q: jtp.FloatLike = 0.5,
+    ) -> tuple[jtp.Vector, jtp.Vector]:
+        """
+        Compute the contact force using the Hunt/Crossley model.
+
+        Args:
+            position: The position of the collidable point.
+            velocity: The velocity of the collidable point.
+            tangential_deformation: The material deformation of the collidable point.
+            terrain: The terrain model.
+            K: The stiffness parameter.
+            D: The damping parameter of the soft contacts model.
+            mu: The static friction coefficient.
+            p:
+                The exponent p corresponding to the damping-related non-linearity
+                of the Hunt/Crossley model.
+            q:
+                The exponent q corresponding to the spring-related non-linearity
+                of the Hunt/Crossley model
+
+        Returns:
+            A tuple containing the computed contact force and the derivative of the
+            material deformation.
+        """
+
+        # Convert the input vectors to arrays.
+        W_p_C = jnp.array(position, dtype=float).squeeze()
+        W_ṗ_C = jnp.array(velocity, dtype=float).squeeze()
+        m = jnp.array(tangential_deformation, dtype=float).squeeze()
+
+        # Use symbol for the static friction.
+        μ = mu
+
+        # Compute the penetration depth, its rate, and the considered terrain normal.
+        δ, δ̇, n̂ = common.compute_penetration_data(p=W_p_C, v=W_ṗ_C, terrain=terrain)
+
+        # There are few operations like computing the norm of a vector with zero length
+        # or computing the square root of zero that are problematic in an AD context.
+        # To avoid these issues, we introduce a small tolerance ε to their arguments
+        # and make sure that we do not check them against zero directly.
+        ε = jnp.finfo(float).eps
+
+        # Compute the powers of the penetration depth.
+        # Inject ε to address AD issues in differentiating the square root when
+        #  p and q are fractional.
+        δp = jnp.power(δ + ε, p)
+        δq = jnp.power(δ + ε, q)
+
+        # ========================
+        # Compute the normal force
+        # ========================
+
+        # Non-linear spring-damper model (Hunt/Crossley model).
+        # This is the force magnitude along the direction normal to the terrain.
+        force_normal_mag = (K * δp) * δ + (D * δq) * δ̇
+
+        # Depending on the magnitude of δ̇, the normal force could be negative.
+        force_normal_mag = jnp.maximum(0.0, force_normal_mag)
+
+        # Compute the 3D linear force in C[W] frame.
+        f_normal = force_normal_mag * n̂
+
+        # ============================
+        # Compute the tangential force
+        # ============================
+
+        # Extract the tangential component of the velocity.
+        v_tangential = W_ṗ_C - jnp.dot(W_ṗ_C, n̂) * n̂
+
+        # Extract the normal and tangential components of the material deformation.
+        m_normal = jnp.dot(m, n̂) * n̂
+        m_tangential = m - jnp.dot(m, n̂) * n̂
+
+        # Compute the tangential force in the sticking case.
+        # Using the tangential component of the material deformation should not be
+        # necessary if the sticking-slipping transition occurs in a terrain area
+        # with a locally constant normal. However, this assumption is not true in
+        # general, especially for highly uneven terrains.
+        f_tangential = -((K * δp) * m_tangential + (D * δq) * v_tangential)
+
+        # Detect the contact type (sticking or slipping).
+        # Note that if there is no contact, sticking is set to True, and this detail
+        # is exploited in the computation of the `contact_status` variable.
+        sticking = jnp.logical_or(
+            δ <= 0, f_tangential.dot(f_tangential) <= (μ * force_normal_mag) ** 2
+        )
+
+        # Compute the direction of the tangential force.
+        # To prevent dividing by zero, we use a switch statement.
+        norm = jaxsim.math.safe_norm(f_tangential)
+        f_tangential_direction = f_tangential / (
+            norm + jnp.finfo(float).eps * (norm == 0)
+        )
+
+        # Project the tangential force to the friction cone if slipping.
+        f_tangential = jnp.where(
+            sticking,
+            f_tangential,
+            jnp.minimum(μ * force_normal_mag, norm) * f_tangential_direction,
+        )
+
+        # Set the tangential force to zero if there is no contact.
+        f_tangential = jnp.where(δ <= 0, jnp.zeros(3), f_tangential)
+
+        # =====================================
+        # Compute the material deformation rate
+        # =====================================
+
+        # Compute the derivative of the material deformation.
+        # Note that we included an additional relaxation of `m_normal` in the
+        # sticking case, so that the normal deformation that could have accumulated
+        # from a previous slipping phase can relax to zero.
+        ṁ_no_contact = -(K / D) * m
+        ṁ_sticking = v_tangential - (K / D) * m_normal
+        ṁ_slipping = -(f_tangential + (K * δp) * m_tangential) / (D * δq)
+
+        # Compute the contact status:
+        # 0: slipping
+        # 1: sticking
+        # 2: no contact
+        contact_status = sticking.astype(int)
+        contact_status += (δ <= 0).astype(int)
+
+        # Select the right material deformation rate depending on the contact status.
+        ṁ = jax.lax.select_n(contact_status, ṁ_slipping, ṁ_sticking, ṁ_no_contact)
+
+        # ==========================================
+        # Compute and return the final contact force
+        # ==========================================
+
+        # Sum the normal and tangential forces.
+        CW_fl = f_normal + f_tangential
+
+        return CW_fl, ṁ

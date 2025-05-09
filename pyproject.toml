@@ -262,6 +262,7 @@ pytest = "*"
 pytest-benchmark = "*"
 pytest-icdiff = "*"
 robot_descriptions = ">=1.16.0"
+setuptools_scm = ">=8.3.1,<9"
 
 # ----------------
 # feature.examples

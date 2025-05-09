@@ -17,7 +17,7 @@ jobs:
     runs-on: self-hosted
     container:
       image: ghcr.io/prefix-dev/pixi:0.46.0-noble@sha256:c12bcbe8ba5dfd71867495d3471b95a6993b79cc7de7eafec016f8f59e4e4961
-      options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+      options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -e "TERM=xterm-256color"
 
     steps:
       - name: Install Git and Git-LFS

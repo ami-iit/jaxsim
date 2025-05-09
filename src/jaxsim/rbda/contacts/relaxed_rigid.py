@@ -348,7 +348,7 @@ class RelaxedRigidContacts(common.ContactModel):
             model=model,
             position_constraint=position_constraint,
             velocity_constraint=velocity,
-            parameters=model.contacts_params,
+            parameters=model.contact_params,
         )
 
         # Compute the transforms of the implicit frames corresponding to the

@@ -99,7 +99,7 @@ Tracker = "https://github.com/ami-iit/jaxsim/issues"
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools>=64",
+    "setuptools>=80",
     "setuptools-scm[toml]>=8",
     "wheel",
 ]

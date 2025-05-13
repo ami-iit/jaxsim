@@ -191,39 +191,22 @@ def estimate_good_contact_parameters(
         The user is encouraged to fine-tune the parameters based on the
         specific application.
     """
-
-    def estimate_model_height(model: js.model.JaxSimModel) -> jtp.Float:
-        """
-        Displacement between the CoM and the lowest collidable point using zero
-        joint positions.
-        """
-
-        zero_data = js.data.JaxSimModelData.build(
-            model=model,
-        )
-
+    if max_penetration is None:
+        zero_data = js.data.JaxSimModelData.build(model=model)
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
-
         if model.floating_base():
             W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
-            return 2 * (W_pz_CoM - W_pz_C.min())
+            W_pz_CoM = W_pz_CoM - W_pz_C.min()
 
-        return 2 * W_pz_CoM
-
-    max_δ = (
-        max_penetration
-        if max_penetration is not None
-        # Consider as default a 0.5% of the model height.
-        else 0.005 * estimate_model_height(model=model)
-    )
+        # Consider as default a 1% of the model center of mass height.
+        max_penetration = 0.01 * W_pz_CoM
 
     nc = number_of_active_collidable_points_steady_state
-
     return model.contact_model._parameters_class().build_default_from_jaxsim_model(
         model=model,
         standard_gravity=standard_gravity,
         static_friction_coefficient=static_friction_coefficient,
-        max_penetration=max_δ,
+        max_penetration=max_penetration,
         number_of_active_collidable_points_steady_state=nc,
         damping_ratio=damping_ratio,
     )

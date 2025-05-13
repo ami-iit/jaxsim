@@ -16,29 +16,28 @@ jobs:
   benchmark:
     runs-on: self-hosted
     container:
-      image: ghcr.io/nvidia/jax@sha256:fdc493f32727405514caaecd9f0ea508a56cf645424cc66e03fedd8141c493bb
-      options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
+      image: ghcr.io/prefix-dev/pixi:0.46.0-noble@sha256:c12bcbe8ba5dfd71867495d3471b95a6993b79cc7de7eafec016f8f59e4e4961
+      options: --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 -e "TERM=xterm-256color"
 
     steps:
+      - name: Install Git and Git-LFS
+        run: |
+            apt update && apt install -y git git-lfs
+
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
 
-      - name: Set up environment
+      - name: Fetch pixi.lock from LFS
         run: |
-          pip install .[all]
-
-      - name: Install Gazebo SDF
-        run: |
-            apt update && apt install -y lsb-release wget
-            sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
-            wget http://packages.osrfoundation.org/gazebo.key -O - | apt-key add -
-            apt-get update
-            apt install -y libsdformat14-dev libsdformat14
+          git config --global safe.directory /__w/jaxsim/jaxsim
+          git lfs checkout pixi.lock
 
       - name: Get main branch SHA
         id: get-main-branch-sha
         run: |
-          git config --global --add safe.directory /__w/jaxsim/jaxsim
           SHA=$(git rev-parse origin/main)
           echo "sha=$SHA" >> $GITHUB_OUTPUT
 
@@ -49,9 +48,15 @@ jobs:
           path: ./cache
           key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark
 
+      - name: Ensure version file is written
+        run: |
+            pixi run --frozen --environment gpu python -m setuptools_scm --force-write-version-file
+
       - name: Run benchmark and store result
         run: |
-            pytest tests/test_benchmark.py --gpu-only --batch-size 128 --benchmark-only --benchmark-json output.json
+            pixi run --frozen --environment gpu benchmark --batch-size 128 --benchmark-json output.json
+        env:
+            PY_COLORS: "1"
 
       - name: Compare benchmark results with main branch
         uses: benchmark-action/github-action-benchmark@v1.20.4

@@ -18,6 +18,10 @@ except ImportError:
     from typing_extensions import Self
 
 
+MAX_STIFFNESS = 1e6
+MAX_DAMPING = 1e4
+
+
 @functools.partial(jax.jit, static_argnames=("terrain",))
 def compute_penetration_data(
     p: jtp.VectorLike,
@@ -146,13 +150,13 @@ class ContactsParams(JaxsimDataclass):
             f_average = m * standard_gravity / nc
 
             stiffness = f_average / jnp.power(δ_max, 1 + p)
-            stiffness = jnp.clip(stiffness, 0, 1e6)
+            stiffness = jnp.clip(stiffness, 0, MAX_STIFFNESS)
 
         # Compute the damping using the damping ratio.
         critical_damping = 2 * jnp.sqrt(stiffness * m)
         if damping is None:
             damping = ξ * critical_damping
-            damping = jnp.clip(damping, 0, 1e4)
+            damping = jnp.clip(damping, 0, MAX_DAMPING)
 
         return self.build(
             K=stiffness,

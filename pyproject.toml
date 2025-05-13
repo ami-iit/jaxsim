@@ -99,7 +99,7 @@ Tracker = "https://github.com/ami-iit/jaxsim/issues"
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools>=64",
+    "setuptools>=77",
     "setuptools-scm[toml]>=8",
     "wheel",
 ]
@@ -239,6 +239,9 @@ pip = "*"
 # Dependencies from PyPI.
 [tool.pixi.pypi-dependencies]
 jaxsim = { path = "./", editable = true }
+
+[tool.pixi.pypi-options]
+no-build-isolation = ["jaxsim"]
 
 # ------------
 # feature.test

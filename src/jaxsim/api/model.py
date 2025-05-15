@@ -782,6 +782,7 @@ def reduce(
         actuation_params=model.actuation_params,
         gravity=model.gravity,
         integrator=model.integrator,
+        constraints=model.kin_dyn_parameters.constraints,
     )
 
     # Store the origin of the model, in case downstream logic needs it.

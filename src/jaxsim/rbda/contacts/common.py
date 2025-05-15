@@ -18,6 +18,10 @@ except ImportError:
     from typing_extensions import Self
 
 
+MAX_STIFFNESS = 1e6
+MAX_DAMPING = 1e4
+
+
 @functools.partial(jax.jit, static_argnames=("terrain",))
 def compute_penetration_data(
     p: jtp.VectorLike,
@@ -133,28 +137,30 @@ class ContactsParams(JaxsimDataclass):
         ξ = damping_ratio
         δ_max = max_penetration
         μc = static_friction_coefficient
+        nc = number_of_active_collidable_points_steady_state
 
         # Compute the total mass of the model.
         m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
 
-        # Rename the standard gravity.
-        g = standard_gravity
-
-        # Compute the average support force on each collidable point.
-        f_average = m * g / number_of_active_collidable_points_steady_state
-
         # Compute the stiffness to get the desired steady-state penetration.
         # Note that this is dependent on the non-linear exponent used in
         # the damping term of the Hunt/Crossley model.
-        K = f_average / jnp.power(δ_max, 1 + p) if stiffness is None else stiffness
+        if stiffness is None:
+            # Compute the average support force on each collidable point.
+            f_average = m * standard_gravity / nc
+
+            stiffness = f_average / jnp.power(δ_max, 1 + p)
+            stiffness = jnp.clip(stiffness, 0, MAX_STIFFNESS)
 
         # Compute the damping using the damping ratio.
-        critical_damping = 2 * jnp.sqrt(K * m)
-        D = ξ * critical_damping if damping is None else damping
+        critical_damping = 2 * jnp.sqrt(stiffness * m)
+        if damping is None:
+            damping = ξ * critical_damping
+            damping = jnp.clip(damping, 0, MAX_DAMPING)
 
         return self.build(
-            K=K,
-            D=D,
+            K=stiffness,
+            D=damping,
             mu=μc,
             p=p,
             q=q,

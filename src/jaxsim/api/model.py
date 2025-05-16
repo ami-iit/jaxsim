@@ -170,6 +170,7 @@ class JaxSimModel(JaxsimDataclass):
             gravity: The gravity constant. Normally passed as a positive value.
             constraints:
                 An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
+                Note that constraints can be used only with RelaxedRigidContacts.
 
         Returns:
             The built Model object.
@@ -211,8 +212,15 @@ class JaxSimModel(JaxsimDataclass):
         # Compute the hw parametrization metadata of the model
         # TODO: move the building of the metadata to KinDynParameters.build()
         #       and use the model_description instead of model.built_from.
-        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata()
+        if isinstance(contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts):
+            with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+                model.kin_dyn_parameters.hw_link_metadata = (
+                    model.compute_hw_link_metadata()
+                )
+        else:
+            logging.info(
+                f"Contact model {contact_model.__class__.__name__} does not support hardware parametrization."
+            )
 
         return model
 
@@ -501,6 +509,13 @@ class JaxSimModel(JaxsimDataclass):
 
         if isinstance(jnp.zeros(0), jax.core.Tracer):
             raise RuntimeError("This method cannot be used in JIT-compiled functions")
+
+        if not isinstance(
+            self.contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts
+        ):
+            raise RuntimeError(
+                "The model must be built with a Relaxed-Rigid contact model to use hardware parametrization related functions."
+            )
 
         # Ensure `built_from` is a ROD model and create `rod_model_output`
         if isinstance(self.built_from, rod.Model):
@@ -2329,7 +2344,17 @@ def update_hw_parameters(
 
     Returns:
         The updated JaxSimModel object with modified hardware parameters.
+
+    Note:
+        This function can be used only with models using Relax-Rigid contact model.
     """
+
+    # Check if the model is using the Relax-Rigid contact model
+    if not isinstance(model.contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts):
+        raise ValueError(
+            "The update_hw_parameters function can only be used with models using the Relax-Rigid contact model."
+        )
+
     kin_dyn_params: KinDynParameters = model.kin_dyn_parameters
     link_parameters: LinkParameters = kin_dyn_params.link_parameters
     hw_link_metadata: HwLinkMetadata = kin_dyn_params.hw_link_metadata

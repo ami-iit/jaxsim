@@ -34,7 +34,7 @@ class KinDynParameters(JaxsimDataclass):
         joint_model: The joint model of the model.
         joint_parameters: The parameters of the joints.
         hw_link_metadata: The hardware parameters of the model links.
-        constraints: The kinematic constraints of the model.
+        constraints: The kinematic constraints of the model. They can be used only with Relaxed-Rigid contact model.
     """
 
     # Static

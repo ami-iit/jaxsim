@@ -34,6 +34,7 @@ class KinDynParameters(JaxsimDataclass):
         joint_model: The joint model of the model.
         joint_parameters: The parameters of the joints.
         hw_link_metadata: The hardware parameters of the model links.
+        constraints: The kinematic constraints of the model. They can be used only with Relaxed-Rigid contact model.
     """
 
     # Static
@@ -58,6 +59,9 @@ class KinDynParameters(JaxsimDataclass):
     # Model hardware parameters
     hw_link_metadata: HwLinkMetadata | None = dataclasses.field(default=None)
 
+    # Kinematic constraints
+    constraints: ConstraintMap | None = dataclasses.field(default=None)
+
     @property
     def motion_subspaces(self) -> jtp.Matrix:
         r"""
@@ -80,12 +84,15 @@ class KinDynParameters(JaxsimDataclass):
         return self._support_body_array_bool.get()
 
     @staticmethod
-    def build(model_description: ModelDescription) -> KinDynParameters:
+    def build(
+        model_description: ModelDescription, constraints: ConstraintMap | None
+    ) -> KinDynParameters:
         """
         Construct the kinematic and dynamic parameters of the model.
 
         Args:
             model_description: The parsed model description to consider.
+            constraints: An object of type ConstraintMap specifying the kinematic constraint of the model.
 
         Returns:
             The kinematic and dynamic parameters of the model.
@@ -253,6 +260,12 @@ class KinDynParameters(JaxsimDataclass):
 
         motion_subspaces = jnp.vstack([jnp.zeros((6, 1))[jnp.newaxis, ...], S_J])
 
+        # ===========
+        # Constraints
+        # ===========
+
+        constraints = ConstraintMap() if constraints is None else constraints
+
         # =================================
         # Build and return KinDynParameters
         # =================================
@@ -267,6 +280,7 @@ class KinDynParameters(JaxsimDataclass):
             joint_parameters=joint_parameters,
             contact_parameters=contact_parameters,
             frame_parameters=frame_parameters,
+            constraints=constraints,
         )
 
     def __eq__(self, other: KinDynParameters) -> bool:
@@ -1168,3 +1182,85 @@ class ScalingFactors(JaxsimDataclass):
 
     dims: jtp.Vector
     density: jtp.Float
+
+
+@dataclasses.dataclass(frozen=True)
+class ConstraintType:
+    """
+    Enumeration of all supported constraint types.
+    """
+
+    Weld: ClassVar[int] = 0
+    # TODO: handle Connect constraint
+    # Connect: ClassVar[int] = 1
+
+
+@jax_dataclasses.pytree_dataclass
+class ConstraintMap(JaxsimDataclass):
+    """
+    Class storing the kinematic constraints of a model.
+    """
+
+    frame_idxs_1: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=int)
+    )
+    frame_idxs_2: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=int)
+    )
+    constraint_types: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=int)
+    )
+    K_P: jtp.Float = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=float)
+    )
+    K_D: jtp.Float = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=float)
+    )
+
+    def add_constraint(
+        self,
+        frame_idx_1: int,
+        frame_idx_2: int,
+        constraint_type: int,
+        K_P: float | None = None,
+        K_D: float | None = None,
+    ) -> ConstraintMap:
+        """
+        Add a constraint to the constraint map.
+
+        Args:
+            frame_idx_1: The index of the first frame.
+            frame_idx_2: The index of the second frame.
+            constraint_type: The type of constraint.
+            K_P: The proportional gain for Baumgarte stabilization (default: 1000).
+            K_D: The derivative gain for Baumgarte stabilization (default: 2 * sqrt(K_P)).
+
+        Returns:
+            A new ConstraintMap instance with the added constraint.
+
+        Note:
+            Since this method returns a new instance of ConstraintMap with the new constraint,
+            it will trigger recompilations in JIT-compiled functions.
+        """
+
+        # Set default values for Baumgarte coefficients if not provided
+        if K_P is None:
+            K_P = 1000
+        if K_D is None:
+            K_D = 2 * np.sqrt(K_P)
+
+        # Create new arrays with the input elements appended
+        new_frame_idxs_1 = jnp.append(self.frame_idxs_1, frame_idx_1)
+        new_frame_idxs2 = jnp.append(self.frame_idxs_2, frame_idx_2)
+        new_constraint_types = jnp.append(self.constraint_types, constraint_type)
+        new_K_P = jnp.append(self.K_P, K_P)
+        new_K_D = jnp.append(self.K_D, K_D)
+
+        # Return a new ConstraintMap object with updated attributes
+        return ConstraintMap(
+            frame_idxs_1=new_frame_idxs_1,
+            frame_idxs_2=new_frame_idxs2,
+            constraint_types=new_constraint_types,
+            K_P=new_K_P,
+            K_D=new_K_D,
+        )

@@ -732,7 +732,9 @@ def jaxsim_model_cartpole() -> js.model.JaxSimModel:
         The JaxSim model of a cartpole.
     """
 
-    model_path = pathlib.Path(__file__).parent / "assets" / "cartpole.urdf"
+    model_path = (
+        pathlib.Path(__file__).parent.parent / "examples" / "assets" / "cartpole.urdf"
+    )
     rod_model = load_model_from_file(model_path, is_urdf=True)
     model = build_jaxsim_model(model_description=rod_model)
 

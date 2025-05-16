@@ -559,7 +559,7 @@ class JaxSimModel(JaxsimDataclass):
             # Update visual pose
             links_dict[link_name].visual.pose = rod.Pose.from_transform(
                 transform=np.array(hw_metadata.L_H_vis[link_index]),
-                relative_to=links_dict[link_name].visual.pose.relative_to,
+                relative_to=link_name,
             )
 
             # Update joint poses
@@ -573,7 +573,7 @@ class JaxSimModel(JaxsimDataclass):
                             transform=np.array(
                                 hw_metadata.L_H_pre[link_index, joint_index]
                             ),
-                            relative_to=joints_dict[joint_name].pose.relative_to,
+                            relative_to=link_name,
                         )
 
         # Export the URDF string.

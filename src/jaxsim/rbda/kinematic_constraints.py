@@ -24,7 +24,7 @@ def compute_constraint_jacobians(
 
     Returns:
         The resulting constraint Jacobian matrix representing the kinematic constraint
-        between the two specified frames.
+        between the two specified frames, in inertial representation.
     """
 
     J_WF1 = js.frame.jacobian(
@@ -58,7 +58,7 @@ def compute_constraint_jacobians_derivative(
 
     Returns:
         The resulting constraint Jacobian derivative matrix representing the kinematic constraint
-        between the two specified frames.
+        between the two specified frames, in inertial representation.
     """
 
     J̇_WF1 = js.frame.jacobian_derivative(

@@ -490,6 +490,7 @@ class RelaxedRigidContacts(common.ContactModel):
             maxiter: int,
             tol: float,
         ) -> tuple[jtp.Vector, optax.OptState]:
+
             # Get the function to compute the loss and the gradient w.r.t. its inputs.
             value_and_grad_fn = optax.value_and_grad_from_state(fun)
 
@@ -498,6 +499,7 @@ class RelaxedRigidContacts(common.ContactModel):
             init_carry: OptimizationCarry = (init_params, opt.init(params=init_params))
 
             def step(carry: OptimizationCarry) -> OptimizationCarry:
+
                 params, state = carry
 
                 value, grad = value_and_grad_fn(
@@ -524,6 +526,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
             # TODO: maybe fix the number of iterations and switch to scan?
             def continuing_criterion(carry: OptimizationCarry) -> jtp.Bool:
+
                 _, state = carry
 
                 iter_num = optax.tree_utils.tree_get(state, "count")
@@ -720,6 +723,7 @@ class RelaxedRigidContacts(common.ContactModel):
             pos: jtp.Vector,
             vel: jtp.Vector,
         ) -> tuple[jtp.Vector, jtp.Matrix, jtp.Vector, jtp.Vector]:
+
             # Compute the reference acceleration.
             ξ, a_ref, K, D = imp_aref(pos=pos, vel=vel)
 

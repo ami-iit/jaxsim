@@ -12,7 +12,6 @@ import rod.urdf.exporter
 from lxml import etree as ET
 
 from jaxsim import logging
-from jaxsim.math.quaternion import Quaternion
 
 from .utils import MujocoCamera
 
@@ -396,10 +395,7 @@ class RodModelToMjcf:
                 parent_element = mujoco_element.find(".//worldbody")
 
             if parent_element is not None:
-                roll, pitch, yaw = np.array(frame.pose.rpy, dtype=float)
-                quat = Quaternion.to_wxyz(
-                    jaxlie.SO3.from_rpy_radians(roll, pitch, yaw).as_quaternion_xyzw()
-                )
+                quat = jaxlie.SO3.from_rpy_radians(*frame.pose.rpy).wxyz
                 _ = ET.SubElement(
                     parent_element,
                     "site",

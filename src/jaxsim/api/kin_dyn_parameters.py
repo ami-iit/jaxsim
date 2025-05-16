@@ -1231,6 +1231,10 @@ class ConstraintMap(JaxsimDataclass):
 
         Returns:
             A new ConstraintMap instance with the added constraint.
+
+        Note:
+            Since this method returns a new instance of ConstraintMap with the new constraint,
+            it will trigger recompilations in JIT-compiled functions.
         """
 
         # Set default values for Baumgarte coefficients if not provided

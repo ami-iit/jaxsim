@@ -601,9 +601,9 @@ class RelaxedRigidContacts(common.ContactModel):
             kin_constr_wrench_inertial = solution[-n_kin_constraints:].reshape(-1, 6)
 
             # Form an array of tuples with each wrench and its opposite using jax constructs
-            kin_constr_wrench_pairs_inertial = jax.vmap(
-                lambda wrench: jnp.array((wrench, -wrench))
-            )(kin_constr_wrench_inertial)
+            kin_constr_wrench_pairs_inertial = jnp.stack(
+                (kin_constr_wrench_inertial, -kin_constr_wrench_inertial), axis=1
+            )
 
             # Reshape the optimized solution to be a matrix of 3D contact forces.
             CW_fl_C = solution[0:-n_kin_constraints].reshape(-1, 3)

@@ -321,10 +321,7 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Define the initial hardware parameters (scaling factors).
     initial_dims = jnp.ones(
-        (
-            model.number_of_links(),
-            3,
-        )
+        (model.number_of_links(), 3)
     )  # Initial dimensions (1.0 for all links).
     initial_density = jnp.ones(
         (model.number_of_links(),)
@@ -387,7 +384,7 @@ def test_hw_parameters_collision_scaling(jaxsim_model_sphere: js.model.JaxSimMod
     scaling_factor = 2.0
 
     # Define the nominal radius of the sphere
-    nominal_radius = jaxsim_model_sphere.kin_dyn_parameters.hw_link_metadata.dims[0, 0]
+    nominal_radius = model.kin_dyn_parameters.hw_link_metadata.dims[0, 0]
 
     # Define scaling parameters
     scaling_parameters = ScalingFactors(
@@ -396,9 +393,7 @@ def test_hw_parameters_collision_scaling(jaxsim_model_sphere: js.model.JaxSimMod
     )
 
     # Update the model with the scaling parameters
-    updated_model = js.model.update_hw_parameters(
-        jaxsim_model_sphere, scaling_parameters
-    )
+    updated_model = js.model.update_hw_parameters(model, scaling_parameters)
 
     # Simulate the sphere falling under gravity
     data = js.data.JaxSimModelData.build(model=updated_model)

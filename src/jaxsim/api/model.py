@@ -2389,22 +2389,18 @@ def update_hw_parameters(
         L_H_pre_for_joint = updated_hw_link_metadata.L_H_pre[:, joint_index]
         L_H_pre_mask_for_joint = updated_hw_link_metadata.L_H_pre_mask[:, joint_index]
 
-        # Use the mask to select the first valid transform or fall back to the original
-        valid_transforms = jnp.where(
-            L_H_pre_mask_for_joint[:, None, None],  # Expand mask for broadcasting
-            L_H_pre_for_joint,  # Use the transform if the mask is True
-            jnp.zeros_like(L_H_pre_for_joint),  # Otherwise, use a zero matrix
-        )
+        # Select the first valid transform (if any) using the mask
+        first_valid_index = jnp.argmax(L_H_pre_mask_for_joint)
+        selected_transform = L_H_pre_for_joint[first_valid_index]
 
-        # Sum the valid transforms (only one will be non-zero due to the mask)
-        selected_transform = jnp.sum(valid_transforms, axis=0)
+        # Check if any valid transform exists
+        has_valid_transform = L_H_pre_mask_for_joint.any()
 
-        # If no valid transform exists, fall back to the original λ_H_pre
-        return jax.lax.cond(
-            jnp.any(L_H_pre_mask_for_joint),
-            lambda: selected_transform,
-            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index + 1],
-        )
+        # Fallback to the original λ_H_pre if no valid transform exists
+        fallback_transform = kin_dyn_params.joint_model.λ_H_pre[joint_index + 1]
+
+        # Return the selected transform or fallback
+        return jnp.where(has_valid_transform, selected_transform, fallback_transform)
 
     # Apply the update function to all joint indices
     updated_λ_H_pre = jax.vmap(update_λ_H_pre)(

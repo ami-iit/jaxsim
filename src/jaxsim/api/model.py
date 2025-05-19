@@ -2406,11 +2406,13 @@ def update_hw_parameters(
     updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
         jnp.arange(kin_dyn_params.number_of_joints())
     )
+
     # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
     # to identity to represent the world-to-base tree transform. See JointModel class
     updated_λ_H_pre_with_base = jnp.concatenate(
         (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
     )
+
     # Replace the joint model with the updated transforms
     updated_joint_model = kin_dyn_params.joint_model.replace(
         λ_H_pre=updated_λ_H_pre_with_base

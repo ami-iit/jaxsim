@@ -2414,6 +2414,14 @@ def update_hw_parameters(
         ),
     )
 
+    # Compute the contact parameters
+    points = HwLinkMetadata.compute_contact_points(
+        kin_dyn_params.contact_parameters, updated_hw_link_metadata, scaling_factors
+    )
+
+    # Update contact parameters
+    updated_contact_parameters = kin_dyn_params.contact_parameters.replace(point=points)
+
     # Update joint model transforms (λ_H_pre)
     def update_λ_H_pre(joint_index):
         # Extract the transforms and masks for the current joint index across all links
@@ -2456,6 +2464,7 @@ def update_hw_parameters(
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(
         link_parameters=updated_link_parameters,
+        contact_parameters=updated_contact_parameters,
         hw_link_metadata=updated_hw_link_metadata,
         joint_model=updated_joint_model,
     )

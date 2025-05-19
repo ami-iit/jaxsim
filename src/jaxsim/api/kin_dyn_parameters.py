@@ -1067,7 +1067,7 @@ class HwLinkMetadata(JaxsimDataclass):
         )
 
     @staticmethod
-    def compute_inertia_link(I_com, mass, L_H_G) -> jtp.Matrix:
+    def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:
         """
         Compute the inertia tensor of the link based on its shape and mass.
         """
@@ -1090,17 +1090,20 @@ class HwLinkMetadata(JaxsimDataclass):
             A new HwLinkMetadata object with updated parameters.
         """
 
-        # ==================================
-        # Handle unsupported links
-        # ==================================
         def unsupported_case(hw_metadata, scaling_factors):
+
+            # ========================
+            # Handle unsupported links
+            # ========================
+
             # Return the metadata unchanged for unsupported links
             return hw_metadata
 
         def supported_case(hw_metadata, scaling_factors):
-            # ==================================
+
+            # =================================
             # Update the kinematics of the link
-            # ==================================
+            # =================================
 
             # Get the nominal transforms
             L_H_G = hw_metadata.L_H_G
@@ -1121,6 +1124,7 @@ class HwLinkMetadata(JaxsimDataclass):
             # Apply the scaling to the position vectors
             G_H̅_L = G_H_L.at[:3, 3].set(scale_vector * G_H_L[:3, 3])
             G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
+
             # Apply scaling to the position vectors in G_H_pre_array based on the mask
             G_H̅_pre_array = jax.vmap(
                 lambda G_H_pre, mask: jnp.where(
@@ -1138,21 +1142,21 @@ class HwLinkMetadata(JaxsimDataclass):
             L_H̅_vis = L_H̅_G @ G_H̅_vis
             L_H̅_pre_array = jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
 
-            # ============================
+            # ===========================
             # Update the shape parameters
-            # ============================
+            # ===========================
 
             updated_dims = hw_metadata.dims * scaling_factors.dims
 
-            # ==============================
+            # =============================
             # Scale the density of the link
-            # ==============================
+            # =============================
 
             updated_density = hw_metadata.density * scaling_factors.density
 
-            # ============================
+            # =============================
             # Return updated HwLinkMetadata
-            # ============================
+            # =============================
 
             return hw_metadata.replace(
                 dims=updated_dims,

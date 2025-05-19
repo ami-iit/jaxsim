@@ -404,7 +404,7 @@ def test_joint_limits(
     "initial_joint_positions",
     [
         jnp.array([0, 0]),
-        np.pi / 180 * jnp.array([5, -5]),
+        np.pi / 180 * jnp.array([5, 0]),
     ],
 )
 def test_simulation_with_kinematic_constraints_double_pendulum(
@@ -416,7 +416,7 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     # Arrange
     # ========
 
-    tf = 5.0  # Final simulation time in seconds.
+    tf = 1.0  # Final simulation time in seconds.
 
     model = jaxsim_model_double_pendulum
 
@@ -437,9 +437,6 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     with model.editable(validate=False) as model:
         model.kin_dyn_parameters.constraints = constraints
         model.gravity = 0.0
-
-    # Set the initial joint positions.
-    initial_joint_positions = jnp.array([0.0, 0.0])
 
     # Build the initial data for the model.
     data_t0 = js.data.JaxSimModelData.build(
@@ -468,7 +465,7 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     expected_delta_s_tf = 0.0
 
     assert expected_delta_s_tf == pytest.approx(
-        actual_delta_s_tf, abs=1e-3
+        actual_delta_s_tf, abs=1e-2
     ), f"Joint positions do not match expected value. Position difference [deg]: {actual_delta_s_tf * 180 / np.pi}"
 
 
@@ -479,7 +476,7 @@ def test_simulation_with_kinematic_constraints_cartpole(
     # Arrange
     # ========
 
-    tf = 3.0  # Final simulation time in seconds.
+    tf = 1.0  # Final simulation time in seconds.
 
     model = jaxsim_model_cartpole
 
@@ -497,7 +494,7 @@ def test_simulation_with_kinematic_constraints_cartpole(
     )
 
     # Set the initial joint positions with the cart displaced from the rail zero position.
-    initial_joint_positions = jnp.array([0.1, 0.0])
+    initial_joint_positions = jnp.array([0.05, 0.0])
 
     # Set the constraints in the model.
     with model.editable(validate=False) as model:

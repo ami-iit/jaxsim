@@ -1130,7 +1130,6 @@ class HwLinkMetadata(JaxsimDataclass):
             )
 
             # Apply the scaling to the position vectors
-            G_H̅_L = G_H_L.at[:3, 3].set(scale_vector * G_H_L[:3, 3])
             G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
 
             # Apply scaling to the position vectors in G_H_pre_array based on the mask
@@ -1147,7 +1146,7 @@ class HwLinkMetadata(JaxsimDataclass):
             )
 
             # Get back to the link frame
-            L_H̅_G = jaxsim.math.Transform.inverse(G_H̅_L)
+            L_H̅_G = L_H_G.at[:3, 3].set(scale_vector * L_H_G[:3, 3])
             L_H̅_vis = L_H̅_G @ G_H̅_vis
             L_H̅_pre_array = (
                 jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)

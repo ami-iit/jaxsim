@@ -934,13 +934,20 @@ class HwLinkMetadata(JaxsimDataclass):
         L_H_pre: The homogeneous transforms for child joints.
     """
 
-    shape: jtp.Vector
+    _shape: Static[tuple[int]]
     dims: jtp.Vector
     density: jtp.Float
     L_H_G: jtp.Matrix
     L_H_vis: jtp.Matrix
     L_H_pre_mask: jtp.Vector
     L_H_pre: jtp.Matrix
+
+    @property
+    def shape(self) -> int:
+        """
+        Return the shape of the link.
+        """
+        return np.array(self._shape)
 
     @staticmethod
     def compute_mass_and_inertia(

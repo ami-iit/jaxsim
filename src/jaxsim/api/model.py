@@ -212,7 +212,7 @@ class JaxSimModel(JaxsimDataclass):
         # Compute the hw parametrization metadata of the model
         # TODO: move the building of the metadata to KinDynParameters.build()
         #       and use the model_description instead of model.built_from.
-        if isinstance(contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts):
+        if isinstance(model.contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts):
             with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
                 model.kin_dyn_parameters.hw_link_metadata = (
                     model.compute_hw_link_metadata()

@@ -1111,6 +1111,9 @@ class HwLinkMetadata(JaxsimDataclass):
             L_H_pre_array = hw_metadata.L_H_pre
             L_H_pre_mask = hw_metadata.L_H_pre_mask
 
+            # Check if the link has joints
+            has_joints = L_H_pre_array.shape != (0,)
+
             # Compute the 3D scaling vector
             scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
                 hw_metadata.shape, scaling_factors.dims
@@ -1119,28 +1122,38 @@ class HwLinkMetadata(JaxsimDataclass):
             # Express the transforms in the G frame
             G_H_L = jaxsim.math.Transform.inverse(L_H_G)
             G_H_vis = G_H_L @ L_H_vis
-            G_H_pre_array = jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+
+            G_H_pre_array = (
+                jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+                if has_joints
+                else L_H_pre_array
+            )
 
             # Apply the scaling to the position vectors
             G_H̅_L = G_H_L.at[:3, 3].set(scale_vector * G_H_L[:3, 3])
             G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
 
             # Apply scaling to the position vectors in G_H_pre_array based on the mask
-            G_H̅_pre_array = jax.vmap(
-                lambda G_H_pre, mask: jnp.where(
-                    # Expand mask for broadcasting
-                    mask[..., None, None],
-                    # Apply scaling
-                    G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
-                    # Keep unchanged if mask is False
-                    G_H_pre,
-                )
-            )(G_H_pre_array, L_H_pre_mask)
+            G_H̅_pre_array = (
+                jax.vmap(
+                    lambda G_H_pre, mask: jnp.where(
+                        mask[..., None, None],
+                        G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
+                        G_H_pre,
+                    )
+                )(G_H_pre_array, L_H_pre_mask)
+                if has_joints
+                else G_H_pre_array
+            )
 
             # Get back to the link frame
             L_H̅_G = jaxsim.math.Transform.inverse(G_H̅_L)
             L_H̅_vis = L_H̅_G @ G_H̅_vis
-            L_H̅_pre_array = jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+            L_H̅_pre_array = (
+                jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+                if has_joints
+                else G_H̅_pre_array
+            )
 
             # ===========================
             # Update the shape parameters

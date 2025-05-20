@@ -1077,12 +1077,15 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def apply_scaling(
-        hw_metadata: HwLinkMetadata, scaling_factors: ScalingFactors
+        has_joints: bool,
+        hw_metadata: HwLinkMetadata,
+        scaling_factors: ScalingFactors,
     ) -> HwLinkMetadata:
         """
         Apply scaling to the hardware parameters and return a new HwLinkMetadata object.
 
         Args:
+            has_joints: A boolean indicating if the model has joints.
             hw_metadata: the original HwLinkMetadata object.
             scaling_factors: the scaling factors to apply.
 
@@ -1111,9 +1114,6 @@ class HwLinkMetadata(JaxsimDataclass):
             L_H_pre_array = hw_metadata.L_H_pre
             L_H_pre_mask = hw_metadata.L_H_pre_mask
 
-            # Check if the link has joints
-            has_joints = L_H_pre_array.shape != (0,)
-
             # Compute the 3D scaling vector
             scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
                 hw_metadata.shape, scaling_factors.dims
@@ -1134,13 +1134,13 @@ class HwLinkMetadata(JaxsimDataclass):
 
             # Apply scaling to the position vectors in G_H_pre_array based on the mask
             G_H̅_pre_array = (
-                jax.vmap(
-                    lambda G_H_pre, mask: jnp.where(
-                        mask[..., None, None],
-                        G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
-                        G_H_pre,
+                G_H_pre_array.at[:, :3, 3].set(
+                    jnp.where(
+                        L_H_pre_mask[:, None],
+                        scale_vector[None, :] * G_H_pre_array[:, :3, 3],
+                        G_H_pre_array[:, :3, 3],
                     )
-                )(G_H_pre_array, L_H_pre_mask)
+                )
                 if has_joints
                 else G_H_pre_array
             )

@@ -2358,20 +2358,46 @@ def update_hw_parameters(
 
     has_joints = model.number_of_joints() > 0
 
+    supported_mask = hw_link_metadata.shape != LinkParametrizableShape.Unsupported
+
+    supported_metadata = jax.tree.map(lambda l: l[supported_mask], hw_link_metadata)
+
+    supported_scaling_factors = jax.tree.map(
+        lambda l: l[supported_mask], scaling_factors
+    )
+
     scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-        hw_link_metadata.shape, scaling_factors
+        supported_metadata.shape, supported_scaling_factors
     )
 
     # Apply scaling to hw_link_metadata using vmap
-    updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling, in_axes=(None,))(
+    scaled_hw_link_metadata_supported = jax.vmap(
+        HwLinkMetadata.apply_scaling, in_axes=(None,)
+    )(
         has_joints,
-        hw_metadata=hw_link_metadata,
+        scale_vector=scale_vector,
+        hw_metadata=supported_metadata,
         scaling_factors=scaling_factors,
     )
 
+    # Helper function to merge pytrees leaf-wise with boolean mask
+    def merge_pytree_by_mask(scaled_pytree, original_pytree, mask):
+
+        def merge_leaf(scaled_leaf, original_leaf):
+            mask_shape = (mask.shape[0],) + (1,) * (scaled_leaf.ndim - 1)
+            mask_broadcasted = mask.reshape(mask_shape)
+
+            return jnp.where(mask_broadcasted, scaled_leaf, original_leaf)
+
+        return jax.tree.map(merge_leaf, scaled_pytree, original_pytree)
+
+    updated_hw_link_metadata = merge_pytree_by_mask(
+        scaled_hw_link_metadata_supported, hw_link_metadata, supported_mask
+    )
+
     # Compute mass and inertia once and unpack the results
-    m_updated, I_com_updated = jax.vmap(HwLinkMetadata.compute_mass_and_inertia)(
-        updated_hw_link_metadata
+    m_updated, I_com_updated = HwLinkMetadata.compute_mass_and_inertia(
+        hw_link_metadata.shape, updated_hw_link_metadata
     )
 
     # Rotate the inertia tensor at CoM with the link orientation, and store

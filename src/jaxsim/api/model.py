@@ -2358,6 +2358,10 @@ def update_hw_parameters(
 
     has_joints = model.number_of_joints() > 0
 
+    scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
+        hw_link_metadata.shape, scaling_factors
+    )
+
     # Apply scaling to hw_link_metadata using vmap
     updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling, in_axes=(None,))(
         has_joints,

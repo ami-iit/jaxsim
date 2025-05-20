@@ -1094,6 +1094,7 @@ class HwLinkMetadata(JaxsimDataclass):
     @staticmethod
     def apply_scaling(
         has_joints: bool,
+        scale_vector: jtp.Vector,
         hw_metadata: HwLinkMetadata,
         scaling_factors: ScalingFactors,
     ) -> HwLinkMetadata:
@@ -1102,6 +1103,7 @@ class HwLinkMetadata(JaxsimDataclass):
 
         Args:
             has_joints: A boolean indicating if the model has joints.
+            scale_vector: The scaling vector to apply.
             hw_metadata: the original HwLinkMetadata object.
             scaling_factors: the scaling factors to apply.
 
@@ -1109,96 +1111,73 @@ class HwLinkMetadata(JaxsimDataclass):
             A new HwLinkMetadata object with updated parameters.
         """
 
-        def unsupported_case(hw_metadata, scaling_factors):
+        # =================================
+        # Update the kinematics of the link
+        # =================================
 
-            # ========================
-            # Handle unsupported links
-            # ========================
+        # Get the nominal transforms
+        L_H_G = hw_metadata.L_H_G
+        L_H_vis = hw_metadata.L_H_vis
+        L_H_pre_array = hw_metadata.L_H_pre
+        L_H_pre_mask = hw_metadata.L_H_pre_mask
 
-            # Return the metadata unchanged for unsupported links
-            return hw_metadata
+        # Express the transforms in the G frame
+        G_H_L = jaxsim.math.Transform.inverse(L_H_G)
+        G_H_vis = G_H_L @ L_H_vis
 
-        def supported_case(hw_metadata, scaling_factors):
+        G_H_pre_array = (
+            jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+            if has_joints
+            else L_H_pre_array
+        )
 
-            # =================================
-            # Update the kinematics of the link
-            # =================================
+        # Apply the scaling to the position vectors
+        G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
 
-            # Get the nominal transforms
-            L_H_G = hw_metadata.L_H_G
-            L_H_vis = hw_metadata.L_H_vis
-            L_H_pre_array = hw_metadata.L_H_pre
-            L_H_pre_mask = hw_metadata.L_H_pre_mask
-
-            # Compute the 3D scaling vector
-            scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-                hw_metadata.shape, scaling_factors.dims
-            )
-
-            # Express the transforms in the G frame
-            G_H_L = jaxsim.math.Transform.inverse(L_H_G)
-            G_H_vis = G_H_L @ L_H_vis
-
-            G_H_pre_array = (
-                jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
-                if has_joints
-                else L_H_pre_array
-            )
-
-            # Apply the scaling to the position vectors
-            G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
-
-            # Apply scaling to the position vectors in G_H_pre_array based on the mask
-            G_H̅_pre_array = (
-                G_H_pre_array.at[:, :3, 3].set(
-                    jnp.where(
-                        L_H_pre_mask[:, None],
-                        scale_vector[None, :] * G_H_pre_array[:, :3, 3],
-                        G_H_pre_array[:, :3, 3],
-                    )
+        # Apply scaling to the position vectors in G_H_pre_array based on the mask
+        G_H̅_pre_array = (
+            G_H_pre_array.at[:, :3, 3].set(
+                jnp.where(
+                    L_H_pre_mask[:, None],
+                    scale_vector[None, :] * G_H_pre_array[:, :3, 3],
+                    G_H_pre_array[:, :3, 3],
                 )
-                if has_joints
-                else G_H_pre_array
             )
+            if has_joints
+            else G_H_pre_array
+        )
 
-            # Get back to the link frame
-            L_H̅_G = L_H_G.at[:3, 3].set(scale_vector * L_H_G[:3, 3])
-            L_H̅_vis = L_H̅_G @ G_H̅_vis
-            L_H̅_pre_array = (
-                jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
-                if has_joints
-                else G_H̅_pre_array
-            )
+        # Get back to the link frame
+        L_H̅_G = L_H_G.at[:3, 3].set(scale_vector * L_H_G[:3, 3])
+        L_H̅_vis = L_H̅_G @ G_H̅_vis
+        L_H̅_pre_array = (
+            jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+            if has_joints
+            else G_H̅_pre_array
+        )
 
-            # ===========================
-            # Update the shape parameters
-            # ===========================
+        # ===========================
+        # Update the shape parameters
+        # ===========================
 
-            updated_dims = hw_metadata.dims * scaling_factors.dims
+        updated_dims = hw_metadata.dims * scaling_factors.dims
 
-            # =============================
-            # Scale the density of the link
-            # =============================
+        # =============================
+        # Scale the density of the link
+        # =============================
 
-            updated_density = hw_metadata.density * scaling_factors.density
+        updated_density = hw_metadata.density * scaling_factors.density
 
-            # =============================
-            # Return updated HwLinkMetadata
-            # =============================
+        # =============================
+        # Return updated HwLinkMetadata
+        # =============================
 
-            return hw_metadata.replace(
-                dims=updated_dims,
-                density=updated_density,
-                L_H_G=L_H̅_G,
-                L_H_vis=L_H̅_vis,
-                L_H_pre=L_H̅_pre_array,
-            )
-
-        # Use jax.lax.cond to handle unsupported links
-        return jax.lax.cond(
-            hw_metadata.shape == LinkParametrizableShape.Unsupported,
-            lambda: unsupported_case(hw_metadata, scaling_factors),
-            lambda: supported_case(hw_metadata, scaling_factors),
+        return hw_metadata.replace(
+            dims=updated_dims,
+            density=updated_density,
+            L_H_G=L_H̅_G,
+            L_H_vis=L_H̅_vis,
+            L_H_pre=L_H̅_pre_array,
         )
 
 

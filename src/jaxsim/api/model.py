@@ -488,7 +488,7 @@ class JaxSimModel(JaxsimDataclass):
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
-            shape=jnp.array(shapes, dtype=int),
+            _shape=shapes,
             dims=jnp.array(dims, dtype=float),
             density=jnp.array(densities, dtype=float),
             L_H_G=jnp.array(L_H_Gs, dtype=float),

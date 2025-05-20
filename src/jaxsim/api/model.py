@@ -10,13 +10,12 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
 import rod
-import rod.urdf
 from jax_dataclasses import Static
 from rod.urdf.exporter import UrdfExporter
 
 import jaxsim.api as js
-import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
@@ -507,8 +506,6 @@ class JaxSimModel(JaxsimDataclass):
         Note:
             This method is not meant to be used in JIT-compiled functions.
         """
-
-        import numpy as np
 
         if isinstance(jnp.zeros(0), jax.core.Tracer):
             raise RuntimeError("This method cannot be used in JIT-compiled functions")

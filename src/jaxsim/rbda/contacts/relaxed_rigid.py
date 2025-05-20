@@ -562,14 +562,7 @@ class RelaxedRigidContacts(common.ContactModel):
         )(position, velocity).flatten()
 
         if n_kin_constraints > 0:
-            init_params = jnp.hstack(
-                [
-                    init_params,
-                    jnp.zeros(
-                        n_kin_constraints,
-                    )
-                ]
-            )
+            init_params = jnp.hstack([init_params, jnp.zeros(n_kin_constraints)])
 
         # Get the solver options.
         solver_options = self.solver_options

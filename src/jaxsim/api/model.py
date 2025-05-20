@@ -472,7 +472,7 @@ class JaxSimModel(JaxsimDataclass):
             L_H_pre_masks.append(
                 [
                     int(joint_index in child_joints_indices)
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
             L_H_pre.append(
@@ -482,7 +482,7 @@ class JaxSimModel(JaxsimDataclass):
                         if joint_index in child_joints_indices
                         else jnp.eye(4)
                     )
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
 
@@ -2402,21 +2402,25 @@ def update_hw_parameters(
         # Return the selected transform or fallback
         return jnp.where(has_valid_transform, selected_transform, fallback_transform)
 
-    # Apply the update function to all joint indices
-    updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
-        jnp.arange(kin_dyn_params.number_of_joints())
-    )
+    if model.number_of_joints() > 0:
+        # Apply the update function to all joint indices
+        updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
+            jnp.arange(kin_dyn_params.number_of_joints())
+        )
 
-    # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
-    # to identity to represent the world-to-base tree transform. See JointModel class
-    updated_λ_H_pre_with_base = jnp.concatenate(
-        (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
-    )
+        # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
+        # to identity to represent the world-to-base tree transform. See JointModel class
+        updated_λ_H_pre_with_base = jnp.concatenate(
+            (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
+        )
 
-    # Replace the joint model with the updated transforms
-    updated_joint_model = kin_dyn_params.joint_model.replace(
-        λ_H_pre=updated_λ_H_pre_with_base
-    )
+        # Replace the joint model with the updated transforms
+        updated_joint_model = kin_dyn_params.joint_model.replace(
+            λ_H_pre=updated_λ_H_pre_with_base
+        )
+    else:
+        # If there are no joints, we can just use the identity transform
+        updated_joint_model = kin_dyn_params.joint_model
 
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(

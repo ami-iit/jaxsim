@@ -1,12 +1,9 @@
-import functools
-
 import jax
 import jax.numpy as jnp
 
 import jaxsim.typing as jtp
 
 
-@functools.cache
 def _make_safe_norm(axis, keepdims):
     @jax.custom_jvp
     def _safe_norm(array: jtp.ArrayLike) -> jtp.Array:

@@ -58,10 +58,8 @@
             </geometry>
         </collision>
     </link>
-    <link name="cart_frame">
-    </link>
-    <link name="rail_frame">
-    </link>
+    <link name="cart_frame"/>
+    <link name="rail_frame"/>
     <joint name="cart_frame_joint" type="fixed">
         <parent link="cart" />
         <child link="cart_frame" />

@@ -951,6 +951,7 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def compute_mass_and_inertia(
+        shape_types: jtp.Array,
         hw_link_metadata: HwLinkMetadata,
     ) -> tuple[jtp.Float, jtp.Matrix]:
         """
@@ -961,6 +962,7 @@ class HwLinkMetadata(JaxsimDataclass):
         by using shape-specific methods.
 
         Args:
+            shape_types: The shape types of the link (e.g., box, sphere, cylinder).
             hw_link_metadata: Metadata describing the hardware link,
                 including its shape, dimensions, and density.
 
@@ -970,56 +972,52 @@ class HwLinkMetadata(JaxsimDataclass):
                 - inertia: The computed inertia tensor of the hardware link.
         """
 
-        mass, inertia = jax.lax.switch(
-            hw_link_metadata.shape,
-            [
-                HwLinkMetadata._box,
-                HwLinkMetadata._cylinder,
-                HwLinkMetadata._sphere,
-            ],
+        def box(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+            lx, ly, lz = dims
+
+            mass = density * lx * ly * lz
+
+            inertia = jnp.array(
+                [
+                    [mass * (ly**2 + lz**2) / 12, 0, 0],
+                    [0, mass * (lx**2 + lz**2) / 12, 0],
+                    [0, 0, mass * (lx**2 + ly**2) / 12],
+                ]
+            )
+            return mass, inertia
+
+        def cylinder(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+            r, l, _ = dims
+
+            mass = density * (jnp.pi * r**2 * l)
+
+            inertia = jnp.array(
+                [
+                    [mass * (3 * r**2 + l**2) / 12, 0, 0],
+                    [0, mass * (3 * r**2 + l**2) / 12, 0],
+                    [0, 0, mass * (r**2) / 2],
+                ]
+            )
+
+            return mass, inertia
+
+        def sphere(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+            r = dims[0]
+
+            mass = density * (4 / 3 * jnp.pi * r**3)
+
+            inertia = jnp.eye(3) * (2 / 5 * mass * r**2)
+
+            return mass, inertia
+
+        def compute_mass_inertia(shape_idx, dims, density):
+            return jax.lax.switch(shape_idx, (box, cylinder, sphere), dims, density)
+
+        mass, inertia = jax.vmap(compute_mass_inertia)(
+            jnp.array(shape_types),
             hw_link_metadata.dims,
             hw_link_metadata.density,
         )
-        return mass, inertia
-
-    @staticmethod
-    def _box(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
-        lx, ly, lz = dims
-
-        mass = density * lx * ly * lz
-
-        inertia = jnp.array(
-            [
-                [mass * (ly**2 + lz**2) / 12, 0, 0],
-                [0, mass * (lx**2 + lz**2) / 12, 0],
-                [0, 0, mass * (lx**2 + ly**2) / 12],
-            ]
-        )
-        return mass, inertia
-
-    @staticmethod
-    def _cylinder(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
-        r, l, _ = dims
-
-        mass = density * (jnp.pi * r**2 * l)
-
-        inertia = jnp.array(
-            [
-                [mass * (3 * r**2 + l**2) / 12, 0, 0],
-                [0, mass * (3 * r**2 + l**2) / 12, 0],
-                [0, 0, mass * (r**2) / 2],
-            ]
-        )
-
-        return mass, inertia
-
-    @staticmethod
-    def _sphere(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
-        r = dims[0]
-
-        mass = density * (4 / 3 * jnp.pi * r**3)
-
-        inertia = jnp.eye(3) * (2 / 5 * mass * r**2)
 
         return mass, inertia
 

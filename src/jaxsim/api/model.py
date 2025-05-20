@@ -2356,9 +2356,13 @@ def update_hw_parameters(
     link_parameters: LinkParameters = kin_dyn_params.link_parameters
     hw_link_metadata: HwLinkMetadata = kin_dyn_params.hw_link_metadata
 
+    has_joints = model.number_of_joints() > 0
+
     # Apply scaling to hw_link_metadata using vmap
-    updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling)(
-        hw_link_metadata, scaling_factors
+    updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling, in_axes=(None,))(
+        has_joints,
+        hw_metadata=hw_link_metadata,
+        scaling_factors=scaling_factors,
     )
 
     # Compute mass and inertia once and unpack the results
@@ -2402,7 +2406,7 @@ def update_hw_parameters(
         # Return the selected transform or fallback
         return jnp.where(has_valid_transform, selected_transform, fallback_transform)
 
-    if model.number_of_joints() > 0:
+    if has_joints:
         # Apply the update function to all joint indices
         updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
             jnp.arange(kin_dyn_params.number_of_joints())

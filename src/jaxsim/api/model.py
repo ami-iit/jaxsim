@@ -402,7 +402,7 @@ class JaxSimModel(JaxsimDataclass):
         L_H_Gs = []
         L_H_vises = []
         L_H_pre_masks = []
-        L_H_pres = []
+        L_H_pre = []
 
         # Process each link
         for link_description in ordered_links:
@@ -432,7 +432,9 @@ class JaxSimModel(JaxsimDataclass):
 
             # Skip unsupported links
             if not jnp.allclose(
-                self.kin_dyn_parameters.joint_model.suc_H_i[link_index], jnp.eye(4)
+                self.kin_dyn_parameters.joint_model.suc_H_i[link_index],
+                jnp.eye(4),
+                **(dict(atol=1e-6) if not jax.config.jax_enable_x64 else dict()),
             ):
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization due to unsupported suc_H_link."
@@ -469,17 +471,17 @@ class JaxSimModel(JaxsimDataclass):
             L_H_pre_masks.append(
                 [
                     int(joint_index in child_joints_indices)
-                    for joint_index in range(self.number_of_joints())
+                    for joint_index in range(0, self.number_of_joints())
                 ]
             )
-            L_H_pres.append(
+            L_H_pre.append(
                 [
                     (
                         self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
                         if joint_index in child_joints_indices
                         else jnp.eye(4)
                     )
-                    for joint_index in range(self.number_of_joints())
+                    for joint_index in range(0, self.number_of_joints())
                 ]
             )
 
@@ -491,7 +493,7 @@ class JaxSimModel(JaxsimDataclass):
             L_H_G=jnp.array(L_H_Gs, dtype=float),
             L_H_vis=jnp.array(L_H_vises, dtype=float),
             L_H_pre_mask=jnp.array(L_H_pre_masks, dtype=bool),
-            L_H_pre=jnp.array(L_H_pres, dtype=float),
+            L_H_pre=jnp.array(L_H_pre, dtype=float),
         )
 
     def export_updated_model(self) -> str:
@@ -581,7 +583,7 @@ class JaxSimModel(JaxsimDataclass):
             # Update visual pose
             links_dict[link_name].visual.pose = rod.Pose.from_transform(
                 transform=np.array(hw_metadata.L_H_vis[link_index]),
-                relative_to=links_dict[link_name].visual.pose.relative_to,
+                relative_to=link_name,
             )
 
             # Update joint poses
@@ -595,7 +597,7 @@ class JaxSimModel(JaxsimDataclass):
                             transform=np.array(
                                 hw_metadata.L_H_pre[link_index, joint_index]
                             ),
-                            relative_to=joints_dict[joint_name].pose.relative_to,
+                            relative_to=link_name,
                         )
 
         # Export the URDF string.
@@ -800,9 +802,16 @@ def reduce(
         constraints=model.kin_dyn_parameters.constraints,
     )
 
-    # Store the origin of the model, in case downstream logic needs it.
     with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+        # Store the origin of the model, in case downstream logic needs it.
         reduced_model.built_from = model.built_from
+
+        # Compute the hw parametrization metadata of the reduced model
+        # TODO: move the building of the metadata to KinDynParameters.build()
+        #       and use the model_description instead of model.built_from.
+        reduced_model.kin_dyn_parameters.hw_link_metadata = (
+            reduced_model.compute_hw_link_metadata()
+        )
 
     return reduced_model
 
@@ -2406,15 +2415,22 @@ def update_hw_parameters(
         return jax.lax.cond(
             jnp.any(L_H_pre_mask_for_joint),
             lambda: selected_transform,
-            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index],
+            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index + 1],
         )
 
     # Apply the update function to all joint indices
     updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
-        jnp.arange(kin_dyn_params.number_of_joints() + 1)
+        jnp.arange(kin_dyn_params.number_of_joints())
+    )
+    # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
+    # to identity to represent the world-to-base tree transform. See JointModel class
+    updated_λ_H_pre_with_base = jnp.concatenate(
+        (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
     )
     # Replace the joint model with the updated transforms
-    updated_joint_model = kin_dyn_params.joint_model.replace(λ_H_pre=updated_λ_H_pre)
+    updated_joint_model = kin_dyn_params.joint_model.replace(
+        λ_H_pre=updated_λ_H_pre_with_base
+    )
 
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(

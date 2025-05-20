@@ -924,9 +924,9 @@ class HwLinkMetadata(JaxsimDataclass):
 
     Attributes:
         shape: The shape of the link.
-            0 = box, 1 = sphere, 2 = cylinder, -1 = unsupported.
+            0 = box, 1 = cylinder, 2 = sphere, -1 = unsupported.
         dims: The dimensions of the link.
-            box: [lx,ly,lz], sphere: [r,0,0], cylinder: [r,l,0]
+            box: [lx,ly,lz], cylinder: [r,l,0], sphere: [r,0,0].
         density: The density of the link.
         L_H_G: The homogeneous transformation matrix from the link frame to the CoM frame G.
         L_H_vis: The homogeneous transformation matrix from the link frame to the visual frame.
@@ -1040,7 +1040,13 @@ class HwLinkMetadata(JaxsimDataclass):
             shape,
             branches=[
                 # Box
-                lambda: scaling_factors,
+                lambda: jnp.array(
+                    [
+                        scaling_factors[0],
+                        scaling_factors[1],
+                        scaling_factors[2],
+                    ]
+                ),
                 # Cylinder
                 lambda: jnp.array(
                     [

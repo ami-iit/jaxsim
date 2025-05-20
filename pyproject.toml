@@ -99,7 +99,7 @@ Tracker = "https://github.com/ami-iit/jaxsim/issues"
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools>=64",
+    "setuptools>=77",
     "setuptools-scm[toml]>=8",
     "wheel",
 ]
@@ -240,6 +240,9 @@ pip = "*"
 [tool.pixi.pypi-dependencies]
 jaxsim = { path = "./", editable = true }
 
+[tool.pixi.pypi-options]
+no-build-isolation = ["jaxsim"]
+
 # ------------
 # feature.test
 # ------------
@@ -259,6 +262,7 @@ pytest = "*"
 pytest-benchmark = "*"
 pytest-icdiff = "*"
 robot_descriptions = ">=1.16.0"
+setuptools_scm = ">=8.3.1,<9"
 
 # ----------------
 # feature.examples

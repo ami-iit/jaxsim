@@ -1025,13 +1025,13 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def _convert_scaling_to_3d_vector(
-        shape: jtp.Int, scaling_factors: jtp.Vector
+        shape_types: jtp.Int, scaling_factors: jtp.Vector
     ) -> jtp.Vector:
         """
         Convert scaling factors for specific shape dimensions into a 3D scaling vector.
 
         Args:
-            shape: The shape of the link (e.g., box, sphere, cylinder).
+            shape_types: The shape_types of the link (e.g., box, sphere, cylinder).
             scaling_factors: The scaling factors for the shape dimensions.
 
         Returns:
@@ -1043,35 +1043,21 @@ class HwLinkMetadata(JaxsimDataclass):
             - Cylinder: [r, r, l]
             - Sphere: [r, r, r]
         """
-        return jax.lax.switch(
-            shape,
-            branches=[
-                # Box
-                lambda: jnp.array(
-                    [
-                        scaling_factors[0],
-                        scaling_factors[1],
-                        scaling_factors[2],
-                    ]
-                ),
-                # Cylinder
-                lambda: jnp.array(
-                    [
-                        scaling_factors[0],
-                        scaling_factors[0],
-                        scaling_factors[1],
-                    ]
-                ),
-                # Sphere
-                lambda: jnp.array(
-                    [
-                        scaling_factors[0],
-                        scaling_factors[0],
-                        scaling_factors[0],
-                    ]
-                ),
-            ],
+
+        # Index mapping for each shape type (shape_type x 3 dims)
+        shape_indices = jnp.array(
+            [
+                [0, 1, 2],  # Box
+                [0, 0, 1],  # Cylinder
+                [0, 0, 0],  # Sphere
+            ]
         )
+
+        # For each link, get the index vector for its shape
+        per_link_indices = shape_indices[shape_types]
+
+        # Gather dims per link according to per_link_indices
+        return jnp.take_along_axis(scaling_factors.dims, per_link_indices, axis=1)
 
     @staticmethod
     def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:

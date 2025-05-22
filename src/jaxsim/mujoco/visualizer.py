@@ -16,8 +16,8 @@ class MujocoVideoRecorder:
 
     def __init__(
         self,
-        model: mj.MjModel,
-        data: mj.MjData,
+        model: list[mujoco.MjModel] | mujoco.MjModel,
+        data: list[mujoco.MjData] | mujoco.MjData,
         fps: int = 30,
         width: int | None = None,
         height: int | None = None,

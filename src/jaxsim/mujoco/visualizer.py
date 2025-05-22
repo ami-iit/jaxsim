@@ -53,7 +53,7 @@ class MujocoVideoRecorder:
         self.reset(model=model, data=data)
 
         self.renderer = mujoco.Renderer(
-            model=self.model,
+            model=single_model,
             **(dict(width=width, height=height) | kwargs),
         )
 
@@ -77,15 +77,15 @@ class MujocoVideoRecorder:
 
         for idx, data in enumerate(self.data):
 
-            mujoco.mj_forward(self.model, data)
+            # Use a single model for rendering if multiple data instances are provided.
+            # Otherwise, use the data index to select the corresponding model.
+            model = self.model[min(idx, len(self.data) - 1)]
+
+            mujoco.mj_forward(model, data)
 
             if idx == 0:
                 self.renderer.update_scene(data=data, camera=camera_name)
                 continue
-
-            # Use a single model for rendering if multiple data instances are provided.
-            # Otherwise, use the data index to select the corresponding model.
-            model = self.model[max(idx, len(self.data) - 1)]
 
             mujoco.mjv_addGeoms(
                 m=model,

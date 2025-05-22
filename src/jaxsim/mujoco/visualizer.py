@@ -47,7 +47,7 @@ class MujocoVideoRecorder:
         self.fps = fps
         self.frames: list[npt.NDArray] = []
         self.data: list[mujoco.MjData] | mujoco.MjData | None = None
-        self.model: mujoco.MjModel | None = None
+        self.model: list[mujoco.MjModel] | mujoco.MjModel | None = None
         self.reset(model=model, data=data)
 
         self.renderer = mujoco.Renderer(
@@ -68,6 +68,7 @@ class MujocoVideoRecorder:
         self.data = self.data if isinstance(self.data, list) else [self.data]
 
         self.model = model if model is not None else self.model
+        self.model = self.model if isinstance(self.model, list) else [self.model]
 
     def render_frame(self, camera_name: str = "track") -> npt.NDArray:
         """Render a frame."""
@@ -80,8 +81,12 @@ class MujocoVideoRecorder:
                 self.renderer.update_scene(data=data, camera=camera_name)
                 continue
 
+            # Use a single model for rendering if multiple data instances are provided.
+            # Otherwise, use the data index to select the corresponding model.
+            model = self.model[max(idx, len(self.data) - 1)]
+
             mujoco.mjv_addGeoms(
-                m=self.model,
+                m=model,
                 d=data,
                 opt=mujoco.MjvOption(),
                 pert=mujoco.MjvPerturb(),

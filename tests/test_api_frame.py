@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-import jaxlib.xla_extension
 import pytest
+from jax.errors import JaxRuntimeError
 
 import jaxsim.api as js
 from jaxsim import VelRepr
@@ -50,22 +50,22 @@ def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
     with pytest.raises(ValueError):
         _ = js.frame.name_to_idx(model=model, frame_name="non_existent_frame")
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(JaxRuntimeError):
         _ = js.frame.idx_to_name(model=model, frame_index=-1)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(JaxRuntimeError):
         _ = js.frame.idx_to_name(model=model, frame_index=n_l - 1)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(JaxRuntimeError):
         _ = js.frame.idx_to_name(model=model, frame_index=n_l + n_f)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(JaxRuntimeError):
         _ = js.frame.idx_of_parent_link(model=model, frame_index=-1)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(JaxRuntimeError):
         _ = js.frame.idx_of_parent_link(model=model, frame_index=n_l - 1)
 
-    with pytest.raises(jaxlib.xla_extension.XlaRuntimeError):
+    with pytest.raises(JaxRuntimeError):
         _ = js.frame.idx_of_parent_link(model=model, frame_index=n_l + n_f)
 
 

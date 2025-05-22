@@ -46,8 +46,8 @@ classifiers = [
 ]
 dependencies = [
     "coloredlogs",
-    "jax >= 0.4.26",
-    "jaxlib >= 0.4.26",
+    "jax >= 0.4.34",
+    "jaxlib >= 0.4.34",
     "jaxlie >= 1.3.0",
     "jax_dataclasses >= 1.4.0",
     "pptree",

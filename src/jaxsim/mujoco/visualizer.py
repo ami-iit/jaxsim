@@ -35,14 +35,16 @@ class MujocoVideoRecorder:
             **kwargs: Additional arguments for the renderer.
         """
 
-        width = width if width is not None else model.vis.global_.offwidth
-        height = height if height is not None else model.vis.global_.offheight
+        single_model = model if isinstance(model, mj.MjModel) else model[0]
 
-        if model.vis.global_.offwidth != width:
-            model.vis.global_.offwidth = width
+        width = width if width is not None else single_model.vis.global_.offwidth
+        height = height if height is not None else single_model.vis.global_.offheight
 
-        if model.vis.global_.offheight != height:
-            model.vis.global_.offheight = height
+        if single_model.vis.global_.offwidth != width:
+            single_model.vis.global_.offwidth = width
+
+        if single_model.vis.global_.offheight != height:
+            single_model.vis.global_.offheight = height
 
         self.fps = fps
         self.frames: list[npt.NDArray] = []

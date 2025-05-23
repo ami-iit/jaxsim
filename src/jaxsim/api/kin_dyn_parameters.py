@@ -934,7 +934,7 @@ class HwLinkMetadata(JaxsimDataclass):
         L_H_pre: The homogeneous transforms for child joints.
     """
 
-    shape: jtp.Vector
+    _shape: Static[tuple[int]]
     dims: jtp.Vector
     density: jtp.Float
     L_H_G: jtp.Matrix
@@ -942,8 +942,16 @@ class HwLinkMetadata(JaxsimDataclass):
     L_H_pre_mask: jtp.Vector
     L_H_pre: jtp.Matrix
 
+    @property
+    def shape(self) -> int:
+        """
+        Return the shape of the link.
+        """
+        return np.array(self._shape)
+
     @staticmethod
     def compute_mass_and_inertia(
+        shape_types: jtp.Array,
         hw_link_metadata: HwLinkMetadata,
     ) -> tuple[jtp.Float, jtp.Matrix]:
         """
@@ -954,6 +962,7 @@ class HwLinkMetadata(JaxsimDataclass):
         by using shape-specific methods.
 
         Args:
+            shape_types: The shape types of the link (e.g., box, sphere, cylinder).
             hw_link_metadata: Metadata describing the hardware link,
                 including its shape, dimensions, and density.
 
@@ -963,68 +972,89 @@ class HwLinkMetadata(JaxsimDataclass):
                 - inertia: The computed inertia tensor of the hardware link.
         """
 
-        mass, inertia = jax.lax.switch(
-            hw_link_metadata.shape,
-            [
-                HwLinkMetadata._box,
-                HwLinkMetadata._cylinder,
-                HwLinkMetadata._sphere,
-            ],
+        def box(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+            lx, ly, lz = dims
+
+            mass = density * lx * ly * lz
+
+            inertia = jnp.array(
+                [
+                    [mass * (ly**2 + lz**2) / 12, 0, 0],
+                    [0, mass * (lx**2 + lz**2) / 12, 0],
+                    [0, 0, mass * (lx**2 + ly**2) / 12],
+                ]
+            )
+            return mass, inertia
+
+        def cylinder(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+            r, l, _ = dims
+
+            mass = density * (jnp.pi * r**2 * l)
+
+            inertia = jnp.array(
+                [
+                    [mass * (3 * r**2 + l**2) / 12, 0, 0],
+                    [0, mass * (3 * r**2 + l**2) / 12, 0],
+                    [0, 0, mass * (r**2) / 2],
+                ]
+            )
+
+            return mass, inertia
+
+        def sphere(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
+            r = dims[0]
+
+            mass = density * (4 / 3 * jnp.pi * r**3)
+
+            inertia = jnp.eye(3) * (2 / 5 * mass * r**2)
+
+            return mass, inertia
+
+        def compute_mass_inertia(shape_idx, dims, density):
+            return jax.lax.switch(shape_idx, (box, cylinder, sphere), dims, density)
+
+        mass, inertia = jax.vmap(compute_mass_inertia)(
+            jnp.array(shape_types),
             hw_link_metadata.dims,
             hw_link_metadata.density,
         )
+
         return mass, inertia
 
     @staticmethod
-    def _box(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
-        lx, ly, lz = dims
+    def compute_contact_points(
+        original_contact_params: jtp.Vector,
+        hw_link_metadata: HwLinkMetadata,
+        scaling_factors: ScalingFactors,
+    ) -> jtp.Matrix:
+        """
+        Compute the new contact points based on the original contact parameters and
+        the scaling factors.
 
-        mass = density * lx * ly * lz
+        Args:
+            original_contact_params: The original contact parameters.
+            hw_link_metadata: The hardware link metadata.
+            scaling_factors: The scaling factors to apply.
 
-        inertia = jnp.array(
-            [
-                [mass * (ly**2 + lz**2) / 12, 0, 0],
-                [0, mass * (lx**2 + lz**2) / 12, 0],
-                [0, 0, mass * (lx**2 + ly**2) / 12],
-            ]
-        )
-        return mass, inertia
+        Returns:
+            The new contact points positions in the parent link frame.
+        """
 
-    @staticmethod
-    def _cylinder(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
-        r, l, _ = dims
-
-        mass = density * (jnp.pi * r**2 * l)
-
-        inertia = jnp.array(
-            [
-                [mass * (3 * r**2 + l**2) / 12, 0, 0],
-                [0, mass * (3 * r**2 + l**2) / 12, 0],
-                [0, 0, mass * (r**2) / 2],
-            ]
+        new_positions = jax.vmap(jnp.multiply)(
+            original_contact_params.point, jnp.array(original_contact_params.body)
         )
 
-        return mass, inertia
-
-    @staticmethod
-    def _sphere(dims, density) -> tuple[jtp.Float, jtp.Matrix]:
-        r = dims[0]
-
-        mass = density * (4 / 3 * jnp.pi * r**3)
-
-        inertia = jnp.eye(3) * (2 / 5 * mass * r**2)
-
-        return mass, inertia
+        return new_positions
 
     @staticmethod
     def _convert_scaling_to_3d_vector(
-        shape: jtp.Int, scaling_factors: jtp.Vector
+        shape_types: jtp.Int, scaling_factors: jtp.Vector
     ) -> jtp.Vector:
         """
         Convert scaling factors for specific shape dimensions into a 3D scaling vector.
 
         Args:
-            shape: The shape of the link (e.g., box, sphere, cylinder).
+            shape_types: The shape_types of the link (e.g., box, sphere, cylinder).
             scaling_factors: The scaling factors for the shape dimensions.
 
         Returns:
@@ -1036,38 +1066,24 @@ class HwLinkMetadata(JaxsimDataclass):
             - Cylinder: [r, r, l]
             - Sphere: [r, r, r]
         """
-        return jax.lax.switch(
-            shape,
-            branches=[
-                # Box
-                lambda: jnp.array(
-                    [
-                        scaling_factors[0],
-                        scaling_factors[1],
-                        scaling_factors[2],
-                    ]
-                ),
-                # Cylinder
-                lambda: jnp.array(
-                    [
-                        scaling_factors[0],
-                        scaling_factors[0],
-                        scaling_factors[1],
-                    ]
-                ),
-                # Sphere
-                lambda: jnp.array(
-                    [
-                        scaling_factors[0],
-                        scaling_factors[0],
-                        scaling_factors[0],
-                    ]
-                ),
-            ],
+
+        # Index mapping for each shape type (shape_type x 3 dims)
+        shape_indices = jnp.array(
+            [
+                [0, 1, 2],  # Box
+                [0, 0, 1],  # Cylinder
+                [0, 0, 0],  # Sphere
+            ]
         )
 
+        # For each link, get the index vector for its shape
+        per_link_indices = shape_indices[shape_types]
+
+        # Gather dims per link according to per_link_indices
+        return jnp.take_along_axis(scaling_factors.dims, per_link_indices, axis=1)
+
     @staticmethod
-    def compute_inertia_link(I_com, mass, L_H_G) -> jtp.Matrix:
+    def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:
         """
         Compute the inertia tensor of the link based on its shape and mass.
         """
@@ -1077,12 +1093,17 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def apply_scaling(
-        hw_metadata: HwLinkMetadata, scaling_factors: ScalingFactors
+        has_joints: bool,
+        scale_vector: jtp.Vector,
+        hw_metadata: HwLinkMetadata,
+        scaling_factors: ScalingFactors,
     ) -> HwLinkMetadata:
         """
         Apply scaling to the hardware parameters and return a new HwLinkMetadata object.
 
         Args:
+            has_joints: A boolean indicating if the model has joints.
+            scale_vector: The scaling vector to apply.
             hw_metadata: the original HwLinkMetadata object.
             scaling_factors: the scaling factors to apply.
 
@@ -1090,83 +1111,73 @@ class HwLinkMetadata(JaxsimDataclass):
             A new HwLinkMetadata object with updated parameters.
         """
 
-        # ==================================
-        # Handle unsupported links
-        # ==================================
-        def unsupported_case(hw_metadata, scaling_factors):
-            # Return the metadata unchanged for unsupported links
-            return hw_metadata
+        # =================================
+        # Update the kinematics of the link
+        # =================================
 
-        def supported_case(hw_metadata, scaling_factors):
-            # ==================================
-            # Update the kinematics of the link
-            # ==================================
+        # Get the nominal transforms
+        L_H_G = hw_metadata.L_H_G
+        L_H_vis = hw_metadata.L_H_vis
+        L_H_pre_array = hw_metadata.L_H_pre
+        L_H_pre_mask = hw_metadata.L_H_pre_mask
 
-            # Get the nominal transforms
-            L_H_G = hw_metadata.L_H_G
-            L_H_vis = hw_metadata.L_H_vis
-            L_H_pre_array = hw_metadata.L_H_pre
-            L_H_pre_mask = hw_metadata.L_H_pre_mask
+        # Express the transforms in the G frame
+        G_H_L = jaxsim.math.Transform.inverse(L_H_G)
+        G_H_vis = G_H_L @ L_H_vis
 
-            # Compute the 3D scaling vector
-            scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-                hw_metadata.shape, scaling_factors.dims
-            )
+        G_H_pre_array = (
+            jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+            if has_joints
+            else L_H_pre_array
+        )
 
-            # Express the transforms in the G frame
-            G_H_L = jaxsim.math.Transform.inverse(L_H_G)
-            G_H_vis = G_H_L @ L_H_vis
-            G_H_pre_array = jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+        # Apply the scaling to the position vectors
+        G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
 
-            # Apply the scaling to the position vectors
-            G_H̅_L = G_H_L.at[:3, 3].set(scale_vector * G_H_L[:3, 3])
-            G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
-            # Apply scaling to the position vectors in G_H_pre_array based on the mask
-            G_H̅_pre_array = jax.vmap(
-                lambda G_H_pre, mask: jnp.where(
-                    # Expand mask for broadcasting
-                    mask[..., None, None],
-                    # Apply scaling
-                    G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
-                    # Keep unchanged if mask is False
-                    G_H_pre,
+        # Apply scaling to the position vectors in G_H_pre_array based on the mask
+        G_H̅_pre_array = (
+            G_H_pre_array.at[:, :3, 3].set(
+                jnp.where(
+                    L_H_pre_mask[:, None],
+                    scale_vector[None, :] * G_H_pre_array[:, :3, 3],
+                    G_H_pre_array[:, :3, 3],
                 )
-            )(G_H_pre_array, L_H_pre_mask)
-
-            # Get back to the link frame
-            L_H̅_G = jaxsim.math.Transform.inverse(G_H̅_L)
-            L_H̅_vis = L_H̅_G @ G_H̅_vis
-            L_H̅_pre_array = jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
-
-            # ============================
-            # Update the shape parameters
-            # ============================
-
-            updated_dims = hw_metadata.dims * scaling_factors.dims
-
-            # ==============================
-            # Scale the density of the link
-            # ==============================
-
-            updated_density = hw_metadata.density * scaling_factors.density
-
-            # ============================
-            # Return updated HwLinkMetadata
-            # ============================
-
-            return hw_metadata.replace(
-                dims=updated_dims,
-                density=updated_density,
-                L_H_G=L_H̅_G,
-                L_H_vis=L_H̅_vis,
-                L_H_pre=L_H̅_pre_array,
             )
+            if has_joints
+            else G_H_pre_array
+        )
 
-        # Use jax.lax.cond to handle unsupported links
-        return jax.lax.cond(
-            hw_metadata.shape == LinkParametrizableShape.Unsupported,
-            lambda: unsupported_case(hw_metadata, scaling_factors),
-            lambda: supported_case(hw_metadata, scaling_factors),
+        # Get back to the link frame
+        L_H̅_G = L_H_G.at[:3, 3].set(scale_vector * L_H_G[:3, 3])
+        L_H̅_vis = L_H̅_G @ G_H̅_vis
+        L_H̅_pre_array = (
+            jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+            if has_joints
+            else G_H̅_pre_array
+        )
+
+        # ===========================
+        # Update the shape parameters
+        # ===========================
+
+        updated_dims = hw_metadata.dims * scaling_factors.dims
+
+        # =============================
+        # Scale the density of the link
+        # =============================
+
+        updated_density = hw_metadata.density * scaling_factors.density
+
+        # =============================
+        # Return updated HwLinkMetadata
+        # =============================
+
+        return hw_metadata.replace(
+            dims=updated_dims,
+            density=updated_density,
+            L_H_G=L_H̅_G,
+            L_H_vis=L_H̅_vis,
+            L_H_pre=L_H̅_pre_array,
         )
 
 

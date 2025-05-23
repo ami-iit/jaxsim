@@ -87,6 +87,21 @@ def pytest_configure(config) -> None:
         check_gpu_usage()
 
 
+def load_model_from_file(file_path: pathlib.Path, is_urdf=False) -> rod.Sdf:
+    """
+    Load an SDF or URDF model from a file.
+
+    Args:
+        file_path: The path to the model file.
+        is_urdf: Whether the file is in URDF or SDF format.
+
+    Returns:
+        The corresponding rod model.
+    """
+
+    return rod.Sdf.load(file_path, is_urdf=is_urdf)
+
+
 # ================
 # Generic fixtures
 # ================
@@ -692,6 +707,38 @@ def create_scalable_garpez_model(
     assert rod.Sdf(model=rod_model, version="1.10").serialize(validate=True)
 
     return rod_model
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_double_pendulum() -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a double pendulum.
+    Returns:
+        The JaxSim model of a double pendulum.
+    """
+
+    model_path = pathlib.Path(__file__).parent / "assets" / "double_pendulum.sdf"
+    rod_model = load_model_from_file(model_path)
+    model = build_jaxsim_model(model_description=rod_model)
+
+    return model
+
+
+@pytest.fixture(scope="session")
+def jaxsim_model_cartpole() -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a cartpole.
+    Returns:
+        The JaxSim model of a cartpole.
+    """
+
+    model_path = (
+        pathlib.Path(__file__).parent.parent / "examples" / "assets" / "cartpole.urdf"
+    )
+    rod_model = load_model_from_file(model_path, is_urdf=True)
+    model = build_jaxsim_model(model_description=rod_model)
+
+    return model
 
 
 # ============================

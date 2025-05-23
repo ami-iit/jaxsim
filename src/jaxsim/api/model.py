@@ -141,6 +141,7 @@ class JaxSimModel(JaxsimDataclass):
         is_urdf: bool | None = None,
         considered_joints: Sequence[str] | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
+        constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -167,6 +168,9 @@ class JaxSimModel(JaxsimDataclass):
             considered_joints:
                 The list of joints to consider. If None, all joints are considered.
             gravity: The gravity constant. Normally passed as a positive value.
+            constraints:
+                An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
+                Note that constraints can be used only with RelaxedRigidContacts.
 
         Returns:
             The built Model object.
@@ -198,6 +202,7 @@ class JaxSimModel(JaxsimDataclass):
             contact_params=contact_params,
             integrator=integrator,
             gravity=-gravity,
+            constraints=constraints,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
@@ -225,6 +230,7 @@ class JaxSimModel(JaxsimDataclass):
         actuation_params: jaxsim.rbda.actuation.ActuationParams | None = None,
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
+        constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -247,6 +253,8 @@ class JaxSimModel(JaxsimDataclass):
             actuation_params: The parameters of the actuation model.
             integrator: The integrator to use for the simulation.
             gravity: The gravity constant.
+            constraints:
+                An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
 
         Returns:
             The built Model object.
@@ -278,6 +286,14 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
+        if constraints is not None and not isinstance(
+            contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts
+        ):
+            constraints = None
+            logging.warning(
+                f"Contact model {contact_model.__class__.__name__} does not support kinematic constraints. Use RelaxedRigidContacts instead."
+            )
+
         if contact_params is None:
             contact_params = contact_model._parameters_class()
 
@@ -295,7 +311,7 @@ class JaxSimModel(JaxsimDataclass):
         model = cls(
             model_name=model_name,
             kin_dyn_parameters=js.kin_dyn_parameters.KinDynParameters.build(
-                model_description=model_description
+                model_description=model_description, constraints=constraints
             ),
             time_step=time_step,
             terrain=terrain,
@@ -777,6 +793,7 @@ def reduce(
         actuation_params=model.actuation_params,
         gravity=model.gravity,
         integrator=model.integrator,
+        constraints=model.kin_dyn_parameters.constraints,
     )
 
     with reduced_model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
@@ -2330,7 +2347,11 @@ def update_hw_parameters(
 
     Returns:
         The updated JaxSimModel object with modified hardware parameters.
+
+    Note:
+        This function can be used only with models using Relax-Rigid contact model.
     """
+
     kin_dyn_params: KinDynParameters = model.kin_dyn_parameters
     link_parameters: LinkParameters = kin_dyn_params.link_parameters
     hw_link_metadata: HwLinkMetadata = kin_dyn_params.hw_link_metadata

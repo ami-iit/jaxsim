@@ -5,6 +5,7 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
+import jaxlie
 import mujoco as mj
 import numpy as np
 import rod.urdf.exporter
@@ -279,11 +280,13 @@ class RodModelToMjcf:
         # Add a floating joint if floating-base
         # -------------------------------------
 
+        base_link_name = rod_model.get_canonical_link()
+
         if not rod_model.is_fixed_base():
             considered_joints |= {"world_to_base"}
             urdf_string = RodModelToMjcf.add_floating_joint(
                 urdf_string=urdf_string,
-                base_link_name=rod_model.get_canonical_link(),
+                base_link_name=base_link_name,
                 floating_joint_name="world_to_base",
             )
 
@@ -378,6 +381,30 @@ class RodModelToMjcf:
 
         # Find the <mujoco> element (might be the root itself).
         mujoco_element: ET._Element = next(iter(root.iter("mujoco")))
+
+        # --------------
+        # Add the frames
+        # --------------
+
+        for frame in rod_model.frames():
+            frame: rod.Frame
+            parent_name = frame.attached_to
+            parent_element = mujoco_element.find(f".//body[@name='{parent_name}']")
+
+            if parent_element is None and parent_name == base_link_name:
+                parent_element = mujoco_element.find(".//worldbody")
+
+            if parent_element is not None:
+                quat = jaxlie.SO3.from_rpy_radians(*frame.pose.rpy).wxyz
+                _ = ET.SubElement(
+                    parent_element,
+                    "site",
+                    name=frame.name,
+                    pos=" ".join(map(str, frame.pose.xyz)),
+                    quat=" ".join(map(str, quat)),
+                )
+            else:
+                warnings.warn(f"Parent link '{parent_name}' not found", stacklevel=2)
 
         # --------------
         # Add the motors

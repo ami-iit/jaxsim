@@ -82,3 +82,17 @@ class Rotation:
         R = c * jnp.eye(3) - s * Skew.wedge(u) + c1 * u @ u.T
 
         return R.transpose()
+
+    @staticmethod
+    def log_vee(R: jnp.ndarray) -> jtp.Vector:
+        """
+        Compute the logarithm map of an SO(3) rotation matrix.
+
+        Args:
+            R: The SO(3) rotation matrix.
+
+        Returns:
+            The corresponding so(3) tangent vector.
+        """
+
+        return jaxlie.SO3.from_matrix(R).log()

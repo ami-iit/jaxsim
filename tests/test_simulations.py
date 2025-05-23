@@ -7,6 +7,7 @@ import jaxsim.api as js
 import jaxsim.rbda
 import jaxsim.typing as jtp
 from jaxsim import VelRepr
+from jaxsim.api.kin_dyn_parameters import ConstraintType
 
 
 def test_box_with_external_forces(
@@ -397,3 +398,145 @@ def test_joint_limits(
         np.max(np.array(data_tf.joint_positions), axis=0) - tolerance
         <= position_limits_max
     )
+
+
+@pytest.mark.parametrize(
+    "initial_joint_positions",
+    [
+        jnp.array([0, 0]),
+        np.pi / 180 * jnp.array([5, 0]),
+    ],
+)
+def test_simulation_with_kinematic_constraints_double_pendulum(
+    jaxsim_model_double_pendulum: js.model.JaxSimModel,
+    initial_joint_positions: jtp.Array,
+):
+
+    # ========
+    # Arrange
+    # ========
+
+    tf = 1.0  # Final simulation time in seconds.
+
+    model = jaxsim_model_double_pendulum
+
+    frame_1_name = "right_link_extremity_frame"
+    frame_2_name = "left_link_extremity_frame"
+    frame_1_idx = js.frame.name_to_idx(model=model, frame_name=frame_1_name)
+    frame_2_idx = js.frame.name_to_idx(model=model, frame_name=frame_2_name)
+
+    # Define the kinematic constraints.
+    constraints = js.kin_dyn_parameters.ConstraintMap()
+    constraints = constraints.add_constraint(
+        frame_1_idx,
+        frame_2_idx,
+        ConstraintType.Weld,
+    )
+
+    # Set the constraints in the model.
+    with model.editable(validate=False) as model:
+        model.kin_dyn_parameters.constraints = constraints
+        model.gravity = 0.0
+
+    # Build the initial data for the model.
+    data_t0 = js.data.JaxSimModelData.build(
+        model=model,
+        velocity_representation=VelRepr.Inertial,
+        joint_positions=initial_joint_positions,
+    )
+
+    # ====
+    # Act
+    # ====
+
+    # Simulate the model for a given time and time step.
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=tf)
+
+    # =========
+    # Assert
+    # =========
+
+    # Assert that the chosen frames exist in the model
+    assert frame_1_name in model.frame_names()
+    assert frame_2_name in model.frame_names()
+
+    # Assert that the joint positions are now equal
+    actual_delta_s_tf = jnp.abs(data_tf.joint_positions[0] - data_tf.joint_positions[1])
+    expected_delta_s_tf = 0.0
+
+    assert expected_delta_s_tf == pytest.approx(
+        actual_delta_s_tf, abs=1e-2
+    ), f"Joint positions do not match expected value. Position difference [deg]: {actual_delta_s_tf * 180 / np.pi}"
+
+
+def test_simulation_with_kinematic_constraints_cartpole(
+    jaxsim_model_cartpole: js.model.JaxSimModel,
+):
+    # ========
+    # Arrange
+    # ========
+
+    tf = 1.0  # Final simulation time in seconds.
+
+    model = jaxsim_model_cartpole
+
+    frame_1_name = "cart_frame"
+    frame_2_name = "rail_frame"
+    frame_1_idx = js.frame.name_to_idx(model=model, frame_name=frame_1_name)
+    frame_2_idx = js.frame.name_to_idx(model=model, frame_name=frame_2_name)
+
+    # Define the kinematic constraints.
+    constraints = js.kin_dyn_parameters.ConstraintMap()
+    constraints = constraints.add_constraint(
+        frame_1_idx,
+        frame_2_idx,
+        ConstraintType.Weld,
+    )
+
+    # Set the initial joint positions with the cart displaced from the rail zero position.
+    initial_joint_positions = jnp.array([0.05, 0.0])
+
+    # Set the constraints in the model.
+    with model.editable(validate=False) as model:
+        model.kin_dyn_parameters.constraints = constraints
+
+    # Build the initial data for the model.
+    data_t0 = js.data.JaxSimModelData.build(
+        model=model,
+        velocity_representation=VelRepr.Inertial,
+        joint_positions=initial_joint_positions,
+    )
+
+    # ====
+    # Act
+    # ====
+
+    # Simulate the model for a given time and time step.
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=tf)
+
+    H_frame1 = js.frame.transform(
+        model=model,
+        data=data_tf,
+        frame_index=frame_1_idx,
+    )
+    H_frame2 = js.frame.transform(
+        model=model,
+        data=data_tf,
+        frame_index=frame_2_idx,
+    )
+
+    # =========
+    # Assert
+    # =========
+
+    # Assert that the chosen frames exist in the model
+    assert frame_1_name in model.frame_names()
+    assert frame_2_name in model.frame_names()
+
+    # Assert that the two frames are in the same pose
+    actual_frame_error = jnp.linalg.inv(H_frame1) @ H_frame2
+    expected_frame_error = jnp.eye(4)
+
+    assert actual_frame_error == pytest.approx(
+        expected_frame_error, abs=1e-3
+    ), f"Frames do not match expected value. Frame error:\n{actual_frame_error}\nPosition error [m]: {H_frame1[:3, 3] - H_frame2[:3, 3]}"

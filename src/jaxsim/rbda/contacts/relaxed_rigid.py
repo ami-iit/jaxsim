@@ -12,6 +12,13 @@ import optax
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
+from jaxsim.rbda.kinematic_constraints import (
+    ConstraintMap,
+    compute_constraint_baumgarte_term,
+    compute_constraint_jacobians,
+    compute_constraint_jacobians_derivative,
+    compute_constraint_transforms,
+)
 
 from . import common, soft
 
@@ -333,9 +340,21 @@ class RelaxedRigidContacts(common.ContactModel):
         # Compute the position in the constraint frame.
         position_constraint = jax.vmap(lambda δ, n̂: -δ * n̂)(δ, n̂)
 
+        # Compute the regularization terms.
+        a_ref, r, *_ = self._regularizers(
+            model=model,
+            position_constraint=position_constraint,
+            velocity_constraint=velocity,
+            parameters=model.contact_params,
+        )
+
         # Compute the transforms of the implicit frames corresponding to the
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
+
+        # Retrieve the kinematic constraints, if any.
+        kin_constraints: ConstraintMap = model.kin_dyn_parameters.constraints
+        n_kin_constraints: int = 6 * kin_constraints.frame_idxs_1.shape[0]
 
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
@@ -354,30 +373,103 @@ class RelaxedRigidContacts(common.ContactModel):
 
             M = js.model.free_floating_mass_matrix(model=model, data=data)
 
+            # Compute the linear part of the Jacobian of the collidable points
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, δ: J * (δ > 0))(
                     js.contact.jacobian(model=model, data=data)[:, :3, :], δ
                 )
             )
 
-            J̇_WC = jnp.vstack(
+            # Compute the linear part of the Jacobian derivative of the collidable points
+            J̇l_WC = jnp.vstack(
                 jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
 
-        # Compute the regularization terms.
-        a_ref, R, *_ = self._regularizers(
-            model=model,
-            position_constraint=position_constraint,
-            velocity_constraint=velocity,
-            parameters=model.contact_params,
-        )
+        # Check if there are any kinematic constraints
+        if n_kin_constraints > 0:
+            with (
+                data.switch_velocity_representation(VelRepr.Mixed),
+                references.switch_velocity_representation(VelRepr.Mixed),
+            ):
+                J_constr = jax.vmap(
+                    compute_constraint_jacobians, in_axes=(None, None, 0)
+                )(model, data, kin_constraints)
 
-        # Compute the Delassus matrix and the free mixed linear acceleration of
-        # the collidable points.
-        G = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
-        CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇_WC @ BW_ν
+                J̇_constr = jax.vmap(
+                    compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
+                )(model, data, kin_constraints)
+
+                W_H_constr_pairs = jax.vmap(
+                    compute_constraint_transforms, in_axes=(None, None, 0)
+                )(model, data, kin_constraints)
+
+                constr_baumgarte_term = jnp.ravel(
+                    jax.vmap(
+                        compute_constraint_baumgarte_term,
+                        in_axes=(0, None, 0, 0),
+                    )(
+                        J_constr,
+                        BW_ν,
+                        W_H_constr_pairs,
+                        kin_constraints,
+                    ),
+                )
+
+                J_constr = jnp.vstack(J_constr)
+                J̇_constr = jnp.vstack(J̇_constr)
+
+                R = jnp.diag(jnp.hstack([r, jnp.zeros(n_kin_constraints)]))
+                a_ref = jnp.hstack([a_ref, -constr_baumgarte_term])
+
+                J = jnp.vstack([Jl_WC, J_constr])
+                J̇ = jnp.vstack([J̇l_WC, J̇_constr])
+
+        else:
+            R = jnp.diag(r)
+
+            J = Jl_WC
+            J̇ = J̇l_WC
+
+        # Compute the Delassus matrix for contacts (mixed representation).
+        G_contacts = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
+
+        # Compute the Delassus matrix for constraints (inertial representation) if constraints exist.
+        with data.switch_velocity_representation(VelRepr.Inertial):
+            if n_kin_constraints > 0:
+                G_constraints = (
+                    J_constr
+                    @ jnp.linalg.pinv(
+                        js.model.free_floating_mass_matrix(
+                            model=model,
+                            data=data,
+                        )
+                    )
+                    @ J_constr.T
+                )
+            else:
+                G_constraints = jnp.zeros((0, 0))
+
+        # Combine the Delassus matrices for contacts and constraints if constraints exist.
+        if G_constraints.shape[0] > 0:
+            G = jnp.block(
+                [
+                    [
+                        G_contacts,
+                        jnp.zeros((G_contacts.shape[0], G_constraints.shape[1])),
+                    ],
+                    [
+                        jnp.zeros((G_constraints.shape[0], G_contacts.shape[1])),
+                        G_constraints,
+                    ],
+                ]
+            )
+        else:
+            G = G_contacts
+
+        # Compute the free mixed linear acceleration of the collidable points.
+        CW_al_free_WC = J @ BW_ν̇_free + J̇ @ BW_ν
 
         # Calculate quantities for the linear optimization problem.
         A = G + R
@@ -469,6 +561,9 @@ class RelaxedRigidContacts(common.ContactModel):
             )[0]
         )(position, velocity).flatten()
 
+        if n_kin_constraints > 0:
+            init_params = jnp.hstack([init_params, jnp.zeros(n_kin_constraints)])
+
         # Get the solver options.
         solver_options = self.solver_options
 
@@ -494,8 +589,20 @@ class RelaxedRigidContacts(common.ContactModel):
             has_aux=True,
         )
 
-        # Reshape the optimized solution to be a matrix of 3D contact forces.
-        CW_fl_C = solution.reshape(-1, 3)
+        if n_kin_constraints > 0:
+            # Extract the last n_kin_constr values from the solution and split them into 6D wrenches
+            kin_constr_wrench_inertial = solution[-n_kin_constraints:].reshape(-1, 6)
+
+            # Form an array of tuples with each wrench and its opposite using jax constructs
+            kin_constr_wrench_pairs_inertial = jnp.stack(
+                (kin_constr_wrench_inertial, -kin_constr_wrench_inertial), axis=1
+            )
+
+            # Reshape the optimized solution to be a matrix of 3D contact forces.
+            CW_fl_C = solution[0:-n_kin_constraints].reshape(-1, 3)
+        else:
+            kin_constr_wrench_pairs_inertial = jnp.zeros((0, 2, 6))
+            CW_fl_C = solution.reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
         W_f_C = ModelDataWithVelocityRepresentation.other_representation_to_inertial(
@@ -505,7 +612,9 @@ class RelaxedRigidContacts(common.ContactModel):
             is_force=True,
         )
 
-        return W_f_C, {}
+        return W_f_C, {
+            "constr_wrenches_inertial": kin_constr_wrench_pairs_inertial,
+        }
 
     @staticmethod
     def _regularizers(
@@ -635,4 +744,4 @@ class RelaxedRigidContacts(common.ContactModel):
             ),
         )
 
-        return a_ref, jnp.diag(R), K, D
+        return a_ref, R, K, D

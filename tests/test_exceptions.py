@@ -3,8 +3,8 @@ from contextlib import redirect_stdout
 
 import jax
 import jax.numpy as jnp
-import jaxlib.xla_extension
 import pytest
+from jax.errors import JaxRuntimeError
 
 from jaxsim import exceptions
 
@@ -68,7 +68,7 @@ def test_exceptions_in_jit_functions():
     # Let's trigger a ValueError exception by passing 42.
     data = 42
     with pytest.raises(
-        jaxlib.xla_extension.XlaRuntimeError,
+        JaxRuntimeError,
         match=f"ValueError: Raising ValueError since data={data}",
     ):
         _ = jit_compiled_function(data=data)
@@ -78,7 +78,7 @@ def test_exceptions_in_jit_functions():
     # Let's trigger a RuntimeError exception by passing -42.
     data = -42
     with pytest.raises(
-        jaxlib.xla_extension.XlaRuntimeError,
+        JaxRuntimeError,
         match=f"RuntimeError: Raising RuntimeError since data={data}",
     ):
         _ = jit_compiled_function(data=data)

@@ -1,6 +1,9 @@
 name: GPU Benchmarks
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
@@ -46,7 +49,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ./cache
-          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark
+          key: ${{ runner.os }}-benchmark
 
       - name: Ensure version file is written
         run: |
@@ -60,7 +63,6 @@ jobs:
 
       - name: Compare benchmark results with main branch
         uses: benchmark-action/github-action-benchmark@v1.20.4
-        if: steps.cache.outputs.cache-hit == 'true'
         with:
           tool: 'pytest'
           output-file-path: output.json
@@ -106,4 +108,4 @@ jobs:
         if: ${{ github.ref_name == 'main' }}
         with:
           path: ./cache
-          key: ${{ steps.get-main-branch-sha.outputs.sha }}-${{ runner.os }}-benchmark
+          key: ${{ runner.os }}-benchmark

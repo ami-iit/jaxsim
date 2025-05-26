@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747753461143,
+  "lastUpdate": 1748218816206,
   "repoUrl": "https://github.com/ami-iit/jaxsim",
   "entries": {
     "Benchmark": [
@@ -2536,6 +2536,168 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0016765323089330464",
             "extra": "mean: 385.5044825701043 msec\nrounds: 5"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Alessandro Croci",
+            "username": "xela-95",
+            "email": "57228872+xela-95@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "a72309f4d236f566e6891045a44d5bf07638f0b2",
+          "message": "Add kinematic constraints support (#399)\n\n* WIP Try adding kinematic constraint in relaxed contact model\n\n* Add inertial transformation for kinematic constraint forces in RelaxedRigidContacts\n\n* Add kinematic constraint forces to link contact forces computation\n\n* Add logarithm map computation for SO(3) rotation matrix\n\n* Implement Baumgarte stabilization for kinematic constraints in RelaxedRigidContacts\n\n* Fix constraint forces\n\n* Refactor link_contact_forces to separate kinematic constraint forces for F1 and F2\n\n* Rename log_SO3 to log_vee for clarity in SO(3) logarithm map computation\n\n* Refactor RelaxedRigidContacts to improve kinematic constraint handling and adding Baumgarte terms\n\n* Working implementation\n\n* Fix kinematic constraint generalization\n\n* WIP Update `mujoco.loaders` to allow visualizing frames\n\n* Refactor RodModelToMjcf to improve base link handling\n\n* Manage cases when no kin. constraint defined\n\n* Fix vel.repr. in RelaxedRigidContacts constraints\n\n* Fix type conversion for roll, pitch, yaw and improve warning message formatting IN `mujoco.loaders`\n\n* Add fixture for double pendulum model and utility function to load models from file\n\n* Add test asset: SDF model for double pendulum\n\n* Add test for simulation with kinematic constraints using double pendulum model\n\n* Add cartpole model and update simulation tests for kinematic constraints\n\n* Add fixture for JaxSim cartpole model\n\n* Move kinematic constraints functions into a separate rbda module\n\n* Refactor contact model to process kinematic constraint wrenches when available\n\n* Move ConstraintType and ConstraintMap classes to kinematic_constraints.py\n\n* Refactor kinematic constraints to be a batchable dataclass\n\nIntegrate also the Baumgarte coefficients for each constraint.\n\n* Comment out Connect constraint type\n\n* Minor changes\n\n* Refacor type annotations in `model.py` to avoid circular import errors\n\n* Fix circular import issue\n\nMoved ConstraintMap and ConstraintType in `src/jaxsim/api/kin_dyn_parameters.py`\n\n* Fix warning message in RodModelToMjcf\n\n* Formatting\n\n* Fix parameter name in RelaxedRigidContacts\n\n* Remove constraints from hash calculation in KinDynParameters\n\n* Maintain constraints in model reduction\n\n* Update docstring in `kinematic_constraints.py`\n\n* Update cartpole model in unit tests\n\n* Address review comments\n\n* Clarify constraints usage in documentation and enforce Relaxed-Rigid contact model requirement for constraints\n\n* Formatting and minor refactors\n\n* Reduce simulation time in unit tests for kin constraints\n\n* Optimize kin constraint wrench pair handling\n\n* Use jaxlie instead of custom functions in `log_vee` method\n\n* Fix contact model check in JaxSimModel\n\n* Formatting\n\n* Update examples/assets/cartpole.urdf\n\nCo-authored-by: Filippo Luca Ferretti <102977828+flferretti@users.noreply.github.com>\n\n* Fix check for kinematic constraints support\n\n---------\n\nCo-authored-by: Filippo Luca Ferretti <filippoluca.ferretti@outlook.com>\nCo-authored-by: Carlotta Sartore <carlotta.sartore@iit.it>\nCo-authored-by: Omar Younis <omar.younis@iit.it>",
+          "timestamp": "2025-05-23T12:13:53Z",
+          "url": "https://github.com/ami-iit/jaxsim/commit/a72309f4d236f566e6891045a44d5bf07638f0b2"
+        },
+        "date": 1748218815521,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmark.py::test_forward_dynamics_aba[1]",
+            "value": 33.993431464815046,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011379114690042765",
+            "extra": "mean: 29.41744792769896 msec\nrounds: 32"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_dynamics_aba[128]",
+            "value": 15.335758186894385,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002569971393237116",
+            "extra": "mean: 65.20707928575575 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_bias_forces[1]",
+            "value": 27.81227727717253,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003333144344285249",
+            "extra": "mean: 35.95534411059426 msec\nrounds: 28"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_bias_forces[128]",
+            "value": 10.712014109378831,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000355638543251366",
+            "extra": "mean: 93.35312573239207 msec\nrounds: 11"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_kinematics[1]",
+            "value": 80.90913740683327,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007716400895635888",
+            "extra": "mean: 12.359543458876919 msec\nrounds: 79"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_kinematics[128]",
+            "value": 23.09764270724867,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002276081297102437",
+            "extra": "mean: 43.294461373158775 msec\nrounds: 23"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_mass_matrix[1]",
+            "value": 41.90213946379174,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00036971917208085696",
+            "extra": "mean: 23.8651298667963 msec\nrounds: 41"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_mass_matrix[128]",
+            "value": 40.44415641656463,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00035081868281895353",
+            "extra": "mean: 24.725450809265293 msec\nrounds: 43"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian[1]",
+            "value": 54.67012385426936,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000075157626856897",
+            "extra": "mean: 18.291526148095727 msec\nrounds: 55"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian[128]",
+            "value": 54.34914365568856,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00010303892075823124",
+            "extra": "mean: 18.39955393474416 msec\nrounds: 56"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian_derivative[1]",
+            "value": 32.36723642626764,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00026655014681168765",
+            "extra": "mean: 30.895439660966847 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian_derivative[128]",
+            "value": 32.236570985289006,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001513562067250962",
+            "extra": "mean: 31.020669054917313 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_soft_contact_model[1]",
+            "value": 29.87140024663237,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013923340967226443",
+            "extra": "mean: 33.47683709981884 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_soft_contact_model[128]",
+            "value": 13.854669663385026,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006566164035445914",
+            "extra": "mean: 72.1778306012441 msec\nrounds: 14"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_rigid_contact_model[1]",
+            "value": 6.353835509636873,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001935883998658022",
+            "extra": "mean: 157.38525155133433 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_rigid_contact_model[128]",
+            "value": 0.8410626112721016,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0036855911587465916",
+            "extra": "mean: 1.1889721247833223 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_relaxed_rigid_contact_model[1]",
+            "value": 5.901340276148056,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003998411243567624",
+            "extra": "mean: 169.45303154976241 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_relaxed_rigid_contact_model[128]",
+            "value": 3.311309887969375,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0038031848094438",
+            "extra": "mean: 301.9952930510044 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_simulation_step[1]",
+            "value": 4.787965200446324,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0006012239952859352",
+            "extra": "mean: 208.8569900020957 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_simulation_step[128]",
+            "value": 2.554482824207584,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0014927054231157367",
+            "extra": "mean: 391.46867245435715 msec\nrounds: 5"
           }
         ]
       }

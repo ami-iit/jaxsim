@@ -72,6 +72,11 @@ class MujocoVideoRecorder:
         self.model = model if model is not None else self.model
         self.model = self.model if isinstance(self.model, list) else [self.model]
 
+        assert len(self.data) == len(self.model) or len(self.model) == 1, (
+            f"Length mismatch: len(data)={len(self.data)}, len(model)={len(self.model)}. "
+            "They must be equal or model must have length 1."
+        )
+
     def render_frame(self, camera_name: str = "track") -> npt.NDArray:
         """Render a frame."""
 
@@ -79,7 +84,7 @@ class MujocoVideoRecorder:
 
             # Use a single model for rendering if multiple data instances are provided.
             # Otherwise, use the data index to select the corresponding model.
-            model = self.model[min(idx, len(self.data) - 1)]
+            model = self.model[0] if len(self.model) == 1 else self.model[idx]
 
             mujoco.mj_forward(model, data)
 

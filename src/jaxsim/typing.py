@@ -1,5 +1,5 @@
 from collections.abc import Hashable
-from typing import Any, TypeVar
+from typing import Any, NewType, TypeVar
 
 import jax
 
@@ -16,13 +16,14 @@ Int = Scalar
 Bool = Scalar
 Float = Scalar
 
-PyTree: object = (
+PyTree = NewType(
+    "PyTree",
     dict[Hashable, TypeVar("PyTree")]
     | list[TypeVar("PyTree")]
     | tuple[TypeVar("PyTree")]
     | jax.Array
     | Any
-    | None
+    | None,
 )
 
 # =======================

@@ -16,8 +16,8 @@ class MujocoVideoRecorder:
 
     def __init__(
         self,
-        model: list[mujoco.MjModel] | mujoco.MjModel,
-        data: list[mujoco.MjData] | mujoco.MjData,
+        model: list[mj.MjModel] | mj.MjModel,
+        data: list[mj.MjData] | mj.MjData,
         fps: int = 30,
         width: int | None = None,
         height: int | None = None,
@@ -48,8 +48,8 @@ class MujocoVideoRecorder:
 
         self.fps = fps
         self.frames: list[npt.NDArray] = []
-        self.data: list[mujoco.MjData] | mujoco.MjData | None = None
-        self.model: list[mujoco.MjModel] | mujoco.MjModel | None = None
+        self.data: list[mj.MjData] | mj.MjData | None = None
+        self.model: list[mj.MjModel] | mj.MjModel | None = None
         self.reset(model=model, data=data)
 
         self.renderer = mujoco.Renderer(
@@ -60,7 +60,7 @@ class MujocoVideoRecorder:
     def reset(
         self,
         model: mj.MjModel | None = None,
-        data: list[mujoco.MjData] | mujoco.MjData | None = None,
+        data: list[mj.MjData] | mj.MjData | None = None,
     ) -> None:
         """Reset the model and data."""
 
@@ -86,7 +86,7 @@ class MujocoVideoRecorder:
             # Otherwise, use the data index to select the corresponding model.
             model = self.model[0] if len(self.model) == 1 else self.model[idx]
 
-            mujoco.mj_forward(model, data)
+            mj.mj_forward(model, data)
 
             if idx == 0:
                 self.renderer.update_scene(data=data, camera=camera_name)
@@ -95,9 +95,9 @@ class MujocoVideoRecorder:
             mujoco.mjv_addGeoms(
                 m=model,
                 d=data,
-                opt=mujoco.MjvOption(),
-                pert=mujoco.MjvPerturb(),
-                catmask=mujoco.mjtCatBit.mjCAT_DYNAMIC,
+                opt=mj.MjvOption(),
+                pert=mj.MjvPerturb(),
+                catmask=mj.mjtCatBit.mjCAT_DYNAMIC,
                 scn=self.renderer.scene,
             )
 
@@ -169,7 +169,7 @@ class MujocoVisualizer:
 
     def sync(
         self,
-        viewer: mujoco.viewer.Handle,
+        viewer: mj.viewer.Handle,
         model: mj.MjModel | None = None,
         data: mj.MjData | None = None,
     ) -> None:
@@ -210,7 +210,7 @@ class MujocoVisualizer:
         distance: float | int | npt.NDArray | None = None,
         azimuth: float | int | npt.NDArray | None = None,
         elevation: float | int | npt.NDArray | None = None,
-    ) -> Iterator[mujoco.viewer.Handle]:
+    ) -> Iterator[mj.viewer.Handle]:
         """
         Context manager to open the Mujoco passive viewer.
 

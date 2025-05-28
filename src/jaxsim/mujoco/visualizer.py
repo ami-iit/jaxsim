@@ -109,11 +109,11 @@ class MujocoVideoRecorder:
         frame = self.render_frame(camera_name=camera_name)
         self.frames.append(frame)
 
-    def write_video(self, path: pathlib.Path, exist_ok: bool = False) -> None:
+    def write_video(self, path: pathlib.Path | str, exist_ok: bool = False) -> None:
         """Write the video to a file."""
 
         # Resolve the path to the video.
-        path = path.expanduser().resolve()
+        path = pathlib.Path(path).expanduser().resolve()
 
         if path.is_dir():
             raise IsADirectoryError(f"The path '{path}' is a directory.")

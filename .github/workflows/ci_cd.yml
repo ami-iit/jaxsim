@@ -101,7 +101,7 @@ jobs:
         with:
           lfs: true
 
-      - uses: prefix-dev/setup-pixi@v0.8.5
+      - uses: prefix-dev/setup-pixi@v0.8.8
         if: contains(matrix.os, 'ubuntu')
         with:
           pixi-version: "latest"

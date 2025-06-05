@@ -1,6 +1,6 @@
 import contextlib
 import pathlib
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 
 import mediapy as media
 import mujoco as mj
@@ -16,8 +16,8 @@ class MujocoVideoRecorder:
 
     def __init__(
         self,
-        model: mj.MjModel,
-        data: mj.MjData,
+        model: list[mujoco.MjModel] | mujoco.MjModel,
+        data: list[mujoco.MjData] | mujoco.MjData,
         fps: int = 30,
         width: int | None = None,
         height: int | None = None,
@@ -35,23 +35,25 @@ class MujocoVideoRecorder:
             **kwargs: Additional arguments for the renderer.
         """
 
-        width = width if width is not None else model.vis.global_.offwidth
-        height = height if height is not None else model.vis.global_.offheight
+        single_model = model if isinstance(model, mj.MjModel) else model[0]
 
-        if model.vis.global_.offwidth != width:
-            model.vis.global_.offwidth = width
+        width = width if width is not None else single_model.vis.global_.offwidth
+        height = height if height is not None else single_model.vis.global_.offheight
 
-        if model.vis.global_.offheight != height:
-            model.vis.global_.offheight = height
+        if single_model.vis.global_.offwidth != width:
+            single_model.vis.global_.offwidth = width
+
+        if single_model.vis.global_.offheight != height:
+            single_model.vis.global_.offheight = height
 
         self.fps = fps
         self.frames: list[npt.NDArray] = []
         self.data: list[mujoco.MjData] | mujoco.MjData | None = None
-        self.model: mujoco.MjModel | None = None
+        self.model: list[mujoco.MjModel] | mujoco.MjModel | None = None
         self.reset(model=model, data=data)
 
         self.renderer = mujoco.Renderer(
-            model=self.model,
+            model=single_model,
             **(dict(width=width, height=height) | kwargs),
         )
 
@@ -68,20 +70,25 @@ class MujocoVideoRecorder:
         self.data = self.data if isinstance(self.data, list) else [self.data]
 
         self.model = model if model is not None else self.model
+        self.model = self.model if isinstance(self.model, list) else [self.model]
 
     def render_frame(self, camera_name: str = "track") -> npt.NDArray:
         """Render a frame."""
 
         for idx, data in enumerate(self.data):
 
-            mujoco.mj_forward(self.model, data)
+            # Use a single model for rendering if multiple data instances are provided.
+            # Otherwise, use the data index to select the corresponding model.
+            model = self.model[min(idx, len(self.data) - 1)]
+
+            mujoco.mj_forward(model, data)
 
             if idx == 0:
                 self.renderer.update_scene(data=data, camera=camera_name)
                 continue
 
             mujoco.mjv_addGeoms(
-                m=self.model,
+                m=model,
                 d=data,
                 opt=mujoco.MjvOption(),
                 pert=mujoco.MjvPerturb(),
@@ -198,7 +205,7 @@ class MujocoVisualizer:
         distance: float | int | npt.NDArray | None = None,
         azimuth: float | int | npt.NDArray | None = None,
         elevation: float | int | npt.NDArray | None = None,
-    ) -> contextlib.AbstractContextManager[mujoco.viewer.Handle]:
+    ) -> Iterator[mujoco.viewer.Handle]:
         """
         Context manager to open the Mujoco passive viewer.
 

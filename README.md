@@ -21,8 +21,8 @@
 
 ## Features
 
-- Physically consistent differentiability w.r.t. hardware parameters
-- Closed chain dynamics support
+- Physically consistent differentiability w.r.t. hardware parameters.
+- Closed chain dynamics support.
 - Reduced-coordinate physics engine for **fixed-base** and **floating-base** robots.
 - Fully Python-based, leveraging [jax][jax] following a functional programming paradigm.
 - Seamless execution on CPUs, GPUs, and TPUs.
@@ -86,7 +86,7 @@ for _ in T:
     )
 ```
 
-Check the example folder for additional usage! 
+Check the example folder for additional usage!
 
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat
@@ -265,8 +265,8 @@ src/jaxsim
 
 </details>
 
-## Additional features
-Jaxsim can also be used as a multi-body dynamic library!  With full support for automatic differentiation of RBDAs (forwards and reverse mode) and  automatic differentiation against both kinematic and dynamic parameters 
+## Additional features=
+Jaxsim can also be used as a multi-body dynamic library!  With full support for automatic differentiation of RBDAs (forwards and reverse mode) and  automatic differentiation against both kinematic and dynamic parameters.
 
 
 ### Using JaxSim as a multibody dynamics library

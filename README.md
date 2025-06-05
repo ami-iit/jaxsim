@@ -170,7 +170,7 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 > ### Note
 > The minimum version of `pixi` required is `0.39.0`.
 
-Since the `pixi.lock` file is stored using Git LFS, make sure you have Git LFS installed and properly configured on your system before installation. After cloning the repository, run:
+Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
 
 ```bash
 git lfs install && git lfs pull
@@ -242,7 +242,7 @@ pip install --no-deps -e .
 > ### Note
 > The minimum version of `pixi` required is `0.39.0`.
 
-Since the `pixi.lock` file is stored using Git LFS, make sure you have Git LFS installed and properly configured on your system before installation. After cloning the repository, run:
+Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
 
 ```bash
 git lfs install && git lfs pull

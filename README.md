@@ -170,6 +170,14 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 > ### Note
 > The minimum version of `pixi` required is `0.39.0`.
 
+Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
+
+```bash
+git lfs install && git lfs pull
+```
+
+This ensures all LFS-tracked files are properly downloaded before you proceed with the installation.
+
 You can add the jaxsim dependency in [`pixi`][pixi] project as follows:
 
 ```bash
@@ -233,6 +241,14 @@ pip install --no-deps -e .
 
 > ### Note
 > The minimum version of `pixi` required is `0.39.0`.
+
+Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
+
+```bash
+git lfs install && git lfs pull
+```
+
+This ensures all LFS-tracked files are properly downloaded before you proceed with the installation.
 
 You can install the default dependencies of the project using [`pixi`][pixi] as follows:
 

@@ -47,10 +47,21 @@ Joint Dynamics
 ~~~~~~~~~~~~~~
 Joint dynamics are configured using environment variables starting with ``JAXSIM_JOINT_``. Available variables include:
 
+- ``JAXSIM_JOINT_FRICTION_STATIC``: Overrides the static friction coefficient for all joints.
+
+  *Default:* ``0.0``.
+
+- ``JAXSIM_JOINT_FRICTION_VISCOUS``: Overrides the viscous friction coefficient for all joints.
+
+  *Default:* ``0.0``.
+
 - ``JAXSIM_JOINT_POSITION_LIMIT_DAMPER``: Overrides the damper value for joint position limits of the SDF model.
+
+  *Default:* ``0.0``.
 
 - ``JAXSIM_JOINT_POSITION_LIMIT_SPRING``: Overrides the spring value for joint position limits of the SDF model.
 
+  *Default:* ``0.0``.
 
 Logging and Exceptions
 ~~~~~~~~~~~~~~~~~~~~~~

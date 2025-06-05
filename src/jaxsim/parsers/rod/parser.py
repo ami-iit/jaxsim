@@ -252,14 +252,14 @@ def extract_model_data(
                 if j.axis is not None
                 and j.axis.dynamics is not None
                 and j.axis.dynamics.friction is not None
-                else 0.0
+                else os.environ.get("JAXSIM_JOINT_FRICTION_STATIC", 0.0)
             ),
             friction_viscous=float(
                 j.axis.dynamics.damping
                 if j.axis is not None
                 and j.axis.dynamics is not None
                 and j.axis.dynamics.damping is not None
-                else 0.0
+                else os.environ.get("JAXSIM_JOINT_FRICTION_VISCOUS", 0.0)
             ),
             position_limit_damper=float(
                 j.axis.limit.dissipation

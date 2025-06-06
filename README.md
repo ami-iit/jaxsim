@@ -265,7 +265,7 @@ src/jaxsim
 
 </details>
 
-## Additional features=
+## Additional features
 Jaxsim can also be used as a multi-body dynamic library!  With full support for automatic differentiation of RBDAs (forwards and reverse mode) and  automatic differentiation against both kinematic and dynamic parameters.
 
 

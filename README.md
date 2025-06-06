@@ -86,7 +86,7 @@ for _ in T:
     )
 ```
 
-Check the example folder for additional usage!
+Check the example folder for additional use cases!
 
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat

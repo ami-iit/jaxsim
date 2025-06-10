@@ -64,6 +64,101 @@ class MujocoVideoRecorder:
             **(dict(width=width, height=height) | kwargs),
         )
 
+    def visualize_frame(self) -> None:
+        """
+        Add visualization of a static frame using the `JAXSIM_VISUALIZER_FRAME`
+        environment variable.
+        """
+
+        import os
+
+        scene = self.renderer.scene
+
+        if scene.ngeom + 3 > scene.maxgeom:
+            return  # need 3 slots for x,y,z axes
+
+        # Read position and RPY orientation
+        frame_env = os.environ.get("JAXSIM_VISUALIZER_FRAME")
+        if not frame_env:
+            return
+        try:
+            x, y, z, roll, pitch, yaw = map(float, frame_env.split())
+        except Exception as e:
+            raise ValueError(
+                "JAXSIM_VISUALIZER_FRAME must be 'x y z roll pitch yaw'"
+            ) from e
+
+        def rpy_to_mat(roll, pitch, yaw):
+            cr = np.cos(roll)
+            sr = np.sin(roll)
+            cp = np.cos(pitch)
+            sp = np.sin(pitch)
+            cy = np.cos(yaw)
+            sy = np.sin(yaw)
+            R = np.array(
+                [
+                    [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+                    [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+                    [-sp, cp * sr, cp * cr],
+                ]
+            )
+            return R
+
+        mat = rpy_to_mat(roll, pitch, yaw)
+
+        origin = np.array([x, y, z])
+        length = 0.2  # length of axis cylinders
+        radius = 0.01  # slim radius for cylinders
+
+        for axis, color in zip(
+            range(3), [(1, 0, 0, 1), (0, 1, 0, 1), (0, 0, 1, 1)], strict=True
+        ):
+            if scene.ngeom >= scene.maxgeom:
+                break
+
+            axis_dir = mat[:, axis]
+
+            geom = scene.geoms[scene.ngeom]
+
+            # Cylinder position is centered at origin + half length along axis
+            pos = origin + axis_dir * length * 0.5
+
+            # Build rotation matrix for cylinder aligned with axis_dir
+            # MuJoCo's cylinder local axis is along z-axis
+            def rot_from_z(v):
+                v = v / np.linalg.norm(v)
+                z_axis = np.array([0, 0, 1])
+                if np.allclose(v, z_axis):
+                    return np.eye(3)
+                if np.allclose(v, -z_axis):
+                    return np.diag([1, -1, -1])
+                cross = np.cross(z_axis, v)
+                dot = np.dot(z_axis, v)
+                skew = np.array(
+                    [
+                        [0, -cross[2], cross[1]],
+                        [cross[2], 0, -cross[0]],
+                        [-cross[1], cross[0], 0],
+                    ]
+                )
+                R = np.eye(3) + skew + skew @ skew * (1 / (1 + dot))
+                return R
+
+            R = rot_from_z(axis_dir)
+            mat_flat = R.T.flatten()
+
+            mj.mjv_initGeom(
+                geom=geom,
+                type=mj.mjtGeom.mjGEOM_CYLINDER,
+                size=np.array([radius, length * 0.5, 0.0]),  # radius, half-length
+                rgba=np.array(color),
+                pos=pos,
+                mat=mat_flat,
+            )
+            geom.category = mj.mjtCatBit.mjCAT_STATIC
+
+            scene.ngeom += 1
+
     def reset(
         self,
         model: mj.MjModel | None = None,
@@ -97,6 +192,7 @@ class MujocoVideoRecorder:
 
             if idx == 0:
                 self.renderer.update_scene(data=data, camera=camera_name)
+                self.visualize_frame()
                 continue
 
             mujoco.mjv_addGeoms(

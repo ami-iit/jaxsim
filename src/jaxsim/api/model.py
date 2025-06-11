@@ -562,11 +562,16 @@ class JaxSimModel(JaxsimDataclass):
             dims = hw_metadata.dims[link_index]
             if shape == LinkParametrizableShape.Box:
                 links_dict[link_name].visual.geometry.box.size = dims.tolist()
+                links_dict[link_name].collision.geometry.box.size = dims.tolist()
             elif shape == LinkParametrizableShape.Sphere:
                 links_dict[link_name].visual.geometry.sphere.radius = float(dims[0])
+                links_dict[link_name].collision.geometry.sphere.radius = float(dims[0])
             elif shape == LinkParametrizableShape.Cylinder:
                 links_dict[link_name].visual.geometry.cylinder.radius = float(dims[0])
                 links_dict[link_name].visual.geometry.cylinder.length = float(dims[1])
+                links_dict[link_name].collision.geometry.cylinder.radius = float(
+                    dims[0]
+                )
             else:
                 logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                 continue

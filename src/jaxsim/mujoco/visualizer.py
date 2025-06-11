@@ -35,7 +35,14 @@ class MujocoVideoRecorder:
             **kwargs: Additional arguments for the renderer.
         """
 
-        single_model = model if isinstance(model, mj.MjModel) else model[0]
+        if isinstance(model, mj.MjModel):
+            single_model = model
+        elif isinstance(model, list) and len(model) == 1:
+            single_model = model[0]
+        else:
+            raise ValueError(
+                "Model must be a single instance of mj.MjModel or a list with at least one element."
+            )
 
         width = width if width is not None else single_model.vis.global_.offwidth
         height = height if height is not None else single_model.vis.global_.offheight

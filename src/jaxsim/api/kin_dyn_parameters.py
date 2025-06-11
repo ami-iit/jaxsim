@@ -1024,7 +1024,9 @@ class HwLinkMetadata(JaxsimDataclass):
     @staticmethod
     def compute_contact_points(
         original_contact_params: jtp.Vector,
-        hw_link_metadata: HwLinkMetadata,
+        shape_types: jtp.Vector,
+        original_com_positions: jtp.Vector,
+        updated_com_positions: jtp.Vector,
         scaling_factors: ScalingFactors,
     ) -> jtp.Matrix:
         """
@@ -1033,18 +1035,53 @@ class HwLinkMetadata(JaxsimDataclass):
 
         Args:
             original_contact_params: The original contact parameters.
-            hw_link_metadata: The hardware link metadata.
-            scaling_factors: The scaling factors to apply.
+            shape_types: The shape types of the links (e.g., box, sphere, cylinder).
+            original_com_positions: The original center of mass positions of the links.
+            updated_com_positions: The updated center of mass positions of the links.
+            scaling_factors: The scaling factors for the link dimensions.
 
         Returns:
             The new contact points positions in the parent link frame.
         """
 
-        new_positions = jax.vmap(jnp.multiply)(
-            original_contact_params.point, jnp.array(original_contact_params.body)
+        parent_link_indices = np.array(original_contact_params.body)
+
+        # Translate the original contact point positions in the origin, so
+        # that we can apply the scaling factors.
+        L_p_Ci = original_contact_params.point - original_com_positions
+
+        # Extract the shape types of the parent links.
+        parent_shape_types = jnp.array(shape_types[parent_link_indices])
+
+        def sphere(parent_idx, L_p_C):
+            r = scaling_factors.dims[parent_idx][0]
+            return L_p_C * r
+
+        def cylinder(parent_idx, L_p_C):
+            # Cylinder collisions are not supported in JaxSim.
+            return L_p_C
+
+        def box(parent_idx, L_p_C):
+            lx, ly, lz = scaling_factors.dims[parent_idx]
+            return jnp.hstack(
+                [
+                    L_p_C[0] * lx,
+                    L_p_C[1] * ly,
+                    L_p_C[2] * lz,
+                ]
+            )
+
+        new_positions = jax.vmap(
+            lambda shape_idx, parent_idx, L_p_C: jax.lax.switch(
+                shape_idx, (box, cylinder, sphere), parent_idx, L_p_C
+            )
+        )(
+            parent_shape_types,
+            parent_link_indices,
+            L_p_Ci,
         )
 
-        return new_positions
+        return new_positions + updated_com_positions[parent_link_indices]
 
     @staticmethod
     def _convert_scaling_to_3d_vector(

@@ -95,38 +95,34 @@ def test_model_scaling_against_rod(
     )
 
     # Compare hardware parameters of the scaled JaxSim model with the pre-scaled JaxSim model
-    for link_idx, link_name in enumerate(jaxsim_model_garpez.link_names()):
-        scaled_metadata = jax.tree_util.tree_map(
-            lambda x, link_idx=link_idx: x[link_idx],
-            updated_model.kin_dyn_parameters.hw_link_metadata,
-        )
-        pre_scaled_metadata = jax.tree_util.tree_map(
-            lambda x, link_idx=link_idx: x[link_idx],
-            jaxsim_model_garpez_scaled.kin_dyn_parameters.hw_link_metadata,
-        )
+    scaled_metadata = updated_model.kin_dyn_parameters.hw_link_metadata
 
-        # Compare shape dimensions
-        assert jnp.allclose(scaled_metadata.dims, pre_scaled_metadata.dims, atol=1e-6)
+    pre_scaled_metadata = jaxsim_model_garpez_scaled.kin_dyn_parameters.hw_link_metadata
 
-        # Compare mass
-        scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(scaled_metadata)
-        pre_scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
-            pre_scaled_metadata
-        )
-        assert scaled_mass == pytest.approx(pre_scaled_mass, abs=1e-6)
+    # Compare shape dimensions
+    assert jnp.allclose(scaled_metadata.dims, pre_scaled_metadata.dims, atol=1e-6)
 
-        # Compare inertia tensors
-        _, scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(scaled_metadata)
-        _, pre_scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
-            pre_scaled_metadata
-        )
-        assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6)
+    # Compare mass
+    scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
+        scaled_metadata.shape, scaled_metadata
+    )
+    pre_scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
+        pre_scaled_metadata.shape, pre_scaled_metadata
+    )
+    assert scaled_mass == pytest.approx(pre_scaled_mass, abs=1e-6)
 
-        # Compare transformations
-        assert jnp.allclose(scaled_metadata.L_H_G, pre_scaled_metadata.L_H_G, atol=1e-6)
-        assert jnp.allclose(
-            scaled_metadata.L_H_vis, pre_scaled_metadata.L_H_vis, atol=1e-6
-        )
+    # Compare inertia tensors
+    _, scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
+        scaled_metadata.shape, scaled_metadata
+    )
+    _, pre_scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
+        pre_scaled_metadata.shape, pre_scaled_metadata
+    )
+    assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6)
+
+    # Compare transformations
+    assert jnp.allclose(scaled_metadata.L_H_G, pre_scaled_metadata.L_H_G, atol=1e-6)
+    assert jnp.allclose(scaled_metadata.L_H_vis, pre_scaled_metadata.L_H_vis, atol=1e-6)
 
 
 def test_update_hw_parameters_vmap(
@@ -325,10 +321,7 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Define the initial hardware parameters (scaling factors).
     initial_dims = jnp.ones(
-        (
-            model.number_of_links(),
-            3,
-        )
+        (model.number_of_links(), 3)
     )  # Initial dimensions (1.0 for all links).
     initial_density = jnp.ones(
         (model.number_of_links(),)
@@ -378,3 +371,85 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Assert that the final loss is close to zero.
     assert current_loss < 1e-3, "Optimization did not converge to the target height."
+
+
+def test_hw_parameters_collision_scaling(
+    jaxsim_model_box: js.model.JaxSimModel, prng_key: jax.Array
+):
+    """
+    Test that the collision elements of the model are updated correctly during the scaling of the model hw parameters.
+    """
+
+    _, subkey = jax.random.split(prng_key, num=2)
+
+    # TODO: the jaxsim_model_box has an additional frame, which is handled wrongly
+    # during the export of the updated model. For this reason, we recreate the model
+    # from scratch here.
+    del jaxsim_model_box
+
+    import rod.builder.primitives
+
+    # Create on-the-fly a ROD model of a box.
+    rod_model = (
+        rod.builder.primitives.BoxBuilder(x=0.3, y=0.2, z=0.1, mass=1.0, name="box")
+        .build_model()
+        .add_link(name="box_link")
+        .add_inertial()
+        .add_visual()
+        .add_collision()
+        .build()
+    )
+
+    model = js.model.JaxSimModel.build_from_model_description(
+        model_description=rod_model
+    )
+
+    # Define the scaling factor for the sphere's radius
+    scaling_factor = 5.0
+
+    # Define the nominal radius of the sphere
+    nominal_height = model.kin_dyn_parameters.hw_link_metadata.dims[0, 2]
+
+    # Define scaling parameters
+    scaling_parameters = ScalingFactors(
+        dims=jnp.ones((model.number_of_links(), 3)) * scaling_factor,
+        density=jnp.array([1.0]),
+    )
+
+    # Update the model with the scaling parameters
+    updated_model = js.model.update_hw_parameters(model, scaling_parameters)
+
+    # Simulate the box falling under gravity
+    data = js.data.JaxSimModelData.build(
+        model=updated_model,
+        # Set the initial position of the box's base to be slightly above the ground
+        # to allow it to settle at the expected height after scaling.
+        # The base position is set to the nominal height of the box scaled by the scaling factor,
+        # plus a small offset to avoid immediate collision with the ground.
+        # This ensures that the box has enough space to fall and settle at the expected height.
+        base_position=jnp.array(
+            [
+                *jax.random.uniform(subkey, shape=(2,)),
+                nominal_height * scaling_factor + 0.01,
+            ]
+        ),
+    )
+
+    num_steps = 1000  # Number of simulation steps
+
+    for _ in range(num_steps):
+        data = js.model.step(
+            model=updated_model,
+            data=data,
+        )
+
+    # Get the final height of the box's base
+    updated_base_height = data.base_position[2]
+
+    # Compute the expected height (nominal radius * scaling factor)
+    expected_height = nominal_height * scaling_factor / 2
+
+    # Assert that the box settles at the expected height
+    assert jnp.isclose(
+        updated_base_height, expected_height, atol=1e-3
+    ), f"model base height mismatch: expected {expected_height}, got {updated_base_height}"

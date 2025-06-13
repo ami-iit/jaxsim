@@ -377,10 +377,14 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
     assert current_loss < 1e-3, "Optimization did not converge to the target height."
 
 
-def test_hw_parameters_collision_scaling(jaxsim_model_box: js.model.JaxSimModel):
+def test_hw_parameters_collision_scaling(
+    jaxsim_model_box: js.model.JaxSimModel, prng_key: jax.Array
+):
     """
     Test that the collision elements of the model are updated correctly during the scaling of the model hw parameters.
     """
+
+    _, subkey = jax.random.split(prng_key, num=2)
 
     # TODO: the jaxsim_model_box has an additional frame, which is handled wrongly
     # during the export of the updated model. For this reason, we recreate the model
@@ -427,7 +431,12 @@ def test_hw_parameters_collision_scaling(jaxsim_model_box: js.model.JaxSimModel)
         # The base position is set to the nominal height of the box scaled by the scaling factor,
         # plus a small offset to avoid immediate collision with the ground.
         # This ensures that the box has enough space to fall and settle at the expected height.
-        base_position=jnp.array([0.0, 0.0, nominal_height * scaling_factor + 0.01]),
+        base_position=jnp.array(
+            [
+                *jax.random.uniform(subkey, shape=(2,)),
+                nominal_height * scaling_factor + 0.01,
+            ]
+        ),
     )
 
     num_steps = 1000  # Number of simulation steps

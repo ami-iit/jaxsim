@@ -1048,7 +1048,9 @@ class HwLinkMetadata(JaxsimDataclass):
 
         # Translate the original contact point positions in the origin, so
         # that we can apply the scaling factors.
-        L_p_Ci = original_contact_params.point - original_com_positions
+        L_p_Ci = (
+            original_contact_params.point - original_com_positions[parent_link_indices]
+        )
 
         # Extract the shape types of the parent links.
         parent_shape_types = jnp.array(shape_types[parent_link_indices])

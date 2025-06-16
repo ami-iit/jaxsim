@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749428468259,
+  "lastUpdate": 1750033252797,
   "repoUrl": "https://github.com/ami-iit/jaxsim",
   "entries": {
     "Benchmark": [
@@ -3022,6 +3022,168 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0014905312672725199",
             "extra": "mean: 379.99650333076715 msec\nrounds: 5"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Carlotta Sartore",
+            "username": "CarlottaSartore",
+            "email": "56030908+CarlottaSartore@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "25109f59cc85551bec9328854f5e1571555489b5",
+          "message": "Merge pull request #442 from ami-iit/CarlottaSartore-patch-1\n\nUpdate readme structure and video content",
+          "timestamp": "2025-06-09T14:03:45Z",
+          "url": "https://github.com/ami-iit/jaxsim/commit/25109f59cc85551bec9328854f5e1571555489b5"
+        },
+        "date": 1750033252106,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmark.py::test_forward_dynamics_aba[1]",
+            "value": 33.9247775322331,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000145486698925284",
+            "extra": "mean: 29.476980329491198 msec\nrounds: 32"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_dynamics_aba[128]",
+            "value": 15.760947735131491,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00039466552087795306",
+            "extra": "mean: 63.44796117627993 msec\nrounds: 16"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_bias_forces[1]",
+            "value": 27.117361340238325,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003073682156212765",
+            "extra": "mean: 36.876744291345986 msec\nrounds: 28"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_bias_forces[128]",
+            "value": 11.373566810931507,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0002842441181029588",
+            "extra": "mean: 87.92316576000303 msec\nrounds: 12"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_kinematics[1]",
+            "value": 78.60017943294385,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00019074158250704729",
+            "extra": "mean: 12.722617266454586 msec\nrounds: 76"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_kinematics[128]",
+            "value": 24.47499314186665,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003296931249763229",
+            "extra": "mean: 40.85802983492613 msec\nrounds: 25"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_mass_matrix[1]",
+            "value": 40.9942257427606,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001404281942017374",
+            "extra": "mean: 24.393679399508983 msec\nrounds: 40"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_mass_matrix[128]",
+            "value": 40.44841345234631,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00007560194071967156",
+            "extra": "mean: 24.722848553210497 msec\nrounds: 40"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian[1]",
+            "value": 53.26596131393606,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008848529316461428",
+            "extra": "mean: 18.77371543350647 msec\nrounds: 53"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian[128]",
+            "value": 53.40567691312945,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00014203950673913923",
+            "extra": "mean: 18.72460116228124 msec\nrounds: 53"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian_derivative[1]",
+            "value": 31.061853794897566,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0015487195803080033",
+            "extra": "mean: 32.19382869428955 msec\nrounds: 32"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian_derivative[128]",
+            "value": 32.02660949060554,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003283454462850203",
+            "extra": "mean: 31.2240357598057 msec\nrounds: 32"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_soft_contact_model[1]",
+            "value": 29.878446483395575,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013155995891146605",
+            "extra": "mean: 33.468942254267894 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_soft_contact_model[128]",
+            "value": 14.52324428456363,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0013236438293721365",
+            "extra": "mean: 68.8551387283951 msec\nrounds: 14"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_rigid_contact_model[1]",
+            "value": 6.135920398192636,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005175622805684227",
+            "extra": "mean: 162.97473485714622 msec\nrounds: 7"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_rigid_contact_model[128]",
+            "value": 0.8452854242919515,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004952203032909414",
+            "extra": "mean: 1.183032347727567 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_relaxed_rigid_contact_model[1]",
+            "value": 5.637930365716057,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0023860292391008177",
+            "extra": "mean: 177.3700516205281 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_relaxed_rigid_contact_model[128]",
+            "value": 3.3820092813479565,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005500156435498118",
+            "extra": "mean: 295.6822163425386 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_simulation_step[1]",
+            "value": 4.690963523109687,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0014683208439723585",
+            "extra": "mean: 213.17582093179226 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_simulation_step[128]",
+            "value": 2.6479304828968346,
+            "unit": "iter/sec",
+            "range": "stddev: 0.001180183016529729",
+            "extra": "mean: 377.65341894701123 msec\nrounds: 5"
           }
         ]
       }

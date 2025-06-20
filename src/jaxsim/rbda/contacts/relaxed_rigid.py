@@ -354,7 +354,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Retrieve the kinematic constraints, if any.
         kin_constraints: ConstraintMap = model.kin_dyn_parameters.constraints
-        n_kin_constraints: int = 6 * kin_constraints.frame_idxs_1.shape[0]
+        n_kin_constraints: int = 3 * kin_constraints.frame_idxs_1.shape[0]
 
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
@@ -591,7 +591,14 @@ class RelaxedRigidContacts(common.ContactModel):
 
         if n_kin_constraints > 0:
             # Extract the last n_kin_constr values from the solution and split them into 6D wrenches
-            kin_constr_wrench_inertial = solution[-n_kin_constraints:].reshape(-1, 6)
+            kin_constr_wrench_inertial = solution[-n_kin_constraints:].reshape(-1, 3)
+            # Extend the 3d forces to 6D wrenches by adding zero torques
+            kin_constr_wrench_inertial = jnp.hstack(
+                (
+                    kin_constr_wrench_inertial,
+                    jnp.zeros((kin_constr_wrench_inertial.shape[0], 3)),
+                )
+            )
 
             # Form an array of tuples with each wrench and its opposite using jax constructs
             kin_constr_wrench_pairs_inertial = jnp.stack(

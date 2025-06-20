@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import VelRepr
 from jaxsim.api.kin_dyn_parameters import ConstraintMap
-from jaxsim.math.rotation import Rotation
 
 
 def compute_constraint_jacobians(
@@ -32,13 +32,13 @@ def compute_constraint_jacobians(
         data=data,
         frame_index=constraint.frame_idxs_1,
         output_vel_repr=VelRepr.Inertial,
-    )
+    )[:3]
     J_WF2 = js.frame.jacobian(
         model=model,
         data=data,
         frame_index=constraint.frame_idxs_2,
         output_vel_repr=VelRepr.Inertial,
-    )
+    )[:3]
 
     return J_WF1 - J_WF2
 
@@ -66,13 +66,13 @@ def compute_constraint_jacobians_derivative(
         data=data,
         frame_index=constraint.frame_idxs_1,
         output_vel_repr=VelRepr.Inertial,
-    )
+    )[:3]
     J̇_WF2 = js.frame.jacobian_derivative(
         model=model,
         data=data,
         frame_index=constraint.frame_idxs_2,
         output_vel_repr=VelRepr.Inertial,
-    )
+    )[:3]
 
     return J̇_WF1 - J̇_WF2
 
@@ -111,11 +111,18 @@ def compute_constraint_baumgarte_term(
 
     vel_error = J_constr @ nu
     position_error = W_p_F1 - W_p_F2
+    jax.debug.print(
+        "Position error: {position_error}, Vel error: {vel_error}",
+        position_error=position_error,
+        vel_error=vel_error,
+    )
     R_error = W_R_F2.T @ W_R_F1
-    orientation_error = Rotation.log_vee(R_error)
+    # orientation_error = Rotation.log_vee(R_error)
 
     baumgarte_term = (
-        K_P * jnp.concatenate([position_error, orientation_error]) + K_D * vel_error
+        # K_P * jnp.concatenate([position_error, orientation_error]) + K_D * vel_error
+        K_P * position_error
+        + K_D * vel_error
     )
 
     return baumgarte_term

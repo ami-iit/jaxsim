@@ -436,7 +436,7 @@ class RelaxedRigidContacts(common.ContactModel):
         G_contacts = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
 
         # Compute the Delassus matrix for constraints (inertial representation) if constraints exist.
-        with data.switch_velocity_representation(VelRepr.Inertial):
+        with data.switch_velocity_representation(VelRepr.Mixed):
             if n_kin_constraints > 0:
                 G_constraints = (
                     J_constr
@@ -590,21 +590,41 @@ class RelaxedRigidContacts(common.ContactModel):
         )
 
         if n_kin_constraints > 0:
-            # Extract the last n_kin_constr values from the solution and split them into 6D wrenches
-            kin_constr_wrench_inertial = solution[-n_kin_constraints:].reshape(-1, 3)
-            # Extend the 3d forces to 6D wrenches by adding zero torques
-            kin_constr_wrench_inertial = jnp.hstack(
-                (
-                    kin_constr_wrench_inertial,
-                    jnp.zeros((kin_constr_wrench_inertial.shape[0], 3)),
-                )
-            )
-
-            # Form an array of tuples with each wrench and its opposite using jax constructs
+            # Extract the last n_kin_constr values from the solution and split them into 3D forces
+            kin_constr_force_mixed = solution[-n_kin_constraints:].reshape(-1, 3)
+            # Create pairs of 6D wrenches (force, 0 torque) and their negatives
+            kin_constr_wrench_pairs = jnp.stack(
+                [
+                    jnp.hstack(
+                        (kin_constr_force_mixed, jnp.zeros_like(kin_constr_force_mixed))
+                    ),
+                    jnp.hstack(
+                        (
+                            -kin_constr_force_mixed,
+                            jnp.zeros_like(kin_constr_force_mixed),
+                        )
+                    ),
+                ],
+                axis=1,
+            )  # shape: (n_constraints, 2, 6)
+            # Convert each wrench to inertial using the corresponding transform
             kin_constr_wrench_pairs_inertial = jnp.stack(
-                (kin_constr_wrench_inertial, -kin_constr_wrench_inertial), axis=1
-            )
-
+                [
+                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                        array=kin_constr_wrench_pairs[:, 0, :],
+                        transform=W_H_constr_pairs[0],
+                        other_representation=VelRepr.Mixed,
+                        is_force=True,
+                    ),
+                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                        array=kin_constr_wrench_pairs[:, 1, :],
+                        transform=W_H_constr_pairs[1],
+                        other_representation=VelRepr.Mixed,
+                        is_force=True,
+                    ),
+                ],
+                axis=1,
+            )  # shape: (n_constraints, 2, 6)
             # Reshape the optimized solution to be a matrix of 3D contact forces.
             CW_fl_C = solution[0:-n_kin_constraints].reshape(-1, 3)
         else:

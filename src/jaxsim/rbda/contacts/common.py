@@ -16,10 +16,25 @@ try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
-
+import enum
+from .detection import sphere_plane
 
 MAX_STIFFNESS = 1e6
 MAX_DAMPING = 1e4
+
+@enum.unique
+class CollidableShapeType(enum.Enum):
+    """
+    Enum representing the types of collidable shapes.
+    """
+
+    Sphere = 0
+    Unsupported = -1
+
+
+_COLLISION_MAP = {
+   CollidableShapeType.Sphere:sphere_plane
+}
 
 
 @functools.partial(jax.jit, static_argnames=("terrain",))
@@ -27,6 +42,7 @@ def compute_penetration_data(
     p: jtp.VectorLike,
     v: jtp.VectorLike,
     terrain: jaxsim.terrain.Terrain,
+    contact_parameters: js.kin_dyn_parameters.ContactParameters | None = None,
 ) -> tuple[jtp.Float, jtp.Float, jtp.Vector]:
     """
     Compute the penetration data (depth, rate, and terrain normal) of a collidable point.
@@ -44,23 +60,11 @@ def compute_penetration_data(
     """
 
     # Pre-process the position and the linear velocity of the collidable point.
-    W_ṗ_C = jnp.array(v).squeeze()
-    px, py, pz = jnp.array(p).squeeze()
+    distance_fn = sphere_plane
 
-    # Compute the terrain normal and the contact depth.
-    n̂ = terrain.normal(x=px, y=py).squeeze()
-    h = jnp.array([0, 0, terrain.height(x=px, y=py) - pz])
+    δ, W_H_C = distance_fn(terrain=terrain, size=contact_parameters.shape_size, center=contact_parameters.center)
 
-    # Compute the penetration depth normal to the terrain.
-    δ = jnp.maximum(0.0, jnp.dot(h, n̂))
-
-    # Compute the penetration normal velocity.
-    δ_dot = -jnp.dot(W_ṗ_C, n̂)
-
-    # Enforce the penetration rate to be zero when the penetration depth is zero.
-    δ_dot = jnp.where(δ > 0, δ_dot, 0.0)
-
-    return δ, δ_dot, n̂
+    return δ, W_H_C
 
 
 class ContactsParams(JaxsimDataclass):

@@ -53,22 +53,22 @@ def system_acceleration(
     W_f_L_terrain = jnp.zeros_like(f_L)
     contact_state_derivative = {}
 
-    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+    # if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
 
-        # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
-        # with the terrain.
-        W_f_L_terrain, contact_state_derivative = js.contact.link_contact_forces(
-            model=model,
-            data=data,
-            link_forces=f_L,
-            joint_torques=joint_torques,
-        )
+    #     # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
+    #     # with the terrain.
+    #     W_f_L_terrain, contact_state_derivative = js.contact.link_contact_forces(
+    #         model=model,
+    #         data=data,
+    #         link_forces=f_L,
+    #         joint_torques=joint_torques,
+    #     )
 
     W_f_L_total = f_L + W_f_L_terrain
 
     # Update the contact state data. This is necessary only for the contact models
     # that require propagation and integration of contact state.
-    contact_state = model.contact_model.update_contact_state(contact_state_derivative)
+    # contact_state = model.contact_model.update_contact_state(contact_state_derivative)
 
     # Store the link forces in a references object.
     references = js.references.JaxSimModelReferences.build(
@@ -92,7 +92,7 @@ def system_acceleration(
         link_forces=references.link_forces(model=model, data=data),
     )
 
-    return v̇_WB, s̈, contact_state
+    return v̇_WB, s̈, contact_state_derivative
 
 
 @jax.jit

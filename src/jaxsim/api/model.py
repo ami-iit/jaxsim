@@ -2444,6 +2444,7 @@ def step(
     *,
     link_forces: jtp.MatrixLike | None = None,
     joint_force_references: jtp.VectorLike | None = None,
+    contact_state_derivative: dict[str, jtp.VectorLike] | None = None,
 ) -> js.data.JaxSimModelData:
     """
     Perform a simulation step.
@@ -2510,6 +2511,7 @@ def step(
         data=data,
         link_forces=W_f_L_external,
         joint_torques=τ_total,
+        contact_state_derivative=contact_state_derivative,
     )
 
     data_tf = model.contact_model.update_velocity_after_impact(

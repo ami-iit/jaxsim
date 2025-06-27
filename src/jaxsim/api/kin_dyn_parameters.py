@@ -14,7 +14,7 @@ import jaxsim
 import jaxsim.typing as jtp
 from jaxsim.math import Inertia, JointModel, supported_joint_motion
 from jaxsim.math.adjoint import Adjoint
-from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
+from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription, SphereCollision, BoxCollision
 from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -756,7 +756,10 @@ class LinkParameters(JaxsimDataclass):
         I = jnp.zeros([3, 3]).at[jnp.triu_indices(3)].set(inertia_elements.squeeze())
         return jnp.atleast_2d(jnp.where(I, I, I.T)).astype(float)
 
-
+_COLLISION_SHAPE_MAP = {
+    SphereCollision: 0,
+    BoxCollision: 1,
+}
 
 @jax_dataclasses.pytree_dataclass
 class ContactParameters(JaxsimDataclass):
@@ -804,15 +807,11 @@ class ContactParameters(JaxsimDataclass):
         )
 
         shape_size = jnp.array(
-            [shape.radius for shape in model_description.collision_shapes]
+            [shape.size.squeeze() for shape in model_description.collision_shapes]
         )
 
-        shape_type = jnp.array(
-            [
-                0
-                for shape in model_description.collision_shapes
-            ]
-        )
+        shape_type = [_COLLISION_SHAPE_MAP[type(shape)] for shape in model_description.collision_shapes]
+        shape_type = jnp.array(shape_type, dtype=int)
 
         # Build the ContactParameters object.
         return ContactParameters(

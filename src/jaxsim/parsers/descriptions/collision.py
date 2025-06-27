@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 import dataclasses
-
+from abc import ABC
 
 import jaxsim.typing as jtp
 
+@dataclasses.dataclass
+class CollisionShape(ABC):
+    """
+    Base class for collision shapes.
+
+    This class serves as a base for specific collision shapes like BoxCollision and SphereCollision.
+    It is not intended to be instantiated directly.
+    """
+
+    center: jtp.VectorLike
+    parent_link: str
+    size: jtp.VectorLike
 
 @dataclasses.dataclass
-class BoxCollision:
+class BoxCollision(CollisionShape):
     """
     Represents a box-shaped collision shape.
 
@@ -15,10 +27,17 @@ class BoxCollision:
         center: The center of the box in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
-    x: float
-    y: float
-    z: float
+    @property
+    def x(self) -> float:
+        return self.size[0]
+
+    @property
+    def y(self) -> float:
+        return self.size[1]
+
+    @property
+    def z(self) -> float:
+        return self.size[2]
 
     def __hash__(self) -> int:
         return hash(
@@ -37,7 +56,7 @@ class BoxCollision:
 
 
 @dataclasses.dataclass
-class SphereCollision:
+class SphereCollision(CollisionShape):
     """
     Represents a spherical collision shape.
 
@@ -45,9 +64,8 @@ class SphereCollision:
         center: The center of the sphere in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
-    radius: float
-    parent_link: str = ""
+    def radius(self) -> float:
+        return self.size[0]
 
     def __hash__(self) -> int:
         return hash(
@@ -57,9 +75,9 @@ class SphereCollision:
             )
         )
 
-    def __eq__(self, other: BoxCollision) -> bool:
+    def __eq__(self, other: SphereCollision) -> bool:
 
-        if not isinstance(other, BoxCollision):
+        if not isinstance(other, SphereCollision):
             return False
 
         return hash(self) == hash(other)

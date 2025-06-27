@@ -17,7 +17,7 @@ try:
 except ImportError:
     from typing_extensions import Self
 import enum
-from .detection import sphere_plane
+from .detection import sphere_plane, box_plane
 
 MAX_STIFFNESS = 1e6
 MAX_DAMPING = 1e4
@@ -29,11 +29,13 @@ class CollidableShapeType(enum.Enum):
     """
 
     Sphere = 0
+    Box = 1
     Unsupported = -1
 
 
 _COLLISION_MAP = {
-   CollidableShapeType.Sphere:sphere_plane
+    CollidableShapeType.Sphere:sphere_plane,
+    CollidableShapeType.Box: box_plane,
 }
 
 

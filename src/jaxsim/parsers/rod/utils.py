@@ -121,7 +121,7 @@ def create_box_collision(
 
     center_wrt_link = (H @ np.hstack([center, 1.0]))[0:-1]
     return descriptions.BoxCollision(
-        x=x, y=y, z=z, center=center_wrt_link
+        size=np.array([x,y,z]), center=center_wrt_link, parent_link=link_description.name
     )
 
 
@@ -146,5 +146,5 @@ def create_sphere_collision(
     center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
 
     return descriptions.SphereCollision(
-        radius=r, center=center_wrt_link, parent_link=link_description.name
+        radius=np.array([r] *3), center=center_wrt_link, parent_link=link_description.name
     )

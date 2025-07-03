@@ -88,7 +88,6 @@ Check the example folder for additional use cases!
 > [!NOTE]
 > GPU performance with JaxSim may vary. If you intend to run the package on a laptop GPU,
 > keep in mind that the performance of some programs may be significantly slower than running on a desktop class GPU.
-
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat
 [notation]: https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2
@@ -113,7 +112,6 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 <summary>With <code>pixi</code></summary>
 
 > ### Note
->
 > The minimum version of `pixi` required is `0.39.0`.
 
 Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
@@ -132,17 +130,17 @@ pixi add jaxsim
 
 If you are on Linux and you want to use a `cuda`-powered version of `jax`, remember to add the appropriate line in the [`system-requirements`](https://pixi.sh/latest/reference/pixi_manifest/#the-system-requirements-table) table, i.e. adding
 
-```toml
+~~~toml
 [system-requirements]
 cuda = "12"
-```
+~~~
 
 if you are using a `pixi.toml` file or
 
-```toml
+~~~toml
 [tool.pixi.system-requirements]
 cuda = "12"
-```
+~~~
 
 if you are using a `pyproject.toml` file.
 
@@ -186,7 +184,6 @@ pip install --no-deps -e .
 <summary>Contributors installation (with <code>pixi</code>)</summary>
 
 > ### Note
->
 > The minimum version of `pixi` required is `0.39.0`.
 
 Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:

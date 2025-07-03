@@ -17,21 +17,18 @@
 <br/>
 </div>
 
-
-
 ## Features
 
 - Physically consistent differentiability w.r.t. hardware parameters.
 - Closed chain dynamics support.
 - Reduced-coordinate physics engine for **fixed-base** and **floating-base** robots.
-- Fully Python-based, leveraging [jax][jax] following a functional programming paradigm.
+- Fully Python-based, leveraging [JAX][jax] following a functional programming paradigm.
 - Seamless execution on CPUs, GPUs, and TPUs.
 - Supports JIT compilation and automatic vectorization for high performance.
 - Compatible with SDF models and URDF (via [sdformat][sdformat] conversion).
 
-
 > [!WARNING]
-> This project is still experimental, APIs could change between releases without notice.
+> This project is still experimental, and APIs may change between releases without notice.
 
 > [!NOTE]
 > JaxSim currently focuses on locomotion applications.
@@ -88,6 +85,10 @@ for _ in T:
 
 Check the example folder for additional use cases!
 
+> [!NOTE]
+> GPU performance with JaxSim may vary. If you intend to run the package on a laptop GPU,
+> keep in mind that the performance of some programs may be significantly slower than running on a desktop class GPU.
+
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat
 [notation]: https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2
@@ -112,6 +113,7 @@ You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*
 <summary>With <code>pixi</code></summary>
 
 > ### Note
+>
 > The minimum version of `pixi` required is `0.39.0`.
 
 Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
@@ -130,17 +132,17 @@ pixi add jaxsim
 
 If you are on Linux and you want to use a `cuda`-powered version of `jax`, remember to add the appropriate line in the [`system-requirements`](https://pixi.sh/latest/reference/pixi_manifest/#the-system-requirements-table) table, i.e. adding
 
-~~~toml
+```toml
 [system-requirements]
 cuda = "12"
-~~~
+```
 
 if you are using a `pixi.toml` file or
 
-~~~toml
+```toml
 [tool.pixi.system-requirements]
 cuda = "12"
-~~~
+```
 
 if you are using a `pyproject.toml` file.
 
@@ -184,6 +186,7 @@ pip install --no-deps -e .
 <summary>Contributors installation (with <code>pixi</code>)</summary>
 
 > ### Note
+>
 > The minimum version of `pixi` required is `0.39.0`.
 
 Since the `pixi.lock` file is stored using Git LFS, make sure you have [Git LFS](https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md) installed and properly configured on your system before installation. After cloning the repository, run:
@@ -217,11 +220,12 @@ The JaxSim API documentation is available at [jaxsim.readthedocs.io][readthedocs
 [readthedocs]: https://jaxsim.readthedocs.io/
 
 ## Additional features
-Jaxsim can also be used as a multi-body dynamic library!  With full support for automatic differentiation of RBDAs (forwards and reverse mode) and  automatic differentiation against both kinematic and dynamic parameters.
 
+Jaxsim can also be used as a multi-body dynamics library! With full support for automatic differentiation of RBDAs (forwards and reverse mode) and automatic differentiation against both kinematic and dynamic parameters.
 
 ### Using JaxSim as a multibody dynamics library
-``` python
+
+```python
 import pathlib
 
 import icub_models
@@ -333,8 +337,8 @@ Theoretical aspects of JaxSim are based on Chapters 7 and 8 of the following Ph.
 
 ## People
 
-| Authors | Maintainers |
-|:------:|:-----------:|
+|                                                                              Authors                                                                               |                                                                             Maintainers                                                                              |
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | [<img src="https://avatars.githubusercontent.com/u/469199?v=4" width="40">][df] [<img src="https://avatars.githubusercontent.com/u/102977828?v=4" width="40">][ff] | [<img src="https://avatars.githubusercontent.com/u/102977828?v=4" width="40">][ff] [<img src="https://avatars.githubusercontent.com/u/57228872?v=4" width="40">][ac] |
 
 [df]: https://github.com/diegoferigo

@@ -420,7 +420,9 @@ class RelaxedRigidContacts(common.ContactModel):
                 J_constr = jnp.vstack(J_constr)
                 J̇_constr = jnp.vstack(J̇_constr)
 
-                R = jnp.diag(jnp.hstack([r, jnp.zeros(n_kin_constraints)]))
+                constraint_regularization = 1e-5 * jnp.ones(n_kin_constraints)
+                # jax.debug.print("r={}", r)
+                R = jnp.diag(jnp.hstack([r, constraint_regularization]))
                 a_ref = jnp.hstack([a_ref, -constr_baumgarte_term])
 
                 J = jnp.vstack([Jl_WC, J_constr])
@@ -433,40 +435,10 @@ class RelaxedRigidContacts(common.ContactModel):
             J̇ = J̇l_WC
 
         # Compute the Delassus matrix for contacts (mixed representation).
-        G_contacts = Jl_WC @ jnp.linalg.pinv(M) @ Jl_WC.T
+        M_inv = jnp.linalg.pinv(M)
 
-        # Compute the Delassus matrix for constraints (inertial representation) if constraints exist.
-        with data.switch_velocity_representation(VelRepr.Mixed):
-            if n_kin_constraints > 0:
-                G_constraints = (
-                    J_constr
-                    @ jnp.linalg.pinv(
-                        js.model.free_floating_mass_matrix(
-                            model=model,
-                            data=data,
-                        )
-                    )
-                    @ J_constr.T
-                )
-            else:
-                G_constraints = jnp.zeros((0, 0))
-
-        # Combine the Delassus matrices for contacts and constraints if constraints exist.
-        if G_constraints.shape[0] > 0:
-            G = jnp.block(
-                [
-                    [
-                        G_contacts,
-                        jnp.zeros((G_contacts.shape[0], G_constraints.shape[1])),
-                    ],
-                    [
-                        jnp.zeros((G_constraints.shape[0], G_contacts.shape[1])),
-                        G_constraints,
-                    ],
-                ]
-            )
-        else:
-            G = G_contacts
+        # Compute the Delassus matrix directly using J and J̇.
+        G = J @ M_inv @ J.T
 
         # Compute the free mixed linear acceleration of the collidable points.
         CW_al_free_WC = J @ BW_ν̇_free + J̇ @ BW_ν
@@ -596,7 +568,10 @@ class RelaxedRigidContacts(common.ContactModel):
             kin_constr_wrench_pairs = jnp.stack(
                 [
                     jnp.hstack(
-                        (kin_constr_force_mixed, jnp.zeros_like(kin_constr_force_mixed))
+                        (
+                            kin_constr_force_mixed,
+                            jnp.zeros_like(kin_constr_force_mixed),
+                        )
                     ),
                     jnp.hstack(
                         (
@@ -607,24 +582,29 @@ class RelaxedRigidContacts(common.ContactModel):
                 ],
                 axis=1,
             )  # shape: (n_constraints, 2, 6)
+
             # Convert each wrench to inertial using the corresponding transform
-            kin_constr_wrench_pairs_inertial = jnp.stack(
-                [
-                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                        array=kin_constr_wrench_pairs[:, 0, :],
-                        transform=W_H_constr_pairs[0],
-                        other_representation=VelRepr.Mixed,
-                        is_force=True,
-                    ),
-                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                        array=kin_constr_wrench_pairs[:, 1, :],
-                        transform=W_H_constr_pairs[1],
-                        other_representation=VelRepr.Mixed,
-                        is_force=True,
-                    ),
-                ],
-                axis=1,
+            kin_constr_wrench_pairs_inertial = jax.vmap(
+                lambda wrench_pair, transform_pair: jnp.stack(
+                    [
+                        ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                            array=wrench_pair[0],
+                            transform=transform_pair[0],
+                            other_representation=VelRepr.Mixed,
+                            is_force=True,
+                        ),
+                        ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                            array=wrench_pair[1],
+                            transform=transform_pair[1],
+                            other_representation=VelRepr.Mixed,
+                            is_force=True,
+                        ),
+                    ]
+                )
+            )(
+                kin_constr_wrench_pairs, W_H_constr_pairs
             )  # shape: (n_constraints, 2, 6)
+
             # Reshape the optimized solution to be a matrix of 3D contact forces.
             CW_fl_C = solution[0:-n_kin_constraints].reshape(-1, 3)
         else:
@@ -638,6 +618,13 @@ class RelaxedRigidContacts(common.ContactModel):
             other_representation=VelRepr.Mixed,
             is_force=True,
         )
+
+        # jax.debug.print(
+        #     "\nW_f_C: {W_f_C}\nkin_constr_wrench_pairs_inertial: {kin_constr_wrench_pairs_inertial}\nkin_constr_force_mixed: {kin_constr_force_mixed}",
+        #     W_f_C=W_f_C,
+        #     kin_constr_wrench_pairs_inertial=kin_constr_wrench_pairs_inertial,
+        #     kin_constr_force_mixed=kin_constr_force_mixed,
+        # )
 
         return W_f_C, {
             "constr_wrenches_inertial": kin_constr_wrench_pairs_inertial,

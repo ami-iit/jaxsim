@@ -428,9 +428,10 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     # Define the kinematic constraints.
     constraints = js.kin_dyn_parameters.ConstraintMap()
     constraints = constraints.add_constraint(
-        frame_1_idx,
-        frame_2_idx,
-        ConstraintType.Weld,
+        model=model,
+        frame_idx_1=frame_1_idx,
+        frame_idx_2=frame_2_idx,
+        constraint_type=ConstraintType.Weld,
     )
 
     # Set the constraints in the model.
@@ -488,6 +489,7 @@ def test_simulation_with_kinematic_constraints_cartpole(
     # Define the kinematic constraints.
     constraints = js.kin_dyn_parameters.ConstraintMap()
     constraints = constraints.add_constraint(
+        model,
         frame_1_idx,
         frame_2_idx,
         ConstraintType.Weld,

@@ -559,39 +559,29 @@ def link_contact_forces(
     # Retrieve the constraint map from the model's kinematic parameters.
     constraint_map = model.kin_dyn_parameters.constraints
 
-    if constraint_map is not None:
-        n_kin_constraints = constraint_map.frame_idxs_1.shape[0]
+    if constraint_map is not None and constraint_map.frame_idxs_1.shape[0] > 0:
 
-        if n_kin_constraints > 0:
+        parent_indices_flat = jnp.stack(
+            [
+                constraint_map.parent_link_idxs_1,
+                constraint_map.parent_link_idxs_2,
+            ],
+            axis=1,
+        ).reshape(-1)
 
-            parent_indices_flat = jnp.stack(
-                [
-                    constraint_map.parent_link_idxs_1,
-                    constraint_map.parent_link_idxs_2,
-                ],
-                axis=1,
-            ).reshape(-1)
+        # Apply constraint wrenches using scatter_add for better performance
+        wrenches_flat = wrench_pair_constr_inertial.reshape(-1, 6)
 
-            # Apply constraint wrenches using scatter_add for better performance
-            wrenches_flat = wrench_pair_constr_inertial.reshape(-1, 6)
+        # jax.debug.print(
+        #     "wrenches shape: {}, W_f_L shape: {}, parent_indices: {}",
+        #     wrenches_flat.shape,
+        #     W_f_L.shape,
+        #     parent_indices_flat,
+        # )
 
-            # jax.debug.print(
-            #     "wrenches shape: {}, W_f_L shape: {}, parent_indices: {}",
-            #     wrenches_flat.shape,
-            #     W_f_L.shape,
-            #     parent_indices_flat,
-            # )
-            import time
+        W_f_L = W_f_L.at[parent_indices_flat].add(wrenches_flat)
 
-            start = time.time()
-            W_f_L_with_constraints = W_f_L.at[parent_indices_flat].add(wrenches_flat)
-            end = time.time()
-            jax.debug.print(
-                "Time taken for scatter_add: {:.6f} seconds",
-                end - start,
-            )
-
-    return W_f_L_with_constraints, aux_dict
+    return W_f_L, aux_dict
 
 
 def link_forces_from_contact_forces(

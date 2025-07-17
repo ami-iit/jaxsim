@@ -286,14 +286,6 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
-        if constraints is not None and not isinstance(
-            contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts
-        ):
-            constraints = None
-            logging.warning(
-                f"Contact model {contact_model.__class__.__name__} does not support kinematic constraints. Use RelaxedRigidContacts instead."
-            )
-
         if contact_params is None:
             contact_params = contact_model._parameters_class()
 

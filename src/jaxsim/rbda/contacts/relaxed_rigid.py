@@ -12,13 +12,6 @@ import optax
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
-from jaxsim.rbda.kinematic_constraints import (
-    ConstraintMap,
-    compute_constraint_baumgarte_term,
-    compute_constraint_jacobians,
-    compute_constraint_jacobians_derivative,
-    compute_constraint_transforms,
-)
 
 from . import common, soft
 
@@ -352,10 +345,6 @@ class RelaxedRigidContacts(common.ContactModel):
         # collidable points.
         W_H_C = js.contact.transforms(model=model, data=data)
 
-        # Retrieve the kinematic constraints, if any.
-        kin_constraints: ConstraintMap = model.kin_dyn_parameters.constraints
-        n_kin_constraints: int = 3 * kin_constraints.frame_idxs_1.shape[0]
-
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
             references.switch_velocity_representation(VelRepr.Mixed),
@@ -387,93 +376,18 @@ class RelaxedRigidContacts(common.ContactModel):
                 ),
             )
 
-        # Check if there are any kinematic constraints
-        if n_kin_constraints > 0:
-            with (
-                data.switch_velocity_representation(VelRepr.Mixed),
-                references.switch_velocity_representation(VelRepr.Mixed),
-            ):
-                J_constr = jax.vmap(
-                    compute_constraint_jacobians, in_axes=(None, None, 0)
-                )(model, data, kin_constraints)
-
-                J̇_constr = jax.vmap(
-                    compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
-                )(model, data, kin_constraints)
-
-                W_H_constr_pairs = jax.vmap(
-                    compute_constraint_transforms, in_axes=(None, None, 0)
-                )(model, data, kin_constraints)
-
-                constr_baumgarte_term = jnp.ravel(
-                    jax.vmap(
-                        compute_constraint_baumgarte_term,
-                        in_axes=(0, None, 0, 0),
-                    )(
-                        J_constr,
-                        BW_ν,
-                        W_H_constr_pairs,
-                        kin_constraints,
-                    ),
-                )
-
-                J_constr = jnp.vstack(J_constr)
-                J̇_constr = jnp.vstack(J̇_constr)
-
-                constraint_regularization = 1e-3 * jnp.ones(n_kin_constraints)
-                # jax.debug.print("r={}", r)
-                R = jnp.diag(jnp.hstack([r, constraint_regularization]))
-                a_ref = jnp.hstack([a_ref, -constr_baumgarte_term])
-
-                J = jnp.vstack([Jl_WC, J_constr])
-                J̇ = jnp.vstack([J̇l_WC, J̇_constr])
-
-        else:
-            R = jnp.diag(r)
-
-            J = Jl_WC
-            J̇ = J̇l_WC
-        # TODO
-        J = J_constr
-        J̇ = J̇_constr
-        R = jnp.diag(constraint_regularization)
-        a_ref = jnp.hstack([-constr_baumgarte_term])
-
         # Compute the Delassus matrix for contacts (mixed representation).
         M_inv = jnp.linalg.pinv(M)
 
         # Compute the Delassus matrix directly using J and J̇.
-        # G = J @ M_inv @ J.T
         G_contacts = Jl_WC @ M_inv @ Jl_WC.T
 
-        # Compute the Delassus matrix for constraints (inertial representation) if constraints exist.
-        if n_kin_constraints > 0:
-            G_constraints = J_constr @ M_inv @ J_constr.T
-        else:
-            G_constraints = jnp.zeros((0, 0))
-
-        # Combine the Delassus matrices for contacts and constraints if constraints exist.
-        if G_constraints.shape[0] > 0:
-            G = jnp.block(
-                [
-                    [
-                        G_contacts,
-                        jnp.zeros((G_contacts.shape[0], G_constraints.shape[1])),
-                    ],
-                    [
-                        jnp.zeros((G_constraints.shape[0], G_contacts.shape[1])),
-                        G_constraints,
-                    ],
-                ]
-            )
-        else:
-            G = G_contacts
-        G = G_constraints
         # Compute the free mixed linear acceleration of the collidable points.
-        CW_al_free_WC = J @ BW_ν̇_free + J̇ @ BW_ν
+        CW_al_free_WC = Jl_WC @ BW_ν̇_free + J̇l_WC @ BW_ν
 
         # Calculate quantities for the linear optimization problem.
-        A = G + R
+        R = jnp.diag(r)
+        A = G_contacts + R
         b = CW_al_free_WC - a_ref
 
         # Create the objective function to minimize as a lambda computing the cost
@@ -562,10 +476,6 @@ class RelaxedRigidContacts(common.ContactModel):
             )[0]
         )(position, velocity).flatten()
 
-        if n_kin_constraints > 0:
-            # TODO warm start constraint forces with the previous solution
-            init_params = jnp.hstack([jnp.zeros(n_kin_constraints)])
-
         # Get the solver options.
         solver_options = self.solver_options
 
@@ -591,70 +501,22 @@ class RelaxedRigidContacts(common.ContactModel):
             has_aux=True,
         )
 
-        if n_kin_constraints > 0:
-            # Extract the last n_kin_constr values from the solution and split them into 3D forces
-            kin_constr_force_mixed = solution[-n_kin_constraints:].reshape(-1, 3)
-
-            # Use vmap to create wrench pairs for each constraint
-            def create_wrench_pair(force_3d):
-                """Create a pair of 6D wrenches (force, 0 torque) and their negatives."""
-                wrench_positive = jnp.hstack((force_3d, jnp.zeros(3)))
-                wrench_negative = jnp.hstack((-force_3d, jnp.zeros(3)))
-                return jnp.stack([wrench_positive, wrench_negative])
-
-            # Apply to all constraint forces at once
-            kin_constr_wrench_pairs = jax.vmap(create_wrench_pair)(
-                kin_constr_force_mixed
-            )  # shape: (n_constraints, 2, 6)
-
-            # Convert each wrench to inertial using the corresponding transform
-            kin_constr_wrench_pairs_inertial = jax.vmap(
-                lambda wrench_pair, transform_pair: jnp.stack(
-                    [
-                        ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                            array=wrench_pair[0],
-                            transform=transform_pair[0],
-                            other_representation=VelRepr.Mixed,
-                            is_force=True,
-                        ),
-                        ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                            array=wrench_pair[1],
-                            transform=transform_pair[1],
-                            other_representation=VelRepr.Mixed,
-                            is_force=True,
-                        ),
-                    ]
-                )
-            )(
-                kin_constr_wrench_pairs, W_H_constr_pairs
-            )  # shape: (n_constraints, 2, 6)
-
-            # Reshape the optimized solution to be a matrix of 3D contact forces.
-            CW_fl_C = solution[:-n_kin_constraints].reshape(-1, 3)
-        else:
-            kin_constr_wrench_pairs_inertial = jnp.zeros((0, 2, 6))
-            CW_fl_C = solution.reshape(-1, 3)
+        # Reshape the optimized solution to be a matrix of 3D contact forces.
+        CW_fl_C = solution.reshape(-1, 3)
 
         # Convert the contact forces from mixed to inertial-fixed representation.
-        # W_f_C = ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-        #     array=jnp.zeros((W_H_C.shape[0], 6)).at[:, :3].set(CW_fl_C),
-        #     transform=W_H_C,
-        #     other_representation=VelRepr.Mixed,
-        #     is_force=True,
-        # )
+        W_f_C = jax.vmap(
+            lambda CW_fl_C, W_H_C: (
+                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
+                    transform=W_H_C,
+                    other_representation=VelRepr.Mixed,
+                    is_force=True,
+                )
+            ),
+        )(CW_fl_C, W_H_C)
 
-        W_f_C = jnp.zeros((W_H_C.shape[0], 6))
-
-        # jax.debug.print(
-        #     "\nW_f_C: {W_f_C}\nkin_constr_wrench_pairs_inertial: {kin_constr_wrench_pairs_inertial}\nkin_constr_force_mixed: {kin_constr_force_mixed}",
-        #     W_f_C=W_f_C,
-        #     kin_constr_wrench_pairs_inertial=kin_constr_wrench_pairs_inertial,
-        #     kin_constr_force_mixed=kin_constr_force_mixed,
-        # )
-
-        return W_f_C, {
-            "constr_wrenches_inertial": kin_constr_wrench_pairs_inertial,
-        }
+        return W_f_C, {}
 
     @staticmethod
     def _regularizers(

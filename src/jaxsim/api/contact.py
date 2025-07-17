@@ -552,35 +552,6 @@ def link_contact_forces(
     # to the frames associated to the collidable points.
     W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
 
-    # Process constraint wrenches if present.
-    # if "constr_wrenches_inertial" in aux_dict:
-    wrench_pair_constr_inertial = aux_dict["constr_wrenches_inertial"]
-    # wrench_pair_constr_inertial = W_f_C
-    # Retrieve the constraint map from the model's kinematic parameters.
-    constraint_map = model.kin_dyn_parameters.constraints
-
-    if constraint_map is not None and constraint_map.frame_idxs_1.shape[0] > 0:
-
-        parent_indices_flat = jnp.stack(
-            [
-                constraint_map.parent_link_idxs_1,
-                constraint_map.parent_link_idxs_2,
-            ],
-            axis=1,
-        ).reshape(-1)
-
-        # Apply constraint wrenches using scatter_add for better performance
-        wrenches_flat = wrench_pair_constr_inertial.reshape(-1, 6)
-
-        # jax.debug.print(
-        #     "wrenches shape: {}, W_f_L shape: {}, parent_indices: {}",
-        #     wrenches_flat.shape,
-        #     W_f_L.shape,
-        #     parent_indices_flat,
-        # )
-
-        W_f_L = W_f_L.at[parent_indices_flat].add(wrenches_flat)
-
     return W_f_L, aux_dict
 
 

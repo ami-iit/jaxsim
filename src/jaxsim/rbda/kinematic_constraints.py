@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
+from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.api.kin_dyn_parameters import ConstraintMap
 
 
@@ -101,9 +103,6 @@ def compute_constraint_baumgarte_term(
     W_p_F1 = W_H_F1[0:3, 3]
     W_p_F2 = W_H_F2[0:3, 3]
 
-    W_R_F1 = W_H_F1[0:3, 0:3]
-    W_R_F2 = W_H_F2[0:3, 0:3]
-
     K_P = constraint.K_P
     K_D = constraint.K_D
 
@@ -151,3 +150,165 @@ def compute_constraint_transforms(
     )
 
     return jnp.array((W_H_F1, W_H_F2))
+
+
+@jax.jit
+@js.common.named_scope
+def compute_constraint_wrenches(
+    model: js.model.JaxSimModel,
+    data: js.data.JaxSimModelData,
+    *,
+    joint_force_references: jtp.VectorLike | None = None,
+    link_forces_inertial: jtp.MatrixLike | None = None,
+    regularization: jtp.Float = 1e-3,
+) -> jtp.Matrix:
+    """
+    Compute the constraint wrenches for kinematic constraints.
+
+    Args:
+        model: The JaxSim model.
+        data: The data of the considered model.
+        joint_force_references: The joint force references to apply.
+        link_forces_inertial: The link forces applied in inertial representation.
+        regularization: The regularization parameter for the constraint solver.
+
+    Returns:
+        A tuple containing the constraint wrenches in inertial representation
+        and auxiliary information.
+    """
+
+    # Retrieve the kinematic constraints, if any.
+    kin_constraints = model.kin_dyn_parameters.constraints
+
+    # Return empty results if no constraints exist
+    if kin_constraints is None:
+        return jnp.zeros((0, 2, 6)), {"constr_wrenches_inertial": jnp.zeros((0, 2, 6))}
+
+    n_kin_constraints: int = 3 * kin_constraints.frame_idxs_1.shape[0]
+
+    # Return empty results if no constraints exist
+    if n_kin_constraints == 0:
+        return jnp.zeros((0, 2, 6)), {"constr_wrenches_inertial": jnp.zeros((0, 2, 6))}
+
+    # Build joint forces if not provided
+    τ_references = (
+        jnp.atleast_1d(jnp.array(joint_force_references).squeeze())
+        if joint_force_references is not None
+        else jnp.zeros_like(data.joint_positions)
+    ).astype(float)
+
+    # Build link forces if not provided
+    W_f_L = (
+        jnp.atleast_2d(jnp.array(link_forces_inertial).squeeze())
+        if link_forces_inertial is not None
+        else jnp.zeros((model.number_of_links(), 6))
+    ).astype(float)
+
+    # Create references object for handling different velocity representations
+    references = js.references.JaxSimModelReferences.build(
+        model=model,
+        joint_force_references=τ_references,
+        link_forces=W_f_L,
+        velocity_representation=VelRepr.Inertial,
+    )
+
+    with (
+        data.switch_velocity_representation(VelRepr.Mixed),
+        references.switch_velocity_representation(VelRepr.Mixed),
+    ):
+        BW_ν = data.generalized_velocity
+
+        # Compute free acceleration without constraints
+        BW_ν̇_free = jnp.hstack(
+            js.model.forward_dynamics_aba(
+                model=model,
+                data=data,
+                link_forces=references.link_forces(model=model, data=data),
+                joint_forces=references.joint_force_references(model=model),
+            )
+        )
+
+        # Compute mass matrix
+        M = js.model.free_floating_mass_matrix(model=model, data=data)
+
+        # Compute constraint jacobians and derivatives
+        J_constr = jax.vmap(compute_constraint_jacobians, in_axes=(None, None, 0))(
+            model, data, kin_constraints
+        )
+
+        J̇_constr = jax.vmap(
+            compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
+        )(model, data, kin_constraints)
+
+        W_H_constr_pairs = jax.vmap(
+            compute_constraint_transforms, in_axes=(None, None, 0)
+        )(model, data, kin_constraints)
+
+        # Compute Baumgarte stabilization term
+        constr_baumgarte_term = jnp.ravel(
+            jax.vmap(
+                compute_constraint_baumgarte_term,
+                in_axes=(0, None, 0, 0),
+            )(
+                J_constr,
+                BW_ν,
+                W_H_constr_pairs,
+                kin_constraints,
+            ),
+        )
+
+        # Stack constraint jacobians
+        J_constr = jnp.vstack(J_constr)
+        J̇_constr = jnp.vstack(J̇_constr)
+
+        # Compute Delassus matrix for constraints
+        M_inv = jnp.linalg.pinv(M)
+        G_constraints = J_constr @ M_inv @ J_constr.T
+
+        # Compute constraint acceleration
+        CW_al_free_constr = J_constr @ BW_ν̇_free + J̇_constr @ BW_ν
+
+        # Setup constraint optimization problem
+        constraint_regularization = regularization * jnp.ones(n_kin_constraints)
+        R = jnp.diag(constraint_regularization)
+        A = G_constraints + R
+        b = CW_al_free_constr + constr_baumgarte_term
+
+        # Solve for constraint forces
+        kin_constr_force_mixed = jnp.linalg.solve(A, -b).reshape(-1, 3)
+
+        # Convert constraint forces to wrenches
+        def create_wrench_pair(force_3d):
+            """Create a pair of 6D wrenches (force, 0 torque) and their negatives."""
+            wrench_positive = jnp.hstack((force_3d, jnp.zeros(3)))
+            wrench_negative = jnp.hstack((-force_3d, jnp.zeros(3)))
+            return jnp.stack([wrench_positive, wrench_negative])
+
+        # Apply to all constraint forces at once
+        kin_constr_wrench_pairs = jax.vmap(create_wrench_pair)(
+            kin_constr_force_mixed
+        )  # shape: (n_constraints, 2, 6)
+
+        # Convert each wrench to inertial using the corresponding transform
+        kin_constr_wrench_pairs_inertial = jax.vmap(
+            lambda wrench_pair, transform_pair: jnp.stack(
+                [
+                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                        array=wrench_pair[0],
+                        transform=transform_pair[0],
+                        other_representation=VelRepr.Mixed,
+                        is_force=True,
+                    ),
+                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                        array=wrench_pair[1],
+                        transform=transform_pair[1],
+                        other_representation=VelRepr.Mixed,
+                        is_force=True,
+                    ),
+                ]
+            )
+        )(
+            kin_constr_wrench_pairs, W_H_constr_pairs
+        )  # shape: (n_constraints, 2, 6)
+
+    return kin_constr_wrench_pairs_inertial

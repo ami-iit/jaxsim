@@ -180,22 +180,20 @@ def compute_constraint_wrenches(
     # Retrieve the kinematic constraints, if any.
     kin_constraints = model.kin_dyn_parameters.constraints
 
-    # Return empty results if no constraints exist
-    if kin_constraints is None:
-        return jnp.zeros((0, 2, 6)), {"constr_wrenches_inertial": jnp.zeros((0, 2, 6))}
-
-    n_kin_constraints: int = 3 * kin_constraints.frame_idxs_1.shape[0]
+    n_kin_constraints = (
+        0 if kin_constraints is None else 3 * kin_constraints.frame_idxs_1.shape[0]
+    )
 
     # Return empty results if no constraints exist
     if n_kin_constraints == 0:
-        return jnp.zeros((0, 2, 6)), {"constr_wrenches_inertial": jnp.zeros((0, 2, 6))}
+        return jnp.zeros((0, 2, 6))
 
     # Build joint forces if not provided
     τ_references = (
-        jnp.atleast_1d(jnp.array(joint_force_references).squeeze())
+        jnp.asarray(joint_force_references, dtype=float)
         if joint_force_references is not None
         else jnp.zeros_like(data.joint_positions)
-    ).astype(float)
+    )
 
     # Build link forces if not provided
     W_f_L = (
@@ -262,8 +260,7 @@ def compute_constraint_wrenches(
         J̇_constr = jnp.vstack(J̇_constr)
 
         # Compute Delassus matrix for constraints
-        M_inv = jnp.linalg.pinv(M)
-        G_constraints = J_constr @ M_inv @ J_constr.T
+        G_constraints = J_constr @ jnp.linalg.solve(M, J_constr.T)
 
         # Compute constraint acceleration
         CW_al_free_constr = J_constr @ BW_ν̇_free + J̇_constr @ BW_ν
@@ -278,37 +275,37 @@ def compute_constraint_wrenches(
         kin_constr_force_mixed = jnp.linalg.solve(A, -b).reshape(-1, 3)
 
         # Convert constraint forces to wrenches
-        def create_wrench_pair(force_3d):
-            """Create a pair of 6D wrenches (force, 0 torque) and their negatives."""
-            wrench_positive = jnp.hstack((force_3d, jnp.zeros(3)))
-            wrench_negative = jnp.hstack((-force_3d, jnp.zeros(3)))
-            return jnp.stack([wrench_positive, wrench_negative])
 
-        # Apply to all constraint forces at once
-        kin_constr_wrench_pairs = jax.vmap(create_wrench_pair)(
-            kin_constr_force_mixed
-        )  # shape: (n_constraints, 2, 6)
+    def transform_wrench_pair_efficiently(force_3d, transform_pair):
+        """Efficiently create and transform wrench pairs."""
+        W_H_F1, W_H_F2 = transform_pair[0], transform_pair[1]
 
-        # Convert each wrench to inertial using the corresponding transform
-        kin_constr_wrench_pairs_inertial = jax.vmap(
-            lambda wrench_pair, transform_pair: jnp.stack(
-                [
-                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                        array=wrench_pair[0],
-                        transform=transform_pair[0],
-                        other_representation=VelRepr.Mixed,
-                        is_force=True,
-                    ),
-                    ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                        array=wrench_pair[1],
-                        transform=transform_pair[1],
-                        other_representation=VelRepr.Mixed,
-                        is_force=True,
-                    ),
-                ]
+        # Create wrench pair directly
+        wrench_F1 = jnp.concatenate([force_3d, jnp.zeros(3)])
+        wrench_F2 = jnp.concatenate([-force_3d, jnp.zeros(3)])
+
+        # Transform both at once
+        wrench_F1_inertial = (
+            ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                array=wrench_F1,
+                transform=W_H_F1,
+                other_representation=VelRepr.Mixed,
+                is_force=True,
             )
-        )(
-            kin_constr_wrench_pairs, W_H_constr_pairs
-        )  # shape: (n_constraints, 2, 6)
+        )
+        wrench_F2_inertial = (
+            ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                array=wrench_F2,
+                transform=W_H_F2,
+                other_representation=VelRepr.Mixed,
+                is_force=True,
+            )
+        )
+
+        return jnp.stack([wrench_F1_inertial, wrench_F2_inertial])
+
+    kin_constr_wrench_pairs_inertial = jax.vmap(transform_wrench_pair_efficiently)(
+        kin_constr_force_mixed, W_H_constr_pairs
+    )
 
     return kin_constr_wrench_pairs_inertial

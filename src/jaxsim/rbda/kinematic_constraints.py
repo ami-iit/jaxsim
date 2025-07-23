@@ -181,7 +181,9 @@ def compute_constraint_wrenches(
     kin_constraints = model.kin_dyn_parameters.constraints
 
     n_kin_constraints = (
-        0 if kin_constraints is None else 3 * kin_constraints.frame_idxs_1.shape[0]
+        0
+        if (kin_constraints is None) or (kin_constraints.frame_idxs_1.shape[0] == 0)
+        else 3 * kin_constraints.frame_idxs_1.shape[0]
     )
 
     # Return empty results if no constraints exist

@@ -7,80 +7,101 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 from jaxsim.api.kin_dyn_parameters import ConstraintMap
+from jaxsim.math.adjoint import Adjoint
+from jaxsim.math.transform import Transform
 
 
-def compute_constraint_jacobians(
+def compute_constraint_transforms_batched(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
-    constraint: ConstraintMap,
+    constraints: ConstraintMap,
 ) -> jtp.Matrix:
-    """
-    Compute the constraint Jacobian matrix representing the kinematic constraints between two frames.
+    W_H_L = data._link_transforms
 
-    Args:
-        model: The JaxSim model.
-        data: The data of the considered model.
-        constraint: The considered constraint.
+    frame_idxs_1 = constraints.frame_idxs_1
+    frame_idxs_2 = constraints.frame_idxs_2
 
-    Returns:
-        The resulting constraint Jacobian matrix representing the kinematic constraint
-        between the two specified frames, in inertial representation.
-    """
+    parent_link_idxs_1 = constraints.parent_link_idxs_1
+    parent_link_idxs_2 = constraints.parent_link_idxs_2
 
-    J_WF1 = js.frame.jacobian(
-        model=model,
-        data=data,
-        frame_index=constraint.frame_idxs_1,
-        # output_vel_repr=VelRepr.Inertial,
-    )[:3]
-    J_WF2 = js.frame.jacobian(
-        model=model,
-        data=data,
-        frame_index=constraint.frame_idxs_2,
-        # output_vel_repr=VelRepr.Inertial,
-    )[:3]
+    def get_L_H_F(frame_index):
+        # Get the static frame pose wrt the parent link.
+        return model.kin_dyn_parameters.frame_parameters.transform[
+            frame_index - model.number_of_links()
+        ]
 
-    return J_WF1 - J_WF2
+    # Vectorize over frame indices
+    L_H_F1 = jax.vmap(get_L_H_F)(frame_idxs_1)
+    L_H_F2 = jax.vmap(get_L_H_F)(frame_idxs_2)
+
+    # Compute the homogeneous transformation matrices for the two frames
+    W_H_F1 = W_H_L[parent_link_idxs_1] @ L_H_F1
+    W_H_F2 = W_H_L[parent_link_idxs_2] @ L_H_F2
+
+    return jnp.stack([W_H_F1, W_H_F2], axis=1)
 
 
-def compute_constraint_jacobians_derivative(
+def compute_constraint_jacobians_batched(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
-    constraint: ConstraintMap,
+    constraints: ConstraintMap,
+    W_H_constraint_pairs: jtp.Matrix,
 ) -> jtp.Matrix:
-    """
-    Compute the derivative of the constraint Jacobian matrix representing the kinematic constraints between two frames.
 
-    Args:
-        model: The JaxSim model.
-        data: The data of the considered model.
-        constraint: The considered constraint.
-
-    Returns:
-        The resulting constraint Jacobian derivative matrix representing the kinematic constraint
-        between the two specified frames, in inertial representation.
-    """
-
-    J̇_WF1 = js.frame.jacobian_derivative(
+    W_H_constraint_pairs = compute_constraint_transforms_batched(
         model=model,
         data=data,
-        frame_index=constraint.frame_idxs_1,
-        # output_vel_repr=VelRepr.Inertial,
-    )[:3]
-    J̇_WF2 = js.frame.jacobian_derivative(
-        model=model,
-        data=data,
-        frame_index=constraint.frame_idxs_2,
-        # output_vel_repr=VelRepr.Inertial,
-    )[:3]
+        constraints=constraints,
+    )
 
-    return J̇_WF1 - J̇_WF2
+    with data.switch_velocity_representation(VelRepr.Body):
+        # Doubly-left free-floating Jacobian.
+        L_J_WL_B = js.model.generalized_free_floating_jacobian(
+            model=model, data=data, output_vel_repr=VelRepr.Body
+        )
+
+        # Link transforms
+        W_H_L = data._link_transforms
+
+    def compute_frame_jacobian_mixed(L_J_WL, W_H_L, W_H_F, parent_link_index):
+        # select the jacobian of the parent link
+
+        L_J_WL = L_J_WL[parent_link_index]
+
+        # compute the jacobian of the frame in mixed representation
+        W_H_L = W_H_L[parent_link_index]
+        # W_H_F = transform(model=model, data=data, frame_index=frame_index)
+        F_H_L = Transform.inverse(W_H_F) @ W_H_L
+        FW_H_F = W_H_F.at[0:3, 3].set(jnp.zeros(3))
+        FW_H_L = FW_H_F @ F_H_L
+        FW_X_L = Adjoint.from_transform(transform=FW_H_L)
+        FW_J_WL = FW_X_L @ L_J_WL
+        O_J_WL_I = FW_J_WL
+
+        return O_J_WL_I
+
+    def compute_constraint_jacobian(L_J_WL, W_H_F, constraint):
+        J_WF1 = compute_frame_jacobian_mixed(
+            L_J_WL, W_H_L, W_H_F[0], constraint.parent_link_idxs_1
+        )[:3]
+        J_WF2 = compute_frame_jacobian_mixed(
+            L_J_WL, W_H_L, W_H_F[1], constraint.parent_link_idxs_2
+        )[:3]
+
+        return J_WF1 - J_WF2
+
+    # Vectorize the computation of constraint Jacobians
+    constraint_jacobians = jax.vmap(compute_constraint_jacobian, in_axes=(None, 0, 0))(
+        L_J_WL_B, W_H_constraint_pairs, constraints
+    )
+
+    return constraint_jacobians
 
 
 def compute_constraint_baumgarte_term(
     J_constr: jtp.Matrix,
     nu: jtp.Vector,
-    W_H_F_constr: tuple[jtp.Matrix, jtp.Matrix],
+    W_H_F_constr: jtp.Matrix,
     constraint: ConstraintMap,
 ) -> jtp.Vector:
     """
@@ -98,7 +119,7 @@ def compute_constraint_baumgarte_term(
     Returns:
         The computed Baumgarte stabilization term.
     """
-    W_H_F1, W_H_F2 = W_H_F_constr
+    W_H_F1, W_H_F2 = W_H_F_constr[0], W_H_F_constr[1]
 
     W_p_F1 = W_H_F1[0:3, 3]
     W_p_F2 = W_H_F2[0:3, 3]
@@ -123,33 +144,6 @@ def compute_constraint_baumgarte_term(
     )
 
     return baumgarte_term
-
-
-def compute_constraint_transforms(
-    model: js.model.JaxSimModel,
-    data: js.data.JaxSimModelData,
-    constraint: ConstraintMap,
-) -> jtp.Matrix:
-    """
-    Compute the transformation matrices for a given kinematic constraint between two frames.
-
-    Args:
-        model: The JaxSim model.
-        data: The data of the considered model.
-        constraint: The considered constraint.
-
-    Returns:
-        A matrix containing the tuple of transformation matrices of the two frames.
-    """
-
-    W_H_F1 = js.frame.transform(
-        model=model, data=data, frame_index=constraint.frame_idxs_1
-    )
-    W_H_F2 = js.frame.transform(
-        model=model, data=data, frame_index=constraint.frame_idxs_2
-    )
-
-    return jnp.array((W_H_F1, W_H_F2))
 
 
 @jax.jit
@@ -231,18 +225,23 @@ def compute_constraint_wrenches(
         # Compute mass matrix
         M = js.model.free_floating_mass_matrix(model=model, data=data)
 
-        # Compute constraint jacobians and derivatives
-        J_constr = jax.vmap(compute_constraint_jacobians, in_axes=(None, None, 0))(
-            model, data, kin_constraints
+        W_H_constr_pairs = compute_constraint_transforms_batched(
+            model=model,
+            data=data,
+            constraints=kin_constraints,
         )
 
-        J̇_constr = jax.vmap(
-            compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
-        )(model, data, kin_constraints)
+        # Compute constraint jacobians and derivatives
+        J_constr = compute_constraint_jacobians_batched(
+            model=model,
+            data=data,
+            constraints=kin_constraints,
+            W_H_constraint_pairs=W_H_constr_pairs,
+        )
 
-        W_H_constr_pairs = jax.vmap(
-            compute_constraint_transforms, in_axes=(None, None, 0)
-        )(model, data, kin_constraints)
+        # J̇_constr = jax.vmap(
+        #     compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
+        # )(model, data, kin_constraints)
 
         # Compute Baumgarte stabilization term
         constr_baumgarte_term = jnp.ravel(
@@ -259,13 +258,13 @@ def compute_constraint_wrenches(
 
         # Stack constraint jacobians
         J_constr = jnp.vstack(J_constr)
-        J̇_constr = jnp.vstack(J̇_constr)
+        # J̇_constr = jnp.vstack(J̇_constr)
 
         # Compute Delassus matrix for constraints
         G_constraints = J_constr @ jnp.linalg.solve(M, J_constr.T)
 
         # Compute constraint acceleration
-        CW_al_free_constr = J_constr @ BW_ν̇_free + J̇_constr @ BW_ν
+        CW_al_free_constr = J_constr @ BW_ν̇_free  # + J̇_constr @ BW_ν
 
         # Setup constraint optimization problem
         constraint_regularization = regularization * jnp.ones(n_kin_constraints)

@@ -48,12 +48,6 @@ def compute_constraint_jacobians_batched(
     W_H_constraint_pairs: jtp.Matrix,
 ) -> jtp.Matrix:
 
-    W_H_constraint_pairs = compute_constraint_transforms_batched(
-        model=model,
-        data=data,
-        constraints=constraints,
-    )
-
     with data.switch_velocity_representation(VelRepr.Body):
         # Doubly-left free-floating Jacobian.
         L_J_WL_B = js.model.generalized_free_floating_jacobian(

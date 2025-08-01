@@ -1141,7 +1141,7 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def apply_scaling(
-        hw_metadata: HwLinkMetadata, scaling_factors: ScalingFactors
+        hw_metadata: HwLinkMetadata, scaling_factors: ScalingFactors, has_joints: bool
     ) -> HwLinkMetadata:
         """
         Apply scaling to the hardware parameters and return a new HwLinkMetadata object.
@@ -1149,6 +1149,7 @@ class HwLinkMetadata(JaxsimDataclass):
         Args:
             hw_metadata: the original HwLinkMetadata object.
             scaling_factors: the scaling factors to apply.
+            has_joints: whether the model has at least one joint.
 
         Returns:
             A new HwLinkMetadata object with updated parameters.
@@ -1157,11 +1158,12 @@ class HwLinkMetadata(JaxsimDataclass):
         # ==================================
         # Handle unsupported links
         # ==================================
-        def unsupported_case(hw_metadata, scaling_factors):
+
+        def unsupported_case(hw_metadata, scaling_factors, has_joints):
             # Return the metadata unchanged for unsupported links
             return hw_metadata
 
-        def supported_case(hw_metadata, scaling_factors):
+        def supported_case(hw_metadata, scaling_factors, has_joints):
             # ==================================
             # Update the kinematics of the link
             # ==================================
@@ -1180,27 +1182,39 @@ class HwLinkMetadata(JaxsimDataclass):
             # Express the transforms in the G frame
             G_H_L = jaxsim.math.Transform.inverse(L_H_G)
             G_H_vis = G_H_L @ L_H_vis
-            G_H_pre_array = jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+            G_H_pre_array = (
+                jax.vmap(lambda L_H_pre: G_H_L @ L_H_pre)(L_H_pre_array)
+                if has_joints
+                else L_H_pre_array
+            )
 
             # Apply the scaling to the position vectors
             G_H̅_L = G_H_L.at[:3, 3].set(scale_vector * G_H_L[:3, 3])
             G_H̅_vis = G_H_vis.at[:3, 3].set(scale_vector * G_H_vis[:3, 3])
             # Apply scaling to the position vectors in G_H_pre_array based on the mask
-            G_H̅_pre_array = jax.vmap(
-                lambda G_H_pre, mask: jnp.where(
-                    # Expand mask for broadcasting
-                    mask[..., None, None],
-                    # Apply scaling
-                    G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
-                    # Keep unchanged if mask is False
-                    G_H_pre,
-                )
-            )(G_H_pre_array, L_H_pre_mask)
+            G_H̅_pre_array = (
+                jax.vmap(
+                    lambda G_H_pre, mask: jnp.where(
+                        # Expand mask for broadcasting
+                        mask[..., None, None],
+                        # Apply scaling
+                        G_H_pre.at[:3, 3].set(scale_vector * G_H_pre[:3, 3]),
+                        # Keep unchanged if mask is False
+                        G_H_pre,
+                    )
+                )(G_H_pre_array, L_H_pre_mask)
+                if has_joints
+                else G_H_pre_array
+            )
 
             # Get back to the link frame
             L_H̅_G = jaxsim.math.Transform.inverse(G_H̅_L)
             L_H̅_vis = L_H̅_G @ G_H̅_vis
-            L_H̅_pre_array = jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+            L_H̅_pre_array = (
+                jax.vmap(lambda G_H̅_pre: L_H̅_G @ G_H̅_pre)(G_H̅_pre_array)
+                if has_joints
+                else G_H̅_pre_array
+            )
 
             # ============================
             # Update the shape parameters
@@ -1229,8 +1243,8 @@ class HwLinkMetadata(JaxsimDataclass):
         # Use jax.lax.cond to handle unsupported links
         return jax.lax.cond(
             hw_metadata.shape == LinkParametrizableShape.Unsupported,
-            lambda: unsupported_case(hw_metadata, scaling_factors),
-            lambda: supported_case(hw_metadata, scaling_factors),
+            lambda: unsupported_case(hw_metadata, scaling_factors, has_joints),
+            lambda: supported_case(hw_metadata, scaling_factors, has_joints),
         )
 
 

@@ -2361,10 +2361,12 @@ def update_hw_parameters(
     link_parameters: LinkParameters = kin_dyn_params.link_parameters
     hw_link_metadata: HwLinkMetadata = kin_dyn_params.hw_link_metadata
 
+    has_joints = model.number_of_joints() > 0
+
     # Apply scaling to hw_link_metadata using vmap
-    updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling)(
-        hw_link_metadata, scaling_factors
-    )
+    updated_hw_link_metadata = jax.vmap(
+        HwLinkMetadata.apply_scaling, in_axes=(0, 0, None)
+    )(hw_link_metadata, scaling_factors, has_joints)
 
     # Compute mass and inertia once and unpack the results
     m_updated, I_com_updated = jax.vmap(HwLinkMetadata.compute_mass_and_inertia)(
@@ -2423,19 +2425,23 @@ def update_hw_parameters(
             lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index + 1],
         )
 
-    # Apply the update function to all joint indices
-    updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
-        jnp.arange(kin_dyn_params.number_of_joints())
-    )
-    # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
-    # to identity to represent the world-to-base tree transform. See JointModel class
-    updated_λ_H_pre_with_base = jnp.concatenate(
-        (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
-    )
-    # Replace the joint model with the updated transforms
-    updated_joint_model = kin_dyn_params.joint_model.replace(
-        λ_H_pre=updated_λ_H_pre_with_base
-    )
+    if has_joints:
+        # Apply the update function to all joint indices
+        updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
+            jnp.arange(kin_dyn_params.number_of_joints())
+        )  # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
+        # to identity to represent the world-to-base tree transform. See JointModel class
+        updated_λ_H_pre_with_base = jnp.concatenate(
+            (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
+        )
+        # Replace the joint model with the updated transforms
+        updated_joint_model = kin_dyn_params.joint_model.replace(
+            λ_H_pre=updated_λ_H_pre_with_base
+        )
+
+    else:
+        # If there are no joints, we can just use the identity transform
+        updated_joint_model = kin_dyn_params.joint_model
 
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(

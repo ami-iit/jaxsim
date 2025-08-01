@@ -145,7 +145,7 @@ class MujocoVideoRecorder:
                 return R
 
             R = rot_from_z(axis_dir)
-            mat_flat = R.T.flatten()
+            mat_flat = R.flatten()
 
             mj.mjv_initGeom(
                 geom=geom,

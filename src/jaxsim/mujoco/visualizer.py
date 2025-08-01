@@ -1,4 +1,5 @@
 import contextlib
+import os
 import pathlib
 from collections.abc import Iterator, Sequence
 
@@ -7,6 +8,7 @@ import mujoco as mj
 import mujoco.viewer
 import numpy as np
 import numpy.typing as npt
+from scipy.spatial.transform import Rotation
 
 
 class MujocoVideoRecorder:
@@ -70,12 +72,11 @@ class MujocoVideoRecorder:
         environment variable.
         """
 
-        import os
-
         scene = self.renderer.scene
 
+        # Three free slots are needed for the axes (x, y, z).
         if scene.ngeom + 3 > scene.maxgeom:
-            return  # need 3 slots for x,y,z axes
+            return
 
         # Read position and RPY orientation
         frame_env = os.environ.get("JAXSIM_VISUALIZER_FRAME")
@@ -88,23 +89,7 @@ class MujocoVideoRecorder:
                 "JAXSIM_VISUALIZER_FRAME must be 'x y z roll pitch yaw'"
             ) from e
 
-        def rpy_to_mat(roll, pitch, yaw):
-            cr = np.cos(roll)
-            sr = np.sin(roll)
-            cp = np.cos(pitch)
-            sp = np.sin(pitch)
-            cy = np.cos(yaw)
-            sy = np.sin(yaw)
-            R = np.array(
-                [
-                    [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
-                    [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
-                    [-sp, cp * sr, cp * cr],
-                ]
-            )
-            return R
-
-        mat = rpy_to_mat(roll, pitch, yaw)
+        mat = Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=False).as_matrix()
 
         origin = np.array([x, y, z])
         length = 0.2  # length of axis cylinders
@@ -125,7 +110,7 @@ class MujocoVideoRecorder:
 
             # Build rotation matrix for cylinder aligned with axis_dir
             # MuJoCo's cylinder local axis is along z-axis
-            def rot_from_z(v):
+            def rot_from_z(v: np.ndarray) -> np.ndarray:
                 v = v / np.linalg.norm(v)
                 z_axis = np.array([0, 0, 1])
                 if np.allclose(v, z_axis):
@@ -150,7 +135,10 @@ class MujocoVideoRecorder:
             mj.mjv_initGeom(
                 geom=geom,
                 type=mj.mjtGeom.mjGEOM_CYLINDER,
-                size=np.array([radius, length * 0.5, 0.0]),  # radius, half-length
+                # The `size` arguments takes three positional arguments.
+                # In the cylinder case, the first two are the radius and half-length,
+                # and the third is not used (set to 0.0).
+                size=np.array([radius, length * 0.5, 0.0]),
                 rgba=np.array(color),
                 pos=pos,
                 mat=mat_flat,

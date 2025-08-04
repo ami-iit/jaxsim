@@ -567,6 +567,9 @@ class JaxSimModel(JaxsimDataclass):
                 links_dict[link_name].collision.geometry.cylinder.radius = float(
                     dims[0]
                 )
+                links_dict[link_name].collision.geometry.cylinder.length = float(
+                    dims[1]
+                )
             else:
                 logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                 continue

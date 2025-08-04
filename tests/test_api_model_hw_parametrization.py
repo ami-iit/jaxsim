@@ -404,10 +404,10 @@ def test_hw_parameters_collision_scaling(
         model_description=rod_model
     )
 
-    # Define the scaling factor for the sphere's radius
+    # Define the scaling factor for the model
     scaling_factor = 5.0
 
-    # Define the nominal radius of the sphere
+    # Define the nominal height of the box
     nominal_height = model.kin_dyn_parameters.hw_link_metadata.dims[0, 2]
 
     # Define scaling parameters
@@ -446,7 +446,7 @@ def test_hw_parameters_collision_scaling(
     # Get the final height of the box's base
     updated_base_height = data.base_position[2]
 
-    # Compute the expected height (nominal radius * scaling factor)
+    # Compute the expected height
     expected_height = nominal_height * scaling_factor / 2
 
     # Assert that the box settles at the expected height

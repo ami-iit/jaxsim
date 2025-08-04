@@ -408,7 +408,7 @@ def test_hw_parameters_collision_scaling(
         model_description=rod_model
     )
 
-    # Define the scaling factor for the sphere's radius
+    # Define the scaling factor for the model
     scaling_factor = 5.0
 
     # Define the nominal radius of the sphere

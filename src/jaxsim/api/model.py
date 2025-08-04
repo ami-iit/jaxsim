@@ -10,13 +10,12 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
 import rod
-import rod.urdf
 from jax_dataclasses import Static
 from rod.urdf.exporter import UrdfExporter
 
 import jaxsim.api as js
-import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
@@ -472,7 +471,7 @@ class JaxSimModel(JaxsimDataclass):
             L_H_pre_masks.append(
                 [
                     int(joint_index in child_joints_indices)
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
             L_H_pre.append(
@@ -482,13 +481,13 @@ class JaxSimModel(JaxsimDataclass):
                         if joint_index in child_joints_indices
                         else jnp.eye(4)
                     )
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
-            shape=jnp.array(shapes, dtype=int),
+            _shape=shapes,
             dims=jnp.array(dims, dtype=float),
             density=jnp.array(densities, dtype=float),
             L_H_G=jnp.array(L_H_Gs, dtype=float),
@@ -507,8 +506,6 @@ class JaxSimModel(JaxsimDataclass):
         Note:
             This method is not meant to be used in JIT-compiled functions.
         """
-
-        import numpy as np
 
         if isinstance(jnp.zeros(0), jax.core.Tracer):
             raise RuntimeError("This method cannot be used in JIT-compiled functions")
@@ -2356,14 +2353,48 @@ def update_hw_parameters(
     link_parameters: LinkParameters = kin_dyn_params.link_parameters
     hw_link_metadata: HwLinkMetadata = kin_dyn_params.hw_link_metadata
 
+    has_joints = model.number_of_joints() > 0
+
+    supported_mask = hw_link_metadata.shape != LinkParametrizableShape.Unsupported
+
+    supported_metadata = jax.tree.map(lambda l: l[supported_mask], hw_link_metadata)
+
+    supported_scaling_factors = jax.tree.map(
+        lambda l: l[supported_mask], scaling_factors
+    )
+
+    scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
+        supported_metadata.shape, supported_scaling_factors
+    )
+
     # Apply scaling to hw_link_metadata using vmap
-    updated_hw_link_metadata = jax.vmap(HwLinkMetadata.apply_scaling)(
-        hw_link_metadata, scaling_factors
+    scaled_hw_link_metadata_supported = jax.vmap(
+        HwLinkMetadata.apply_scaling, in_axes=(None,)
+    )(
+        has_joints,
+        scale_vector=scale_vector,
+        hw_metadata=supported_metadata,
+        scaling_factors=scaling_factors,
+    )
+
+    # Helper function to merge pytrees leaf-wise with boolean mask
+    def merge_pytree_by_mask(scaled_pytree, original_pytree, mask):
+
+        def merge_leaf(scaled_leaf, original_leaf):
+            mask_shape = (mask.shape[0],) + (1,) * (scaled_leaf.ndim - 1)
+            mask_broadcasted = mask.reshape(mask_shape)
+
+            return jnp.where(mask_broadcasted, scaled_leaf, original_leaf)
+
+        return jax.tree.map(merge_leaf, scaled_pytree, original_pytree)
+
+    updated_hw_link_metadata = merge_pytree_by_mask(
+        scaled_hw_link_metadata_supported, hw_link_metadata, supported_mask
     )
 
     # Compute mass and inertia once and unpack the results
-    m_updated, I_com_updated = jax.vmap(HwLinkMetadata.compute_mass_and_inertia)(
-        updated_hw_link_metadata
+    m_updated, I_com_updated = HwLinkMetadata.compute_mass_and_inertia(
+        hw_link_metadata.shape, updated_hw_link_metadata
     )
 
     # Rotate the inertia tensor at CoM with the link orientation, and store
@@ -2389,36 +2420,38 @@ def update_hw_parameters(
         L_H_pre_for_joint = updated_hw_link_metadata.L_H_pre[:, joint_index]
         L_H_pre_mask_for_joint = updated_hw_link_metadata.L_H_pre_mask[:, joint_index]
 
-        # Use the mask to select the first valid transform or fall back to the original
-        valid_transforms = jnp.where(
-            L_H_pre_mask_for_joint[:, None, None],  # Expand mask for broadcasting
-            L_H_pre_for_joint,  # Use the transform if the mask is True
-            jnp.zeros_like(L_H_pre_for_joint),  # Otherwise, use a zero matrix
+        # Select the first valid transform (if any) using the mask
+        first_valid_index = jnp.argmax(L_H_pre_mask_for_joint)
+        selected_transform = L_H_pre_for_joint[first_valid_index]
+
+        # Check if any valid transform exists
+        has_valid_transform = L_H_pre_mask_for_joint.any()
+
+        # Fallback to the original λ_H_pre if no valid transform exists
+        fallback_transform = kin_dyn_params.joint_model.λ_H_pre[joint_index + 1]
+
+        # Return the selected transform or fallback
+        return jnp.where(has_valid_transform, selected_transform, fallback_transform)
+
+    if has_joints:
+        # Apply the update function to all joint indices
+        updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
+            jnp.arange(kin_dyn_params.number_of_joints())
         )
 
-        # Sum the valid transforms (only one will be non-zero due to the mask)
-        selected_transform = jnp.sum(valid_transforms, axis=0)
-
-        # If no valid transform exists, fall back to the original λ_H_pre
-        return jax.lax.cond(
-            jnp.any(L_H_pre_mask_for_joint),
-            lambda: selected_transform,
-            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index + 1],
+        # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
+        # to identity to represent the world-to-base tree transform. See JointModel class
+        updated_λ_H_pre_with_base = jnp.concatenate(
+            (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
         )
 
-    # Apply the update function to all joint indices
-    updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
-        jnp.arange(kin_dyn_params.number_of_joints())
-    )
-    # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
-    # to identity to represent the world-to-base tree transform. See JointModel class
-    updated_λ_H_pre_with_base = jnp.concatenate(
-        (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
-    )
-    # Replace the joint model with the updated transforms
-    updated_joint_model = kin_dyn_params.joint_model.replace(
-        λ_H_pre=updated_λ_H_pre_with_base
-    )
+        # Replace the joint model with the updated transforms
+        updated_joint_model = kin_dyn_params.joint_model.replace(
+            λ_H_pre=updated_λ_H_pre_with_base
+        )
+    else:
+        # If there are no joints, we can just use the identity transform
+        updated_joint_model = kin_dyn_params.joint_model
 
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(

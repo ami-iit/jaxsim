@@ -52,7 +52,7 @@ Follow the [PEP 8](https://peps.python.org/pep-0008/) style guide and include re
 ## Testing :test_tube:
 
 Your code will be tested with the CI/CD pipeline before merging.
-Feel free to add new ones or update the existing tests in the [workflows](./github/workflows) folder to cover your changes.
+Feel free to add new ones or update the existing tests in the [workflows](./.github/workflows) folder to cover your changes.
 
 ## Documentation :book:
 

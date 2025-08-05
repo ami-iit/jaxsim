@@ -560,21 +560,33 @@ class JaxSimModel(JaxsimDataclass):
             # Update visual shape
             shape = hw_metadata.shape[link_index]
             dims = hw_metadata.dims[link_index]
+
+            if links_dict[link_name].collision is not None:
+                if shape == LinkParametrizableShape.Box:
+                    links_dict[link_name].collision.geometry.box.size = dims.tolist()
+                elif shape == LinkParametrizableShape.Sphere:
+                    links_dict[link_name].collision.geometry.sphere.radius = float(
+                        dims[0]
+                    )
+                elif shape == LinkParametrizableShape.Cylinder:
+                    links_dict[link_name].collision.geometry.cylinder.radius = float(
+                        dims[0]
+                    )
+                    links_dict[link_name].collision.geometry.cylinder.length = float(
+                        dims[1]
+                    )
+                else:
+                    logging.debug(f"Skipping unsupported shape for link '{link_name}'")
+                    continue
+
             if shape == LinkParametrizableShape.Box:
                 links_dict[link_name].visual.geometry.box.size = dims.tolist()
-                links_dict[link_name].collision.geometry.box.size = dims.tolist()
             elif shape == LinkParametrizableShape.Sphere:
                 links_dict[link_name].visual.geometry.sphere.radius = float(dims[0])
                 links_dict[link_name].collision.geometry.sphere.radius = float(dims[0])
             elif shape == LinkParametrizableShape.Cylinder:
                 links_dict[link_name].visual.geometry.cylinder.radius = float(dims[0])
                 links_dict[link_name].visual.geometry.cylinder.length = float(dims[1])
-                links_dict[link_name].collision.geometry.cylinder.radius = float(
-                    dims[0]
-                )
-                links_dict[link_name].collision.geometry.cylinder.length = float(
-                    dims[1]
-                )
             else:
                 logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                 continue
@@ -2422,14 +2434,17 @@ def update_hw_parameters(
         ),
     )
 
-    # Compute the contact parameters
-    points = HwLinkMetadata.compute_contact_points(
-        original_contact_params=kin_dyn_params.contact_parameters,
-        shape_types=updated_hw_link_metadata.shape,
-        original_com_positions=link_parameters.center_of_mass,
-        updated_com_positions=updated_link_parameters.center_of_mass,
-        scaling_factors=scaling_factors,
-    )
+    if len(kin_dyn_params.contact_parameters.body) != 0:
+        # Compute the contact parameters
+        points = HwLinkMetadata.compute_contact_points(
+            original_contact_params=kin_dyn_params.contact_parameters,
+            shape_types=updated_hw_link_metadata.shape,
+            original_com_positions=link_parameters.center_of_mass,
+            updated_com_positions=updated_link_parameters.center_of_mass,
+            scaling_factors=scaling_factors,
+        )
+    else:
+        points = kin_dyn_params.contact_parameters.point
 
     # Update contact parameters
     updated_contact_parameters = kin_dyn_params.contact_parameters.replace(point=points)

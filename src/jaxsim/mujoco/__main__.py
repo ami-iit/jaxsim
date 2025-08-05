@@ -85,6 +85,16 @@ if __name__ == "__main__":
         help="Override the base quaternion (supports only floating-base models).",
     )
 
+    parser.add_argument(
+        "-j",
+        "--joint-positions",
+        nargs="*",
+        type=float,
+        default=None,
+        help="Override the joint positions. "
+        "The number of values must match the number of joints in the model.",
+    )
+
     args = parser.parse_args()
 
     # ==================
@@ -178,6 +188,15 @@ if __name__ == "__main__":
                 if args.base_quaternion is not None:
                     mj_model_helper.set_base_orientation(
                         orientation=np.array(args.base_quaternion)
+                    )
+                if args.joint_positions is not None:
+                    assert len(args.joint_positions) == mj_model_helper.num_joints(), (
+                        f"The number of joint positions provided: ({len(args.joint_positions)}) "
+                        f"does not match the number of joints in the model: ({len(mj_model_helper.joint_names())})."
+                    )
+                    mj_model_helper.set_joint_positions(
+                        positions=np.array(args.joint_positions),
+                        joint_names=mj_model_helper.joint_names(),
                     )
 
             viz.sync(viewer=viewer)

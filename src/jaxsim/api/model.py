@@ -399,7 +399,7 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{rod_link.name}' for hardware parametrization due to unsupported geometry."
                 )
-                continue
+                rod_links_dict[rod_link.name] = rod_link
 
             rod_links_dict[rod_link.name] = rod_link
 
@@ -548,6 +548,8 @@ class JaxSimModel(JaxsimDataclass):
         # Iterate over the hardware metadata to update the ROD model
         hw_metadata = self.kin_dyn_parameters.hw_link_metadata
         for link_index, link_name in enumerate(self.link_names()):
+            if hw_metadata.shape[link_index] == LinkParametrizableShape.Unsupported:
+                continue
             if link_name not in links_dict:
                 continue
 

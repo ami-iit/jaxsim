@@ -533,7 +533,17 @@ class JaxSimModel(JaxsimDataclass):
 
         # Iterate over the hardware metadata to update the ROD model
         hw_metadata = self.kin_dyn_parameters.hw_link_metadata
-        for link_index, link_name in enumerate(self.link_names()):
+
+        # Manually increase link_index to avoid unsupported links
+        link_index = 0
+
+        for link_name in self.link_names():
+            if len(links_dict[link_name].visuals()) != 1:
+                logging.info(
+                    f"Skipping link '{link_name}' for exporting due to multiple visuals."
+                )
+                continue
+
             if link_name not in links_dict:
                 continue
 
@@ -579,17 +589,24 @@ class JaxSimModel(JaxsimDataclass):
                     logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                     continue
 
-            if shape == LinkParametrizableShape.Box:
-                links_dict[link_name].visual.geometry.box.size = dims.tolist()
-            elif shape == LinkParametrizableShape.Sphere:
-                links_dict[link_name].visual.geometry.sphere.radius = float(dims[0])
-                links_dict[link_name].collision.geometry.sphere.radius = float(dims[0])
-            elif shape == LinkParametrizableShape.Cylinder:
-                links_dict[link_name].visual.geometry.cylinder.radius = float(dims[0])
-                links_dict[link_name].visual.geometry.cylinder.length = float(dims[1])
-            else:
-                logging.debug(f"Skipping unsupported shape for link '{link_name}'")
-                continue
+            if links_dict[link_name].visual is not None:
+                if shape == LinkParametrizableShape.Box:
+                    links_dict[link_name].visual.geometry.box.size = dims.tolist()
+                elif shape == LinkParametrizableShape.Sphere:
+                    links_dict[link_name].visual.geometry.sphere.radius = float(dims[0])
+                    links_dict[link_name].collision.geometry.sphere.radius = float(
+                        dims[0]
+                    )
+                elif shape == LinkParametrizableShape.Cylinder:
+                    links_dict[link_name].visual.geometry.cylinder.radius = float(
+                        dims[0]
+                    )
+                    links_dict[link_name].visual.geometry.cylinder.length = float(
+                        dims[1]
+                    )
+                else:
+                    logging.debug(f"Skipping unsupported shape for link '{link_name}'")
+                    continue
 
             # Update visual pose
             links_dict[link_name].visual.pose = rod.Pose.from_transform(
@@ -610,6 +627,8 @@ class JaxSimModel(JaxsimDataclass):
                             ),
                             relative_to=link_name,
                         )
+
+            link_index += 1
 
         # Export the URDF string.
         urdf_string = UrdfExporter(pretty=True).to_urdf_string(sdf=rod_model_output)

@@ -2408,7 +2408,8 @@ def update_hw_parameters(
     )
 
     scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-        supported_metadata.shape, supported_scaling_factors
+        supported_metadata.shape[supported_metadata.shape > -1],
+        supported_scaling_factors,
     )
 
     # Apply scaling to hw_link_metadata using vmap
@@ -2418,17 +2419,14 @@ def update_hw_parameters(
         has_joints,
         scale_vector=scale_vector,
         hw_metadata=supported_metadata,
-        scaling_factors=scaling_factors,
+        scaling_factors=supported_scaling_factors,
     )
 
     # Helper function to merge pytrees leaf-wise with boolean mask
     def merge_pytree_by_mask(scaled_pytree, original_pytree, mask):
 
         def merge_leaf(scaled_leaf, original_leaf):
-            mask_shape = (mask.shape[0],) + (1,) * (scaled_leaf.ndim - 1)
-            mask_broadcasted = mask.reshape(mask_shape)
-
-            return jnp.where(mask_broadcasted, scaled_leaf, original_leaf)
+            return original_leaf.at[mask].set(scaled_leaf)
 
         return jax.tree.map(merge_leaf, scaled_pytree, original_pytree)
 

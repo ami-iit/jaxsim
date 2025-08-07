@@ -383,6 +383,7 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{rod_link.name}' for hardware parametrization due to multiple visuals."
                 )
+                rod_links_dict[rod_link.name] = rod_link
                 continue
 
             if not isinstance(
@@ -443,7 +444,7 @@ class JaxSimModel(JaxsimDataclass):
 
             # Compute density and dimensions
             mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
-            geometry = rod_link.visual.geometry.geometry()
+            geometry = rod_link.visual.geometry.geometry() if rod_link.visual else None
             if isinstance(geometry, rod.Box):
                 lx, ly, lz = geometry.size
                 density = mass / (lx * ly * lz)
@@ -463,11 +464,15 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization due to unsupported geometry."
                 )
-                continue
+                shapes.append(LinkParametrizableShape.Unsupported)
+                dims.append([0, 0, 0])
+                density = 0.0
 
             densities.append(density)
             L_H_Gs.append(rod_link.inertial.pose.transform())
-            L_H_vises.append(rod_link.visual.pose.transform())
+            L_H_vises.append(
+                rod_link.visual.pose.transform() if rod_link.visual else np.eye(4)
+            )
             L_H_pre_masks.append(
                 [
                     int(joint_index in child_joints_indices)

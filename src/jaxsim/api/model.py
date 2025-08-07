@@ -361,7 +361,7 @@ class JaxSimModel(JaxsimDataclass):
                     "Skipping for hardware parametrization."
                 )
                 return HwLinkMetadata(
-                    shape=jnp.array([]),
+                    _shape=(),
                     dims=jnp.array([]),
                     density=jnp.array([]),
                     L_H_G=jnp.array([]),
@@ -487,7 +487,7 @@ class JaxSimModel(JaxsimDataclass):
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
-            _shape=shapes,
+            _shape=tuple(shapes),
             dims=jnp.array(dims, dtype=float),
             density=jnp.array(densities, dtype=float),
             L_H_G=jnp.array(L_H_Gs, dtype=float),

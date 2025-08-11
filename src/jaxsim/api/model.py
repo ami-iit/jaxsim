@@ -13,7 +13,6 @@ import jax_dataclasses
 import numpy as np
 import rod
 from jax_dataclasses import Static
-from rod.urdf.exporter import UrdfExporter
 
 import jaxsim.api as js
 import jaxsim.terrain
@@ -635,10 +634,7 @@ class JaxSimModel(JaxsimDataclass):
 
             link_index += 1
 
-        # Export the URDF string.
-        urdf_string = UrdfExporter(pretty=True).to_urdf_string(sdf=rod_model_output)
-
-        return urdf_string
+        return rod_model_output
 
     # ==========
     # Properties

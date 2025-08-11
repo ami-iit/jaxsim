@@ -543,14 +543,6 @@ class JaxSimModel(JaxsimDataclass):
         link_index = 0
 
         for link_name in self.link_names():
-            if len(links_dict[link_name].visuals()) != 1:
-                logging.info(
-                    f"Skipping link '{link_name}' for exporting due to multiple visuals."
-                )
-                continue
-
-            if link_name not in links_dict:
-                continue
 
             # Update mass and inertia
             mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
@@ -572,7 +564,7 @@ class JaxSimModel(JaxsimDataclass):
                 inertia_tensor=inertia_tensor, validate=True
             )
 
-            # Update visual shape
+            # Update collision shape
             shape = hw_metadata.shape[link_index]
             dims = hw_metadata.dims[link_index]
 
@@ -594,6 +586,14 @@ class JaxSimModel(JaxsimDataclass):
                     logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                     continue
 
+                # Update collision pose assuming that the transform is equal
+                # to the visual transform
+                links_dict[link_name].collision.pose = rod.Pose.from_transform(
+                    transform=np.array(hw_metadata.L_H_vis[link_index]),
+                    relative_to=link_name,
+                )
+
+            # Update visual shape
             if links_dict[link_name].visual is not None:
                 if shape == LinkParametrizableShape.Box:
                     links_dict[link_name].visual.geometry.box.size = dims.tolist()
@@ -613,11 +613,11 @@ class JaxSimModel(JaxsimDataclass):
                     logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                     continue
 
-            # Update visual pose
-            links_dict[link_name].visual.pose = rod.Pose.from_transform(
-                transform=np.array(hw_metadata.L_H_vis[link_index]),
-                relative_to=link_name,
-            )
+                # Update visual pose
+                links_dict[link_name].visual.pose = rod.Pose.from_transform(
+                    transform=np.array(hw_metadata.L_H_vis[link_index]),
+                    relative_to=link_name,
+                )
 
             # Update joint poses
             for joint_index in range(self.number_of_joints()):

@@ -16,6 +16,19 @@ def compute_constraint_transforms_batched(
     data: js.data.JaxSimModelData,
     constraints: ConstraintMap,
 ) -> jtp.Matrix:
+    """
+    Compute the transformation matrices for kinematic constraints between pairs of frames.
+
+    Args:
+        model: The JaxSim model containing the robot description.
+        data: The model data containing current state information.
+        constraints: The constraint map containing frame indices and parent link information.
+
+    Returns:
+        A matrix with shape (n_constraints, 2, 4, 4) containing the transformation matrices
+        for each constraint pair. The second dimension contains [W_H_F1, W_H_F2] where
+        W_H_F1 and W_H_F2 are the world-to-frame transformation matrices.
+    """
     W_H_L = data._link_transforms
 
     frame_idxs_1 = constraints.frame_idxs_1
@@ -47,6 +60,19 @@ def compute_constraint_jacobians_batched(
     constraints: ConstraintMap,
     W_H_constraint_pairs: jtp.Matrix,
 ) -> jtp.Matrix:
+    """
+    Compute the constraint Jacobian matrices for kinematic constraints in a batched manner.
+    Args:
+        model: The JaxSim model containing the robot description.
+        data: The model data containing current state information.
+        constraints: The constraint map containing frame indices and parent link information.
+        W_H_constraint_pairs: Transformation matrices for constraint frame pairs with shape
+                              (n_constraints, 2, 4, 4).
+
+    Returns:
+        A matrix with shape (n_constraints, 3, n_dofs) containing the constraint Jacobian
+        matrices.
+    """
 
     with data.switch_velocity_representation(VelRepr.Body):
         # Doubly-left free-floating Jacobian.
@@ -58,13 +84,12 @@ def compute_constraint_jacobians_batched(
         W_H_L = data._link_transforms
 
     def compute_frame_jacobian_mixed(L_J_WL, W_H_L, W_H_F, parent_link_index):
-        # select the jacobian of the parent link
-
+        """Compute the jacobian of a frame in mixed representation."""
+        # Select the jacobian of the parent link
         L_J_WL = L_J_WL[parent_link_index]
 
-        # compute the jacobian of the frame in mixed representation
+        # Compute the jacobian of the frame in mixed representation
         W_H_L = W_H_L[parent_link_index]
-        # W_H_F = transform(model=model, data=data, frame_index=frame_index)
         F_H_L = Transform.inverse(W_H_F) @ W_H_L
         FW_H_F = W_H_F.at[0:3, 3].set(jnp.zeros(3))
         FW_H_L = FW_H_F @ F_H_L
@@ -75,6 +100,8 @@ def compute_constraint_jacobians_batched(
         return O_J_WL_I
 
     def compute_constraint_jacobian(L_J_WL, W_H_F, constraint):
+        """Compute the constraint jacobian for a single constraint pair."""
+
         J_WF1 = compute_frame_jacobian_mixed(
             L_J_WL, W_H_L, W_H_F[0], constraint.parent_link_idxs_1
         )[:3]
@@ -101,17 +128,20 @@ def compute_constraint_baumgarte_term(
     """
     Compute the Baumgarte stabilization term for kinematic constraints.
 
+    The Baumgarte stabilization method is used to stabilize constraint violations
+    by adding proportional and derivative terms to the constraint equation. This
+    helps prevent constraint drift and improves numerical stability.
+
     Args:
-        J_constr: The constraint Jacobian matrix.
-        nu: The generalized velocity vector.
-        W_H_F_constr: A tuple containing the homogeneous transformation matrices
-            of two frames (W_H_F1 and W_H_F2) with respect to the world frame.
-        K_P: The proportional gain for position and orientation error correction.
-        K_D: The derivative gain for velocity error correction.
-        constraint: The considered constraint.
+        J_constr: The constraint Jacobian matrix with shape (3, n_dofs).
+        nu: The generalized velocity vector with shape (n_dofs,).
+        W_H_F_constr: Array containing the homogeneous transformation matrices
+                      of two frames [W_H_F1, W_H_F2] with respect to the world frame,
+                      with shape (2, 4, 4).
+        constraint: The constraint object containing stabilization gains K_P and K_D.
 
     Returns:
-        The computed Baumgarte stabilization term.
+        The computed Baumgarte stabilization term with shape (3,) for position constraints.
     """
     W_H_F1, W_H_F2 = W_H_F_constr[0], W_H_F_constr[1]
 
@@ -123,19 +153,8 @@ def compute_constraint_baumgarte_term(
 
     vel_error = J_constr @ nu
     position_error = W_p_F1 - W_p_F2
-    # jax.debug.print(
-    #     "Position error norm: {position_error}, Vel error norm: {vel_error}",
-    #     position_error=jnp.linalg.norm(position_error),
-    #     vel_error=jnp.linalg.norm(vel_error),
-    # )
-    # R_error = W_R_F2.T @ W_R_F1
-    # orientation_error = Rotation.log_vee(R_error)
 
-    baumgarte_term = (
-        # K_P * jnp.concatenate([position_error, orientation_error]) + K_D * vel_error
-        K_P * position_error
-        + K_D * vel_error
-    )
+    baumgarte_term = K_P * position_error + K_D * vel_error
 
     return baumgarte_term
 
@@ -153,16 +172,24 @@ def compute_constraint_wrenches(
     """
     Compute the constraint wrenches for kinematic constraints.
 
+    This function solves the constraint forces needed to satisfy kinematic constraints
+    between pairs of frames. It uses the Baumgarte stabilization method and computes
+    the constraint wrenches in inertial representation.
+
     Args:
         model: The JaxSim model.
-        data: The data of the considered model.
-        joint_force_references: The joint force references to apply.
-        link_forces_inertial: The link forces applied in inertial representation.
-        regularization: The regularization parameter for the constraint solver.
+        data: The model data.
+        joint_force_references: Optional joint force/torque references to apply. If None,
+                               zero forces are used.
+        link_forces_inertial: Optional link forces applied in inertial representation.
+                             If None, zero forces are used.
+        regularization: Regularization parameter for the constraint solver to improve
+                       numerical stability. Default is 1e-3.
 
     Returns:
-        A tuple containing the constraint wrenches in inertial representation
-        and auxiliary information.
+        Array with shape (n_constraints, 2, 6) containing constraint wrench pairs
+        in inertial representation. Each constraint produces two equal and opposite
+        wrenches applied to the constrained frames.
     """
 
     # Retrieve the kinematic constraints, if any.
@@ -225,17 +252,13 @@ def compute_constraint_wrenches(
             constraints=kin_constraints,
         )
 
-        # Compute constraint jacobians and derivatives
+        # Compute constraint jacobians
         J_constr = compute_constraint_jacobians_batched(
             model=model,
             data=data,
             constraints=kin_constraints,
             W_H_constraint_pairs=W_H_constr_pairs,
         )
-
-        # J̇_constr = jax.vmap(
-        #     compute_constraint_jacobians_derivative, in_axes=(None, None, 0)
-        # )(model, data, kin_constraints)
 
         # Compute Baumgarte stabilization term
         constr_baumgarte_term = jnp.ravel(
@@ -252,13 +275,13 @@ def compute_constraint_wrenches(
 
         # Stack constraint jacobians
         J_constr = jnp.vstack(J_constr)
-        # J̇_constr = jnp.vstack(J̇_constr)
 
         # Compute Delassus matrix for constraints
         G_constraints = J_constr @ jnp.linalg.solve(M, J_constr.T)
 
         # Compute constraint acceleration
-        CW_al_free_constr = J_constr @ BW_ν̇_free  # + J̇_constr @ BW_ν
+        # TODO: add J̇_constr with efficient computation
+        CW_al_free_constr = J_constr @ BW_ν̇_free
 
         # Setup constraint optimization problem
         constraint_regularization = regularization * jnp.ones(n_kin_constraints)
@@ -269,10 +292,20 @@ def compute_constraint_wrenches(
         # Solve for constraint forces
         kin_constr_force_mixed = jnp.linalg.solve(A, -b).reshape(-1, 3)
 
-        # Convert constraint forces to wrenches
+        # Convert constraint forces to wrenches in inertial representation
 
     def transform_wrench_pair_efficiently(force_3d, transform_pair):
-        """Efficiently create and transform wrench pairs."""
+        """
+        Efficiently create and transform wrench pairs from constraint forces.
+
+        Args:
+            force_3d: 3D force vector with shape (3,).
+            transform_pair: Pair of transformation matrices [W_H_F1, W_H_F2]
+                           with shape (2, 4, 4).
+
+        Returns:
+            Stack of transformed wrenches with shape (2, 6).
+        """
         W_H_F1, W_H_F2 = transform_pair[0], transform_pair[1]
 
         # Create wrench pair directly

@@ -428,9 +428,10 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     # Define the kinematic constraints.
     constraints = js.kin_dyn_parameters.ConstraintMap()
     constraints = constraints.add_constraint(
-        frame_1_idx,
-        frame_2_idx,
-        ConstraintType.Weld,
+        model=model,
+        frame_idx_1=frame_1_idx,
+        frame_idx_2=frame_2_idx,
+        constraint_type=ConstraintType.Weld,
     )
 
     # Set the constraints in the model.
@@ -488,6 +489,7 @@ def test_simulation_with_kinematic_constraints_cartpole(
     # Define the kinematic constraints.
     constraints = js.kin_dyn_parameters.ConstraintMap()
     constraints = constraints.add_constraint(
+        model,
         frame_1_idx,
         frame_2_idx,
         ConstraintType.Weld,
@@ -540,3 +542,78 @@ def test_simulation_with_kinematic_constraints_cartpole(
     assert actual_frame_error == pytest.approx(
         expected_frame_error, abs=1e-3
     ), f"Frames do not match expected value. Frame error:\n{actual_frame_error}\nPosition error [m]: {H_frame1[:3, 3] - H_frame2[:3, 3]}"
+
+
+def test_simulation_with_kinematic_constraints_4_bar_linkage(
+    jaxsim_model_4_bar_linkage: js.model.JaxSimModel,
+):
+    """Test kinematic weld constraint on 4-bar linkage model."""
+
+    # ========
+    # Arrange
+    # ========
+
+    tf = 1.0  # Final simulation time in seconds.
+    model = jaxsim_model_4_bar_linkage
+
+    frame_1_name = "BC1_frame"
+    frame_2_name = "BC2_frame"
+    frame_1_idx = js.frame.name_to_idx(model=model, frame_name=frame_1_name)
+    frame_2_idx = js.frame.name_to_idx(model=model, frame_name=frame_2_name)
+
+    # Define the kinematic constraints.
+    constraints = js.kin_dyn_parameters.ConstraintMap()
+    constraints = constraints.add_constraint(
+        model=model,
+        frame_idx_1=frame_1_idx,
+        frame_idx_2=frame_2_idx,
+        constraint_type=ConstraintType.Weld,
+        K_P=1e4,
+    )
+
+    # Set the constraints in the model.
+    with model.editable(validate=False) as model:
+        model.kin_dyn_parameters.constraints = constraints
+
+    # Build the initial data for the model (default base pose is fine).
+    data_t0 = js.data.JaxSimModelData.build(
+        model=model,
+        velocity_representation=VelRepr.Inertial,
+    )
+
+    # ====
+    # Act
+    # ====
+    data_tf = run_simulation(model=model, data_t0=data_t0, tf=tf)
+
+    H_frame1 = js.frame.transform(
+        model=model,
+        data=data_tf,
+        frame_index=frame_1_idx,
+    )
+    H_frame2 = js.frame.transform(
+        model=model,
+        data=data_tf,
+        frame_index=frame_2_idx,
+    )
+
+    # =========
+    # Assert
+    # =========
+    assert frame_1_name in model.frame_names()
+    assert frame_2_name in model.frame_names()
+
+    # Position check
+    pos1 = H_frame1[:3, 3]
+    pos2 = H_frame2[:3, 3]
+    assert pos1 == pytest.approx(
+        pos2, abs=1e-3
+    ), f"Frame position mismatch. pos1={pos1}, pos2={pos2}, diff={pos1 - pos2}"
+
+    # Orientation check
+    R1 = H_frame1[:3, :3]
+    R2 = H_frame2[:3, :3]
+    R_err = R1.T @ R2
+    assert R_err == pytest.approx(
+        jnp.eye(3), abs=1e-3
+    ), f"Frame orientation mismatch. R_err=\n{R_err}"

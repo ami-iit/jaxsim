@@ -944,7 +944,6 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def compute_mass_and_inertia(
-        shape_types: jtp.Array,
         hw_link_metadata: HwLinkMetadata,
     ) -> tuple[jtp.Float, jtp.Matrix]:
         """
@@ -955,7 +954,6 @@ class HwLinkMetadata(JaxsimDataclass):
         by using shape-specific methods.
 
         Args:
-            shape_types: The shape types of the link (e.g., box, sphere, cylinder).
             hw_link_metadata: Metadata describing the hardware link,
                 including its shape, dimensions, and density.
 
@@ -1007,7 +1005,7 @@ class HwLinkMetadata(JaxsimDataclass):
             return jax.lax.switch(shape_idx, (box, cylinder, sphere), dims, density)
 
         mass, inertia = jax.vmap(compute_mass_inertia)(
-            shape_types,
+            hw_link_metadata.link_shape,
             hw_link_metadata.geometry,
             hw_link_metadata.density,
         )

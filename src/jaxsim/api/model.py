@@ -2373,7 +2373,7 @@ def update_hw_parameters(
 
     # Compute mass and inertia once and unpack the results
     m_updated, I_com_updated = HwLinkMetadata.compute_mass_and_inertia(
-        hw_link_metadata.link_shape, updated_hw_link_metadata
+        updated_hw_link_metadata
     )
 
     # Rotate the inertia tensor at CoM with the link orientation, and store

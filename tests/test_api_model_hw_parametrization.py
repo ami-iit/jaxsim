@@ -106,21 +106,13 @@ def test_model_scaling_against_rod(
     )
 
     # Compare mass
-    scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
-        scaled_metadata.link_shape, scaled_metadata
-    )
-    pre_scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
-        pre_scaled_metadata.link_shape, pre_scaled_metadata
-    )
+    scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(scaled_metadata)
+    pre_scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(pre_scaled_metadata)
     assert scaled_mass == pytest.approx(pre_scaled_mass, abs=1e-6)
 
     # Compare inertia tensors
-    _, scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
-        scaled_metadata.link_shape, scaled_metadata
-    )
-    _, pre_scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
-        pre_scaled_metadata.link_shape, pre_scaled_metadata
-    )
+    _, scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(scaled_metadata)
+    _, pre_scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(pre_scaled_metadata)
     assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6)
 
     # Compare transformations

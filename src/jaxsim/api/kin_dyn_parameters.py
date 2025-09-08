@@ -1072,7 +1072,6 @@ class HwLinkMetadata(JaxsimDataclass):
     @staticmethod
     def apply_scaling(
         has_joints: bool,
-        scale_vector: jtp.Vector,
         hw_metadata: HwLinkMetadata,
         scaling_factors: ScalingFactors,
     ) -> HwLinkMetadata:
@@ -1081,13 +1080,16 @@ class HwLinkMetadata(JaxsimDataclass):
 
         Args:
             has_joints: A boolean indicating if the model has joints.
-            scale_vector: The scaling vector to apply.
             hw_metadata: the original HwLinkMetadata object.
             scaling_factors: the scaling factors to apply.
 
         Returns:
             A new HwLinkMetadata object with updated parameters.
         """
+
+        scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
+            hw_metadata.shape, scaling_factors
+        )
 
         # =================================
         # Update the kinematics of the link

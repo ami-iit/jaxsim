@@ -17,21 +17,18 @@
 <br/>
 </div>
 
-
-
 ## Features
 
 - Physically consistent differentiability w.r.t. hardware parameters.
 - Closed chain dynamics support.
 - Reduced-coordinate physics engine for **fixed-base** and **floating-base** robots.
-- Fully Python-based, leveraging [jax][jax] following a functional programming paradigm.
+- Fully Python-based, leveraging [JAX][jax] following a functional programming paradigm.
 - Seamless execution on CPUs, GPUs, and TPUs.
 - Supports JIT compilation and automatic vectorization for high performance.
 - Compatible with SDF models and URDF (via [sdformat][sdformat] conversion).
 
-
 > [!WARNING]
-> This project is still experimental, APIs could change between releases without notice.
+> This project is still experimental. APIs may change between releases without notice.
 
 > [!NOTE]
 > JaxSim currently focuses on locomotion applications.
@@ -88,6 +85,7 @@ for _ in T:
 
 Check the example folder for additional use cases!
 
+> [!NOTE]
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat
 [notation]: https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2
@@ -217,11 +215,12 @@ The JaxSim API documentation is available at [jaxsim.readthedocs.io][readthedocs
 [readthedocs]: https://jaxsim.readthedocs.io/
 
 ## Additional features
-Jaxsim can also be used as a multi-body dynamic library!  With full support for automatic differentiation of RBDAs (forwards and reverse mode) and  automatic differentiation against both kinematic and dynamic parameters.
 
+Jaxsim can also be used as a multi-body dynamics library! With full support for automatic differentiation of RBDAs (forwards and reverse mode) and automatic differentiation against both kinematic and dynamic parameters.
 
 ### Using JaxSim as a multibody dynamics library
-``` python
+
+```python
 import pathlib
 
 import icub_models

@@ -69,8 +69,10 @@ class MujocoVideoRecorder:
         self, frame_pose: list[float] | npt.NDArray | None = None
     ) -> None:
         """
-        Add visualization of a static frame using the `JAXSIM_VISUALIZER_FRAME`
-        environment variable.
+        Add visualization of a static frame.
+
+        Args:
+            frame_pose: The pose of a static frame to visualize as [x, y, z, roll, pitch, yaw].
         """
 
         scene = self.renderer.scene

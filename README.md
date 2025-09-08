@@ -28,7 +28,7 @@
 - Compatible with SDF models and URDF (via [sdformat][sdformat] conversion).
 
 > [!WARNING]
-> This project is still experimental, and APIs may change between releases without notice.
+> This project is still experimental. APIs may change between releases without notice.
 
 > [!NOTE]
 > JaxSim currently focuses on locomotion applications.

@@ -1014,13 +1014,13 @@ class HwLinkMetadata(JaxsimDataclass):
 
     @staticmethod
     def _convert_scaling_to_3d_vector(
-        shape_types: jtp.Int, scaling_factors: jtp.Vector
+        link_shapes: jtp.Int, scaling_factors: jtp.Vector
     ) -> jtp.Vector:
         """
         Convert scaling factors for specific shape dimensions into a 3D scaling vector.
 
         Args:
-            shape_types: The shape_types of the link (e.g., box, sphere, cylinder).
+            link_shapes: The link_shapes of the link (e.g., box, sphere, cylinder).
             scaling_factors: The scaling factors for the shape dimensions.
 
         Returns:
@@ -1033,7 +1033,7 @@ class HwLinkMetadata(JaxsimDataclass):
             - Sphere: [r, r, r]
         """
 
-        # Index mapping for each shape type (shape_type x 3 dims)
+        # Index mapping for each shape type (link_shapes x 3 dims)
         # Box: [lx, ly, lz] -> [0, 1, 2]
         # Cylinder: [r, r, l] -> [0, 0, 1]
         # Sphere: [r, r, r] -> [0, 0, 0]
@@ -1046,7 +1046,7 @@ class HwLinkMetadata(JaxsimDataclass):
         )
 
         # For each link, get the index vector for its shape
-        per_link_indices = shape_indices[shape_types]
+        per_link_indices = shape_indices[link_shapes]
 
         # Gather dims per link according to per_link_indices
         return scaling_factors.dims[per_link_indices.squeeze()]

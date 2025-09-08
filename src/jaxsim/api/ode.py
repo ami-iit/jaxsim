@@ -86,13 +86,9 @@ def system_acceleration(
 
         if constraint_map is not None:
             # Stack the parent link indices for both sides of each constraint
-            parent_indices_flat = jnp.stack(
-                [
-                    constraint_map.parent_link_idxs_1,
-                    constraint_map.parent_link_idxs_2,
-                ],
-                axis=1,
-            ).reshape(-1)
+            parent_indices_flat = jnp.concatenate(
+                [constraint_map.parent_link_idxs_1, constraint_map.parent_link_idxs_2],
+            )
 
             # Flatten the constraint wrenches to match the flattened parent indices
             constraint_wrenches_flat = W_f_L_constraints.reshape(-1, 6)
@@ -128,10 +124,7 @@ def system_acceleration(
         link_forces=references.link_forces(model=model, data=data),
     )
 
-    # Combine contact and constraint state information
-    combined_state = contact_state.copy() if contact_state else {}
-
-    return v̇_WB, s̈, combined_state
+    return v̇_WB, s̈, contact_state
 
 
 @jax.jit

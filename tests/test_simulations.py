@@ -607,7 +607,7 @@ def test_simulation_with_kinematic_constraints_4_bar_linkage(
     pos1 = H_frame1[:3, 3]
     pos2 = H_frame2[:3, 3]
     assert pos1 == pytest.approx(
-        pos2, abs=1e-3
+        pos2, abs=1e-6
     ), f"Frame position mismatch. pos1={pos1}, pos2={pos2}, diff={pos1 - pos2}"
 
     # Orientation check

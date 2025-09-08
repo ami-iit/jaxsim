@@ -11,8 +11,12 @@ from jaxsim.math.adjoint import Adjoint
 from jaxsim.math.rotation import Rotation
 from jaxsim.math.transform import Transform
 
+# Utility functions used for constraints computation. These functions duplicate part of the jaxsim.api.frame module for computational efficiency.
+# TODO: remove these functions when jaxsim.api.frame is optimized for batched computations.
+# See: https://github.com/ami-iit/jaxsim/issues/451
 
-def compute_constraint_transforms_batched(
+
+def _compute_constraint_transforms_batched(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     constraints: ConstraintMap,
@@ -38,15 +42,13 @@ def compute_constraint_transforms_batched(
     parent_link_idxs_1 = constraints.parent_link_idxs_1
     parent_link_idxs_2 = constraints.parent_link_idxs_2
 
-    def get_L_H_F(frame_index):
-        # Get the static frame pose wrt the parent link.
-        return model.kin_dyn_parameters.frame_parameters.transform[
-            frame_index - model.number_of_links()
-        ]
-
-    # Vectorize over frame indices
-    L_H_F1 = jax.vmap(get_L_H_F)(frame_idxs_1)
-    L_H_F2 = jax.vmap(get_L_H_F)(frame_idxs_2)
+    # Extract frame transforms
+    L_H_F1 = model.kin_dyn_parameters.frame_parameters.transform[
+        frame_idxs_1 - model.number_of_links()
+    ]
+    L_H_F2 = model.kin_dyn_parameters.frame_parameters.transform[
+        frame_idxs_2 - model.number_of_links()
+    ]
 
     # Compute the homogeneous transformation matrices for the two frames
     W_H_F1 = W_H_L[parent_link_idxs_1] @ L_H_F1
@@ -55,7 +57,7 @@ def compute_constraint_transforms_batched(
     return jnp.stack([W_H_F1, W_H_F2], axis=1)
 
 
-def compute_constraint_jacobians_batched(
+def _compute_constraint_jacobians_batched(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,
     constraints: ConstraintMap,
@@ -120,7 +122,7 @@ def compute_constraint_jacobians_batched(
     return constraint_jacobians
 
 
-def compute_constraint_baumgarte_term(
+def _compute_constraint_baumgarte_term(
     J_constr: jtp.Matrix,
     nu: jtp.Vector,
     W_H_F_constr: jtp.Matrix,
@@ -204,9 +206,9 @@ def compute_constraint_wrenches(
     kin_constraints = model.kin_dyn_parameters.constraints
 
     n_kin_constraints = (
-        0
-        if (kin_constraints is None) or (kin_constraints.frame_idxs_1.shape[0] == 0)
-        else 6 * kin_constraints.frame_idxs_1.shape[0]
+        6 * kin_constraints.frame_idxs_1.shape[0]
+        if kin_constraints is not None and kin_constraints.frame_idxs_1.shape[0] > 0
+        else 0
     )
 
     # Return empty results if no constraints exist
@@ -254,14 +256,14 @@ def compute_constraint_wrenches(
         # Compute mass matrix
         M = js.model.free_floating_mass_matrix(model=model, data=data)
 
-        W_H_constr_pairs = compute_constraint_transforms_batched(
+        W_H_constr_pairs = _compute_constraint_transforms_batched(
             model=model,
             data=data,
             constraints=kin_constraints,
         )
 
         # Compute constraint jacobians
-        J_constr = compute_constraint_jacobians_batched(
+        J_constr = _compute_constraint_jacobians_batched(
             model=model,
             data=data,
             constraints=kin_constraints,
@@ -271,7 +273,7 @@ def compute_constraint_wrenches(
         # Compute Baumgarte stabilization term
         constr_baumgarte_term = jnp.ravel(
             jax.vmap(
-                compute_constraint_baumgarte_term,
+                _compute_constraint_baumgarte_term,
                 in_axes=(0, None, 0, 0),
             )(
                 J_constr,
@@ -300,16 +302,13 @@ def compute_constraint_wrenches(
         # Solve for constraint forces
         kin_constr_wrench_mixed = jnp.linalg.solve(A, -b).reshape(-1, 6)
 
-        # Convert wrenches in inertial representation
-
     def transform_wrenches_to_inertial(wrench, transform_pair):
         """
         Transform wrench pairs in inertial representation.
 
         Args:
-            wrench: Wrench vector with shape (6).
+            wrench: Wrench vector with shape (6,).
             transform_pair: Pair of transformation matrices [W_H_F1, W_H_F2]
-                           with shape (2, 4, 4).
 
         Returns:
             Stack of transformed wrenches with shape (2, 6).

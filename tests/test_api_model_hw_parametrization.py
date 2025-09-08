@@ -30,30 +30,31 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
         density=jnp.ones(4),
     )
 
-    # Update the model using the scaling factors
-    updated_model = js.model.update_hw_parameters(model, scaling_parameters)
+    with jax.disable_jit(False):
+        # Update the model using the scaling factors
+        updated_model = js.model.update_hw_parameters(model, scaling_parameters)
 
-    # Compare updated hardware parameters
-    for link_idx, link_name in enumerate(model.link_names()):
-        updated_metadata = jax.tree_util.tree_map(
-            lambda x, link_idx=link_idx: x[link_idx],
-            updated_model.kin_dyn_parameters.hw_link_metadata,
-        )
-        initial_metadata_link = jax.tree_util.tree_map(
-            lambda x, link_idx=link_idx: x[link_idx], initial_metadata
-        )
+        # Compare updated hardware parameters
+        for link_idx, link_name in enumerate(model.link_names()):
+            updated_metadata = jax.tree_util.tree_map(
+                lambda x, link_idx=link_idx: x[link_idx],
+                updated_model.kin_dyn_parameters.hw_link_metadata,
+            )
+            initial_metadata_link = jax.tree_util.tree_map(
+                lambda x, link_idx=link_idx: x[link_idx], initial_metadata
+            )
 
-        # TODO: Compute the 3D scaling vector
-        # scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-        #     initial_metadata_link.shape, scaling_parameters.dims[link_idx]
-        # )
+            # TODO: Compute the 3D scaling vector
+            # scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
+            #     initial_metadata_link.shape, scaling_parameters.dims[link_idx]
+            # )
 
-        # Compare shape dimensions
-        assert jnp.allclose(
-            updated_metadata.dims,
-            initial_metadata_link.dims * scaling_parameters.dims[link_idx],
-            atol=1e-6,
-        ), f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.dims * scaling_parameters.dims[link_idx]}, got {updated_metadata.dims}"
+            # Compare shape dimensions
+            assert jnp.allclose(
+                updated_metadata.geometry,
+                initial_metadata_link.geometry * scaling_parameters.dims[link_idx],
+                atol=1e-6,
+            ), f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.geometry * scaling_parameters.dims[link_idx]}, got {updated_metadata.geometry}"
 
 
 @pytest.mark.parametrize(
@@ -100,23 +101,25 @@ def test_model_scaling_against_rod(
     pre_scaled_metadata = jaxsim_model_garpez_scaled.kin_dyn_parameters.hw_link_metadata
 
     # Compare shape dimensions
-    assert jnp.allclose(scaled_metadata.dims, pre_scaled_metadata.dims, atol=1e-6)
+    assert jnp.allclose(
+        scaled_metadata.geometry, pre_scaled_metadata.geometry, atol=1e-6
+    )
 
     # Compare mass
     scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
-        scaled_metadata.shape, scaled_metadata
+        scaled_metadata.link_shape, scaled_metadata
     )
     pre_scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(
-        pre_scaled_metadata.shape, pre_scaled_metadata
+        pre_scaled_metadata.link_shape, pre_scaled_metadata
     )
     assert scaled_mass == pytest.approx(pre_scaled_mass, abs=1e-6)
 
     # Compare inertia tensors
     _, scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
-        scaled_metadata.shape, scaled_metadata
+        scaled_metadata.link_shape, scaled_metadata
     )
     _, pre_scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(
-        pre_scaled_metadata.shape, pre_scaled_metadata
+        pre_scaled_metadata.link_shape, pre_scaled_metadata
     )
     assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6)
 

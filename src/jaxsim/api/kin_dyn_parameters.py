@@ -923,9 +923,9 @@ class HwLinkMetadata(JaxsimDataclass):
     Class storing the hardware parameters of a link.
 
     Attributes:
-        shape: The shape of the link.
+        link_shape: The shape of the link.
             0 = box, 1 = cylinder, 2 = sphere, -1 = unsupported.
-        dims: The dimensions of the link.
+        geometry: The dimensions of the link.
             box: [lx,ly,lz], cylinder: [r,l,0], sphere: [r,0,0].
         density: The density of the link.
         L_H_G: The homogeneous transformation matrix from the link frame to the CoM frame G.
@@ -934,8 +934,8 @@ class HwLinkMetadata(JaxsimDataclass):
         L_H_pre: The homogeneous transforms for child joints.
     """
 
-    _shape: Static[tuple[int]]
-    dims: jtp.Vector
+    _link_shape: Static[list[float]]
+    geometry: jtp.Vector
     density: jtp.Float
     L_H_G: jtp.Matrix
     L_H_vis: jtp.Matrix
@@ -1015,7 +1015,7 @@ class HwLinkMetadata(JaxsimDataclass):
 
         mass, inertia = jax.vmap(compute_mass_inertia)(
             jnp.array(shape_types),
-            hw_link_metadata.dims,
+            hw_link_metadata.geometry,
             hw_link_metadata.density,
         )
 
@@ -1088,7 +1088,7 @@ class HwLinkMetadata(JaxsimDataclass):
         """
 
         scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-            hw_metadata.shape, scaling_factors
+            hw_metadata.link_shape, scaling_factors
         )
 
         # =================================
@@ -1140,7 +1140,7 @@ class HwLinkMetadata(JaxsimDataclass):
         # Update the shape parameters
         # ===========================
 
-        updated_dims = hw_metadata.dims * scaling_factors.dims
+        updated_geoms = hw_metadata.geometry * scaling_factors.dims
 
         # =============================
         # Scale the density of the link
@@ -1153,7 +1153,7 @@ class HwLinkMetadata(JaxsimDataclass):
         # =============================
 
         return hw_metadata.replace(
-            dims=updated_dims,
+            geometry=updated_geoms,
             density=updated_density,
             L_H_G=L_H̅_G,
             L_H_vis=L_H̅_vis,

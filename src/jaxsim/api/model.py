@@ -361,8 +361,8 @@ class JaxSimModel(JaxsimDataclass):
                     "Skipping for hardware parametrization."
                 )
                 return HwLinkMetadata(
-                    shape=jnp.array([]),
-                    dims=jnp.array([]),
+                    link_shape=[],
+                    geometry=jnp.array([]),
                     density=jnp.array([]),
                     L_H_G=jnp.array([]),
                     L_H_vis=jnp.array([]),
@@ -397,7 +397,7 @@ class JaxSimModel(JaxsimDataclass):
 
         # Initialize lists to collect metadata for all links
         shapes = []
-        dims = []
+        geoms = []
         densities = []
         L_H_Gs = []
         L_H_vises = []
@@ -447,17 +447,17 @@ class JaxSimModel(JaxsimDataclass):
             if isinstance(geometry, rod.Box):
                 lx, ly, lz = geometry.size
                 density = mass / (lx * ly * lz)
-                dims.append([lx, ly, lz])
+                geoms.append([lx, ly, lz])
                 shapes.append(LinkParametrizableShape.Box)
             elif isinstance(geometry, rod.Sphere):
                 r = geometry.radius
                 density = mass / (4 / 3 * jnp.pi * r**3)
-                dims.append([r, 0, 0])
+                geoms.append([r, 0, 0])
                 shapes.append(LinkParametrizableShape.Sphere)
             elif isinstance(geometry, rod.Cylinder):
                 r, l = geometry.radius, geometry.length
                 density = mass / (jnp.pi * r**2 * l)
-                dims.append([r, l, 0])
+                geoms.append([r, l, 0])
                 shapes.append(LinkParametrizableShape.Cylinder)
             else:
                 logging.debug(
@@ -487,8 +487,8 @@ class JaxSimModel(JaxsimDataclass):
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
-            _shape=shapes,
-            dims=jnp.array(dims, dtype=float),
+            _link_shape=shapes,
+            geometry=jnp.array(geoms, dtype=float),
             density=jnp.array(densities, dtype=float),
             L_H_G=jnp.array(L_H_Gs, dtype=float),
             L_H_vis=jnp.array(L_H_vises, dtype=float),
@@ -558,8 +558,8 @@ class JaxSimModel(JaxsimDataclass):
             )
 
             # Update visual shape
-            shape = hw_metadata.shape[link_index]
-            dims = hw_metadata.dims[link_index]
+            shape = hw_metadata.link_shape[link_index]
+            dims = hw_metadata.geometry[link_index]
             if shape == LinkParametrizableShape.Box:
                 links_dict[link_name].visual.geometry.box.size = dims.tolist()
             elif shape == LinkParametrizableShape.Sphere:
@@ -2355,7 +2355,7 @@ def update_hw_parameters(
 
     has_joints = model.number_of_joints() > 0
 
-    supported_mask = hw_link_metadata.shape != LinkParametrizableShape.Unsupported
+    supported_mask = hw_link_metadata.link_shape != LinkParametrizableShape.Unsupported
 
     supported_metadata = jax.tree.map(lambda l: l[supported_mask], hw_link_metadata)
 
@@ -2389,7 +2389,7 @@ def update_hw_parameters(
 
     # Compute mass and inertia once and unpack the results
     m_updated, I_com_updated = HwLinkMetadata.compute_mass_and_inertia(
-        hw_link_metadata.shape, updated_hw_link_metadata
+        hw_link_metadata.link_shape, updated_hw_link_metadata
     )
 
     # Rotate the inertia tensor at CoM with the link orientation, and store

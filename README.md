@@ -86,7 +86,6 @@ for _ in T:
 Check the example folder for additional use cases!
 
 > [!NOTE]
-> GPU performance with JaxSim may vary. If you intend to run the package on a laptop GPU,
 > keep in mind that the performance of some programs may be significantly slower than running on a desktop class GPU.
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat

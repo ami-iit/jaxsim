@@ -361,7 +361,7 @@ class JaxSimModel(JaxsimDataclass):
                     "Skipping for hardware parametrization."
                 )
                 return HwLinkMetadata(
-                    link_shape=[],
+                    link_shape=jnp.array([]),
                     geometry=jnp.array([]),
                     density=jnp.array([]),
                     L_H_G=jnp.array([]),
@@ -487,7 +487,7 @@ class JaxSimModel(JaxsimDataclass):
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
-            _link_shape=shapes,
+            link_shape=jnp.array(shapes, dtype=int),
             geometry=jnp.array(geoms, dtype=float),
             density=jnp.array(densities, dtype=float),
             L_H_G=jnp.array(L_H_Gs, dtype=float),
@@ -2355,37 +2355,21 @@ def update_hw_parameters(
 
     has_joints = model.number_of_joints() > 0
 
-    supported_mask = hw_link_metadata.link_shape != LinkParametrizableShape.Unsupported
-
-    supported_metadata = jax.tree.map(lambda l: l[supported_mask], hw_link_metadata)
-
-    supported_scaling_factors = jax.tree.map(
-        lambda l: l[supported_mask], scaling_factors
+    supported_case = lambda hw_metadata, scaling_factors: HwLinkMetadata.apply_scaling(
+        hw_metadata=hw_metadata, scaling_factors=scaling_factors, has_joints=has_joints
     )
+    unsupported_case = lambda hw_metadata, scaling_factors: hw_metadata
 
     # Apply scaling to hw_link_metadata using vmap
-    scaled_hw_link_metadata_supported = jax.vmap(
-        HwLinkMetadata.apply_scaling, in_axes=(None,)
-    )(
-        has_joints,
-        hw_metadata=supported_metadata,
-        scaling_factors=supported_scaling_factors,
-    )
-
-    # Helper function to merge pytrees leaf-wise with boolean mask
-    def merge_pytree_by_mask(scaled_pytree, original_pytree, mask):
-
-        def merge_leaf(scaled_leaf, original_leaf):
-            mask_shape = (mask.shape[0],) + (1,) * (scaled_leaf.ndim - 1)
-            mask_broadcasted = mask.reshape(mask_shape)
-
-            return jnp.where(mask_broadcasted, scaled_leaf, original_leaf)
-
-        return jax.tree.map(merge_leaf, scaled_pytree, original_pytree)
-
-    updated_hw_link_metadata = merge_pytree_by_mask(
-        scaled_hw_link_metadata_supported, hw_link_metadata, supported_mask
-    )
+    updated_hw_link_metadata = jax.vmap(
+        lambda hw_metadata, multipliers: jax.lax.cond(
+            hw_metadata.link_shape == LinkParametrizableShape.Unsupported,
+            unsupported_case,
+            supported_case,
+            hw_metadata,
+            multipliers,
+        )
+    )(hw_link_metadata, scaling_factors)
 
     # Compute mass and inertia once and unpack the results
     m_updated, I_com_updated = HwLinkMetadata.compute_mass_and_inertia(

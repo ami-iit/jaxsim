@@ -934,20 +934,13 @@ class HwLinkMetadata(JaxsimDataclass):
         L_H_pre: The homogeneous transforms for child joints.
     """
 
-    _link_shape: Static[list[float]]
+    link_shape: jtp.Vector
     geometry: jtp.Vector
     density: jtp.Float
     L_H_G: jtp.Matrix
     L_H_vis: jtp.Matrix
     L_H_pre_mask: jtp.Vector
     L_H_pre: jtp.Matrix
-
-    @property
-    def shape(self) -> int:
-        """
-        Return the shape of the link.
-        """
-        return np.array(self._shape)
 
     @staticmethod
     def compute_mass_and_inertia(
@@ -1014,7 +1007,7 @@ class HwLinkMetadata(JaxsimDataclass):
             return jax.lax.switch(shape_idx, (box, cylinder, sphere), dims, density)
 
         mass, inertia = jax.vmap(compute_mass_inertia)(
-            jnp.array(shape_types),
+            shape_types,
             hw_link_metadata.geometry,
             hw_link_metadata.density,
         )
@@ -1058,7 +1051,7 @@ class HwLinkMetadata(JaxsimDataclass):
         per_link_indices = shape_indices[shape_types]
 
         # Gather dims per link according to per_link_indices
-        return jnp.take_along_axis(scaling_factors.dims, per_link_indices, axis=1)
+        return scaling_factors.dims[per_link_indices.squeeze()]
 
     @staticmethod
     def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:

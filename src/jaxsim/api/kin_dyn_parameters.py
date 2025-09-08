@@ -1043,6 +1043,9 @@ class HwLinkMetadata(JaxsimDataclass):
         """
 
         # Index mapping for each shape type (shape_type x 3 dims)
+        # Box: [lx, ly, lz] -> [0, 1, 2]
+        # Cylinder: [r, r, l] -> [0, 0, 1]
+        # Sphere: [r, r, r] -> [0, 0, 0]
         shape_indices = jnp.array(
             [
                 [0, 1, 2],  # Box

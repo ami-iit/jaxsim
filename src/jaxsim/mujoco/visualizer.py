@@ -1,5 +1,4 @@
 import contextlib
-import os
 import pathlib
 from collections.abc import Iterator, Sequence
 
@@ -66,7 +65,9 @@ class MujocoVideoRecorder:
             **(dict(width=width, height=height) | kwargs),
         )
 
-    def visualize_frame(self) -> None:
+    def visualize_frame(
+        self, frame_pose: list[float] | npt.NDArray | None = None
+    ) -> None:
         """
         Add visualization of a static frame using the `JAXSIM_VISUALIZER_FRAME`
         environment variable.
@@ -79,14 +80,13 @@ class MujocoVideoRecorder:
             return
 
         # Read position and RPY orientation
-        frame_env = os.environ.get("JAXSIM_VISUALIZER_FRAME")
-        if not frame_env:
+        if not frame_pose:
             return
         try:
-            x, y, z, roll, pitch, yaw = map(float, frame_env.split())
+            x, y, z, roll, pitch, yaw = frame_pose
         except Exception as e:
             raise ValueError(
-                "JAXSIM_VISUALIZER_FRAME must be 'x y z roll pitch yaw'"
+                "Frame pose elements must be a 6D list: 'x y z roll pitch yaw'"
             ) from e
 
         mat = Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=False).as_matrix()
@@ -167,8 +167,21 @@ class MujocoVideoRecorder:
             "They must be equal or model must have length 1."
         )
 
-    def render_frame(self, camera_name: str = "track") -> npt.NDArray:
-        """Render a frame."""
+    def render_frame(
+        self,
+        camera_name: str = "track",
+        frame_pose: list[float] | npt.NDArray | None = None,
+    ) -> npt.NDArray:
+        """
+        Render a frame.
+
+        Args:
+            camera_name: The name of the camera to use for rendering.
+            frame_pose: The pose of a static frame to visualize as [x, y, z, roll, pitch, yaw].
+
+        Returns:
+            The rendered frame as a NumPy array.
+        """
 
         for idx, data in enumerate(self.data):
 
@@ -180,7 +193,7 @@ class MujocoVideoRecorder:
 
             if idx == 0:
                 self.renderer.update_scene(data=data, camera=camera_name)
-                self.visualize_frame()
+                self.visualize_frame(frame_pose=frame_pose)
                 continue
 
             mujoco.mjv_addGeoms(
@@ -194,10 +207,14 @@ class MujocoVideoRecorder:
 
         return self.renderer.render()
 
-    def record_frame(self, camera_name: str = "track") -> None:
+    def record_frame(
+        self,
+        camera_name: str = "track",
+        frame_pose: list[float] | npt.NDArray | None = None,
+    ) -> None:
         """Store a frame in the buffer."""
 
-        frame = self.render_frame(camera_name=camera_name)
+        frame = self.render_frame(camera_name=camera_name, frame_pose=frame_pose)
         self.frames.append(frame)
 
     def write_video(self, path: pathlib.Path | str, exist_ok: bool = False) -> None:

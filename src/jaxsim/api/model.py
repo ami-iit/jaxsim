@@ -10,13 +10,12 @@ from collections.abc import Sequence
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
 import rod
-import rod.urdf
 from jax_dataclasses import Static
 from rod.urdf.exporter import UrdfExporter
 
 import jaxsim.api as js
-import jaxsim.exceptions
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
@@ -354,8 +353,8 @@ class JaxSimModel(JaxsimDataclass):
                     "Skipping for hardware parametrization."
                 )
                 return HwLinkMetadata(
-                    shape=jnp.array([]),
-                    dims=jnp.array([]),
+                    link_shape=jnp.array([]),
+                    geometry=jnp.array([]),
                     density=jnp.array([]),
                     L_H_G=jnp.array([]),
                     L_H_vis=jnp.array([]),
@@ -390,7 +389,7 @@ class JaxSimModel(JaxsimDataclass):
 
         # Initialize lists to collect metadata for all links
         shapes = []
-        dims = []
+        geoms = []
         densities = []
         L_H_Gs = []
         L_H_vises = []
@@ -440,17 +439,17 @@ class JaxSimModel(JaxsimDataclass):
             if isinstance(geometry, rod.Box):
                 lx, ly, lz = geometry.size
                 density = mass / (lx * ly * lz)
-                dims.append([lx, ly, lz])
+                geoms.append([lx, ly, lz])
                 shapes.append(LinkParametrizableShape.Box)
             elif isinstance(geometry, rod.Sphere):
                 r = geometry.radius
                 density = mass / (4 / 3 * jnp.pi * r**3)
-                dims.append([r, 0, 0])
+                geoms.append([r, 0, 0])
                 shapes.append(LinkParametrizableShape.Sphere)
             elif isinstance(geometry, rod.Cylinder):
                 r, l = geometry.radius, geometry.length
                 density = mass / (jnp.pi * r**2 * l)
-                dims.append([r, l, 0])
+                geoms.append([r, l, 0])
                 shapes.append(LinkParametrizableShape.Cylinder)
             else:
                 logging.debug(
@@ -464,7 +463,7 @@ class JaxSimModel(JaxsimDataclass):
             L_H_pre_masks.append(
                 [
                     int(joint_index in child_joints_indices)
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
             L_H_pre.append(
@@ -474,14 +473,14 @@ class JaxSimModel(JaxsimDataclass):
                         if joint_index in child_joints_indices
                         else jnp.eye(4)
                     )
-                    for joint_index in range(0, self.number_of_joints())
+                    for joint_index in range(self.number_of_joints())
                 ]
             )
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(
-            shape=jnp.array(shapes, dtype=int),
-            dims=jnp.array(dims, dtype=float),
+            link_shape=jnp.array(shapes, dtype=int),
+            geometry=jnp.array(geoms, dtype=float),
             density=jnp.array(densities, dtype=float),
             L_H_G=jnp.array(L_H_Gs, dtype=float),
             L_H_vis=jnp.array(L_H_vises, dtype=float),
@@ -499,8 +498,6 @@ class JaxSimModel(JaxsimDataclass):
         Note:
             This method is not meant to be used in JIT-compiled functions.
         """
-
-        import numpy as np
 
         if isinstance(jnp.zeros(0), jax.core.Tracer):
             raise RuntimeError("This method cannot be used in JIT-compiled functions")
@@ -553,8 +550,8 @@ class JaxSimModel(JaxsimDataclass):
             )
 
             # Update visual shape
-            shape = hw_metadata.shape[link_index]
-            dims = hw_metadata.dims[link_index]
+            shape = hw_metadata.link_shape[link_index]
+            dims = hw_metadata.geometry[link_index]
             if shape == LinkParametrizableShape.Box:
                 links_dict[link_name].visual.geometry.box.size = dims.tolist()
                 links_dict[link_name].collision.geometry.box.size = dims.tolist()
@@ -2358,13 +2355,24 @@ def update_hw_parameters(
 
     has_joints = model.number_of_joints() > 0
 
+    supported_case = lambda hw_metadata, scaling_factors: HwLinkMetadata.apply_scaling(
+        hw_metadata=hw_metadata, scaling_factors=scaling_factors, has_joints=has_joints
+    )
+    unsupported_case = lambda hw_metadata, scaling_factors: hw_metadata
+
     # Apply scaling to hw_link_metadata using vmap
     updated_hw_link_metadata = jax.vmap(
-        HwLinkMetadata.apply_scaling, in_axes=(0, 0, None)
-    )(hw_link_metadata, scaling_factors, has_joints)
+        lambda hw_metadata, multipliers: jax.lax.cond(
+            hw_metadata.link_shape == LinkParametrizableShape.Unsupported,
+            unsupported_case,
+            supported_case,
+            hw_metadata,
+            multipliers,
+        )
+    )(hw_link_metadata, scaling_factors)
 
     # Compute mass and inertia once and unpack the results
-    m_updated, I_com_updated = jax.vmap(HwLinkMetadata.compute_mass_and_inertia)(
+    m_updated, I_com_updated = HwLinkMetadata.compute_mass_and_inertia(
         updated_hw_link_metadata
     )
 
@@ -2388,7 +2396,7 @@ def update_hw_parameters(
     # Compute the contact parameters
     points = HwLinkMetadata.compute_contact_points(
         original_contact_params=kin_dyn_params.contact_parameters,
-        shape_types=updated_hw_link_metadata.shape,
+        link_shapes=updated_hw_link_metadata.link_shape,
         original_com_positions=link_parameters.center_of_mass,
         updated_com_positions=updated_link_parameters.center_of_mass,
         scaling_factors=scaling_factors,
@@ -2403,32 +2411,31 @@ def update_hw_parameters(
         L_H_pre_for_joint = updated_hw_link_metadata.L_H_pre[:, joint_index]
         L_H_pre_mask_for_joint = updated_hw_link_metadata.L_H_pre_mask[:, joint_index]
 
-        # Use the mask to select the first valid transform or fall back to the original
-        valid_transforms = jnp.where(
-            L_H_pre_mask_for_joint[:, None, None],  # Expand mask for broadcasting
-            L_H_pre_for_joint,  # Use the transform if the mask is True
-            jnp.zeros_like(L_H_pre_for_joint),  # Otherwise, use a zero matrix
-        )
+        # Select the first valid transform (if any) using the mask
+        first_valid_index = jnp.argmax(L_H_pre_mask_for_joint)
+        selected_transform = L_H_pre_for_joint[first_valid_index]
 
-        # Sum the valid transforms (only one will be non-zero due to the mask)
-        selected_transform = jnp.sum(valid_transforms, axis=0)
+        # Check if any valid transform exists
+        has_valid_transform = L_H_pre_mask_for_joint.any()
 
-        # If no valid transform exists, fall back to the original λ_H_pre
-        return jax.lax.cond(
-            jnp.any(L_H_pre_mask_for_joint),
-            lambda: selected_transform,
-            lambda: kin_dyn_params.joint_model.λ_H_pre[joint_index + 1],
-        )
+        # Fallback to the original λ_H_pre if no valid transform exists
+        fallback_transform = kin_dyn_params.joint_model.λ_H_pre[joint_index + 1]
+
+        # Return the selected transform or fallback
+        return jnp.where(has_valid_transform, selected_transform, fallback_transform)
 
     if has_joints:
         # Apply the update function to all joint indices
         updated_λ_H_pre = jax.vmap(update_λ_H_pre)(
             jnp.arange(kin_dyn_params.number_of_joints())
-        )  # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
+        )
+
+        # NOTE: λ_H_pre should be of len (1+n_joints) with the 0-th element equal
         # to identity to represent the world-to-base tree transform. See JointModel class
         updated_λ_H_pre_with_base = jnp.concatenate(
             (jnp.eye(4).reshape(1, 4, 4), updated_λ_H_pre), axis=0
         )
+
         # Replace the joint model with the updated transforms
         updated_joint_model = kin_dyn_params.joint_model.replace(
             λ_H_pre=updated_λ_H_pre_with_base

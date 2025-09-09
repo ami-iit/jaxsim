@@ -2396,7 +2396,7 @@ def update_hw_parameters(
     # Compute the contact parameters
     points = HwLinkMetadata.compute_contact_points(
         original_contact_params=kin_dyn_params.contact_parameters,
-        shape_types=updated_hw_link_metadata.shape,
+        link_shapes=updated_hw_link_metadata.link_shape,
         original_com_positions=link_parameters.center_of_mass,
         updated_com_positions=updated_link_parameters.center_of_mass,
         scaling_factors=scaling_factors,

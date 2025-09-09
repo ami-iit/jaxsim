@@ -1054,7 +1054,7 @@ class HwLinkMetadata(JaxsimDataclass):
     @staticmethod
     def compute_contact_points(
         original_contact_params: jtp.Vector,
-        shape_types: jtp.Vector,
+        link_shapes: jtp.Vector,
         original_com_positions: jtp.Vector,
         updated_com_positions: jtp.Vector,
         scaling_factors: ScalingFactors,
@@ -1065,7 +1065,7 @@ class HwLinkMetadata(JaxsimDataclass):
 
         Args:
             original_contact_params: The original contact parameters.
-            shape_types: The shape types of the links (e.g., box, sphere, cylinder).
+            link_shapes: The shape types of the links (e.g., box, sphere, cylinder).
             original_com_positions: The original center of mass positions of the links.
             updated_com_positions: The updated center of mass positions of the links.
             scaling_factors: The scaling factors for the link dimensions.
@@ -1083,7 +1083,7 @@ class HwLinkMetadata(JaxsimDataclass):
         )
 
         # Extract the shape types of the parent links.
-        parent_shape_types = jnp.array(shape_types[parent_link_indices])
+        parent_link_shapes = jnp.array(link_shapes[parent_link_indices])
 
         def sphere(parent_idx, L_p_C):
             r = scaling_factors.dims[parent_idx][0]
@@ -1108,7 +1108,7 @@ class HwLinkMetadata(JaxsimDataclass):
                 shape_idx, (box, cylinder, sphere), parent_idx, L_p_C
             )
         )(
-            parent_shape_types,
+            parent_link_shapes,
             parent_link_indices,
             L_p_Ci,
         )

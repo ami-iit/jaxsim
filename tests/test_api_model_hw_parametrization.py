@@ -402,7 +402,7 @@ def test_hw_parameters_collision_scaling(
     scaling_factor = 5.0
 
     # Define the nominal radius of the sphere
-    nominal_height = model.kin_dyn_parameters.hw_link_metadata.dims[0, 2]
+    nominal_height = model.kin_dyn_parameters.hw_link_metadata.geometry[0, 2]
 
     # Define scaling parameters
     scaling_parameters = ScalingFactors(

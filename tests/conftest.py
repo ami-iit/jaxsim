@@ -741,6 +741,22 @@ def jaxsim_model_cartpole() -> js.model.JaxSimModel:
     return model
 
 
+@pytest.fixture(scope="session")
+def jaxsim_model_4_bar_linkage() -> js.model.JaxSimModel:
+    """
+    Fixture providing the JaxSim model of a 4-bar linkage (opened configuration).
+
+    Returns:
+        The JaxSim model of the 4-bar linkage.
+    """
+
+    model_path = pathlib.Path(__file__).parent / "assets" / "4_bar_opened.urdf"
+    rod_model = load_model_from_file(model_path, is_urdf=True)
+    model = build_jaxsim_model(model_description=rod_model)
+
+    return model
+
+
 # ============================
 # Collections of JaxSim models
 # ============================

@@ -30,31 +30,30 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
         density=jnp.ones(4),
     )
 
-    with jax.disable_jit(False):
-        # Update the model using the scaling factors
-        updated_model = js.model.update_hw_parameters(model, scaling_parameters)
+    # Update the model using the scaling factors
+    updated_model = js.model.update_hw_parameters(model, scaling_parameters)
 
-        # Compare updated hardware parameters
-        for link_idx, link_name in enumerate(model.link_names()):
-            updated_metadata = jax.tree_util.tree_map(
-                lambda x, link_idx=link_idx: x[link_idx],
-                updated_model.kin_dyn_parameters.hw_link_metadata,
-            )
-            initial_metadata_link = jax.tree_util.tree_map(
-                lambda x, link_idx=link_idx: x[link_idx], initial_metadata
-            )
+    # Compare updated hardware parameters
+    for link_idx, link_name in enumerate(model.link_names()):
+        updated_metadata = jax.tree_util.tree_map(
+            lambda x, link_idx=link_idx: x[link_idx],
+            updated_model.kin_dyn_parameters.hw_link_metadata,
+        )
+        initial_metadata_link = jax.tree_util.tree_map(
+            lambda x, link_idx=link_idx: x[link_idx], initial_metadata
+        )
 
-            # TODO: Compute the 3D scaling vector
-            # scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
-            #     initial_metadata_link.shape, scaling_parameters.dims[link_idx]
-            # )
+        # TODO: Compute the 3D scaling vector
+        # scale_vector = HwLinkMetadata._convert_scaling_to_3d_vector(
+        #     initial_metadata_link.shape, scaling_parameters.dims[link_idx]
+        # )
 
-            # Compare shape dimensions
-            assert jnp.allclose(
-                updated_metadata.geometry,
-                initial_metadata_link.geometry * scaling_parameters.dims[link_idx],
-                atol=1e-6,
-            ), f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.geometry * scaling_parameters.dims[link_idx]}, got {updated_metadata.geometry}"
+        # Compare shape dimensions
+        assert jnp.allclose(
+            updated_metadata.geometry,
+            initial_metadata_link.geometry * scaling_parameters.dims[link_idx],
+            atol=1e-6,
+        ), f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.geometry * scaling_parameters.dims[link_idx]}, got {updated_metadata.geometry}"
 
 
 @pytest.mark.parametrize(

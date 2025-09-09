@@ -7,6 +7,7 @@ import mujoco as mj
 import mujoco.viewer
 import numpy as np
 import numpy.typing as npt
+from scipy.spatial.transform import Rotation
 
 
 class MujocoVideoRecorder:
@@ -64,6 +65,90 @@ class MujocoVideoRecorder:
             **(dict(width=width, height=height) | kwargs),
         )
 
+    def visualize_frame(
+        self, frame_pose: list[float] | npt.NDArray | None = None
+    ) -> None:
+        """
+        Add visualization of a static frame.
+
+        Args:
+            frame_pose: The pose of a static frame to visualize as [x, y, z, roll, pitch, yaw].
+        """
+
+        scene = self.renderer.scene
+
+        # Three free slots are needed for the axes (x, y, z).
+        if scene.ngeom + 3 > scene.maxgeom:
+            return
+
+        # Read position and RPY orientation
+        if not frame_pose:
+            return
+        try:
+            x, y, z, roll, pitch, yaw = frame_pose
+        except Exception as e:
+            raise ValueError(
+                "Frame pose elements must be a 6D list: 'x y z roll pitch yaw'"
+            ) from e
+
+        mat = Rotation.from_euler("xyz", [roll, pitch, yaw], degrees=False).as_matrix()
+
+        origin = np.array([x, y, z])
+        length = 0.2  # length of axis cylinders
+        radius = 0.01  # slim radius for cylinders
+
+        for axis, color in zip(
+            range(3), [(1, 0, 0, 1), (0, 1, 0, 1), (0, 0, 1, 1)], strict=True
+        ):
+            if scene.ngeom >= scene.maxgeom:
+                break
+
+            axis_dir = mat[:, axis]
+
+            geom = scene.geoms[scene.ngeom]
+
+            # Cylinder position is centered at origin + half length along axis
+            pos = origin + axis_dir * length * 0.5
+
+            # Build rotation matrix for cylinder aligned with axis_dir
+            # MuJoCo's cylinder local axis is along z-axis
+            def rot_from_z(v: np.ndarray) -> np.ndarray:
+                v = v / np.linalg.norm(v)
+                z_axis = np.array([0, 0, 1])
+                if np.allclose(v, z_axis):
+                    return np.eye(3)
+                if np.allclose(v, -z_axis):
+                    return np.diag([1, -1, -1])
+                cross = np.cross(z_axis, v)
+                dot = np.dot(z_axis, v)
+                skew = np.array(
+                    [
+                        [0, -cross[2], cross[1]],
+                        [cross[2], 0, -cross[0]],
+                        [-cross[1], cross[0], 0],
+                    ]
+                )
+                R = np.eye(3) + skew + skew @ skew * (1 / (1 + dot))
+                return R
+
+            R = rot_from_z(axis_dir)
+            mat_flat = R.flatten()
+
+            mj.mjv_initGeom(
+                geom=geom,
+                type=mj.mjtGeom.mjGEOM_CYLINDER,
+                # The `size` arguments takes three positional arguments.
+                # In the cylinder case, the first two are the radius and half-length,
+                # and the third is not used (set to 0.0).
+                size=np.array([radius, length * 0.5, 0.0]),
+                rgba=np.array(color),
+                pos=pos,
+                mat=mat_flat,
+            )
+            geom.category = mj.mjtCatBit.mjCAT_STATIC
+
+            scene.ngeom += 1
+
     def reset(
         self,
         model: mj.MjModel | None = None,
@@ -84,8 +169,21 @@ class MujocoVideoRecorder:
             "They must be equal or model must have length 1."
         )
 
-    def render_frame(self, camera_name: str = "track") -> npt.NDArray:
-        """Render a frame."""
+    def render_frame(
+        self,
+        camera_name: str = "track",
+        frame_pose: list[float] | npt.NDArray | None = None,
+    ) -> npt.NDArray:
+        """
+        Render a frame.
+
+        Args:
+            camera_name: The name of the camera to use for rendering.
+            frame_pose: The pose of a static frame to visualize as [x, y, z, roll, pitch, yaw].
+
+        Returns:
+            The rendered frame as a NumPy array.
+        """
 
         for idx, data in enumerate(self.data):
 
@@ -97,6 +195,7 @@ class MujocoVideoRecorder:
 
             if idx == 0:
                 self.renderer.update_scene(data=data, camera=camera_name)
+                self.visualize_frame(frame_pose=frame_pose)
                 continue
 
             mujoco.mjv_addGeoms(
@@ -110,10 +209,14 @@ class MujocoVideoRecorder:
 
         return self.renderer.render()
 
-    def record_frame(self, camera_name: str = "track") -> None:
+    def record_frame(
+        self,
+        camera_name: str = "track",
+        frame_pose: list[float] | npt.NDArray | None = None,
+    ) -> None:
         """Store a frame in the buffer."""
 
-        frame = self.render_frame(camera_name=camera_name)
+        frame = self.render_frame(camera_name=camera_name, frame_pose=frame_pose)
         self.frames.append(frame)
 
     def write_video(self, path: pathlib.Path | str, exist_ok: bool = False) -> None:

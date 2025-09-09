@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.math import Quaternion, Skew
+from jaxsim.rbda.kinematic_constraints import compute_constraint_wrenches
 
 from .common import VelRepr
 
@@ -18,7 +19,7 @@ def system_acceleration(
     *,
     link_forces: jtp.MatrixLike | None = None,
     joint_torques: jtp.VectorLike | None = None,
-) -> tuple[jtp.Vector, jtp.Vector]:
+) -> tuple[jtp.Vector, jtp.Vector, dict[str, jtp.PyTree]]:
     """
     Compute the system acceleration in the active representation.
 
@@ -31,8 +32,8 @@ def system_acceleration(
         joint_torques: The joint torques applied to the joints.
 
     Returns:
-        A tuple containing the base 6D acceleration in the active representation
-        and the joint accelerations.
+        A tuple containing the base 6D acceleration in the active representation,
+        the joint accelerations, and the contact state.
     """
 
     # ====================
@@ -64,7 +65,40 @@ def system_acceleration(
             joint_torques=joint_torques,
         )
 
+    # ==================================
+    # Compute kinematic constraint forces
+    # ==================================
+
+    # Sum up all the forces: external + contact
     W_f_L_total = f_L + W_f_L_terrain
+
+    # Compute the 6D forces W_f ∈ ℝ^{n_constraints × 2 × 6} applied to links due to
+    # kinematic constraints.
+    W_f_L_constraints = compute_constraint_wrenches(
+        model=model,
+        data=data,
+        link_forces_inertial=W_f_L_total,
+        joint_force_references=joint_torques,
+    )
+
+    # Apply constraint forces to the corresponding links
+    if W_f_L_constraints.shape[0] > 0:
+        # Get the constraint map from the model's kinematic parameters
+        constraint_map = model.kin_dyn_parameters.constraints
+
+        if constraint_map is not None:
+            # Stack the parent link indices for both sides of each constraint
+            parent_indices_flat = jnp.concatenate(
+                [constraint_map.parent_link_idxs_1, constraint_map.parent_link_idxs_2],
+            )
+
+            # Flatten the constraint wrenches to match the flattened parent indices
+            constraint_wrenches_flat = W_f_L_constraints.reshape(-1, 6)
+
+            # Apply constraint wrenches using scatter_add for better performance
+            W_f_L_total = W_f_L_total.at[parent_indices_flat].add(
+                constraint_wrenches_flat
+            )
 
     # Update the contact state data. This is necessary only for the contact models
     # that require propagation and integration of contact state.

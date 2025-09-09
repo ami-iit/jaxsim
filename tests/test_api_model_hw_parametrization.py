@@ -315,10 +315,7 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Define the initial hardware parameters (scaling factors).
     initial_dims = jnp.ones(
-        (
-            model.number_of_links(),
-            3,
-        )
+        (model.number_of_links(), 3)
     )  # Initial dimensions (1.0 for all links).
     initial_density = jnp.ones(
         (model.number_of_links(),)
@@ -368,3 +365,85 @@ def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
 
     # Assert that the final loss is close to zero.
     assert current_loss < 1e-3, "Optimization did not converge to the target height."
+
+
+def test_hw_parameters_collision_scaling(
+    jaxsim_model_box: js.model.JaxSimModel, prng_key: jax.Array
+):
+    """
+    Test that the collision elements of the model are updated correctly during the scaling of the model hw parameters.
+    """
+
+    _, subkey = jax.random.split(prng_key, num=2)
+
+    # TODO: the jaxsim_model_box has an additional frame, which is handled wrongly
+    # during the export of the updated model. For this reason, we recreate the model
+    # from scratch here.
+    del jaxsim_model_box
+
+    import rod.builder.primitives
+
+    # Create on-the-fly a ROD model of a box.
+    rod_model = (
+        rod.builder.primitives.BoxBuilder(x=0.3, y=0.2, z=0.1, mass=1.0, name="box")
+        .build_model()
+        .add_link(name="box_link")
+        .add_inertial()
+        .add_visual()
+        .add_collision()
+        .build()
+    )
+
+    model = js.model.JaxSimModel.build_from_model_description(
+        model_description=rod_model
+    )
+
+    # Define the scaling factor for the model
+    scaling_factor = 5.0
+
+    # Define the nominal radius of the sphere
+    nominal_height = model.kin_dyn_parameters.hw_link_metadata.dims[0, 2]
+
+    # Define scaling parameters
+    scaling_parameters = ScalingFactors(
+        dims=jnp.ones((model.number_of_links(), 3)) * scaling_factor,
+        density=jnp.array([1.0]),
+    )
+
+    # Update the model with the scaling parameters
+    updated_model = js.model.update_hw_parameters(model, scaling_parameters)
+
+    # Simulate the box falling under gravity
+    data = js.data.JaxSimModelData.build(
+        model=updated_model,
+        # Set the initial position of the box's base to be slightly above the ground
+        # to allow it to settle at the expected height after scaling.
+        # The base position is set to the nominal height of the box scaled by the scaling factor,
+        # plus a small offset to avoid immediate collision with the ground.
+        # This ensures that the box has enough space to fall and settle at the expected height.
+        base_position=jnp.array(
+            [
+                *jax.random.uniform(subkey, shape=(2,)),
+                nominal_height * scaling_factor + 0.01,
+            ]
+        ),
+    )
+
+    num_steps = 1000  # Number of simulation steps
+
+    for _ in range(num_steps):
+        data = js.model.step(
+            model=updated_model,
+            data=data,
+        )
+
+    # Get the final height of the box's base
+    updated_base_height = data.base_position[2]
+
+    # Compute the expected height (nominal radius * scaling factor)
+    expected_height = nominal_height * scaling_factor / 2
+
+    # Assert that the box settles at the expected height
+    assert jnp.isclose(
+        updated_base_height, expected_height, atol=1e-3
+    ), f"model base height mismatch: expected {expected_height}, got {updated_base_height}"

@@ -1,0 +1,137 @@
+<robot name="4_bar_opened">
+    <!-- Link AB -->
+    <link name="AB">
+        <inertial>
+            <mass value="1.0" />
+            <inertia ixx="0.02167" iyy="0.00167" izz="0.02167" ixy="0.0" ixz="0.0" iyz="0.0" />
+        </inertial>
+        <visual>
+            <geometry>
+                <box size="0.1 0.5 0.1" />
+            </geometry>
+        </visual>
+    </link>
+
+    <!-- Link BC1 -->
+    <link name="BC1">
+        <inertial>
+            <origin xyz="0 0.125 0" rpy="0 0 0" />
+            <mass value="0.5" />
+            <inertia ixx="0.010835" iyy="0.000835" izz="0.010835" ixy="0.0" ixz="0.0" iyz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0.125 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.1 0.25 0.1" />
+            </geometry>
+        </visual>
+    </link>
+
+    <!-- Frame at the end of BC1 -->
+    <link name="BC1_frame" />
+
+    <joint name="BC1_frame_joint" type="fixed">
+        <parent link="BC1" />
+        <child link="BC1_frame" />
+        <origin xyz="0 0.25 0" rpy="0 0 0" />
+    </joint>
+
+    <!-- Link BC2 -->
+    <link name="BC2">
+        <inertial>
+            <origin xyz="0 0.125 0" rpy="0 0 0" />
+            <mass value="0.5" />
+            <inertia ixx="0.010835" iyy="0.000835" izz="0.010835" ixy="0.0" ixz="0.0" iyz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0.125 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.1 0.25 0.1" /> <!-- Dummy frame link -->
+            </geometry>
+        </visual>
+    </link>
+
+    <!-- Frame at the end of BC2 -->
+    <link name="BC2_frame" />
+
+    <joint name="BC2_frame_joint" type="fixed">
+        <parent link="BC2" />
+        <child link="BC2_frame" />
+        <origin xyz="0 0.25 0" rpy="0 0 3.1416" />
+    </joint>
+
+    <!-- Link CD -->
+    <link name="CD">
+        <inertial>
+            <origin xyz="0 0.25 0" rpy="0 0 0" />
+            <mass value="1.0" />
+            <inertia ixx="0.02167" iyy="0.00167" izz="0.02167" ixy="0.0" ixz="0.0" iyz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0.25 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.1 0.5 0.1" />
+            </geometry>
+            <material name="Cyan">
+                <color rgba="0 1.0 1.0 1.0" />
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0.25 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.1 0.5 0.1" />
+            </geometry>
+        </collision>
+    </link>
+
+    <!-- Link DA -->
+    <link name="DA">
+        <inertial>
+            <origin xyz="0 0.25 0" rpy="0 0 0" />
+            <mass value="1.0" />
+            <inertia ixx="0.02167" iyy="0.00167" izz="0.02167" ixy="0.0" ixz="0.0" iyz="0.0" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0.25 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.1 0.5 0.1" />
+            </geometry>
+        </visual>
+    </link>
+
+    <!-- Joint B -->
+    <joint name="B" type="revolute">
+        <parent link="AB" />
+        <child link="BC1" />
+        <origin xyz="0 -0.25 0" rpy="0 0 1.57" />
+        <axis xyz="0 0 1" />
+        <limit lower="-1.57" upper="1.57" effort="30" velocity="1.0" />
+    </joint>
+
+    <!-- Joint C -->
+    <joint name="C" type="revolute">
+        <parent link="CD" />
+        <child link="BC2" />
+        <origin xyz="0 0.5 0" rpy="0 0 1.57" />
+        <axis xyz="0 0 1" />
+        <limit lower="-1.57" upper="1.57" effort="30" velocity="1.0" />
+    </joint>
+
+    <!-- Joint D -->
+    <joint name="D" type="revolute">
+        <parent link="DA" />
+        <child link="CD" />
+        <origin xyz="0 0.5 0" rpy="0 0 1.57" />
+        <axis xyz="0 0 1" />
+        <limit lower="-1.57" upper="1.57" effort="30" velocity="1.0" />
+    </joint>
+
+    <!-- Joint A -->
+    <joint name="A" type="revolute">
+        <parent link="AB" />
+        <child link="DA" />
+        <origin xyz="0 0.25 0" rpy="0 0 1.57" />
+        <axis xyz="0 0 1" />
+        <limit lower="-1.57" upper="1.57" effort="30" velocity="1.0" />
+    </joint>
+</robot>

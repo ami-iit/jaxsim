@@ -1052,6 +1052,70 @@ class HwLinkMetadata(JaxsimDataclass):
         return scaling_factors.dims[per_link_indices.squeeze()]
 
     @staticmethod
+    def compute_contact_points(
+        original_contact_params: jtp.Vector,
+        shape_types: jtp.Vector,
+        original_com_positions: jtp.Vector,
+        updated_com_positions: jtp.Vector,
+        scaling_factors: ScalingFactors,
+    ) -> jtp.Matrix:
+        """
+        Compute the new contact points based on the original contact parameters and
+        the scaling factors.
+
+        Args:
+            original_contact_params: The original contact parameters.
+            shape_types: The shape types of the links (e.g., box, sphere, cylinder).
+            original_com_positions: The original center of mass positions of the links.
+            updated_com_positions: The updated center of mass positions of the links.
+            scaling_factors: The scaling factors for the link dimensions.
+
+        Returns:
+            The new contact points positions in the parent link frame.
+        """
+
+        parent_link_indices = np.array(original_contact_params.body)
+
+        # Translate the original contact point positions in the origin, so
+        # that we can apply the scaling factors.
+        L_p_Ci = (
+            original_contact_params.point - original_com_positions[parent_link_indices]
+        )
+
+        # Extract the shape types of the parent links.
+        parent_shape_types = jnp.array(shape_types[parent_link_indices])
+
+        def sphere(parent_idx, L_p_C):
+            r = scaling_factors.dims[parent_idx][0]
+            return L_p_C * r
+
+        def cylinder(parent_idx, L_p_C):
+            # TODO: Cylinder collisions are not currently supported in JaxSim.
+            return L_p_C
+
+        def box(parent_idx, L_p_C):
+            lx, ly, lz = scaling_factors.dims[parent_idx]
+            return jnp.hstack(
+                [
+                    L_p_C[0] * lx,
+                    L_p_C[1] * ly,
+                    L_p_C[2] * lz,
+                ]
+            )
+
+        new_positions = jax.vmap(
+            lambda shape_idx, parent_idx, L_p_C: jax.lax.switch(
+                shape_idx, (box, cylinder, sphere), parent_idx, L_p_C
+            )
+        )(
+            parent_shape_types,
+            parent_link_indices,
+            L_p_Ci,
+        )
+
+        return new_positions + updated_com_positions[parent_link_indices]
+
+    @staticmethod
     def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:
         """
         Compute the inertia tensor of the link based on its shape and mass.
@@ -1073,6 +1137,7 @@ class HwLinkMetadata(JaxsimDataclass):
             has_joints: A boolean indicating if the model has joints.
             hw_metadata: the original HwLinkMetadata object.
             scaling_factors: the scaling factors to apply.
+            has_joints: whether the model has at least one joint.
 
         Returns:
             A new HwLinkMetadata object with updated parameters.
@@ -1198,9 +1263,17 @@ class ConstraintMap(JaxsimDataclass):
     K_D: jtp.Float = dataclasses.field(
         default_factory=lambda: jnp.array([], dtype=float)
     )
+    # Precomputed parent link indices for each constraint pair
+    parent_link_idxs_1: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=int)
+    )
+    parent_link_idxs_2: jtp.Int = dataclasses.field(
+        default_factory=lambda: jnp.array([], dtype=int)
+    )
 
     def add_constraint(
         self,
+        model: jaxsim.api.model.JaxSimModel,
         frame_idx_1: int,
         frame_idx_2: int,
         constraint_type: int,
@@ -1211,6 +1284,7 @@ class ConstraintMap(JaxsimDataclass):
         Add a constraint to the constraint map.
 
         Args:
+            model: The model for which the constraints are added.
             frame_idx_1: The index of the first frame.
             frame_idx_2: The index of the second frame.
             constraint_type: The type of constraint.
@@ -1227,22 +1301,34 @@ class ConstraintMap(JaxsimDataclass):
 
         # Set default values for Baumgarte coefficients if not provided
         if K_P is None:
-            K_P = 1000
+            K_P = jnp.array([1000.0])
         if K_D is None:
-            K_D = 2 * np.sqrt(K_P)
+            K_D = 2 * jnp.sqrt(K_P)
 
         # Create new arrays with the input elements appended
         new_frame_idxs_1 = jnp.append(self.frame_idxs_1, frame_idx_1)
-        new_frame_idxs2 = jnp.append(self.frame_idxs_2, frame_idx_2)
+        new_frame_idxs_2 = jnp.append(self.frame_idxs_2, frame_idx_2)
         new_constraint_types = jnp.append(self.constraint_types, constraint_type)
         new_K_P = jnp.append(self.K_P, K_P)
         new_K_D = jnp.append(self.K_D, K_D)
 
+        # Compute parent link indices (now always available since model is required)
+        parent_link_idx_1 = jaxsim.api.frame.idx_of_parent_link(
+            model, frame_index=frame_idx_1
+        )
+        parent_link_idx_2 = jaxsim.api.frame.idx_of_parent_link(
+            model, frame_index=frame_idx_2
+        )
+        new_parent_link_idxs_1 = jnp.append(self.parent_link_idxs_1, parent_link_idx_1)
+        new_parent_link_idxs_2 = jnp.append(self.parent_link_idxs_2, parent_link_idx_2)
+
         # Return a new ConstraintMap object with updated attributes
         return ConstraintMap(
             frame_idxs_1=new_frame_idxs_1,
-            frame_idxs_2=new_frame_idxs2,
+            frame_idxs_2=new_frame_idxs_2,
             constraint_types=new_constraint_types,
             K_P=new_K_P,
             K_D=new_K_D,
+            parent_link_idxs_1=new_parent_link_idxs_1,
+            parent_link_idxs_2=new_parent_link_idxs_2,
         )

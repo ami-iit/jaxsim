@@ -285,14 +285,6 @@ class JaxSimModel(JaxsimDataclass):
             else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
         )
 
-        if constraints is not None and not isinstance(
-            contact_model, jaxsim.rbda.contacts.RelaxedRigidContacts
-        ):
-            constraints = None
-            logging.warning(
-                f"Contact model {contact_model.__class__.__name__} does not support kinematic constraints. Use RelaxedRigidContacts instead."
-            )
-
         if contact_params is None:
             contact_params = contact_model._parameters_class()
 
@@ -562,11 +554,19 @@ class JaxSimModel(JaxsimDataclass):
             dims = hw_metadata.geometry[link_index]
             if shape == LinkParametrizableShape.Box:
                 links_dict[link_name].visual.geometry.box.size = dims.tolist()
+                links_dict[link_name].collision.geometry.box.size = dims.tolist()
             elif shape == LinkParametrizableShape.Sphere:
                 links_dict[link_name].visual.geometry.sphere.radius = float(dims[0])
+                links_dict[link_name].collision.geometry.sphere.radius = float(dims[0])
             elif shape == LinkParametrizableShape.Cylinder:
                 links_dict[link_name].visual.geometry.cylinder.radius = float(dims[0])
                 links_dict[link_name].visual.geometry.cylinder.length = float(dims[1])
+                links_dict[link_name].collision.geometry.cylinder.radius = float(
+                    dims[0]
+                )
+                links_dict[link_name].collision.geometry.cylinder.length = float(
+                    dims[1]
+                )
             else:
                 logging.debug(f"Skipping unsupported shape for link '{link_name}'")
                 continue
@@ -2393,6 +2393,18 @@ def update_hw_parameters(
         ),
     )
 
+    # Compute the contact parameters
+    points = HwLinkMetadata.compute_contact_points(
+        original_contact_params=kin_dyn_params.contact_parameters,
+        shape_types=updated_hw_link_metadata.shape,
+        original_com_positions=link_parameters.center_of_mass,
+        updated_com_positions=updated_link_parameters.center_of_mass,
+        scaling_factors=scaling_factors,
+    )
+
+    # Update contact parameters
+    updated_contact_parameters = kin_dyn_params.contact_parameters.replace(point=points)
+
     # Update joint model transforms (λ_H_pre)
     def update_λ_H_pre(joint_index):
         # Extract the transforms and masks for the current joint index across all links
@@ -2428,6 +2440,7 @@ def update_hw_parameters(
         updated_joint_model = kin_dyn_params.joint_model.replace(
             λ_H_pre=updated_λ_H_pre_with_base
         )
+
     else:
         # If there are no joints, we can just use the identity transform
         updated_joint_model = kin_dyn_params.joint_model
@@ -2435,6 +2448,7 @@ def update_hw_parameters(
     # Replace the kin_dyn_parameters with updated values
     updated_kin_dyn_params = kin_dyn_params.replace(
         link_parameters=updated_link_parameters,
+        contact_parameters=updated_contact_parameters,
         hw_link_metadata=updated_hw_link_metadata,
         joint_model=updated_joint_model,
     )

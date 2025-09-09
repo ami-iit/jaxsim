@@ -123,7 +123,7 @@ multi_line_output = 3
 profile = "black"
 
 [tool.pytest.ini_options]
-addopts = "-rsxX -v --strict-markers --benchmark-skip"
+addopts = "-rsxX -v --strict-markers --benchmark-skip --benchmark-warmup=ON"
 minversion = "6.0"
 testpaths = [
     "tests",

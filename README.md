@@ -58,7 +58,7 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
 model_description = pathlib.Path(model_path)
 
 full_model = js.model.JaxSimModel.build_from_model_description(
-    model_description=model_description, time_step=0.0001, is_urdf=True
+    model_description=model_description,
 )
 
 model = js.model.reduce(model=full_model, considered_joints=joints)
@@ -241,7 +241,7 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
 model_description = pathlib.Path(model_path)
 
 full_model = js.model.JaxSimModel.build_from_model_description(
-    model_description=model_description, time_step=0.0001, is_urdf=True
+    model_description=model_description,
 )
 
 model = js.model.reduce(model=full_model, considered_joints=joints)
@@ -266,9 +266,9 @@ W_J_F = js.frame.jacobian(
 )
 
 # Dynamics properties
-M = js.model.free_floating_mass_matrix(model=model, data=data)  # Mass matrix
-h = js.model.free_floating_bias_forces(model=model, data=data)  # Bias forces
-g = js.model.free_floating_gravity_forces(model=model, data=data)  # Gravity forces
+M = js.model.free_floating_mass_matrix(model=model, data=data)      # Mass matrix
+h = js.model.free_floating_bias_forces(model=model, data=data)      # Bias forces
+g = js.model.free_floating_gravity_forces(model=model, data=data)   # Gravity forces
 C = js.model.free_floating_coriolis_matrix(model=model, data=data)  # Coriolis matrix
 
 # Print dynamics results

@@ -101,7 +101,7 @@ You can install the project using [`conda`][conda] as follows:
 conda install jaxsim -c conda-forge
 ```
 
-You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*"`.
+GPU support for JAX will be automatically installed if a compatible GPU is detected.
 
 </details>
 
@@ -119,7 +119,7 @@ git lfs install && git lfs pull
 
 This ensures all LFS-tracked files are properly downloaded before you proceed with the installation.
 
-You can add the jaxsim dependency in [`pixi`][pixi] project as follows:
+You can add the `jaxsim` dependency in your [`pixi`][pixi] project as follows:
 
 ```bash
 pixi add jaxsim

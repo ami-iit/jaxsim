@@ -307,25 +307,14 @@ Please read the [contributing guide](./CONTRIBUTING.md) to get started.
 
 ## Citing
 
-```bibtex
-@software{ferigo_jaxsim_2022,
-  author = {Diego Ferigo and Filippo Luca Ferretti and Silvio Traversaro and Daniele Pucci},
-  title = {{JaxSim}: A Differentiable Physics Engine and Multibody Dynamics Library for Control and Robot Learning},
-  url = {http://github.com/ami-iit/jaxsim},
-  year = {2022},
-}
-```
-
-Theoretical aspects of JaxSim are based on Chapters 7 and 8 of the following Ph.D. thesis:
+If you use JaxSim in your work, please cite our upcoming paper:
 
 ```bibtex
-@phdthesis{ferigo_phd_thesis_2022,
-  title = {Simulation Architectures for Reinforcement Learning applied to Robotics},
-  author = {Diego Ferigo},
-  school = {University of Manchester},
-  type = {PhD Thesis},
-  month = {July},
-  year = {2022},
+@software{ferretti_accelerated_optimization_2025,
+  author       = {Filippo Luca Ferretti and Diego Ferigo and Carlotta Sartore and Alessandro Croci and Omar G. Younis and Silvio Traversaro and Daniele Pucci},
+  title        = {Hardware-Accelerated Morphology Optimization via Physically Consistent Differentiable Simulation},
+  year         = {2025},
+  url          = {https://github.com/ami-iit/jaxsim}
 }
 ```
 

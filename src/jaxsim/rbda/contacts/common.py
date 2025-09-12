@@ -17,9 +17,17 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+from .detection import sphere_plane, box_plane, cylinder_plane
 
 MAX_STIFFNESS = 1e6
 MAX_DAMPING = 1e4
+
+# Define a mapping from collidable shape types to distance functions.
+_COLLISION_MAP = {
+    CollidableShapeType.Sphere: sphere_plane,
+    CollidableShapeType.Box: box_plane,
+    CollidableShapeType.Cylinder: cylinder_plane,
+}
 
 
 @functools.partial(jax.jit, static_argnames=("terrain",))
@@ -27,6 +35,7 @@ def compute_penetration_data(
     p: jtp.VectorLike,
     v: jtp.VectorLike,
     terrain: jaxsim.terrain.Terrain,
+    contact_parameters: js.kin_dyn_parameters.ContactParameters | None = None,
 ) -> tuple[jtp.Float, jtp.Float, jtp.Vector]:
     """
     Compute the penetration data (depth, rate, and terrain normal) of a collidable point.
@@ -37,6 +46,7 @@ def compute_penetration_data(
             The linear velocity of the point (linear component of the mixed 6D velocity
             of the implicit frame `C = (W_p_C, [W])` associated to the point).
         terrain: The considered terrain.
+        contact_parameters: The parameters of the collidable shapes.
 
     Returns:
         A tuple containing the penetration depth, the penetration velocity,
@@ -44,23 +54,15 @@ def compute_penetration_data(
     """
 
     # Pre-process the position and the linear velocity of the collidable point.
-    W_ṗ_C = jnp.array(v).squeeze()
-    px, py, pz = jnp.array(p).squeeze()
+    distance_fn = _COLLISION_MAP[contact_parameters.shape_type]
 
-    # Compute the terrain normal and the contact depth.
-    n̂ = terrain.normal(x=px, y=py).squeeze()
-    h = jnp.array([0, 0, terrain.height(x=px, y=py) - pz])
+    δ, W_H_C = distance_fn(
+        terrain=terrain,
+        size=contact_parameters.shape_size,
+        center=contact_parameters.center,
+    )
 
-    # Compute the penetration depth normal to the terrain.
-    δ = jnp.maximum(0.0, jnp.dot(h, n̂))
-
-    # Compute the penetration normal velocity.
-    δ_dot = -jnp.dot(W_ṗ_C, n̂)
-
-    # Enforce the penetration rate to be zero when the penetration depth is zero.
-    δ_dot = jnp.where(δ > 0, δ_dot, 0.0)
-
-    return δ, δ_dot, n̂
+    return δ, W_H_C
 
 
 class ContactsParams(JaxsimDataclass):

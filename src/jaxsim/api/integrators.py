@@ -16,13 +16,14 @@ def semi_implicit_euler_integration(
     data: js.data.JaxSimModelData,
     link_forces: jtp.Vector,
     joint_torques: jtp.Vector,
+    contact_state_derivative: dict[str, jtp.Vector] | None = None,
 ) -> JaxSimModelData:
     """Integrate the system state using the semi-implicit Euler method."""
 
     with data.switch_velocity_representation(jaxsim.VelRepr.Inertial):
 
         # Compute the system acceleration
-        W_v̇_WB, s̈, contact_state_derivative = js.ode.system_acceleration(
+        W_v̇_WB, s̈, _ = js.ode.system_acceleration(
             model=model,
             data=data,
             link_forces=link_forces,

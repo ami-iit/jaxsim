@@ -10,7 +10,7 @@ import jaxsim.api as js
 import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim.math import STANDARD_GRAVITY
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.utils import JaxsimDataclass, CollidableShapeType
 
 try:
     from typing import Self
@@ -94,7 +94,6 @@ class ContactsParams(JaxsimDataclass):
         standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
         static_friction_coefficient: jtp.FloatLike = 0.5,
         max_penetration: jtp.FloatLike = 0.001,
-        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
         damping_ratio: jtp.FloatLike = 1.0,
         p: jtp.FloatLike = 0.5,
         q: jtp.FloatLike = 0.5,
@@ -110,8 +109,6 @@ class ContactsParams(JaxsimDataclass):
             standard_gravity: The standard gravity acceleration.
             static_friction_coefficient: The static friction coefficient.
             max_penetration: The maximum penetration depth.
-            number_of_active_collidable_points_steady_state:
-                The number of active collidable points in steady state.
             damping_ratio: The damping ratio.
             p: The first parameter of the contact model.
             q: The second parameter of the contact model.
@@ -137,7 +134,6 @@ class ContactsParams(JaxsimDataclass):
         ξ = damping_ratio
         δ_max = max_penetration
         μc = static_friction_coefficient
-        nc = number_of_active_collidable_points_steady_state
 
         # Compute the total mass of the model.
         m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
@@ -147,7 +143,7 @@ class ContactsParams(JaxsimDataclass):
         # the damping term of the Hunt/Crossley model.
         if stiffness is None:
             # Compute the average support force on each collidable point.
-            f_average = m * standard_gravity / nc
+            f_average = m * standard_gravity
 
             stiffness = f_average / jnp.power(δ_max, 1 + p)
             stiffness = jnp.clip(stiffness, 0, MAX_STIFFNESS)

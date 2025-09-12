@@ -197,7 +197,7 @@ def test_simulation_with_soft_contacts(
 
     model = jaxsim_model_box
 
-    # Define the maximum penetration of each collidable point at steady state.
+    # Define the maximum penetration at steady state.
     max_penetration = 0.001
 
     with model.editable(validate=False) as model:
@@ -205,19 +205,9 @@ def test_simulation_with_soft_contacts(
         model.contact_model = jaxsim.rbda.contacts.SoftContacts.build()
         model.contact_params = js.contact.estimate_good_contact_parameters(
             model=model,
-            number_of_active_collidable_points_steady_state=4,
             static_friction_coefficient=1.0,
             damping_ratio=1.0,
             max_penetration=max_penetration,
-        )
-
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
         )
 
     assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4

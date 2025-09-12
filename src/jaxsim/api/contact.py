@@ -17,7 +17,7 @@ from .common import VelRepr
 
 @jax.jit
 @js.common.named_scope
-def collidable_point_kinematics(
+def collidable_shape_kinematics(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> tuple[jtp.Matrix, jtp.Matrix]:
     """
@@ -36,7 +36,7 @@ def collidable_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_points.collidable_points_pos_vel(
+    W_p_Ci, W_ṗ_Ci = jaxsim.rbda.collidable_shapes.collidable_shapes_pos_vel(
         model=model,
         link_transforms=data._link_transforms,
         link_velocities=data._link_velocities,
@@ -47,7 +47,7 @@ def collidable_point_kinematics(
 
 @jax.jit
 @js.common.named_scope
-def collidable_point_positions(
+def collidable_shape_positions(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
     """
@@ -61,14 +61,14 @@ def collidable_point_positions(
         The position of the collidable points in the world frame.
     """
 
-    W_p_Ci, _ = collidable_point_kinematics(model=model, data=data)
+    W_p_Ci, _ = collidable_shape_kinematics(model=model, data=data)
 
     return W_p_Ci
 
 
 @jax.jit
 @js.common.named_scope
-def collidable_point_velocities(
+def collidable_shape_velocities(
     model: js.model.JaxSimModel, data: js.data.JaxSimModelData
 ) -> jtp.Matrix:
     """
@@ -82,7 +82,7 @@ def collidable_point_velocities(
         The 3D velocity of the collidable points.
     """
 
-    _, W_ṗ_Ci = collidable_point_kinematics(model=model, data=data)
+    _, W_ṗ_Ci = collidable_shape_kinematics(model=model, data=data)
 
     return W_ṗ_Ci
 
@@ -112,15 +112,15 @@ def in_contact(
         raise ValueError("One or more link names are not part of the model")
 
     # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_points = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    indices_of_enabled_collidable_shapes = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
     )
 
-    parent_link_idx_of_enabled_collidable_points = jnp.array(
+    parent_link_idx_of_enabled_collidable_shapes = jnp.array(
         model.kin_dyn_parameters.contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_points]
+    )[indices_of_enabled_collidable_shapes]
 
-    W_p_Ci = collidable_point_positions(model=model, data=data)
+    W_p_Ci = collidable_shape_positions(model=model, data=data)
 
     terrain_height = jax.vmap(lambda x, y: model.terrain.height(x=x, y=y))(
         W_p_Ci[:, 0], W_p_Ci[:, 1]
@@ -136,7 +136,7 @@ def in_contact(
 
     links_in_contact = jax.vmap(
         lambda link_index: jnp.where(
-            parent_link_idx_of_enabled_collidable_points == link_index,
+            parent_link_idx_of_enabled_collidable_shapes == link_index,
             below_terrain,
             jnp.zeros_like(below_terrain, dtype=bool),
         ).any()
@@ -162,7 +162,7 @@ def estimate_good_contact_parameters(
     *,
     standard_gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
     static_friction_coefficient: jtp.FloatLike = 0.5,
-    number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
+    number_of_active_collidable_shapes_steady_state: jtp.IntLike = 1,
     damping_ratio: jtp.FloatLike = 1.0,
     max_penetration: jtp.FloatLike | None = None,
 ) -> jaxsim.rbda.contacts.ContactParamsTypes:
@@ -173,7 +173,7 @@ def estimate_good_contact_parameters(
         model: The model to consider.
         standard_gravity: The standard gravity acceleration.
         static_friction_coefficient: The static friction coefficient.
-        number_of_active_collidable_points_steady_state:
+        number_of_active_collidable_shapes_steady_state:
             The number of active collidable points in steady state.
         damping_ratio: The damping ratio.
         max_penetration: The maximum penetration allowed.
@@ -194,19 +194,19 @@ def estimate_good_contact_parameters(
         zero_data = js.data.JaxSimModelData.build(model=model)
         W_pz_CoM = js.com.com_position(model=model, data=zero_data)[2]
         if model.floating_base():
-            W_pz_C = collidable_point_positions(model=model, data=zero_data)[:, -1]
+            W_pz_C = collidable_shape_positions(model=model, data=zero_data)[:, -1]
             W_pz_CoM = W_pz_CoM - W_pz_C.min()
 
         # Consider as default a 1% of the model center of mass height.
         max_penetration = 0.01 * W_pz_CoM
 
-    nc = number_of_active_collidable_points_steady_state
+    nc = number_of_active_collidable_shapes_steady_state
     return model.contact_model._parameters_class().build_default_from_jaxsim_model(
         model=model,
         standard_gravity=standard_gravity,
         static_friction_coefficient=static_friction_coefficient,
         max_penetration=max_penetration,
-        number_of_active_collidable_points_steady_state=nc,
+        number_of_active_collidable_shapes_steady_state=nc,
         damping_ratio=damping_ratio,
     )
 
@@ -232,19 +232,19 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     """
 
     # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_points = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    indices_of_enabled_collidable_shapes = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
     )
 
-    parent_link_idx_of_enabled_collidable_points = jnp.array(
+    parent_link_idx_of_enabled_collidable_shapes = jnp.array(
         model.kin_dyn_parameters.contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_points]
+    )[indices_of_enabled_collidable_shapes]
 
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = data._link_transforms[parent_link_idx_of_enabled_collidable_points]
+    W_H_L = data._link_transforms[parent_link_idx_of_enabled_collidable_shapes]
 
     L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
-        indices_of_enabled_collidable_points
+        indices_of_enabled_collidable_shapes
     ]
 
     # Build the link-to-point transform from the displacement between the link frame L
@@ -288,13 +288,13 @@ def jacobian(
     )
 
     # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_points = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    indices_of_enabled_collidable_shapes = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
     )
 
-    parent_link_idx_of_enabled_collidable_points = jnp.array(
+    parent_link_idx_of_enabled_collidable_shapes = jnp.array(
         model.kin_dyn_parameters.contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_points]
+    )[indices_of_enabled_collidable_shapes]
 
     # Compute the Jacobians of all links.
     W_J_WL = js.model.generalized_free_floating_jacobian(
@@ -304,7 +304,7 @@ def jacobian(
     # Compute the contact Jacobian.
     # In inertial-fixed output representation, the Jacobian of the parent link is also
     # the Jacobian of the frame C implicitly associated with the collidable point.
-    W_J_WC = W_J_WL[parent_link_idx_of_enabled_collidable_points]
+    W_J_WC = W_J_WL[parent_link_idx_of_enabled_collidable_shapes]
 
     # Adjust the output representation.
     match output_vel_repr:
@@ -377,17 +377,17 @@ def jacobian_derivative(
         output_vel_repr if output_vel_repr is not None else data.velocity_representation
     )
 
-    indices_of_enabled_collidable_points = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
+    indices_of_enabled_collidable_shapes = (
+        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
     )
 
     # Get the index of the parent link and the position of the collidable point.
-    parent_link_idx_of_enabled_collidable_points = jnp.array(
+    parent_link_idx_of_enabled_collidable_shapes = jnp.array(
         model.kin_dyn_parameters.contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_points]
+    )[indices_of_enabled_collidable_shapes]
 
     L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
-        indices_of_enabled_collidable_points
+        indices_of_enabled_collidable_shapes
     ]
 
     # Get the transforms of all the parent links.
@@ -505,7 +505,7 @@ def jacobian_derivative(
         return O_J̇_WC_I
 
     O_J̇_WC = jax.vmap(compute_O_J̇_WC_I, in_axes=(0, 0, None))(
-        L_p_Ci, parent_link_idx_of_enabled_collidable_points, W_H_Li
+        L_p_Ci, parent_link_idx_of_enabled_collidable_shapes, W_H_Li
     )
 
     return O_J̇_WC
@@ -575,8 +575,8 @@ def link_forces_from_contact_forces(
     contact_parameters = model.kin_dyn_parameters.contact_parameters
 
     # Extract the indices corresponding to the enabled collidable points.
-    indices_of_enabled_collidable_points = (
-        contact_parameters.indices_of_enabled_collidable_points
+    indices_of_enabled_collidable_shapes = (
+        contact_parameters.indices_of_enabled_collidable_shapes
     )
 
     # Convert the contact forces to a JAX array.
@@ -585,13 +585,13 @@ def link_forces_from_contact_forces(
     # Construct the vector defining the parent link index of each collidable point.
     # We use this vector to sum the 6D forces of all collidable points rigidly
     # attached to the same link.
-    parent_link_index_of_collidable_points = jnp.array(
+    parent_link_index_of_collidable_shapes = jnp.array(
         contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_points]
+    )[indices_of_enabled_collidable_shapes]
 
     # Create the mask that associate each collidable point to their parent link.
     # We use this mask to sum the collidable points to the right link.
-    mask = parent_link_index_of_collidable_points[:, jnp.newaxis] == jnp.arange(
+    mask = parent_link_index_of_collidable_shapes[:, jnp.newaxis] == jnp.arange(
         model.number_of_links()
     )
 

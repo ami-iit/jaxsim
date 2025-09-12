@@ -327,14 +327,12 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Compute the position and linear velocities (mixed representation) of
         # all collidable points belonging to the robot.
-        position, velocity = js.contact.collidable_point_kinematics(
-            model=model, data=data
-        )
+        position, velocity = data._link_transforms[:3, 3], data._link_velocities[:3]
 
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.
         δ, _, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
-            position, velocity, model.terrain
+            position, velocity, model.terrain, data.contact_parameters
         )
 
         # Compute the position in the constraint frame.

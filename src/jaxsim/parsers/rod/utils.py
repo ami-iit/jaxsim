@@ -117,41 +117,14 @@ def create_box_collision(
 
     center = np.array([x / 2, y / 2, z / 2])
 
-    # Define the bottom corners.
-    bottom_corners = np.array([[0, 0, 0], [x, 0, 0], [x, y, 0], [0, y, 0]])
-
-    # Conditionally add the top corners based on the environment variable.
-    top_corners = (
-        np.array([[0, 0, z], [x, 0, z], [x, y, z], [0, y, z]])
-        if os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0").lower()
-        in {
-            "false",
-            "0",
-        }
-        else []
-    )
-
-    # Combine and shift by the center
-    box_corners = np.vstack([bottom_corners, *top_corners]) - center
-
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
     center_wrt_link = (H @ np.hstack([center, 1.0]))[0:-1]
-    box_corners_wrt_link = (
-        H @ np.hstack([box_corners, np.vstack([1.0] * box_corners.shape[0])]).T
-    )[0:3, :]
-
-    collidable_points = [
-        descriptions.CollidablePoint(
-            parent_link=link_description,
-            position=np.array(corner),
-            enabled=True,
-        )
-        for corner in box_corners_wrt_link.T
-    ]
 
     return descriptions.BoxCollision(
-        collidable_points=collidable_points, center=center_wrt_link
+        size=np.array([x, y, z]),
+        center=center_wrt_link,
+        parent_link=link_description.name,
     )
 
 
@@ -169,112 +142,42 @@ def create_sphere_collision(
         The sphere collision description.
     """
 
-    # From https://stackoverflow.com/a/26127012
-    def fibonacci_sphere(samples: int) -> npt.NDArray:
-        # Get the golden ratio in radians.
-        phi = np.pi * (3.0 - np.sqrt(5.0))
-
-        # Generate the points.
-        points = [
-            np.array(
-                [
-                    np.cos(phi * i)
-                    * np.sqrt(1 - (y := 1 - 2 * i / (samples - 1)) ** 2),
-                    y,
-                    np.sin(phi * i) * np.sqrt(1 - y**2),
-                ]
-            )
-            for i in range(samples)
-        ]
-
-        # Filter to keep only the bottom half if required.
-        if os.environ.get("JAXSIM_COLLISION_USE_BOTTOM_ONLY", "0").lower() in {
-            "true",
-            "1",
-        }:
-            # Keep only the points with z <= 0.
-            points = [point for point in points if point[2] <= 0]
-
-        return np.vstack(points)
-
     r = collision.geometry.sphere.radius
-
-    sphere_points = r * fibonacci_sphere(
-        samples=int(os.getenv(key="JAXSIM_COLLISION_SPHERE_POINTS", default="50"))
-    )
 
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
     center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
 
-    sphere_points_wrt_link = (
-        H @ np.hstack([sphere_points, np.vstack([1.0] * sphere_points.shape[0])]).T
-    )[0:3, :]
-
-    collidable_points = [
-        descriptions.CollidablePoint(
-            parent_link=link_description,
-            position=np.array(point),
-            enabled=True,
-        )
-        for point in sphere_points_wrt_link.T
-    ]
-
     return descriptions.SphereCollision(
-        collidable_points=collidable_points, center=center_wrt_link
+        size=np.array([r] * 3),
+        center=center_wrt_link,
+        parent_link=link_description.name,
     )
 
 
-def create_mesh_collision(
-    collision: rod.Collision,
-    link_description: descriptions.LinkDescription,
-    method: MeshMappingMethod = None,
-) -> descriptions.MeshCollision:
+def create_cylinder_collision(
+    collision: rod.Collision, link_description: descriptions.LinkDescription
+) -> descriptions.CylinderCollision:
     """
-    Create a mesh collision from an SDF collision element.
+    Create a cylinder collision from an SDF collision element.
 
     Args:
         collision: The SDF collision element.
         link_description: The link description.
-        method: The method to use for mesh wrapping.
 
     Returns:
-        The mesh collision description.
+        The cylinder collision description.
     """
 
-    file = pathlib.Path(resolve_local_uri(uri=collision.geometry.mesh.uri))
-    file_type = file.suffix.replace(".", "")
-    mesh = trimesh.load_mesh(file, file_type=file_type)
+    r = collision.geometry.cylinder.radius
+    l = collision.geometry.cylinder.length
 
-    if mesh.is_empty:
-        raise RuntimeError(f"Failed to process '{file}' with trimesh")
+    H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
-    mesh.apply_scale(collision.geometry.mesh.scale)
-    logging.info(
-        msg=f"Loading mesh {collision.geometry.mesh.uri} with scale {collision.geometry.mesh.scale}, file type '{file_type}'"
+    center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
+
+    return descriptions.CylinderCollision(
+        size=np.array([r, l, 0]),
+        center=center_wrt_link,
+        parent_link=link_description.name,
     )
-
-    if method is None:
-        method = meshes.VertexExtraction()
-        logging.debug("Using default Vertex Extraction method for mesh wrapping")
-    else:
-        logging.debug(f"Using method {method} for mesh wrapping")
-
-    points = method(mesh=mesh)
-    logging.debug(f"Extracted {len(points)} points from mesh")
-
-    W_H_L = collision.pose.transform() if collision.pose is not None else np.eye(4)
-
-    # Extract translation from transformation matrix
-    W_p_L = W_H_L[:3, 3]
-    mesh_points_wrt_link = points @ W_H_L[:3, :3].T + W_p_L
-    collidable_points = [
-        descriptions.CollidablePoint(
-            parent_link=link_description,
-            position=point,
-            enabled=True,
-        )
-        for point in mesh_points_wrt_link
-    ]
-
-    return descriptions.MeshCollision(collidable_points=collidable_points, center=W_p_L)

@@ -1,178 +1,93 @@
 from __future__ import annotations
 
-import abc
 import dataclasses
-
-import jax.numpy as jnp
-import numpy as np
-import numpy.typing as npt
+from abc import ABC
 
 import jaxsim.typing as jtp
-from jaxsim import logging
-
-from .link import LinkDescription
 
 
 @dataclasses.dataclass
-class CollidablePoint:
+class CollisionShape(ABC):
     """
-    Represents a collidable point associated with a parent link.
+    Base class for collision shapes.
 
-    Attributes:
-        parent_link: The parent link to which the collidable point is attached.
-        position: The position of the collidable point relative to the parent link.
-        enabled: A flag indicating whether the collidable point is enabled for collision detection.
+    This class serves as a base for specific collision shapes like BoxCollision and SphereCollision.
+    It is not intended to be instantiated directly.
     """
 
-    parent_link: LinkDescription
-    position: npt.NDArray = dataclasses.field(default_factory=lambda: np.zeros(3))
-    enabled: bool = True
-
-    def change_link(
-        self, new_link: LinkDescription, new_H_old: npt.NDArray
-    ) -> CollidablePoint:
-        """
-        Move the collidable point to a new parent link.
-
-        Args:
-            new_link (LinkDescription): The new parent link to which the collidable point is moved.
-            new_H_old (npt.NDArray): The transformation matrix from the new link's frame to the old link's frame.
-
-        Returns:
-            CollidablePoint: A new collidable point associated with the new parent link.
-        """
-
-        msg = f"Moving collidable point: {self.parent_link.name} -> {new_link.name}"
-        logging.debug(msg=msg)
-
-        return CollidablePoint(
-            parent_link=new_link,
-            position=(new_H_old @ jnp.hstack([self.position, 1.0])).squeeze()[0:3],
-            enabled=self.enabled,
-        )
+    center: jtp.VectorLike
+    size: jtp.VectorLike
+    parent_link: str
 
     def __hash__(self) -> int:
-
         return hash(
             (
+                hash(tuple(self.center.tolist())),
+                hash(tuple(self.size.tolist())),
                 hash(self.parent_link),
-                hash(tuple(self.position.tolist())),
-                hash(self.enabled),
             )
         )
 
-    def __eq__(self, other: CollidablePoint) -> bool:
+    def __eq__(self, other: CollisionShape) -> bool:
 
-        if not isinstance(other, CollidablePoint):
+        if not isinstance(other, CollisionShape):
             return False
 
         return hash(self) == hash(other)
-
-    def __str__(self) -> str:
-        return (
-            f"{self.__class__.__name__}("
-            + f"parent_link={self.parent_link.name}"
-            + f", position={self.position}"
-            + f", enabled={self.enabled}"
-            + ")"
-        )
-
-
-@dataclasses.dataclass
-class CollisionShape(abc.ABC):
-    """
-    Abstract base class for representing collision shapes.
-
-    Attributes:
-        collidable_points: A list of collidable points associated with the collision shape.
-    """
-
-    collidable_points: tuple[CollidablePoint]
-
-    def __str__(self):
-        return (
-            f"{self.__class__.__name__}("
-            + "collidable_points=[\n    "
-            + ",\n    ".join(str(cp) for cp in self.collidable_points)
-            + "\n])"
-        )
 
 
 @dataclasses.dataclass
 class BoxCollision(CollisionShape):
     """
     Represents a box-shaped collision shape.
-
-    Attributes:
-        center: The center of the box in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
+    @property
+    def x(self) -> float:
+        return self.size[0]
 
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(super()),
-                hash(tuple(self.center.tolist())),
-            )
-        )
+    @property
+    def y(self) -> float:
+        return self.size[1]
 
-    def __eq__(self, other: BoxCollision) -> bool:
+    @property
+    def z(self) -> float:
+        return self.size[2]
 
-        if not isinstance(other, BoxCollision):
-            return False
+    @x.setter
+    def x(self, value: float) -> None:
+        self.size[0] = value
 
-        return hash(self) == hash(other)
+    @y.setter
+    def y(self, value: float) -> None:
+        self.size[1] = value
+
+    @z.setter
+    def z(self, value: float) -> None:
+        self.size[2] = value
 
 
 @dataclasses.dataclass
 class SphereCollision(CollisionShape):
     """
     Represents a spherical collision shape.
-
-    Attributes:
-        center: The center of the sphere in the local frame of the collision shape.
     """
 
-    center: jtp.VectorLike
-
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(super()),
-                hash(tuple(self.center.tolist())),
-            )
-        )
-
-    def __eq__(self, other: BoxCollision) -> bool:
-
-        if not isinstance(other, BoxCollision):
-            return False
-
-        return hash(self) == hash(other)
+    @property
+    def radius(self) -> float:
+        return self.size[0]
 
 
 @dataclasses.dataclass
-class MeshCollision(CollisionShape):
+class CylinderCollision(CollisionShape):
     """
-    Represents a mesh-shaped collision shape.
-
-    Attributes:
-        center: The center of the mesh in the local frame of the collision shape.
+    Represents a cylindrical collision shape.
     """
 
-    center: jtp.VectorLike
+    @property
+    def radius(self) -> float:
+        return self.size[0]
 
-    def __hash__(self) -> int:
-        return hash(
-            (
-                hash(tuple(self.center.tolist())),
-                hash(self.collidable_points),
-            )
-        )
-
-    def __eq__(self, other: MeshCollision) -> bool:
-        if not isinstance(other, MeshCollision):
-            return False
-
-        return hash(self) == hash(other)
+    @property
+    def height(self) -> float:
+        return self.size[1]

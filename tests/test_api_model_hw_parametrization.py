@@ -224,74 +224,67 @@ def test_export_updated_model(
     )
 
     # Export the updated model
-    exported_model_urdf = updated_model.export_updated_model()
-    assert isinstance(exported_model_urdf, str), "Exported model URDF is not a string."
+    exported_urdf = updated_model.export_updated_model()
+    assert isinstance(exported_urdf, str), "Exported model URDF is not a string."
 
-    # Convert the URDF string to a ROD model
-    exported_model_sdf = rod.Sdf.load(exported_model_urdf, is_urdf=True)
-    assert isinstance(
-        exported_model_sdf, rod.Sdf
-    ), "Failed to load exported model as ROD Sdf."
+    # Load the exported URDF using ROD
+    exported_sdf = rod.Sdf.load(exported_urdf, is_urdf=True)
+    pre_scaled_sdf = rod.Sdf.load(jaxsim_model_garpez_scaled.built_from).models()[0]
+    exported_model = exported_sdf.models()[0]
+
+    # Ensure the exported model contains exactly one model
     assert (
-        len(exported_model_sdf.models()) == 1
+        len(exported_sdf.models()) == 1
     ), "Exported ROD model does not contain exactly one model."
-    exported_model_rod = exported_model_sdf.models()[0]
 
-    # Get the pre-scaled ROD model
-    pre_scaled_model_rod = rod.Sdf.load(jaxsim_model_garpez_scaled.built_from).models()[
-        0
-    ]
-    assert isinstance(
-        pre_scaled_model_rod, rod.Model
-    ), "Failed to load pre-scaled model as ROD Model."
-
-    # Validate that the exported model matches the pre-scaled model
-    for link_idx, link_name in enumerate(model.link_names()):
+    def get_link_by_name(model, name):
         try:
-            exported_link = next(
-                link for link in exported_model_rod.links() if link.name == link_name
-            )
-        except StopIteration:
+            return next(link for link in model.links() if link.name == name)
+        except StopIteration as err:
             raise ValueError(
-                f"Link '{link_name}' not found in exported model. "
-                f"Available links: {[link.name for link in exported_model_rod.links()]}"
-            ) from None
+                f"Link '{name}' not found. Available links: {[l.name for l in model.links()]}"
+            ) from err
 
-        pre_scaled_link = next(
-            link for link in pre_scaled_model_rod.links() if link.name == link_name
+    def compare_geometries(exported_geom, ref_geom):
+        attrs = [attr for attr in vars(exported_geom) if hasattr(ref_geom, attr)]
+        exported_vals = jnp.array([getattr(exported_geom, attr) for attr in attrs])
+        ref_vals = jnp.array([getattr(ref_geom, attr) for attr in attrs])
+        assert_allclose(exported_vals, ref_vals, atol=1e-6)
+
+    def compare_collisions(exported_link, ref_link):
+        geom_types = ["box", "sphere", "cylinder"]
+        for geom_type in geom_types:
+            exp_geom = getattr(exported_link.collision.geometry, geom_type)
+            ref_geom = getattr(ref_link.collision.geometry, geom_type)
+            if ref_geom is not None:
+                if geom_type == "box":
+                    assert_allclose(
+                        jnp.array(exp_geom.size), jnp.array(ref_geom.size), atol=1e-6
+                    )
+                elif geom_type == "sphere":
+                    assert_allclose(exp_geom.radius, ref_geom.radius, atol=1e-6)
+                elif geom_type == "cylinder":
+                    assert_allclose(exp_geom.radius, ref_geom.radius, atol=1e-6)
+                    assert_allclose(exp_geom.length, ref_geom.length, atol=1e-6)
+                return
+        pytest.skip(
+            f"Collision geometry type for link {exported_link.name} not supported."
         )
+
+    for link_name in jaxsim_model_garpez.link_names():
+        exported_link = get_link_by_name(exported_model, link_name)
+        ref_link = get_link_by_name(pre_scaled_sdf, link_name)
 
         # Compare shape dimensions
-        exported_geometry = exported_link.visual.geometry.geometry()
-        pre_scaled_geometry = pre_scaled_link.visual.geometry.geometry()
-
-        # Ensure both geometries have the same attributes for comparison
-        exported_values = jnp.array(
-            [
-                getattr(exported_geometry, attr, 0)
-                for attr in vars(exported_geometry)
-                if hasattr(pre_scaled_geometry, attr)
-            ]
-        )
-        pre_scaled_values = jnp.array(
-            [
-                getattr(pre_scaled_geometry, attr, 0)
-                for attr in vars(pre_scaled_geometry)
-                if hasattr(exported_geometry, attr)
-            ]
-        )
-
-        assert_allclose(
-            exported_values,
-            pre_scaled_values,
-            atol=1e-6,
-            err_msg=f"Mismatch in geometry dimensions for link {link_name}",
+        compare_geometries(
+            exported_link.visual.geometry.geometry(),
+            ref_link.visual.geometry.geometry(),
         )
 
         # Compare mass
         assert_allclose(
             exported_link.inertial.mass,
-            pre_scaled_link.inertial.mass,
+            ref_link.inertial.mass,
             atol=1e-4,
             err_msg=f"Mismatch in mass for link {link_name}",
         )
@@ -299,55 +292,12 @@ def test_export_updated_model(
         # Compare inertia tensors
         assert_allclose(
             exported_link.inertial.inertia.matrix(),
-            pre_scaled_link.inertial.inertia.matrix(),
+            ref_link.inertial.inertia.matrix(),
             atol=1e-4,
-            err_msg=f"Mismatch in inertia tensor for link {link_name}",
         )
 
-        # Compare collision shapes dimensions
-        if pre_scaled_link.collision.geometry.box is not None:
-            assert jnp.allclose(
-                jnp.array(exported_link.collision.geometry.box.size),
-                jnp.array(pre_scaled_link.collision.geometry.box.size),
-                atol=1e-6,
-            ), (
-                f"Mismatch in collision box size for link {link_name}: "
-                f"expected {pre_scaled_link.collision.geometry.box.size}, "
-                f"got {exported_link.collision.geometry.box.size}"
-            )
-        elif pre_scaled_link.collision.geometry.sphere is not None:
-            assert jnp.isclose(
-                exported_link.collision.geometry.sphere.radius,
-                pre_scaled_link.collision.geometry.sphere.radius,
-                atol=1e-6,
-            ), (
-                f"Mismatch in collision sphere radius for link {link_name}: "
-                f"expected {pre_scaled_link.collision.geometry.sphere.radius}, "
-                f"got {exported_link.collision.geometry.sphere.radius}"
-            )
-        elif pre_scaled_link.collision.geometry.cylinder is not None:
-            assert jnp.isclose(
-                exported_link.collision.geometry.cylinder.radius,
-                pre_scaled_link.collision.geometry.cylinder.radius,
-                atol=1e-6,
-            ), (
-                f"Mismatch in collision cylinder radius for link {link_name}: "
-                f"expected {pre_scaled_link.collision.geometry.cylinder.radius}, "
-                f"got {exported_link.collision.geometry.cylinder.radius}"
-            )
-            assert jnp.isclose(
-                exported_link.collision.geometry.cylinder.length,
-                pre_scaled_link.collision.geometry.cylinder.length,
-                atol=1e-6,
-            ), (
-                f"Mismatch in collision cylinder length for link {link_name}: "
-                f"expected {pre_scaled_link.collision.geometry.cylinder.length}, "
-                f"got {exported_link.collision.geometry.cylinder.length}"
-            )
-        else:
-            pytest.skip(
-                f"Collision geometry type for link {link_name} not supported in this test."
-            )
+        # Compare collision shapes
+        compare_collisions(exported_link, ref_link)
 
 
 def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):

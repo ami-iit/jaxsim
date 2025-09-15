@@ -239,10 +239,10 @@ class SoftContacts(common.ContactModel):
         δ = jnp.maximum(0.0, -distance)
 
         # Extract the contact velocity.
-        δ̇ = -W_ṗ_C[2]
+        δ̇ = -W_ṗ_C.dot(normal)
 
         # Compute the normal.
-        n̂ = normal / jaxsim.math.safe_norm(normal)
+        n̂ = normal
 
         # There are few operations like computing the norm of a vector with zero length
         # or computing the square root of zero that are problematic in an AD context.

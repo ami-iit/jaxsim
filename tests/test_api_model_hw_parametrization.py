@@ -217,25 +217,10 @@ def test_export_updated_model(
         ),
         density=jnp.ones(4),
     )
-
-    # Update the model with the scaling parameters
-    updated_model: js.model.JaxSimModel = js.model.update_hw_parameters(
-        model, scaling_parameters
+    identity_scaling = ScalingFactors(
+        dims=jnp.ones((model.number_of_links(), 3)),
+        density=jnp.ones(model.number_of_links()),
     )
-
-    # Export the updated model
-    exported_urdf = updated_model.export_updated_model()
-    assert isinstance(exported_urdf, str), "Exported model URDF is not a string."
-
-    # Load the exported URDF using ROD
-    exported_sdf = rod.Sdf.load(exported_urdf, is_urdf=True)
-    pre_scaled_sdf = rod.Sdf.load(jaxsim_model_garpez_scaled.built_from).models()[0]
-    exported_model = exported_sdf.models()[0]
-
-    # Ensure the exported model contains exactly one model
-    assert (
-        len(exported_sdf.models()) == 1
-    ), "Exported ROD model does not contain exactly one model."
 
     def get_link_by_name(model, name):
         try:
@@ -245,13 +230,26 @@ def test_export_updated_model(
                 f"Link '{name}' not found. Available links: {[l.name for l in model.links()]}"
             ) from err
 
-    def compare_geometries(exported_geom, ref_geom):
+    def compare_geometries(exported_link, ref_link, label=""):
+        exported_geom = exported_link.visual.geometry.geometry()
+        ref_geom = ref_link.visual.geometry.geometry()
+
         attrs = [attr for attr in vars(exported_geom) if hasattr(ref_geom, attr)]
         exported_vals = jnp.array([getattr(exported_geom, attr) for attr in attrs])
         ref_vals = jnp.array([getattr(ref_geom, attr) for attr in attrs])
-        assert_allclose(exported_vals, ref_vals, atol=1e-6)
+        assert_allclose(exported_vals, ref_vals, err_msg=f"Geometry mismatch in {label} model.", atol=1e-6)
 
-    def compare_collisions(exported_link, ref_link):
+    def compare_mass_and_inertia(exported_link, ref_link, label=""):
+        assert exported_link.inertial.mass == pytest.approx(
+            ref_link.inertial.mass, abs=1e-4
+        ), f"Mass mismatch in {label} model."
+        assert jnp.allclose(
+            exported_link.inertial.inertia.matrix(),
+            ref_link.inertial.inertia.matrix(),
+            atol=1e-4,
+        ), f"Inertia matrix mismatch in {label} model."
+
+    def compare_collisions(exported_link, ref_link, label=""):
         geom_types = ["box", "sphere", "cylinder"]
         for geom_type in geom_types:
             exp_geom = getattr(exported_link.collision.geometry, geom_type)
@@ -271,15 +269,10 @@ def test_export_updated_model(
             f"Collision geometry type for link {exported_link.name} not supported."
         )
 
-    for link_name in jaxsim_model_garpez.link_names():
-        exported_link = get_link_by_name(exported_model, link_name)
-        ref_link = get_link_by_name(pre_scaled_sdf, link_name)
+    def validate_model(updated_model, ref_model, label):
 
-        # Compare shape dimensions
-        compare_geometries(
-            exported_link.visual.geometry.geometry(),
-            ref_link.visual.geometry.geometry(),
-        )
+        urdf = updated_model.export_updated_model()
+        assert isinstance(urdf, str), f"{label}: Exported URDF is not a string."
 
         # Compare mass
         assert_allclose(
@@ -296,8 +289,38 @@ def test_export_updated_model(
             atol=1e-4,
         )
 
-        # Compare collision shapes
-        compare_collisions(exported_link, ref_link)
+        exported_sdf = rod.Sdf.load(urdf, is_urdf=True)
+
+        assert (
+            len(exported_sdf.models()) == 1
+        ), f"{label}: Exported model does not contain exactly one ROD model."
+
+        exported_model = exported_sdf.models()[0]
+
+        for link_name in model.link_names():
+
+            exported_link = get_link_by_name(exported_model, link_name)
+            ref_link = get_link_by_name(ref_model, link_name)
+
+            compare_geometries(exported_link, ref_link, label=label)
+
+            compare_mass_and_inertia(exported_link, ref_link, label=label)
+
+            compare_collisions(exported_link, ref_link, label=label)
+
+    # Test both scaled and identity-scaled updates
+    for scaling, label in [
+        (scaling_parameters, "SCALED"),
+        (identity_scaling, "IDENTITY SCALED"),
+    ]:
+        # Load reference ROD model
+        if label == "IDENTITY SCALED":
+            ref_model = rod.Sdf.load(jaxsim_model_garpez.built_from).models()[0]
+        else:
+            ref_model = rod.Sdf.load(jaxsim_model_garpez_scaled.built_from).models()[0]
+
+        updated_model = js.model.update_hw_parameters(model, scaling)
+        validate_model(updated_model, ref_model, label)
 
 
 def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):

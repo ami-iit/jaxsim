@@ -58,7 +58,7 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
 model_description = pathlib.Path(model_path)
 
 full_model = js.model.JaxSimModel.build_from_model_description(
-    model_description=model_description, time_step=0.0001, is_urdf=True
+    model_description=model_description,
 )
 
 model = js.model.reduce(model=full_model, considered_joints=joints)
@@ -85,7 +85,6 @@ for _ in T:
 
 Check the example folder for additional use cases!
 
-> [!NOTE]
 [jax]: https://github.com/google/jax/
 [sdformat]: https://github.com/gazebosim/sdformat
 [notation]: https://research.tue.nl/en/publications/multibody-dynamics-notation-version-2
@@ -102,7 +101,7 @@ You can install the project using [`conda`][conda] as follows:
 conda install jaxsim -c conda-forge
 ```
 
-You can enforce GPU support, if needed, by also specifying `"jaxlib = * = *cuda*"`.
+GPU support for JAX will be automatically installed if a compatible GPU is detected.
 
 </details>
 
@@ -120,7 +119,7 @@ git lfs install && git lfs pull
 
 This ensures all LFS-tracked files are properly downloaded before you proceed with the installation.
 
-You can add the jaxsim dependency in [`pixi`][pixi] project as follows:
+You can add the `jaxsim` dependency in your [`pixi`][pixi] project as follows:
 
 ```bash
 pixi add jaxsim
@@ -242,7 +241,7 @@ joints = ('torso_pitch', 'torso_roll', 'torso_yaw', 'l_shoulder_pitch',
 model_description = pathlib.Path(model_path)
 
 full_model = js.model.JaxSimModel.build_from_model_description(
-    model_description=model_description, time_step=0.0001, is_urdf=True
+    model_description=model_description,
 )
 
 model = js.model.reduce(model=full_model, considered_joints=joints)
@@ -267,9 +266,9 @@ W_J_F = js.frame.jacobian(
 )
 
 # Dynamics properties
-M = js.model.free_floating_mass_matrix(model=model, data=data)  # Mass matrix
-h = js.model.free_floating_bias_forces(model=model, data=data)  # Bias forces
-g = js.model.free_floating_gravity_forces(model=model, data=data)  # Gravity forces
+M = js.model.free_floating_mass_matrix(model=model, data=data)      # Mass matrix
+h = js.model.free_floating_bias_forces(model=model, data=data)      # Bias forces
+g = js.model.free_floating_gravity_forces(model=model, data=data)   # Gravity forces
 C = js.model.free_floating_coriolis_matrix(model=model, data=data)  # Coriolis matrix
 
 # Print dynamics results
@@ -308,25 +307,14 @@ Please read the [contributing guide](./CONTRIBUTING.md) to get started.
 
 ## Citing
 
-```bibtex
-@software{ferigo_jaxsim_2022,
-  author = {Diego Ferigo and Filippo Luca Ferretti and Silvio Traversaro and Daniele Pucci},
-  title = {{JaxSim}: A Differentiable Physics Engine and Multibody Dynamics Library for Control and Robot Learning},
-  url = {http://github.com/ami-iit/jaxsim},
-  year = {2022},
-}
-```
-
-Theoretical aspects of JaxSim are based on Chapters 7 and 8 of the following Ph.D. thesis:
+If you use JaxSim in your work, please cite our upcoming paper:
 
 ```bibtex
-@phdthesis{ferigo_phd_thesis_2022,
-  title = {Simulation Architectures for Reinforcement Learning applied to Robotics},
-  author = {Diego Ferigo},
-  school = {University of Manchester},
-  type = {PhD Thesis},
-  month = {July},
-  year = {2022},
+@software{ferretti_accelerated_optimization_2025,
+  author       = {Filippo Luca Ferretti and Diego Ferigo and Carlotta Sartore and Alessandro Croci and Omar G. Younis and Silvio Traversaro and Daniele Pucci},
+  title        = {Hardware-Accelerated Morphology Optimization via Physically Consistent Differentiable Simulation},
+  year         = {2025},
+  url          = {https://github.com/ami-iit/jaxsim}
 }
 ```
 

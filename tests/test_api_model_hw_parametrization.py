@@ -304,6 +304,51 @@ def test_export_updated_model(
             err_msg=f"Mismatch in inertia tensor for link {link_name}",
         )
 
+        # Compare collision shapes dimensions
+        if pre_scaled_link.collision.geometry.box is not None:
+            assert jnp.allclose(
+                jnp.array(exported_link.collision.geometry.box.size),
+                jnp.array(pre_scaled_link.collision.geometry.box.size),
+                atol=1e-6,
+            ), (
+                f"Mismatch in collision box size for link {link_name}: "
+                f"expected {pre_scaled_link.collision.geometry.box.size}, "
+                f"got {exported_link.collision.geometry.box.size}"
+            )
+        elif pre_scaled_link.collision.geometry.sphere is not None:
+            assert jnp.isclose(
+                exported_link.collision.geometry.sphere.radius,
+                pre_scaled_link.collision.geometry.sphere.radius,
+                atol=1e-6,
+            ), (
+                f"Mismatch in collision sphere radius for link {link_name}: "
+                f"expected {pre_scaled_link.collision.geometry.sphere.radius}, "
+                f"got {exported_link.collision.geometry.sphere.radius}"
+            )
+        elif pre_scaled_link.collision.geometry.cylinder is not None:
+            assert jnp.isclose(
+                exported_link.collision.geometry.cylinder.radius,
+                pre_scaled_link.collision.geometry.cylinder.radius,
+                atol=1e-6,
+            ), (
+                f"Mismatch in collision cylinder radius for link {link_name}: "
+                f"expected {pre_scaled_link.collision.geometry.cylinder.radius}, "
+                f"got {exported_link.collision.geometry.cylinder.radius}"
+            )
+            assert jnp.isclose(
+                exported_link.collision.geometry.cylinder.length,
+                pre_scaled_link.collision.geometry.cylinder.length,
+                atol=1e-6,
+            ), (
+                f"Mismatch in collision cylinder length for link {link_name}: "
+                f"expected {pre_scaled_link.collision.geometry.cylinder.length}, "
+                f"got {exported_link.collision.geometry.cylinder.length}"
+            )
+        else:
+            pytest.skip(
+                f"Collision geometry type for link {link_name} not supported in this test."
+            )
+
 
 def test_hw_parameters_optimization(jaxsim_model_garpez: js.model.JaxSimModel):
     """

@@ -35,14 +35,22 @@ def sphere_plane(terrain: jaxsim.terrain.Terrain, size: jtp.Vector, W_H_L: jtp.M
         A tuple containing the distance from the sphere to the plane and the pose transform
         of the contact frame.
     """
+    # Extract sphere center and radius.
     center = W_H_L[0:3, 3]
-    normal = terrain.normal(x=center[0], y=center[1])
-    distance = jnp.dot(center - terrain._height, normal) - size[0]
-    position = normal * (size[0] + 0.5 * distance) - center
-    W_H_C = jaxsim.math.Transform.from_rotation_and_translation(
-        rotation=jaxsim.math.Rotation.from_axis_angle(normal),
-        translation=-position,
-    )
+    radius = size[0]
+
+    # Extract terrain properties at sphere center.
+    x, y = center[0], center[1]
+
+    normal = terrain.normal(x=x, y=y)
+    height = terrain.height(x=x, y=y)
+
+    distance = jnp.dot(center - height, normal) - radius
+
+    position = center - radius * normal
+
+    W_H_C = _contact_frame(normal, position)
+
     return distance, W_H_C
 
 
@@ -55,7 +63,7 @@ def box_plane_sdf(terrain, size, W_H_L):
     half_size = size.squeeze() / 2
 
     R = W_H_L[:3, :3]
-    t = W_H_L[:3, 3]
+    center = W_H_L[:3, 3]
 
     # Generate all 8 corners using meshgrid
     sx = jnp.array([-half_size[0], half_size[0]])
@@ -71,7 +79,7 @@ def box_plane_sdf(terrain, size, W_H_L):
     R_corrected = R.at[:, 2].set(R[:, 2] * flip_sign)  # flip z-axis if needed
 
     # Transform to world frame
-    corners_world = t + (R_corrected @ corners_local.T).T  # shape (8,3)
+    corners_world = center + corners_local @ R_corrected.T
 
     # Vectorized terrain height and normal using vmap
     terrain_height_vmap = jax.vmap(lambda p: terrain.height(p[0], p[1]))
@@ -151,56 +159,62 @@ def cylinder_plane(
     W_H_L: jtp.Matrix,
 ):
     """
-    Detect contacts between a cylinder and a plane terrain.
-    Finds the actual contact point on the cylinder surface (vertex, edge, or face).
-
-    Args:
-        terrain: The terrain object with _height(x, y) method and normal(x, y) method.
-        size: A 3D vector [width, height, depth] representing the cylinder dimensions from center.
-        W_H_L: The collision shape transform in world coordinates.
-
-    Returns:
-        A tuple containing the distance from the cylinder to the plane, the contact point position
-        and the contact frame.
+    Compact cylinder-plane contact detection returning distance and SE(3) contact frame.
     """
-    radius = size[0]
-    half_length = size[1] / 2.0
+    size = size.squeeze()
+    radius, half_height = size[0], size[1] / 2.0
 
+    # Cylinder center and axis
     center = W_H_L[0:3, 3]
     axis = W_H_L[0:3, 2] / jnp.linalg.norm(W_H_L[0:3, 2])
 
-    x, y = center[0], center[1]
-    n = terrain.normal(x, y)
-    h = terrain.height(x, y)
-    p0 = jnp.array([x, y, h])
+    # Terrain properties at center
+    n = terrain.normal(center[0], center[1])
 
-    d0 = jnp.dot(n, center - p0)
-    proj = jnp.dot(n, axis)
-    side_term = radius * jnp.sqrt(jnp.maximum(0.0, 1.0 - proj**2))
-    cap_term = half_length * jnp.abs(proj)
-    distance = d0 - cap_term - side_term
+    # Axis projection and perpendicular direction
+    axis_dot_n = jnp.dot(axis, n)
+    perp = jnp.cross(axis, n)
+    perp_norm = jnp.linalg.norm(perp)
+    perp = jnp.where(perp_norm > 1e-6, perp / perp_norm, W_H_L[0:3, 0])
 
-    # contact point
-    use_side = jnp.abs(proj) < 1.0 - 1e-6
-    radial = n - proj * axis
-    radial /= jnp.linalg.norm(radial) + 1e-12
-    side_pt = center + half_length * jnp.sign(proj) * axis + radius * radial
-    cap_pt = center + half_length * jnp.sign(proj) * axis
-    support = jnp.where(use_side, side_pt, cap_pt)
-    contact_point = support - n * distance
+    # Three potential contact points
+    cap_offset = axis * half_height * jnp.sign(axis_dot_n)
+    edge_offset = perp * radius
 
-    # --- contact frame ---
-    z_axis = n / (jnp.linalg.norm(n) + 1e-12)
-    cand = jnp.where(
-        jnp.abs(jnp.dot(axis, z_axis)) < 0.9, axis, jnp.array([1.0, 0.0, 0.0])
+    contacts = jnp.array(
+        [
+            center + cap_offset,
+            center + edge_offset + axis * half_height,
+            center + edge_offset - axis * half_height,
+        ]
     )
-    x_axis = cand - jnp.dot(cand, z_axis) * z_axis
-    x_axis = x_axis / (jnp.linalg.norm(x_axis) + 1e-12)
-    y_axis = jnp.cross(z_axis, x_axis)
-    R = jnp.stack([x_axis, y_axis, z_axis], axis=1)
 
-    W_H_C = jnp.vstack(
-        [jnp.hstack([R, contact_point[:, None]]), jnp.array([0.0, 0.0, 0.0, 1.0])],
+    # Vectorized terrain height computation
+    terrain_heights = jax.vmap(terrain.height)(contacts[:, 0], contacts[:, 1])
+    terrain_points = jnp.column_stack([contacts[:, :2], terrain_heights])
+
+    # Compute distances
+    distances = jnp.sum((contacts - terrain_points) * n, axis=1)
+
+    # Select best contact based on axis alignment and minimum distance
+    abs_dot = jnp.abs(axis_dot_n)
+    weights = jnp.where(
+        abs_dot > 0.8,  # Face contact - use cap
+        jnp.array([1.0, 0.0, 0.0]),
+        jnp.where(
+            abs_dot < 0.3,  # Edge contact - use minimum edge distance
+            jnp.array([0.0, 1.0, 1.0]),
+            jnp.array([1.0, 0.0, 0.0]),  # Corner contact - use cap
+        ),
     )
+
+    # Find minimum valid distance
+    valid_distances = jnp.where(weights > 0, distances, jnp.inf)
+    min_idx = jnp.argmin(valid_distances)
+
+    distance = distances[min_idx]
+    contact_pos = contacts[min_idx]
+
+    W_H_C = _contact_frame(n, contact_pos)
 
     return distance, W_H_C

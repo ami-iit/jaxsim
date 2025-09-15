@@ -320,6 +320,7 @@ def extract_model_data(
                 )
 
                 collisions.append(box_collision)
+                continue
 
             if collision.geometry.sphere is not None:
                 sphere_collision = utils.create_sphere_collision(
@@ -328,18 +329,32 @@ def extract_model_data(
                 )
 
                 collisions.append(sphere_collision)
+                continue
 
-            if collision.geometry.mesh is not None and int(
-                os.environ.get("JAXSIM_COLLISION_MESH_ENABLED", "0")
-            ):
-                logging.warning("Mesh collision support is still experimental.")
-                mesh_collision = utils.create_mesh_collision(
-                    collision=collision,
-                    link_description=links_dict[link.name],
-                    method=utils.meshes.extract_points_vertices,
-                )
+            if collision.geometry.mesh is not None:
+                if int(os.environ.get("JAXSIM_COLLISION_MESH_ENABLED", "0")):
+                    logging.warning("Mesh collision support is still experimental.")
+                    mesh_collision = utils.create_mesh_collision(
+                        collision=collision,
+                        link_description=links_dict[link.name],
+                        method=utils.meshes.extract_points_vertices,
+                    )
 
-                collisions.append(mesh_collision)
+                    collisions.append(mesh_collision)
+
+                else:
+                    logging.warning(
+                        f"Skipping collision shape 'mesh' in link '{link.name}' because mesh collisions are disabled."
+                    )
+
+                continue
+
+            # Check any remaining non-None geometry types.
+            for attr_name in collision.geometry.__dict__:
+                if getattr(collision.geometry, attr_name) is not None:
+                    logging.warning(
+                        f"Skipping collision shape '{attr_name}' in link '{link.name}' as not supported."
+                    )
 
     return SDFData(
         model_name=sdf_model.name,

@@ -195,10 +195,11 @@ class SoftContacts(common.ContactModel):
     @staticmethod
     @jax.jit
     def hunt_crossley_contact_model(
+        penetration: jtp.VectorLike,
+        penetration_rate: jtp.VectorLike,
         velocity: jtp.VectorLike,
-        tangential_deformation: jtp.VectorLike,
-        distance: jtp.VectorLike,
         normal: jtp.VectorLike,
+        tangential_deformation: jtp.VectorLike,
         K: jtp.FloatLike,
         D: jtp.FloatLike,
         mu: jtp.FloatLike,
@@ -209,10 +210,11 @@ class SoftContacts(common.ContactModel):
         Compute the contact force using the Hunt/Crossley model.
 
         Args:
-            velocity: The velocity of the collidable shape.
-            tangential_deformation: The material deformation of the collidable shape.
-            distance: The distance from the collidable shape to the terrain.
+            penetration: The penetration of the collision point.
+            penetration_rate: The penetration rate of the collision point.
+            velocity: The velocity of the contact point.
             normal: The terrain normal at the contact point.
+            tangential_deformation: The material deformation of the collidable shape.
             K: The stiffness parameter.
             D: The damping parameter of the soft contacts model.
             mu: The static friction coefficient.
@@ -228,21 +230,16 @@ class SoftContacts(common.ContactModel):
             material deformation.
         """
 
+        δ = penetration
+        δ̇ = penetration_rate
+        n̂ = normal
+
         # Convert the input vectors to arrays.
         W_ṗ_C = jnp.array(velocity, dtype=float).squeeze()
         m = jnp.array(tangential_deformation, dtype=float).squeeze()
 
         # Use symbol for the static friction.
         μ = mu
-
-        # Ensure non-negative distance.
-        δ = jnp.maximum(0.0, -distance)
-
-        # Extract the contact velocity.
-        δ̇ = -W_ṗ_C.dot(normal)
-
-        # Compute the normal.
-        n̂ = normal
 
         # There are few operations like computing the norm of a vector with zero length
         # or computing the square root of zero that are problematic in an AD context.

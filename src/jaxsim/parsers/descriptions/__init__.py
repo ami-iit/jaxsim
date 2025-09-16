@@ -1,7 +1,7 @@
 from .collision import (
     BoxCollision,
-    SphereCollision,
     CylinderCollision,
+    SphereCollision,
 )
 from .joint import JointDescription, JointGenericAxis, JointType
 from .link import LinkDescription

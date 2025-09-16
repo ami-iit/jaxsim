@@ -15,14 +15,14 @@ import jaxsim.typing as jtp
 from jaxsim.math import Inertia, JointModel, supported_joint_motion
 from jaxsim.math.adjoint import Adjoint
 from jaxsim.parsers.descriptions import (
+    BoxCollision,
+    CylinderCollision,
     JointDescription,
     JointType,
     ModelDescription,
     SphereCollision,
-    BoxCollision,
-    CylinderCollision,
 )
-from jaxsim.utils import HashedNumpyArray, JaxsimDataclass, CollidableShapeType
+from jaxsim.utils import CollidableShapeType, HashedNumpyArray, JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)

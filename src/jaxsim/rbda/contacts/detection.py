@@ -1,10 +1,11 @@
+import jax
+import jax.numpy as jnp
+
 import jaxsim
 import jaxsim.typing as jtp
-import jax.numpy as jnp
-import jax
 
 
-def _contact_frame(normal, position):
+def _contact_frame(normal: jtp.Vector, position: jtp.Vector) -> jtp.Matrix:
     """Create a contact frame with z-axis aligned with the contact normal."""
     n = normal / jaxsim.math.safe_norm(normal)
 
@@ -22,7 +23,9 @@ def _contact_frame(normal, position):
     )
 
 
-def sphere_plane(terrain: jaxsim.terrain.Terrain, size: jtp.Vector, W_H_L: jtp.Matrix):
+def sphere_plane(
+    terrain: jaxsim.terrain.Terrain, size: jtp.Vector, W_H_L: jtp.Matrix
+) -> tuple[jtp.Float, jtp.Matrix]:
     """
     Detect contacts between a sphere and a plane terrain.
 
@@ -51,11 +54,16 @@ def sphere_plane(terrain: jaxsim.terrain.Terrain, size: jtp.Vector, W_H_L: jtp.M
 
     W_H_C = _contact_frame(normal, position)
 
+    # Pad distance and transform to match expected output shapes.
+    distance = jnp.pad(jnp.array([distance]), (0, 2), mode="empty")
+    W_H_C = jnp.pad(W_H_C[jnp.newaxis, ...], ((0, 2), (0, 0), (0, 0)), mode="empty")
+
     return distance, W_H_C
 
 
-# TODO (flferretti): Keep only the SDF version?
-def box_plane_sdf(terrain, size, W_H_L):
+def box_plane(
+    terrain: jaxsim.terrain.Terrain, size: jtp.Vector, W_H_L: jtp.Matrix
+) -> tuple[jtp.Vector, jtp.Matrix]:
     """
     Return distances and contact frames of the 3 deepest corners of a box on terrain using SDF.
     Fully vectorized, works for any box orientation.
@@ -74,9 +82,9 @@ def box_plane_sdf(terrain, size, W_H_L):
         [xs.ravel(), ys.ravel(), zs.ravel()], axis=1
     )  # shape (8,3)
 
-    box_z_world = R[:, 2]
-    flip_sign = jnp.sign(box_z_world)
-    R_corrected = R.at[:, 2].set(R[:, 2] * flip_sign)  # flip z-axis if needed
+    # Project box z-axis on terrain normal and ensure direction away from plane
+    sign = jnp.sign(R[:, 2] + 1e-12)
+    R_corrected = R.at[:, 2].set(R[:, 2] * sign)
 
     # Transform to world frame
     corners_world = center + corners_local @ R_corrected.T
@@ -109,112 +117,96 @@ def box_plane_sdf(terrain, size, W_H_L):
     return distances_top3, W_H_C
 
 
-def box_plane(
-    terrain: jaxsim.terrain.Terrain,
-    size: jtp.Vector,
-    W_H_L: jtp.Matrix,
-):
+def cylinder_plane(
+    terrain: jaxsim.terrain.Terrain, size: jtp.Vector, W_H_L: jtp.Matrix
+) -> tuple[jtp.Vector, jtp.Matrix]:
     """
-    Detect contacts between a box and a plane terrain.
-    Finds the actual contact point on the box surface (vertex, edge, or face).
+    Return distances and contact frames of the 3 deepest points of a cylinder on terrain.
 
     Args:
-        terrain: The terrain object with _height(x, y) method and normal(x, y) method.
-        size: A 3D vector [width, height, depth] representing the box dimensions from center.
+        terrain: The terrain object.
+        size: The size of the cylinder (radius, height).
         W_H_L: The collision shape transform in world coordinates.
 
     Returns:
-        A tuple containing the distance from the box to the plane and the pose transform
-        of the contact frame.
+        A tuple containing the distances from the cylinder to the plane and the pose transforms
+        of the contact frames.
     """
-    half_size = size.squeeze() / 2
-    center = W_H_L[:3, 3]
-    R = W_H_L[:3, :3]
 
-    # Transform terrain normal at box center into world coordinates
-    normal = terrain.normal(center[0], center[1])
-
-    # Find the box vertex furthest in the opposite direction of terrain normal
-    local_normal = R.T @ normal
-    support_local = -half_size * jnp.sign(local_normal)
-
-    # Vertex in world coordinates
-    support_world = center + R @ support_local
-
-    # Terrain point and distance
-    terrain_z = terrain.height(support_world[0], support_world[1])
-    terrain_point = jnp.array([support_world[0], support_world[1], terrain_z])
-    distance = jnp.dot(support_world - terrain_point, normal)
-
-    # Contact frame
-    contact_point = support_world - distance * normal
-    W_H_C = _contact_frame(normal, contact_point)
-
-    return distance, W_H_C
-
-
-def cylinder_plane(
-    terrain: jaxsim.terrain.Terrain,
-    size: jtp.Vector,
-    W_H_L: jtp.Matrix,
-):
-    """
-    Compact cylinder-plane contact detection returning distance and SE(3) contact frame.
-    """
     size = size.squeeze()
-    radius, half_height = size[0], size[1] / 2.0
+    r, half_h = size[0], size[1] * 0.5
 
-    # Cylinder center and axis
-    center = W_H_L[0:3, 3]
-    axis = W_H_L[0:3, 2] / jnp.linalg.norm(W_H_L[0:3, 2])
+    # Cylinder pose
+    position = W_H_L[:3, 3]
+    R = W_H_L[:3, :3]
+    axis = R[:, 2]
 
-    # Terrain properties at center
-    n = terrain.normal(center[0], center[1])
+    # Terrain data at cylinder XY
+    h = terrain.height(position[0], position[1])
+    n = terrain.normal(position[0], position[1])
+    plane_position = jnp.array([position[0], position[1], h])
 
-    # Axis projection and perpendicular direction
-    axis_dot_n = jnp.dot(axis, n)
-    perp = jnp.cross(axis, n)
-    perp_norm = jnp.linalg.norm(perp)
-    perp = jnp.where(perp_norm > 1e-6, perp / perp_norm, W_H_L[0:3, 0])
+    # Project axis on normal and ensure direction away from plane
+    prjaxis = jnp.dot(n, axis)
+    sign = -jnp.sign(prjaxis + 1e-12)
+    axis, prjaxis = axis * sign, prjaxis * sign
 
-    # Three potential contact points
-    cap_offset = axis * half_height * jnp.sign(axis_dot_n)
-    edge_offset = perp * radius
+    # Distance from cylinder centre to plane along normal
+    dist0 = jnp.dot(position - plane_position, n)
 
-    contacts = jnp.array(
-        [
-            center + cap_offset,
-            center + edge_offset + axis * half_height,
-            center + edge_offset - axis * half_height,
-        ]
+    # Remove component along normal from axis
+    vec = axis * prjaxis - n
+    len_vec = jnp.linalg.norm(vec)
+    vec = jnp.where(
+        len_vec < 1e-12,
+        R[:, 0] * r,  # disk parallel to plane
+        vec / len_vec * r,  # general case
     )
 
-    # Vectorized terrain height computation
-    terrain_heights = jax.vmap(terrain.height)(contacts[:, 0], contacts[:, 1])
-    terrain_points = jnp.column_stack([contacts[:, :2], terrain_heights])
+    # Project vec along normal
+    prjvec = jnp.dot(vec, n)
 
-    # Compute distances
-    distances = jnp.sum((contacts - terrain_points) * n, axis=1)
+    # Scale axis by half length
+    ax_scaled = axis * half_h
+    prjaxis_h = prjaxis * half_h
 
-    # Select best contact based on axis alignment and minimum distance
-    abs_dot = jnp.abs(axis_dot_n)
-    weights = jnp.where(
-        abs_dot > 0.8,  # Face contact - use cap
-        jnp.array([1.0, 0.0, 0.0]),
-        jnp.where(
-            abs_dot < 0.3,  # Edge contact - use minimum edge distance
-            jnp.array([0.0, 1.0, 1.0]),
-            jnp.array([1.0, 0.0, 0.0]),  # Corner contact - use cap
-        ),
+    # Sideways vector for 3-point support
+    prjvec1 = -0.5 * prjvec
+    vec1 = jnp.cross(vec, ax_scaled)
+    vec1 = vec1 / (jnp.linalg.norm(vec1) + 1e-12) * r * jnp.sqrt(3.0) * 0.5
+
+    # Distances of three candidate contacts:
+    #   d1 = top
+    #   d2 = side + top
+    #   d3 = side - top
+    d1 = dist0 + prjaxis_h + prjvec
+    d2 = dist0 + prjaxis_h + prjvec1
+    dist = jnp.array([d1, d2, d2])
+
+    # World position of candidates
+    position_c = (
+        position
+        + ax_scaled
+        + jnp.array(
+            [
+                vec - n * d1 * 0.5,
+                vec1 + vec * -0.5 - n * d2 * 0.5,
+                -vec1 + vec * -0.5 - n * d2 * 0.5,
+            ]
+        )
     )
 
-    # Find minimum valid distance
-    valid_distances = jnp.where(weights > 0, distances, jnp.inf)
-    min_idx = jnp.argmin(valid_distances)
+    # Handle case in which the cylinder lies on the disks
+    condition = jnp.abs(prjaxis) < 1e-3
+    d3 = dist0 - prjaxis_h + prjvec
+    dist = jnp.where(condition, dist.at[1].set(d3), dist)
+    position_c = jnp.where(
+        condition,
+        position_c.at[1].set(position + vec - ax_scaled - n * d3 * 0.5),
+        position_c,
+    )
 
-    distance = distances[min_idx]
-    contact_pos = contacts[min_idx]
+    # Build contact frames on the three candidate points
+    W_H_C = jax.vmap(lambda p: _contact_frame(n, p))(position_c)
 
-    W_H_C = _contact_frame(n, contact_pos)
-
-    return distance, W_H_C
+    return dist, W_H_C

@@ -537,7 +537,7 @@ def link_contact_forces(
     """
 
     # Compute the contact forces for each collidable point with the active contact model.
-    W_f_C, aux_dict = model.contact_model.compute_contact_forces(
+    W_f_L, aux_dict = model.contact_model.compute_contact_forces(
         model=model,
         data=data,
         **(
@@ -549,7 +549,7 @@ def link_contact_forces(
 
     # Compute the 6D forces applied to the links equivalent to the forces applied
     # to the frames associated to the collidable points.
-    W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
+    # W_f_L = link_forces_from_contact_forces(model=model, contact_forces=W_f_C)
 
     return W_f_L, aux_dict
 

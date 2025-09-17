@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 from collections.abc import Callable
 from typing import Any
 
@@ -14,7 +15,7 @@ import jaxsim.api as js
 import jaxsim.typing as jtp
 from jaxsim.api.common import ModelDataWithVelocityRepresentation, VelRepr
 
-from . import common, soft
+from . import common, detection, soft
 
 try:
     from typing import Self
@@ -325,14 +326,16 @@ class RelaxedRigidContacts(common.ContactModel):
             joint_force_references=joint_force_references,
         )
 
-        # Compute the position and linear velocities (mixed representation) of
-        # all collidable points belonging to the robot.
-        position, velocity = data._link_transforms[:3, 3], data._link_velocities[:3]
-
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.
-        δ, _, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
-            position, velocity, model.terrain, data.contact_parameters
+        δ, δ̇, n̂, W_p_C, CW_ṗ_C = jax.vmap(
+            common.compute_penetration_data, in_axes=(None,)
+        )(
+            model,
+            shape_type=model.kin_dyn_parameters.contact_parameters.shape_type,
+            shape_size=model.kin_dyn_parameters.contact_parameters.shape_size,
+            link_transforms=data._link_transforms,
+            link_velocities=data._link_velocities,
         )
 
         # Compute the position in the constraint frame.
@@ -342,13 +345,16 @@ class RelaxedRigidContacts(common.ContactModel):
         a_ref, r, *_ = self._regularizers(
             model=model,
             position_constraint=position_constraint,
-            velocity_constraint=velocity,
+            velocity_constraint=CW_ṗ_C,
             parameters=model.contact_params,
         )
 
         # Compute the transforms of the implicit frames corresponding to the
         # collidable points.
-        W_H_C = js.contact.transforms(model=model, data=data)
+        # The final shape will be (n_links, 3 (max_contact_points), 4, 4).
+        W_H_C = jax.vmap(
+            lambda n, p: jax.vmap(detection._contact_frame)(n, p),
+        )(n̂, W_p_C)
 
         with (
             data.switch_velocity_representation(VelRepr.Mixed),
@@ -370,15 +376,17 @@ class RelaxedRigidContacts(common.ContactModel):
             # Compute the linear part of the Jacobian of the collidable points
             Jl_WC = jnp.vstack(
                 jax.vmap(lambda J, δ: J * (δ > 0))(
-                    js.contact.jacobian(model=model, data=data)[:, :3, :], δ
+                    js.contact.jacobian(model=model, data=data)[:, :3],
+                    jnp.concatenate(δ),
                 )
             )
 
             # Compute the linear part of the Jacobian derivative of the collidable points
             J̇l_WC = jnp.vstack(
                 jax.vmap(lambda J̇, δ: J̇ * (δ > 0))(
-                    js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
-                ),
+                    js.contact.jacobian_derivative(model=model, data=data)[:, :3],
+                    jnp.concatenate(δ),
+                )
             )
 
         # Compute the Delassus matrix for contacts (mixed representation).
@@ -466,20 +474,20 @@ class RelaxedRigidContacts(common.ContactModel):
         # ======================================
 
         # Initialize the optimized forces with a linear Hunt/Crossley model.
+        hunt_crossley_closure = functools.partial(
+            soft.SoftContacts.hunt_crossley_contact_model,
+            K=1e6,
+            D=2e3,
+            p=0.5,
+            q=0.5,
+            mu=0.0,
+            tangential_deformation=jnp.zeros(3),
+        )
+
         init_params = jax.vmap(
-            lambda p, v: soft.SoftContacts.hunt_crossley_contact_model(
-                position=p,
-                velocity=v,
-                terrain=model.terrain,
-                K=1e6,
-                D=2e3,
-                p=0.5,
-                q=0.5,
-                # No tangential initial forces.
-                mu=0.0,
-                tangential_deformation=jnp.zeros(3),
-            )[0]
-        )(position, velocity).flatten()
+            jax.vmap(hunt_crossley_closure, in_axes=(0, 0, 0, 0)),  # map over contacts
+            in_axes=(0, 0, 0, 0),  # map over links
+        )(δ, δ̇, CW_ṗ_C, n̂)[0].flatten()
 
         # Get the solver options.
         solver_options = self.solver_options
@@ -507,21 +515,26 @@ class RelaxedRigidContacts(common.ContactModel):
         )
 
         # Reshape the optimized solution to be a matrix of 3D contact forces.
-        CW_fl_C = solution.reshape(-1, 3)
+        CW_fl_per_link = solution.reshape(-1, 3, 3)
 
-        # Convert the contact forces from mixed to inertial-fixed representation.
-        W_f_C = jax.vmap(
-            lambda CW_fl_C, W_H_C: (
-                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
-                    transform=W_H_C,
-                    other_representation=VelRepr.Mixed,
-                    is_force=True,
-                )
-            ),
-        )(CW_fl_C, W_H_C)
+        # Transform each contact force to inertial frame
+        def to_inertial(force, H_C):
+            return ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                array=jnp.zeros(6).at[0:3].set(force),
+                transform=H_C,
+                other_representation=VelRepr.Mixed,
+                is_force=True,
+            )
 
-        return W_f_C, {}
+        # Compute the contact forces in inertial representation for
+        # each link and contact point.
+        # Nested vmap: inner over contacts, outer over links
+        W_f_C = jax.vmap(lambda f_link, H_link: jax.vmap(to_inertial)(f_link, H_link))(
+            CW_fl_per_link, W_H_C
+        )
+
+        # Sum over contacts for each link
+        return W_f_C.sum(axis=1), {}
 
     @staticmethod
     def _regularizers(
@@ -561,17 +574,8 @@ class RelaxedRigidContacts(common.ContactModel):
             )
         )
 
-        # Get the indices of the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-        )
-
-        parent_link_idx_of_enabled_collidable_points = jnp.array(
-            model.kin_dyn_parameters.contact_parameters.body, dtype=int
-        )[indices_of_enabled_collidable_points]
-
         # Compute the 6D inertia matrices of all links.
-        M_L = js.model.link_spatial_inertia_matrices(model=model)
+        M_L = js.model.link_spatial_inertia_matrices(model=model)[:, :3, :3]
 
         def imp_aref(
             pos: jtp.Vector,
@@ -619,7 +623,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
         def compute_row(
             *,
-            link_idx: jtp.Int,
+            M_Li: jtp.Matrix,
             pos: jtp.Vector,
             vel: jtp.Vector,
         ) -> tuple[jtp.Vector, jtp.Matrix, jtp.Vector, jtp.Vector]:
@@ -628,11 +632,7 @@ class RelaxedRigidContacts(common.ContactModel):
             ξ, a_ref, K, D = imp_aref(pos=pos, vel=vel)
 
             # Compute the regularization term.
-            R = (
-                (2 * μ**2 * (1 - ξ) / (ξ + 1e-12))
-                * (1 + μ**2)
-                @ jnp.linalg.inv(M_L[link_idx, :3, :3])
-            )
+            R = (2 * μ**2 * (1 - ξ) / (ξ + 1e-12)) * (1 + μ**2) @ jnp.linalg.inv(M_Li)
 
             # Return the computed values, setting them to zero in case of no contact.
             is_active = (pos.dot(pos) > 0).astype(float)
@@ -641,13 +641,11 @@ class RelaxedRigidContacts(common.ContactModel):
             )
 
         a_ref, R, K, D = jax.tree.map(
-            f=jnp.concatenate,
-            tree=(
-                *jax.vmap(compute_row)(
-                    link_idx=parent_link_idx_of_enabled_collidable_points,
-                    pos=position_constraint,
-                    vel=velocity_constraint,
-                ),
+            jnp.ravel,
+            jax.vmap(compute_row)(
+                M_Li=M_L,
+                pos=position_constraint,
+                vel=velocity_constraint,
             ),
         )
 

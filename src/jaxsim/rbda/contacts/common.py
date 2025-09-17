@@ -1,23 +1,21 @@
 from __future__ import annotations
 
 import abc
-import functools
 
 import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.math import STANDARD_GRAVITY
-from jaxsim.utils import JaxsimDataclass, CollidableShapeType
+from jaxsim.math import STANDARD_GRAVITY, Skew
+from jaxsim.utils import CollidableShapeType, JaxsimDataclass
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
 
-from .detection import sphere_plane, box_plane, cylinder_plane
+from .detection import box_plane, cylinder_plane, sphere_plane
 
 MAX_STIFFNESS = 1e6
 MAX_DAMPING = 1e4
@@ -30,39 +28,63 @@ _COLLISION_MAP = {
 }
 
 
-@functools.partial(jax.jit, static_argnames=("terrain",))
+@jax.jit
 def compute_penetration_data(
-    p: jtp.VectorLike,
-    v: jtp.VectorLike,
-    terrain: jaxsim.terrain.Terrain,
-    contact_parameters: js.kin_dyn_parameters.ContactParameters | None = None,
+    model: js.model.JaxSimModel,
+    *,
+    shape_type: CollidableShapeType,
+    shape_size: jtp.Vector,
+    link_transforms: jtp.Matrix,
+    link_velocities: jtp.Matrix,
 ) -> tuple[jtp.Float, jtp.Float, jtp.Vector]:
     """
     Compute the penetration data (depth, rate, and terrain normal) of a collidable point.
 
     Args:
-        p: The position of the collidable point.
-        v:
-            The linear velocity of the point (linear component of the mixed 6D velocity
-            of the implicit frame `C = (W_p_C, [W])` associated to the point).
-        terrain: The considered terrain.
-        contact_parameters: The parameters of the collidable shapes.
+        model: The model to consider.
+        shape_type: The type of the collidable shape.
+        shape_size: The size parameters of the collidable shape.
+        link_transforms: The transforms from the world frame to each link.
+        link_velocities: The linear and angular velocities of each link.
 
     Returns:
         A tuple containing the penetration depth, the penetration velocity,
-        and the considered terrain normal.
+        the terrain normal, the contact point position, and the contact point velocity
+        expressed in mixed representation.
     """
 
-    # Pre-process the position and the linear velocity of the collidable point.
-    distance_fn = _COLLISION_MAP[contact_parameters.shape_type]
+    W_H_L, W_ṗ_L = link_transforms, link_velocities
 
-    δ, W_H_C = distance_fn(
-        terrain=terrain,
-        size=contact_parameters.shape_size,
-        center=contact_parameters.center,
+    # Pre-process the position and the linear velocity of the collidable point.
+    # Note that we consider 3 candidate contact points also for spherical shapes,
+    # in which the output is padded with zeros.
+    # This is to allow parallel evaluation of the collision types.
+    δ, W_H_C = jax.lax.switch(
+        shape_type,
+        (sphere_plane, box_plane, cylinder_plane),
+        model.terrain,
+        shape_size,
+        W_H_L,
     )
 
-    return δ, W_H_C
+    W_p_C = W_H_C[:, :3, 3]
+    n̂ = W_H_C[:, :3, 2]
+
+    def process_shape_kinematics(W_p_Ci: jtp.Vector) -> jtp.Vector:
+
+        # Compute the velocity of the contact points.
+        CW_ṗ_Ci = jnp.block([jnp.eye(3), -Skew.wedge(vector=W_p_Ci).squeeze()]) @ W_ṗ_L
+
+        return CW_ṗ_Ci
+
+    CW_ṗ_C = jax.vmap(process_shape_kinematics)(W_p_C)
+
+    δ = jnp.maximum(0.0, -δ)
+
+    δ̇ = -jax.vmap(jnp.dot)(CW_ṗ_C, n̂)
+    δ̇ = jnp.where(δ > 0, δ̇, 0.0)
+
+    return δ, δ̇, n̂, W_p_C, CW_ṗ_C
 
 
 class ContactsParams(JaxsimDataclass):

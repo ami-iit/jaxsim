@@ -826,7 +826,7 @@ class ContactParameters(JaxsimDataclass):
         )
 
         shape_type = [
-            _COLLISION_SHAPE_MAP[type(shape)]
+            _COLLISION_SHAPE_MAP.get(type(shape), CollidableShapeType.Unsupported)
             for shape in model_description.collision_shapes
         ]
         shape_type = jnp.array(shape_type, dtype=int)

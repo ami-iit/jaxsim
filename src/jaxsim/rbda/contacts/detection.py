@@ -55,6 +55,7 @@ def sphere_plane(
     W_H_C = _contact_frame(normal, position)
 
     # Pad distance and transform to match expected output shapes.
+    # and allow parallel evaluation of the collision types.
     distance = jnp.pad(jnp.array([distance]), (0, 2), mode="empty")
     W_H_C = jnp.pad(W_H_C[jnp.newaxis, ...], ((0, 2), (0, 0), (0, 0)), mode="empty")
 
@@ -83,7 +84,7 @@ def box_plane(
     )  # shape (8,3)
 
     # Project box z-axis on terrain normal and ensure direction away from plane
-    sign = jnp.sign(R[:, 2] + 1e-12)
+    sign = jnp.sign(R[:, 2])
     R_corrected = R.at[:, 2].set(R[:, 2] * sign)
 
     # Transform to world frame
@@ -176,9 +177,6 @@ def cylinder_plane(
     vec1 = vec1 / (jnp.linalg.norm(vec1) + 1e-12) * r * jnp.sqrt(3.0) * 0.5
 
     # Distances of three candidate contacts:
-    #   d1 = top
-    #   d2 = side + top
-    #   d3 = side - top
     d1 = dist0 + prjaxis_h + prjvec
     d2 = dist0 + prjaxis_h + prjvec1
     dist = jnp.array([d1, d2, d2])
@@ -190,8 +188,8 @@ def cylinder_plane(
         + jnp.array(
             [
                 vec - n * d1 * 0.5,
-                vec1 + vec * -0.5 - n * d2 * 0.5,
-                -vec1 + vec * -0.5 - n * d2 * 0.5,
+                vec1 + vec * 0.5 + n * d2 * 0.5,
+                -vec1 + vec * 0.5 + n * d2 * 0.5,
             ]
         )
     )

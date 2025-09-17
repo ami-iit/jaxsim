@@ -1,21 +1,9 @@
-import os
-import pathlib
-from collections.abc import Callable
-from typing import TypeVar
-
 import numpy as np
-import numpy.typing as npt
 import rod
-import trimesh
-from rod.utils.resolve_uris import resolve_local_uri
 
 import jaxsim.typing as jtp
-from jaxsim import logging
 from jaxsim.math import Adjoint, Inertia
 from jaxsim.parsers import descriptions
-from jaxsim.parsers.rod import meshes
-
-MeshMappingMethod = TypeVar("MeshMappingMethod", bound=Callable[..., npt.NDArray])
 
 
 def from_sdf_inertial(inertial: rod.Inertial) -> jtp.Matrix:

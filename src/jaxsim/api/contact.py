@@ -10,7 +10,7 @@ import jaxsim.exceptions
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform
-from jaxsim.rbda.contacts import SoftContacts
+from jaxsim.rbda.contacts import SoftContacts, detection
 
 from .common import VelRepr
 
@@ -225,34 +225,33 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
         The stacked SE(3) matrices of all enabled collidable points.
 
     Note:
+        The output shape is (nL, 3, 4, 4), where nL is the number of links.
+        Three candidate contact points are considered for each collidable shape.
         Each collidable point is implicitly associated with a frame
         :math:`C = ({}^W p_C, [L])`, where :math:`{}^W p_C` is the position of the
         collidable point and :math:`[L]` is the orientation frame of the link it is
         rigidly attached to.
     """
 
-    # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_shapes = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
-    )
-
-    parent_link_idx_of_enabled_collidable_shapes = jnp.array(
-        model.kin_dyn_parameters.contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_shapes]
-
     # Get the transforms of the parent link of all collidable points.
-    W_H_L = data._link_transforms[parent_link_idx_of_enabled_collidable_shapes]
+    W_H_L = data._link_transforms
 
-    L_p_Ci = model.kin_dyn_parameters.contact_parameters.point[
-        indices_of_enabled_collidable_shapes
-    ]
+    def _process_single_shape(shape_type, shape_size, W_H_Li):
+        _, W_H_C = jax.lax.switch(
+            shape_type,
+            (detection.box_plane, detection.cylinder_plane, detection.sphere_plane),
+            model.terrain,
+            shape_size,
+            W_H_Li,
+        )
 
-    # Build the link-to-point transform from the displacement between the link frame L
-    # and the implicit contact frame C.
-    L_H_C = jax.vmap(jnp.eye(4).at[0:3, 3].set)(L_p_Ci)
+        return W_H_C
 
-    # Compose the work-to-link and link-to-point transforms.
-    return jax.vmap(lambda W_H_Li, L_H_Ci: W_H_Li @ L_H_Ci)(W_H_L, L_H_C)
+    return jax.vmap(_process_single_shape)(
+        model.kin_dyn_parameters.contact_parameters.shape_type,
+        model.kin_dyn_parameters.contact_parameters.shape_size,
+        W_H_L,
+    )
 
 
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])

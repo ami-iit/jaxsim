@@ -61,7 +61,7 @@ def compute_penetration_data(
     # This is to allow parallel evaluation of the collision types.
     δ, W_H_C = jax.lax.switch(
         shape_type,
-        (sphere_plane, box_plane, cylinder_plane),
+        (box_plane, cylinder_plane, sphere_plane),
         model.terrain,
         shape_size,
         W_H_L,

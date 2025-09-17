@@ -54,7 +54,7 @@ def system_acceleration(
     W_f_L_terrain = jnp.zeros_like(f_L)
     contact_state_derivative = {}
 
-    if len(model.kin_dyn_parameters.contact_parameters.body) > 0:
+    if len(model.kin_dyn_parameters.contact_parameters.center) > 0:
 
         # Compute the 6D forces W_f ∈ ℝ^{n_L × 6} applied to links due to contact
         # with the terrain.

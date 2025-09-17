@@ -13,10 +13,6 @@ Environment variables starting with ``JAXSIM_COLLISION_`` are used to configure 
 
   *Default:* ``50``.
 
-- ``JAXSIM_COLLISION_MESH_ENABLED``: Enables or disables mesh-based collision detection.
-
-  *Default:* ``False``.
-
 - ``JAXSIM_COLLISION_USE_BOTTOM_ONLY``: Limits collision detection to only the bottom half of the box or sphere.
 
   *Default:* ``False``.

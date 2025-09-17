@@ -282,69 +282,44 @@ def jacobian(
         rigidly attached to.
     """
 
-    output_vel_repr = (
-        output_vel_repr if output_vel_repr is not None else data.velocity_representation
-    )
+    output_vel_repr = output_vel_repr or data.velocity_representation
 
-    # Get the indices of the enabled collidable points.
-    indices_of_enabled_collidable_shapes = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
-    )
-
-    parent_link_idx_of_enabled_collidable_shapes = jnp.array(
-        model.kin_dyn_parameters.contact_parameters.body, dtype=int
-    )[indices_of_enabled_collidable_shapes]
-
-    # Compute the Jacobians of all links.
+    # Compute link-level Jacobians (n_links, 6, 6+n)
     W_J_WL = js.model.generalized_free_floating_jacobian(
         model=model, data=data, output_vel_repr=VelRepr.Inertial
     )
 
-    # Compute the contact Jacobian.
-    # In inertial-fixed output representation, the Jacobian of the parent link is also
-    # the Jacobian of the frame C implicitly associated with the collidable point.
-    W_J_WC = W_J_WL[parent_link_idx_of_enabled_collidable_shapes]
+    # Compute contact transforms (n_links, n_contacts, 4, 4)
+    W_H_C = transforms(model=model, data=data)
 
-    # Adjust the output representation.
+    # Flatten link × contact axes for single-batch processing (n_links*n_contacts, 6, 6+n)
+    W_J_WC_flat = jnp.repeat(W_J_WL, 3, axis=0)
+
+    # Flatten contact transforms (n_links*n_contacts, 4, 4)
+    W_H_C_flat = W_H_C.reshape(-1, 4, 4)
+
+    # Transform Jacobian based on velocity representation
     match output_vel_repr:
 
         case VelRepr.Inertial:
-            O_J_WC = W_J_WC
+            return W_J_WC_flat
 
         case VelRepr.Body:
 
-            W_H_C = transforms(model=model, data=data)
-
-            def body_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
-                C_X_W = jaxsim.math.Adjoint.from_transform(
-                    transform=W_H_C, inverse=True
-                )
-                C_J_WC = C_X_W @ W_J_WC
-                return C_J_WC
-
-            O_J_WC = jax.vmap(body_jacobian)(W_H_C, W_J_WC)
+            def transform_jacobian(H_C, J_WC):
+                return jaxsim.math.Adjoint.from_transform(H_C, inverse=True) @ J_WC
 
         case VelRepr.Mixed:
 
-            W_H_C = transforms(model=model, data=data)
-
-            def mixed_jacobian(W_H_C: jtp.Matrix, W_J_WC: jtp.Matrix) -> jtp.Matrix:
-
-                W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
-
-                CW_X_W = jaxsim.math.Adjoint.from_transform(
-                    transform=W_H_CW, inverse=True
-                )
-
-                CW_J_WC = CW_X_W @ W_J_WC
-                return CW_J_WC
-
-            O_J_WC = jax.vmap(mixed_jacobian)(W_H_C, W_J_WC)
+            def transform_jacobian(H_C, J_WC):
+                H_CW = H_C.at[0:3, 0:3].set(jnp.eye(3))
+                return jaxsim.math.Adjoint.from_transform(H_CW, inverse=True) @ J_WC
 
         case _:
-            raise ValueError(output_vel_repr)
+            raise ValueError(f"Unsupported velocity representation: {output_vel_repr}")
 
-    return O_J_WC
+    # Single vmap over all contact points
+    return jax.vmap(transform_jacobian)(W_H_C_flat, W_J_WC_flat)
 
 
 @functools.partial(jax.jit, static_argnames=["output_vel_repr"])

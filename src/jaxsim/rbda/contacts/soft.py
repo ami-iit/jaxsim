@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import functools
 
 import jax
 import jax.numpy as jnp
@@ -11,7 +10,6 @@ import jaxsim.api as js
 import jaxsim.math
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.terrain import Terrain
 
 from . import common
 
@@ -230,15 +228,12 @@ class SoftContacts(common.ContactModel):
             material deformation.
         """
 
+        # Use symbols for input parameters.
+        W_ṗ_C = velocity
+        m = tangential_deformation
         δ = penetration
         δ̇ = penetration_rate
         n̂ = normal
-
-        # Convert the input vectors to arrays.
-        W_ṗ_C = jnp.array(velocity, dtype=float).squeeze()
-        m = jnp.array(tangential_deformation, dtype=float).squeeze()
-
-        # Use symbol for the static friction.
         μ = mu
 
         # There are few operations like computing the norm of a vector with zero length
@@ -341,53 +336,63 @@ class SoftContacts(common.ContactModel):
         return CW_fl, ṁ
 
     @staticmethod
-    @functools.partial(jax.jit, static_argnames=("terrain",))
+    @jax.jit
     def compute_contact_force(
-        position: jtp.VectorLike,
-        velocity: jtp.VectorLike,
-        tangential_deformation: jtp.VectorLike,
+        penetration: jtp.Float,
+        penetration_rate: jtp.Float,
+        position: jtp.Vector,
+        velocity: jtp.Vector,
+        normal: jtp.Vector,
+        tangential_deformation: jtp.Vector,
         parameters: SoftContactsParams,
-        terrain: Terrain,
     ) -> tuple[jtp.Vector, jtp.Vector]:
         """
         Compute the contact force.
 
         Args:
-            position: The position of the collidable shape.
-            velocity: The velocity of the collidable shape.
+            penetration: The penetration of the collision point.
+            penetration_rate: The penetration rate of the collision point.
+            position: The position of the contact point.
+            velocity: The velocity of the contact point.
+            normal: The terrain normal at the contact point.
             tangential_deformation: The material deformation of the collidable shape.
             parameters: The parameters of the soft contacts model.
-            terrain: The terrain model.
 
         Returns:
             A tuple containing the computed contact force and the derivative of the
             material deformation.
         """
 
-        CW_fl, ṁ = SoftContacts.hunt_crossley_contact_model(
-            position=position,
-            velocity=velocity,
-            tangential_deformation=tangential_deformation,
-            terrain=terrain,
-            K=parameters.K,
-            D=parameters.D,
-            mu=parameters.mu,
-            p=parameters.p,
-            q=parameters.q,
+        CW_fl, ṁ = jax.vmap(
+            SoftContacts.hunt_crossley_contact_model,
+            in_axes=(0, 0, 0, 0, None, None, None, None, None, None),
+        )(
+            penetration,
+            penetration_rate,
+            velocity,
+            normal,
+            tangential_deformation,
+            parameters.K,
+            parameters.D,
+            parameters.mu,
+            parameters.p,
+            parameters.q,
         )
 
         # Pack a mixed 6D force.
-        CW_f = jnp.hstack([CW_fl, jnp.zeros(3)])
+        CW_f = jax.vmap(lambda f: jnp.hstack([f, jnp.zeros(3)]))(f=CW_fl)
 
         # Compute the 6D force transform from the mixed to the inertial-fixed frame.
-        W_Xf_CW = jaxsim.math.Adjoint.from_quaternion_and_translation(
-            translation=jnp.array(position), inverse=True
-        ).T
+        W_Xf_CW = jax.vmap(
+            lambda W_p_C: jaxsim.math.Adjoint.from_quaternion_and_translation(
+                translation=jnp.array(W_p_C), inverse=True
+            ).T
+        )(W_p_C=position)
 
         # Compute the 6D force in the inertial-fixed frame.
-        W_f = W_Xf_CW @ CW_f
+        W_f = jnp.einsum("...ij,...j->...i", W_Xf_CW, CW_f)
 
-        return W_f, ṁ
+        return jnp.sum(W_f, axis=0), jnp.mean(ṁ, axis=0)
 
     @staticmethod
     @jax.jit
@@ -410,29 +415,30 @@ class SoftContacts(common.ContactModel):
         # Compute the position and linear velocities (mixed representation) of
         # all the collidable shapes belonging to the robot and extract the ones
         # for the enabled collidable shapes.
-        W_p_C, W_ṗ_C = js.contact.collidable_shape_kinematics(model=model, data=data)
+        δ, δ̇, n̂, W_p_C, CW_ṗ_C = jax.vmap(
+            common.compute_penetration_data, in_axes=(None,)
+        )(
+            model,
+            shape_type=model.kin_dyn_parameters.contact_parameters.shape_type,
+            shape_size=model.kin_dyn_parameters.contact_parameters.shape_size,
+            link_transforms=data._link_transforms,
+            link_velocities=data._link_velocities,
+        )
 
         # Extract the material deformation corresponding to the collidable shapes.
-        m = (
-            data.contact_state["tangential_deformation"]
-            if "tangential_deformation" in data.contact_state
-            else jnp.zeros_like(W_p_C)
-        )
+        m = data.contact_state["tangential_deformation"]
 
         # Initialize the tangential deformation rate array for every collidable shape.
         ṁ = jnp.zeros_like(m)
 
-        # Compute the contact forces only for the enabled collidable shapes.
+        # Compute the contact forces for all the collidable shapes.
         # Since we treat them as independent, we can vmap the computation.
+        # We exploit two levels of vmap to vectorize over both the shapes and the points.
+        # The outer vmap vectorizes over the shapes, while the inner vmap vectorizes
+        # over the maximum points (3) belonging to each shape.
         W_f, ṁ = jax.vmap(
-            lambda p, v, m: SoftContacts.compute_contact_force(
-                center_position=p,
-                center_velocity=v,
-                tangential_deformation=m,
-                parameters=model.contact_params,
-                terrain=model.terrain,
-                size=model.kin_dyn_parameters.contact_parameters.shape_size,
-            )
-        )(W_p_C, W_ṗ_C, m)
+            SoftContacts.compute_contact_force,
+            in_axes=(0, 0, 0, 0, 0, 0, None),  # vectorize over shapes
+        )(δ, δ̇, W_p_C, CW_ṗ_C, n̂, m, model.contact_params)
 
         return W_f, {"m_dot": ṁ}

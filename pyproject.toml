@@ -55,7 +55,6 @@ dependencies = [
     "qpax",
     "rod >= 0.3.3",
     "typing_extensions ; python_version < '3.12'",
-    "trimesh",
 ]
 
 [project.optional-dependencies]
@@ -222,7 +221,6 @@ pptree = "*"
 optax = "*"
 qpax = "*"
 rod = "*"
-trimesh = "*"
 typing_extensions = "*"
 #
 # Optional dependencies.

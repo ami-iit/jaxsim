@@ -312,6 +312,8 @@ def extract_model_data(
 
     # Parse the collisions
     for link in sdf_model.links():
+        # If a link has multiple collision shapes, we consider only the first
+        # supported one with priority box > sphere > cylinder.
         for collision in link.collisions():
             if collision.geometry.box is not None:
                 box_collision = utils.create_box_collision(
@@ -320,7 +322,7 @@ def extract_model_data(
                 )
 
                 collisions.append(box_collision)
-                continue
+                break
 
             if collision.geometry.sphere is not None:
                 sphere_collision = utils.create_sphere_collision(
@@ -329,7 +331,7 @@ def extract_model_data(
                 )
 
                 collisions.append(sphere_collision)
-                continue
+                break
 
             if collision.geometry.cylinder is not None:
                 cylinder_collision = utils.create_cylinder_collision(
@@ -338,7 +340,7 @@ def extract_model_data(
                 )
 
                 collisions.append(cylinder_collision)
-                continue
+                break
 
             # Check any remaining non-None geometry types.
             for attr_name in collision.geometry.__dict__:
@@ -346,6 +348,16 @@ def extract_model_data(
                     logging.warning(
                         f"Skipping collision shape '{attr_name}' in link '{link.name}' as not supported."
                     )
+
+        else:
+            # Fill with unsupported collision shape
+            collisions.append(
+                descriptions.collision.CollisionShape(
+                    center=jnp.array([0.0, 0.0, 0.0]),
+                    size=jnp.array([0.0, 0.0, 0.0]),
+                    parent_link=link.name,
+                )
+            )
 
     return SDFData(
         model_name=sdf_model.name,

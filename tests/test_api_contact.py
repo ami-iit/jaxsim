@@ -1,5 +1,10 @@
 import jax
 import jax.numpy as jnp
+<<<<<<< HEAD
+=======
+import numpy as np
+import pytest
+>>>>>>> 91f80b4 (Fix contact API test)
 import rod
 
 import jaxsim.api as js
@@ -23,8 +28,6 @@ def test_contact_kinematics(
         velocity_representation=velocity_representation,
     )
 
-    parent_link_idx_of_collidable_shapes =
-
     # =====
     # Tests
     # =====
@@ -32,27 +35,16 @@ def test_contact_kinematics(
     # Compute the pose of the implicit contact frame associated to the collidable shapes
     # and the transforms of all links.
     W_H_C = js.contact.transforms(model=model, data=data)
-    W_H_L = data._link_transforms
-
-    # Check that the orientation of the implicit contact frame matches with the
-    # orientation of the link to which the contact shape is attached.
-    for contact_idx, index_of_parent_link in enumerate(
-        parent_link_idx_of_collidable_shapes
-    ):
-        assert_allclose(
-            W_H_C[contact_idx, 0:3, 0:3], W_H_L[index_of_parent_link][0:3, 0:3]
-        )
-
+ 
     # Check that the origin of the implicit contact frame is located over the
-    # collidable point.
-    W_p_C = js.contact.collidable_shape_positions(model=model, data=data)
-
-    assert_allclose(W_p_C, W_H_C[:, 0:3, 3])
+    # collidable shape.
+    W_p_C = js.contact.contact_point_positions(model=model, data=data)
+    assert_allclose(W_p_C, W_H_C[:, :, 0:3, 3])
 
     # Compute the velocity of the collidable shape.
     # This quantity always matches with the linear component of the mixed 6D velocity
     # of the implicit frame associated to the collidable shape.
-    W_ṗ_C = js.contact.collidable_shape_velocities(model=model, data=data)
+    W_ṗ_C = js.contact.contact_point_velocities(model=model, data=data)
 
     # Compute the velocity of the collidable shape using the contact Jacobian.
     ν = data.generalized_velocity
@@ -60,10 +52,10 @@ def test_contact_kinematics(
     CW_vl_WC = jnp.einsum("c6g,g->c6", CW_J_WC, ν)[:, 0:3]
 
     # Compare the two velocities.
-    assert_allclose(W_ṗ_C, CW_vl_WC)
+    assert_allclose(jnp.contatenate(W_ṗ_C), CW_vl_WC)
 
 
-def test_collidable_shape_jacobians(
+def test_contact_point_jacobians(
     jaxsim_models_types: js.model.JaxSimModel,
     velocity_representation: VelRepr,
     prng_key: jax.Array,
@@ -83,7 +75,7 @@ def test_collidable_shape_jacobians(
     # Compute the velocity of the collidable shapes with a RBDA.
     # This function always returns the linear part of the mixed velocity of the
     # implicit frame C corresponding to the collidable shape.
-    W_ṗ_C = js.contact.collidable_shape_velocities(model=model, data=data)
+    W_ṗ_C = js.contact.contact_point_velocities(model=model, data=data)
 
     # Compute the generalized velocity and the free-floating Jacobian of the frame C.
     ν = data.generalized_velocity
@@ -92,7 +84,7 @@ def test_collidable_shape_jacobians(
     # Compute the velocity of the collidable shapes using the Jacobians.
     v_WC_from_jax = jax.vmap(lambda J, ν: J @ ν, in_axes=(0, None))(CW_J_WC, ν)
 
-    assert_allclose(W_ṗ_C, v_WC_from_jax[:, 0:3])
+    assert_allclose(jnp.concatenate(W_ṗ_C), v_WC_from_jax[:, 0:3])
 
 
 def test_contact_jacobian_derivative(
@@ -110,22 +102,16 @@ def test_contact_jacobian_derivative(
         velocity_representation=velocity_representation,
     )
 
-    # Get the indices of the enabled collidable shapes.
-    indices_of_enabled_collidable_shapes = (
-        model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_shapes
+    W_H_L = data._link_transforms
+    W_p_C = js.contact.contact_point_positions(model=model, data=data)
+
+    # Vectorize over the 3 points for one link
+    transform_points = jax.vmap(
+        lambda H, p: H @ jnp.hstack([p, 1.0]), in_axes=(None, 0)
     )
 
-    # Extract the parent link names and the poses of the contact shapes.
-    parent_link_names = js.link.idxs_to_names(
-        model=model,
-        link_indices=jnp.array(
-            model.kin_dyn_parameters.contact_parameters.body, dtype=int
-        )[indices_of_enabled_collidable_shapes],
-    )
-
-    L_p_Ci = model.kin_dyn_parameters.contact_parameters.shape[
-        indices_of_enabled_collidable_shapes
-    ]
+    # Vectorize over the links
+    L_p_Ci = jax.vmap(transform_points, in_axes=(0, 0))(W_H_L, W_p_C)[..., :3]
 
     # =====
     # Tests
@@ -135,18 +121,22 @@ def test_contact_jacobian_derivative(
     rod_model = rod.Sdf.load(sdf=model.built_from).model
 
     # Add dummy frames on the contact shapes.
-    for idx, link_name, L_p_C in zip(
-        indices_of_enabled_collidable_shapes, parent_link_names, L_p_Ci, strict=True
+
+    for idx, link_name, points in zip(
+        np.arange(model.number_of_links()), model.link_names(), L_p_Ci, strict=True
     ):
-        rod_model.add_frame(
-            frame=rod.Frame(
-                name=f"contact_shape_{idx}",
-                attached_to=link_name,
-                pose=rod.Pose(
-                    relative_to=link_name, pose=jnp.zeros(shape=(6,)).at[0:3].set(L_p_C)
+        # points: shape (3, 3) for this link
+        for j, p in enumerate(points):
+            rod_model.add_frame(
+                frame=rod.Frame(
+                    name=f"contact_shape_{idx}_{j}",
+                    attached_to=link_name,
+                    pose=rod.Pose(
+                        relative_to=link_name,
+                        pose=jnp.zeros((6,)).at[0:3].set(p),
+                    ),
                 ),
-            ),
-        )
+            )
 
     # Rebuild the JaxSim model.
     model_with_frames = js.model.JaxSimModel.build_from_model_description(
@@ -172,12 +162,11 @@ def test_contact_jacobian_derivative(
     frame_idxs = js.frame.names_to_idxs(
         model=model_with_frames,
         frame_names=(
-            f"contact_shape_{idx}" for idx in indices_of_enabled_collidable_shapes
+            f"contact_shape_{idx}_{j}"
+            for idx in np.arange(model.number_of_links())
+            for j in range(3)
         ),
     )
-
-    # Check that the number of frames is correct.
-    assert len(frame_idxs) == len(parent_link_names)
 
     # Compute the contact Jacobian derivative.
     J̇_WC = js.contact.jacobian_derivative(

@@ -816,26 +816,25 @@ class ContactParameters(JaxsimDataclass):
         if len(model_description.collision_shapes) == 0:
             return ContactParameters()
 
+        shape_types, shape_sizes, centers = [], [], []
+
         # Assume the link_parameters and the collision_shapes are in the same order.
-        centers = jnp.array(
-            [shape.center for shape in model_description.collision_shapes]
-        )
+        for collision in model_description.collision_shapes:
+            shape_types.append(
+                _COLLISION_SHAPE_MAP.get(
+                    type(collision), CollidableShapeType.Unsupported
+                )
+            )
 
-        shape_size = jnp.array(
-            [shape.size.squeeze() for shape in model_description.collision_shapes]
-        )
+            shape_sizes.append(collision.size.squeeze())
 
-        shape_type = [
-            _COLLISION_SHAPE_MAP.get(type(shape), CollidableShapeType.Unsupported)
-            for shape in model_description.collision_shapes
-        ]
-        shape_type = jnp.array(shape_type, dtype=int)
+            centers.append(collision.center)
 
         # Build the ContactParameters object.
         return ContactParameters(
-            center=centers,
-            shape_type=shape_type,
-            shape_size=shape_size,
+            center=jnp.array(centers, dtype=float),
+            shape_type=jnp.array(shape_types, dtype=int),
+            shape_size=jnp.array(shape_sizes, dtype=float),
         )
 
 

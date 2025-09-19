@@ -383,11 +383,11 @@ def jacobian_derivative(
             W_X = Adjoint.from_transform(data.base_transform)
             W_Ẋ = W_X @ Cross.vx(data.base_velocity)
         case VelRepr.Mixed:
-            H_BW = data.base_transform.at[0:3, 0:3].set(jnp.eye(3))
-            X_BW = Adjoint.from_transform(H_BW)
-            v_BW = data.base_velocity.at[3:6].set(0)
-            W_X = X_BW
-            W_Ẋ = X_BW @ Cross.vx(v_BW)
+            W_H_BW = data.base_transform.at[0:3, 0:3].set(jnp.eye(3))
+            W_X_BW = Adjoint.from_transform(W_H_BW)
+            BW_v_W_BW = data.base_velocity.at[3:6].set(0)
+            W_X = W_X_BW
+            W_Ẋ = W_X_BW @ Cross.vx(BW_v_W_BW)
         case _:
             raise ValueError(data.velocity_representation)
 
@@ -400,14 +400,11 @@ def jacobian_derivative(
 
     with data.switch_velocity_representation(VelRepr.Inertial):
         # Compute the Jacobian of the parent link in inertial representation.
-        W_J_WL_W = js.model.generalized_free_floating_jacobian(
-            model=model,
-            data=data,
-        )
+        W_J_WL_W = js.model.generalized_free_floating_jacobian(model=model, data=data)
+
         # Compute the Jacobian derivative of the parent link in inertial representation.
         W_J̇_WL_W = js.model.generalized_free_floating_jacobian_derivative(
-            model=model,
-            data=data,
+            model=model, data=data
         )
 
     def compute_O_J̇_WC_I(W_H_C, W_v_WL, W_J_WL_W, W_J̇_WL_W) -> jtp.Matrix:
@@ -435,7 +432,7 @@ def jacobian_derivative(
     O_J̇_per_link = jax.vmap(
         lambda H_C_link, v_WL_link, J_WL_link, J̇_WL_link: jax.vmap(
             compute_O_J̇_WC_I,
-            in_axes=(0, None, None, None),  # Map over contacts for H_C only
+            in_axes=(0, None, None, None),  # Map over contacts for W_H_C only
         )(H_C_link, v_WL_link, J_WL_link, J̇_WL_link),
         in_axes=(0, 0, 0, 0),  # Map over links
     )(W_H_C, W_v_WL, W_J_WL_W, W_J̇_WL_W)

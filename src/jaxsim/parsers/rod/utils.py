@@ -103,15 +103,13 @@ def create_box_collision(
 
     x, y, z = collision.geometry.box.size
 
-    center = np.array([x / 2, y / 2, z / 2])
-
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
-    center_wrt_link = (H @ np.hstack([center, 1.0]))[0:-1]
+    center = H[:3, 3]
 
     return descriptions.BoxCollision(
         size=np.array([x, y, z]),
-        center=center_wrt_link,
+        center=center,
         parent_link=link_description.name,
     )
 

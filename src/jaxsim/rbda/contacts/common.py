@@ -32,6 +32,7 @@ _COLLISION_MAP = {
 def compute_penetration_data(
     model: js.model.JaxSimModel,
     *,
+    shape_offset: jtp.Vector,
     shape_type: CollidableShapeType,
     shape_size: jtp.Vector,
     link_transforms: jtp.Matrix,
@@ -42,6 +43,7 @@ def compute_penetration_data(
 
     Args:
         model: The model to consider.
+        shape_offset: The offset of the collidable shape with respect to the link frame.
         shape_type: The type of the collidable shape.
         shape_size: The size parameters of the collidable shape.
         link_transforms: The transforms from the world frame to each link.
@@ -54,6 +56,9 @@ def compute_penetration_data(
     """
 
     W_H_L, W_ṗ_L = link_transforms, link_velocities
+
+    # Offset the collision shape origin.
+    W_H_L = W_H_L.at[:3, 3].set(W_H_L[:3, 3] + shape_offset @ W_H_L[:3, :3].T)
 
     # Pre-process the position and the linear velocity of the collidable point.
     # Note that we consider 3 candidate contact points also for spherical shapes,

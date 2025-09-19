@@ -40,6 +40,7 @@ def contact_point_kinematics(
         jaxsim.rbda.contacts.common.compute_penetration_data, in_axes=(None,)
     )(
         model,
+        shape_offset=model.kin_dyn_parameters.contact_parameters.center,
         shape_type=model.kin_dyn_parameters.contact_parameters.shape_type,
         shape_size=model.kin_dyn_parameters.contact_parameters.shape_size,
         link_transforms=data._link_transforms,

@@ -159,7 +159,7 @@ If you need URDF support, follow the [official instructions](https://gazebosim.o
 making sure to obtain `sdformat ≥ 13.0` and `gz-tools ≥ 2.0`.
 
 You don't need to install the entire Gazebo Sim suite.
-For example, on Ubuntu, you can only install the `libsdformat13 gz-tools2` packages.
+For example, on Ubuntu, it is sufficient to install the `libsdformat*` and `gz-tools2` packages.
 
 If you need GPU support, follow the official [installation instructions][jax_gpu] of JAX.
 

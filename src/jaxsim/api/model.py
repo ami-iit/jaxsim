@@ -247,7 +247,7 @@ class JaxSimModel(JaxsimDataclass):
                 The optional name of the model overriding the physics model name.
             contact_model:
                 The contact model to consider.
-                If not specified, a relaxed-constraints rigid contacts model is used.
+                If not specified, a soft contact model is used.
             contact_params: The parameters of the contact model.
             actuation_params: The parameters of the actuation model.
             integrator: The integrator to use for the simulation.
@@ -282,7 +282,7 @@ class JaxSimModel(JaxsimDataclass):
         contact_model = (
             contact_model
             if contact_model is not None
-            else jaxsim.rbda.contacts.RelaxedRigidContacts.build()
+            else jaxsim.rbda.contacts.SoftContacts.build()
         )
 
         if contact_params is None:

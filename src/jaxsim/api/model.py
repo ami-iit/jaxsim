@@ -2350,9 +2350,6 @@ def update_hw_parameters(
 
     Returns:
         The updated JaxSimModel object with modified hardware parameters.
-
-    Note:
-        This function can be used only with models using Relax-Rigid contact model.
     """
 
     kin_dyn_params: KinDynParameters = model.kin_dyn_parameters

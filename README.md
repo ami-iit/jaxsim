@@ -155,6 +155,12 @@ pip install jaxsim
 Check [`pyproject.toml`](pyproject.toml) for the complete list of optional dependencies.
 You can obtain a full installation using `jaxsim[all]`.
 
+If you need URDF support, follow the [official instructions](https://gazebosim.org/docs) to install Gazebo Sim on your operating system,
+making sure to obtain `sdformat ≥ 13.0` and `gz-tools ≥ 2.0`.
+
+You don't need to install the entire Gazebo Sim suite.
+For example, on Ubuntu, you can only install the `libsdformat13 gz-tools2` packages.
+
 If you need GPU support, follow the official [installation instructions][jax_gpu] of JAX.
 
 </details>

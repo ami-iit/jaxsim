@@ -1,13 +1,19 @@
 import contextlib
 import pathlib
-from collections.abc import Iterator, Sequence
+import queue
+import threading
+import time
+from collections.abc import Callable, Iterator, Sequence
 
 import mediapy as media
 import mujoco as mj
 import mujoco.viewer
 import numpy as np
 import numpy.typing as npt
+from mujoco.viewer import Handle
 from scipy.spatial.transform import Rotation
+
+KeyCallbackType = Callable[[int], None]
 
 
 class MujocoVideoRecorder:
@@ -383,3 +389,189 @@ class MujocoVisualizer:
             viewer.cam.elevation = float(elevation)
 
         return viewer
+
+
+class MujocoMultiVisualizer:
+    """
+    Visualizer for multiple MuJoCo models visualization in the
+    interactive passive viewer.
+
+    Note:
+        This class is experimental. Stability is not guaranteed.
+    """
+
+    _cam: mj.MjvCamera
+    _opt: mj.MjvOption
+    _pert: mj.MjvPerturb
+    _user_scn: mj.MjvScene
+
+    def __init__(
+        self,
+        model: list[mj.MjModel],
+        data: list[mj.MjData],
+    ):
+        """
+        Initialize the Mujoco multi-visualizer.
+        Args:
+            model: The list of Mujoco models.
+            data: The list of Mujoco data.
+        """
+
+        if not isinstance(model, list):
+            model = [model]
+        if not isinstance(data, list):
+            data = [data]
+
+        if len(model) != len(data):
+            raise ValueError("Models and data must have the same length")
+
+        self.model = model
+        self.data = data
+
+    def _launch_internal_multi(
+        self,
+        handle_return: queue.Queue[Handle] | None = None,
+        key_callback: KeyCallbackType | None = None,
+        show_left_ui: bool = False,
+        show_right_ui: bool = False,
+    ):
+        from mujoco.viewer import _Simulate
+
+        cam = mujoco.MjvCamera()
+        opt = mujoco.MjvOption()
+        pert = mujoco.MjvPerturb()
+        user_scn = mujoco.MjvScene(self.model[0], _Simulate.MAX_GEOM)
+
+        simulate = _Simulate(cam, opt, pert, user_scn, False, key_callback)
+
+        self._cam = cam
+        self._opt = opt
+        self._pert = pert
+        self._user_scn = user_scn
+
+        simulate.ui0_enable = show_left_ui
+        simulate.ui1_enable = show_right_ui
+
+        if handle_return:
+
+            def notify_loaded():
+                handle_return.put_nowait(Handle(simulate, cam, opt, pert, user_scn))
+
+        else:
+            notify_loaded = None
+
+        def physics_loop():
+            while not simulate.exitrequest:
+                if simulate.run:
+                    for m, d in zip(self.model, self.data, strict=True):
+                        mujoco.mj_forward(m, d)
+
+                    simulate.sync()  # update viewer state
+                    # simulate.update_scene(data=self.data[0])
+
+                    for idx in range(1, len(self.model)):
+                        mujoco.mjv_addGeoms(
+                            m=self.model[idx],
+                            d=self.data[idx],
+                            opt=self._opt,
+                            pert=self._pert,
+                            catmask=mujoco.mjtCatBit.mjCAT_DYNAMIC,
+                            scn=self._user_scn,
+                        )
+                else:
+                    time.sleep(0.01)  # pause loop when not running
+
+        t = threading.Thread(target=physics_loop, daemon=True)
+        t.start()
+
+        handle_return and notify_loaded()
+        simulate.render_loop()
+        t.join()
+
+    def sync(self, viewer: Handle) -> None:
+        """
+        Update the viewer with the current model and data.
+
+        Args:
+            viewer: The MuJoCo viewer handle.
+        """
+
+        with viewer.lock():
+            for m, d in zip(self.model, self.data, strict=True):
+                mujoco.mj_forward(m, d)
+
+            # Clear and rebuild scene for multi-model visualization
+            mujoco.mjv_makeScene(self.model[0], self._user_scn, self._opt, self._pert)
+
+            for idx in range(1, len(self.model)):
+                mujoco.mjv_addGeoms(
+                    m=self.model[idx],
+                    d=self.data[idx],
+                    opt=self._opt,
+                    pert=self._pert,
+                    catmask=mujoco.mjtCatBit.mjCAT_ALL,
+                    scn=self._user_scn,
+                )
+
+            viewer.sync()
+
+    def open_viewer(
+        self,
+        show_left_ui: bool = False,
+        show_right_ui: bool = False,
+        key_callback: KeyCallbackType | None = None,
+    ) -> Handle:
+        """
+        Open a viewer.
+
+        Args:
+            show_left_ui: Whether to show the left UI panel.
+            show_right_ui: Whether to show the right UI panel.
+            key_callback: Optional callback function for key events.
+
+        Returns:
+            The MuJoCo viewer handle.
+        """
+        handle_return = queue.Queue(1)
+        thread = threading.Thread(
+            target=self._launch_internal_multi,
+            kwargs=dict(
+                handle_return=handle_return,
+                key_callback=key_callback,
+                show_left_ui=show_left_ui,
+                show_right_ui=show_right_ui,
+            ),
+        )
+        thread.daemon = True
+        thread.start()
+        return handle_return.get()
+
+    @contextlib.contextmanager
+    def open(
+        self,
+        show_left_ui: bool = False,
+        show_right_ui: bool = False,
+        key_callback: KeyCallbackType | None = None,
+    ):
+        """
+        Context manager to open the Mujoco passive viewer for multiple models.
+
+        Args:
+            show_left_ui: Whether to show the left UI panel.
+            show_right_ui: Whether to show the right UI panel.
+            key_callback: Optional callback function for key events.
+
+        Yields:
+            The MuJoCo viewer handle.
+        """
+
+        handle = self.open_viewer(
+            show_left_ui=show_left_ui,
+            show_right_ui=show_right_ui,
+            key_callback=key_callback,
+        )
+
+        try:
+            yield handle
+        finally:
+            handle.close()

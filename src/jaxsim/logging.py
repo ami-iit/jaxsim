@@ -1,7 +1,44 @@
 import enum
+import inspect
 import logging
+import os
+import warnings
 
 import coloredlogs
+
+
+class JaxSimWarning(UserWarning):
+    pass
+
+
+_original_showwarning = warnings.showwarning
+_jaxsim_root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def pretty_jaxsim_warning(message, category, filename, lineno, file=None, line=None):
+    try:
+        caller_frame = inspect.stack()[2]
+        caller_file = caller_frame.filename
+    except Exception:
+        caller_file = filename
+
+    if caller_file.startswith(_jaxsim_root_dir):
+        print(f"\033[93m⚠️  {category.__name__}:\033[0m {message}")
+        print(f"   → {filename}:{lineno}")
+    else:
+        _original_showwarning(message, category, filename, lineno, file, line)
+
+
+# Register filter & formatter only for JaxSimWarning
+# and configure it to show each warning only once
+warnings.showwarning = pretty_jaxsim_warning
+warnings.filterwarnings("once")
+
+
+# Utility function to issue a JaxSim warning
+def jaxsim_warn(msg):
+    warnings.warn(msg, category=JaxSimWarning, stacklevel=2)
+
 
 LOGGER_NAME = "jaxsim"
 

@@ -5,6 +5,7 @@ import itertools
 from collections.abc import Sequence
 
 from jaxsim import logging
+from jaxsim.logging import jaxsim_warn
 
 from ..kinematic_graph import KinematicGraph, KinematicGraphTransforms, RootPose
 from .collision import CollidablePoint, CollisionShape
@@ -164,7 +165,7 @@ class ModelDescription(KinematicGraph):
             A `ModelDescription` instance that only includes the considered joints.
         """
 
-        logging.warning(
+        jaxsim_warn(
             "The joint order in the model description is not preserved when reducing "
             "the model. Consider using the `names_to_indices` method to get the correct "
             "order of the joints, or use the `joint_names()` method to inspect the internal joint ordering."

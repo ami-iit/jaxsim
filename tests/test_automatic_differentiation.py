@@ -297,7 +297,7 @@ def test_ad_soft_contacts(
     model = jaxsim_models_types
 
     with model.editable(validate=False) as model:
-        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build(model=model)
+        model.contact_model = jaxsim.rbda.contacts.SoftContacts.build()
 
     _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
     p = jax.random.uniform(subkey1, shape=(3,), minval=-1)

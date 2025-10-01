@@ -130,16 +130,12 @@ class SoftContacts(common.ContactModel):
     @classmethod
     def build(
         cls: type[Self],
-        model: js.model.JaxSimModel | None = None,
         **kwargs,
     ) -> Self:
         """
         Create a `SoftContacts` instance with specified parameters.
 
         Args:
-            model:
-                The robot model considered by the contact model.
-                If passed, it is used to estimate good default parameters.
             **kwargs: Additional parameters to pass to the contact model.
 
         Returns:

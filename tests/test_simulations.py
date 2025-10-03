@@ -9,6 +9,8 @@ import jaxsim.typing as jtp
 from jaxsim import VelRepr
 from jaxsim.api.kin_dyn_parameters import ConstraintType
 
+from .utils import assert_allclose
+
 
 def test_box_with_external_forces(
     jaxsim_model_box: js.model.JaxSimModel,
@@ -79,8 +81,8 @@ def test_box_with_external_forces(
         )
 
     # Check that the box didn't move.
-    assert data.base_position == pytest.approx(data0.base_position)
-    assert data.base_orientation == pytest.approx(data0.base_orientation)
+    assert_allclose(data.base_position, data0.base_position)
+    assert_allclose(data.base_orientation, data0.base_orientation)
 
 
 def test_box_with_zero_gravity(
@@ -157,10 +159,11 @@ def test_box_with_zero_gravity(
             )
 
     # Check that the box moved as expected.
-    assert data.base_position == pytest.approx(
+    assert_allclose(
+        data.base_position,
         data0.base_position
         + 0.5 * LW_f[:, :3].squeeze() / js.model.total_mass(model=model) * tf**2,
-        abs=1e-3,
+        atol=1e-3,
     )
 
 
@@ -235,8 +238,8 @@ def test_simulation_with_soft_contacts(
 
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
-    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
-    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
+    assert_allclose(data_tf.base_position[0:2], data_t0.base_position[0:2])
+    assert_allclose(data_tf.base_position[2] + max_penetration, box_height / 2)
 
 
 def test_simulation_with_rigid_contacts(
@@ -285,8 +288,8 @@ def test_simulation_with_rigid_contacts(
 
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
-    assert data_tf.base_position[0:2] == pytest.approx(data_t0.base_position[0:2])
-    assert data_tf.base_position[2] + max_penetration == pytest.approx(box_height / 2)
+    assert_allclose(data_tf.base_position[0:2], data_t0.base_position[0:2])
+    assert_allclose(data_tf.base_position[2] + max_penetration, box_height / 2)
 
 
 def test_simulation_with_relaxed_rigid_contacts(
@@ -335,11 +338,9 @@ def test_simulation_with_relaxed_rigid_contacts(
     data_tf = run_simulation(model=model, data_t0=data_t0, tf=1.0)
 
     # With this contact model, we need to slightly increase the tolerances.
-    assert data_tf.base_position[0:2] == pytest.approx(
-        data_t0.base_position[0:2], abs=0.000_010
-    )
-    assert data_tf.base_position[2] + max_penetration == pytest.approx(
-        box_height / 2, abs=0.000_100
+    assert_allclose(data_tf.base_position[0:2], data_t0.base_position[0:2], atol=1e-5)
+    assert_allclose(
+        data_tf.base_position[2] + max_penetration, box_height / 2, atol=1e-4
     )
 
 
@@ -465,9 +466,12 @@ def test_simulation_with_kinematic_constraints_double_pendulum(
     actual_delta_s_tf = jnp.abs(data_tf.joint_positions[0] - data_tf.joint_positions[1])
     expected_delta_s_tf = 0.0
 
-    assert expected_delta_s_tf == pytest.approx(
-        actual_delta_s_tf, abs=1e-2
-    ), f"Joint positions do not match expected value. Position difference [deg]: {actual_delta_s_tf * 180 / np.pi}"
+    assert_allclose(
+        expected_delta_s_tf,
+        actual_delta_s_tf,
+        atol=1e-2,
+        err_msg=f"Position difference [deg]: {actual_delta_s_tf * 180 / np.pi}",
+    )
 
 
 def test_simulation_with_kinematic_constraints_cartpole(
@@ -539,9 +543,7 @@ def test_simulation_with_kinematic_constraints_cartpole(
     actual_frame_error = jnp.linalg.inv(H_frame1) @ H_frame2
     expected_frame_error = jnp.eye(4)
 
-    assert actual_frame_error == pytest.approx(
-        expected_frame_error, abs=1e-3
-    ), f"Frames do not match expected value. Frame error:\n{actual_frame_error}\nPosition error [m]: {H_frame1[:3, 3] - H_frame2[:3, 3]}"
+    assert_allclose(actual_frame_error, expected_frame_error, atol=1e-3)
 
 
 def test_simulation_with_kinematic_constraints_4_bar_linkage(
@@ -606,14 +608,10 @@ def test_simulation_with_kinematic_constraints_4_bar_linkage(
     # Position check
     pos1 = H_frame1[:3, 3]
     pos2 = H_frame2[:3, 3]
-    assert pos1 == pytest.approx(
-        pos2, abs=1e-6
-    ), f"Frame position mismatch. pos1={pos1}, pos2={pos2}, diff={pos1 - pos2}"
+    assert_allclose(pos1, pos2, atol=1e-6)
 
     # Orientation check
     R1 = H_frame1[:3, :3]
     R2 = H_frame2[:3, :3]
     R_err = R1.T @ R2
-    assert R_err == pytest.approx(
-        jnp.eye(3), abs=1e-3
-    ), f"Frame orientation mismatch. R_err=\n{R_err}"
+    assert_allclose(R_err, jnp.eye(3), atol=1e-3)

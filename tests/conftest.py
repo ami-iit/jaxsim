@@ -6,9 +6,9 @@ import pathlib
 import subprocess
 
 import jax
+import numpy as np
 import pytest
 import rod
-import rod.urdf
 import rod.urdf.exporter
 
 import jaxsim
@@ -376,7 +376,6 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
         The JaxSim model of a single pendulum.
     """
 
-    import numpy as np
     import rod.builder.primitives
 
     base_height = 2.15

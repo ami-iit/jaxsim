@@ -2,12 +2,14 @@ import jax
 import jax.numpy as jnp
 import pytest
 from jax.errors import JaxRuntimeError
+from numpy.testing import assert_array_equal
 
 import jaxsim.api as js
 from jaxsim import VelRepr
 from jaxsim.math.quaternion import Quaternion
 
-from . import utils_idyntree
+from . import utils
+from .utils import assert_allclose
 
 
 def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
@@ -31,9 +33,10 @@ def test_frame_index(jaxsim_models_types: js.model.JaxSimModel):
         )
 
     # See discussion in https://github.com/ami-iit/jaxsim/pull/280
-    assert js.frame.names_to_idxs(
-        model=model, frame_names=model.frame_names()
-    ) == pytest.approx(jnp.arange(n_l, n_l + n_f))
+    assert_array_equal(
+        js.frame.names_to_idxs(model=model, frame_names=model.frame_names()),
+        jnp.arange(n_l, n_l + n_f),
+    )
 
     assert (
         js.frame.idxs_to_names(
@@ -81,9 +84,7 @@ def test_frame_transforms(
         model=model, key=subkey, velocity_representation=VelRepr.Inertial
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # Get all names of frames in the iDynTree model.
     frame_names = [
@@ -120,7 +121,9 @@ def test_frame_transforms(
             frame_index=js.frame.name_to_idx(model=model, frame_name=frame_name),
         )
         W_H_F_idt = kin_dyn.frame_transform(frame_name=frame_name)
-        assert W_H_F_js == pytest.approx(W_H_F_idt, abs=1e-6), frame_name
+        assert_allclose(
+            W_H_F_js, W_H_F_idt, atol=1e-6, err_msg=f"Mismatch in {frame_name}"
+        )
 
 
 def test_frame_jacobians(
@@ -136,9 +139,7 @@ def test_frame_jacobians(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # Get all names of frames in the iDynTree model.
     frame_names = [
@@ -169,13 +170,13 @@ def test_frame_jacobians(
 
         J_WL_js = js.frame.jacobian(model=model, data=data, frame_index=frame_index)
         J_WL_idt = kin_dyn.jacobian_frame(frame_name=frame_name)
-        assert J_WL_js == pytest.approx(J_WL_idt, abs=1e-9)
+        assert_allclose(J_WL_js, J_WL_idt, err_msg=f"Mismatch in {frame_name}")
 
     for frame_name, frame_index in zip(frame_names, frame_indices, strict=True):
 
         v_WF_idt = kin_dyn.frame_velocity(frame_name=frame_name)
         v_WF_js = js.frame.velocity(model=model, data=data, frame_index=frame_index)
-        assert v_WF_js == pytest.approx(v_WF_idt), frame_name
+        assert_allclose(v_WF_js, v_WF_idt, err_msg=f"Mismatch in {frame_name}")
 
 
 def test_frame_jacobian_derivative(
@@ -190,9 +191,7 @@ def test_frame_jacobian_derivative(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # Get all names of frames in the iDynTree model.
     frame_names = [
@@ -283,7 +282,7 @@ def test_frame_jacobian_derivative(
     dJ_dq = jax.jacfwd(J, argnums=0)(q, frame_idxs)
     O_J̇_ad_WF_I = jnp.einsum("ijkq,q->ijk", dJ_dq, q̇)
 
-    assert O_J̇_WF_I == pytest.approx(expected=O_J̇_ad_WF_I)
+    assert_allclose(O_J̇_WF_I, O_J̇_ad_WF_I)
 
     # =====================
     # Test against iDynTree
@@ -299,4 +298,4 @@ def test_frame_jacobian_derivative(
     for index, name in enumerate(frame_names):
         J̇ν_idt = kin_dyn.frame_bias_acc(frame_name=name)
         J̇ν_js = O_a_bias_WF[index]
-        assert J̇ν_js == pytest.approx(J̇ν_idt, abs=1e-9)
+        assert_allclose(J̇ν_js, J̇ν_idt, err_msg=f"Mismatch in {name}")

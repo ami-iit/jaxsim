@@ -2,12 +2,14 @@ import jax
 import jax.numpy as jnp
 import pytest
 from jax.errors import JaxRuntimeError
+from numpy.testing import assert_array_equal
 
 import jaxsim.api as js
 import jaxsim.math
 from jaxsim import VelRepr
 
-from . import utils_idyntree
+from . import utils
+from .utils import assert_allclose
 
 
 def test_link_index(
@@ -25,9 +27,10 @@ def test_link_index(
         assert js.link.idx_to_name(model=model, link_index=idx) == link_name
 
     # See discussion in https://github.com/ami-iit/jaxsim/pull/280
-    assert js.link.names_to_idxs(
-        model=model, link_names=model.link_names()
-    ) == pytest.approx(jnp.arange(model.number_of_links()))
+    assert_array_equal(
+        js.link.names_to_idxs(model=model, link_names=model.link_names()),
+        jnp.arange(model.number_of_links()),
+    )
 
     assert (
         js.link.idxs_to_names(
@@ -65,9 +68,7 @@ def test_link_inertial_properties(
         velocity_representation=VelRepr.Inertial,
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # =====
     # Tests
@@ -81,13 +82,17 @@ def test_link_inertial_properties(
         if link_name == model.base_link():
             continue
 
-        assert js.link.mass(model=model, link_index=link_idx) == pytest.approx(
-            kin_dyn.link_mass(link_name=link_name)
-        ), link_name
+        assert_allclose(
+            js.link.mass(model=model, link_index=link_idx),
+            kin_dyn.link_mass(link_name=link_name),
+            err_msg=f"Mismatch in {link_name}",
+        )
 
-        assert js.link.spatial_inertia(
-            model=model, link_index=link_idx
-        ) == pytest.approx(kin_dyn.link_spatial_inertia(link_name=link_name)), link_name
+        assert_allclose(
+            js.link.spatial_inertia(model=model, link_index=link_idx),
+            kin_dyn.link_spatial_inertia(link_name=link_name),
+            err_msg=f"Mismatch in {link_name}",
+        )
 
 
 def test_link_transforms(
@@ -104,9 +109,7 @@ def test_link_transforms(
         velocity_representation=VelRepr.Inertial,
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # =====
     # Tests
@@ -118,13 +121,15 @@ def test_link_transforms(
         lambda idx: js.link.transform(model=model, data=data, link_index=idx)
     )(jnp.arange(model.number_of_links()))
 
-    assert W_H_LL_model == pytest.approx(W_H_LL_links)
+    assert_allclose(W_H_LL_model, W_H_LL_links)
 
     for W_H_L, link_name in zip(W_H_LL_links, model.link_names(), strict=True):
 
-        assert W_H_L == pytest.approx(
-            kin_dyn.frame_transform(frame_name=link_name)
-        ), link_name
+        assert_allclose(
+            W_H_L,
+            kin_dyn.frame_transform(frame_name=link_name),
+            err_msg=f"Mismatch in {link_name}",
+        )
 
 
 def test_link_jacobians(
@@ -142,9 +147,7 @@ def test_link_jacobians(
         velocity_representation=velocity_representation,
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # =====
     # Tests
@@ -155,13 +158,16 @@ def test_link_jacobians(
     )(jnp.arange(model.number_of_links()))
 
     for J_WL, link_name in zip(J_WL_links, model.link_names(), strict=True):
-        assert J_WL == pytest.approx(
-            kin_dyn.jacobian_frame(frame_name=link_name), abs=1e-9
-        ), link_name
+        assert_allclose(
+            J_WL,
+            kin_dyn.jacobian_frame(frame_name=link_name),
+            err_msg=f"Mismatch in {link_name}",
+        )
 
     # The following is true only in inertial-fixed representation.
     J_WL_model = js.model.generalized_free_floating_jacobian(model=model, data=data)
-    assert J_WL_model == pytest.approx(J_WL_links)
+
+    assert_allclose(J_WL_model, J_WL_links)
 
     for link_name, link_idx in zip(
         model.link_names(),
@@ -170,7 +176,8 @@ def test_link_jacobians(
     ):
         v_WL_idt = kin_dyn.frame_velocity(frame_name=link_name)
         v_WL_js = js.link.velocity(model=model, data=data, link_index=link_idx)
-        assert v_WL_js == pytest.approx(v_WL_idt), link_name
+
+        assert_allclose(v_WL_js, v_WL_idt, err_msg=f"Mismatch in {link_name}")
 
     # Test conversion to a different output velocity representation.
     for other_repr in {VelRepr.Inertial, VelRepr.Body, VelRepr.Mixed}.difference(
@@ -178,10 +185,8 @@ def test_link_jacobians(
     ):
 
         with data.switch_velocity_representation(other_repr):
-            kin_dyn_other_repr = (
-                utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-                    model=model, data=data
-                )
+            kin_dyn_other_repr = utils.build_kindyncomputations_from_jaxsim_model(
+                model=model, data=data
             )
 
         for link_name, link_idx in zip(
@@ -193,7 +198,8 @@ def test_link_jacobians(
             v_WL_js = js.link.velocity(
                 model=model, data=data, link_index=link_idx, output_vel_repr=other_repr
             )
-            assert v_WL_js == pytest.approx(v_WL_idt), link_name
+
+            assert_allclose(v_WL_js, v_WL_idt, err_msg=f"Mismatch in {link_name}")
 
 
 def test_link_bias_acceleration(
@@ -211,9 +217,7 @@ def test_link_bias_acceleration(
         velocity_representation=velocity_representation,
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # =====
     # Tests
@@ -226,7 +230,8 @@ def test_link_bias_acceleration(
     ):
         Jν_idt = kin_dyn.frame_bias_acc(frame_name=name)
         Jν_js = js.link.bias_acceleration(model=model, data=data, link_index=index)
-        assert pytest.approx(Jν_idt) == Jν_js
+
+        assert_allclose(Jν_js, Jν_idt, err_msg=f"Mismatch in {name}")
 
     # Test that the conversion of the link bias acceleration works as expected.
     match data.velocity_representation:
@@ -255,7 +260,7 @@ def test_link_bias_acceleration(
                     lambda W_X_L, L_a_bias_WL: W_X_L @ L_a_bias_WL
                 )(W_X_L, L_a_bias_WL)
 
-            assert W_a_bias_WL == pytest.approx(W_a_bias_WL_converted)
+            assert_allclose(W_a_bias_WL, W_a_bias_WL_converted)
 
         # Body-fixed to inertial-fixed conversion.
         case VelRepr.Body:
@@ -278,7 +283,7 @@ def test_link_bias_acceleration(
                     lambda L_X_W, W_a_bias_WL: L_X_W @ W_a_bias_WL
                 )(L_X_W, W_a_bias_WL)
 
-            assert L_a_bias_WL == pytest.approx(L_a_bias_WL_converted)
+            assert_allclose(L_a_bias_WL, L_a_bias_WL_converted)
 
 
 def test_link_jacobian_derivative(
@@ -314,9 +319,7 @@ def test_link_jacobian_derivative(
     O_a_bias_WL = js.model.link_bias_accelerations(model=model, data=data)
 
     # Compare the two computations.
-    assert jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν) == pytest.approx(
-        O_a_bias_WL, abs=1e-9
-    )
+    assert_allclose(jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν), O_a_bias_WL)
 
     # Compute the plain Jacobian.
     # This function will be used to compute the Jacobian derivative with AD.
@@ -373,7 +376,8 @@ def test_link_jacobian_derivative(
     dJ_dq = jax.jacfwd(J, argnums=0)(q)
     O_J̇_ad_WL_I = jnp.einsum("ijkq,q->ijk", dJ_dq, q̇)
 
-    assert O_J̇_ad_WL_I == pytest.approx(O_J̇_WL_I)
-    assert jnp.einsum("l6g,g->l6", O_J̇_ad_WL_I, I_ν) == pytest.approx(
-        jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν)
+    assert_allclose(O_J̇_WL_I, O_J̇_ad_WL_I)
+    assert_allclose(
+        jnp.einsum("l6g,g->l6", O_J̇_ad_WL_I, I_ν),
+        jnp.einsum("l6g,g->l6", O_J̇_WL_I, I_ν),
     )

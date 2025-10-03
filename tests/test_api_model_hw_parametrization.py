@@ -7,6 +7,8 @@ import jaxsim.api as js
 from jaxsim.api.kin_dyn_parameters import HwLinkMetadata, ScalingFactors
 from jaxsim.rbda.contacts import SoftContactsParams
 
+from .utils import assert_allclose
+
 
 def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
     """
@@ -49,12 +51,17 @@ def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
         #     initial_metadata_link.shape, scaling_parameters.dims[link_idx]
         # )
 
+        expected_link_dimensions = (
+            initial_metadata_link.geometry * scaling_parameters.dims[link_idx]
+        )
+
         # Compare shape dimensions
-        assert jnp.allclose(
+        assert_allclose(
             updated_metadata.geometry,
-            initial_metadata_link.geometry * scaling_parameters.dims[link_idx],
+            expected_link_dimensions,
             atol=1e-6,
-        ), f"Mismatch in dimensions for link {link_name}: expected {initial_metadata_link.geometry * scaling_parameters.dims[link_idx]}, got {updated_metadata.geometry}"
+            err_msg=f"Mismatch in dimensions for link {link_name}",
+        )
 
 
 @pytest.mark.parametrize(
@@ -101,23 +108,23 @@ def test_model_scaling_against_rod(
     pre_scaled_metadata = jaxsim_model_garpez_scaled.kin_dyn_parameters.hw_link_metadata
 
     # Compare shape dimensions
-    assert jnp.allclose(
-        scaled_metadata.geometry, pre_scaled_metadata.geometry, atol=1e-6
-    )
+    assert_allclose(scaled_metadata.geometry, pre_scaled_metadata.geometry, atol=1e-6)
 
     # Compare mass
     scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(scaled_metadata)
     pre_scaled_mass, _ = HwLinkMetadata.compute_mass_and_inertia(pre_scaled_metadata)
-    assert scaled_mass == pytest.approx(pre_scaled_mass, abs=1e-6)
+
+    assert_allclose(scaled_mass, pre_scaled_mass, atol=1e-6)
 
     # Compare inertia tensors
     _, scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(scaled_metadata)
     _, pre_scaled_inertia = HwLinkMetadata.compute_mass_and_inertia(pre_scaled_metadata)
-    assert jnp.allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6)
+
+    assert_allclose(scaled_inertia, pre_scaled_inertia, atol=1e-6)
 
     # Compare transformations
-    assert jnp.allclose(scaled_metadata.L_H_G, pre_scaled_metadata.L_H_G, atol=1e-6)
-    assert jnp.allclose(scaled_metadata.L_H_vis, pre_scaled_metadata.L_H_vis, atol=1e-6)
+    assert_allclose(scaled_metadata.L_H_G, pre_scaled_metadata.L_H_G, atol=1e-6)
+    assert_allclose(scaled_metadata.L_H_vis, pre_scaled_metadata.L_H_vis, atol=1e-6)
 
 
 def test_update_hw_parameters_vmap(
@@ -274,28 +281,27 @@ def test_export_updated_model(
             ]
         )
 
-        assert jnp.allclose(exported_values, pre_scaled_values, atol=1e-6), (
-            f"Mismatch in geometry dimensions for link {link_name}: "
-            f"expected {pre_scaled_values}, got {exported_values}"
+        assert_allclose(
+            exported_values,
+            pre_scaled_values,
+            atol=1e-6,
+            err_msg=f"Mismatch in geometry dimensions for link {link_name}",
         )
 
         # Compare mass
-        assert exported_link.inertial.mass == pytest.approx(
-            pre_scaled_link.inertial.mass, abs=1e-4
-        ), (
-            f"Mismatch in mass for link {link_name}: "
-            f"expected {pre_scaled_link.inertial.mass}, got {exported_link.inertial.mass}"
+        assert_allclose(
+            exported_link.inertial.mass,
+            pre_scaled_link.inertial.mass,
+            atol=1e-4,
+            err_msg=f"Mismatch in mass for link {link_name}",
         )
 
         # Compare inertia tensors
-        assert jnp.allclose(
+        assert_allclose(
             exported_link.inertial.inertia.matrix(),
             pre_scaled_link.inertial.inertia.matrix(),
             atol=1e-4,
-        ), (
-            f"Mismatch in inertia tensor for link {link_name}: "
-            f"expected {pre_scaled_link.inertial.inertia.matrix()}, "
-            f"got {exported_link.inertial.inertia.matrix()}"
+            err_msg=f"Mismatch in inertia tensor for link {link_name}",
         )
 
 

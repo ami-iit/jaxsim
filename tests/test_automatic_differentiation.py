@@ -11,6 +11,8 @@ import jaxsim.typing as jtp
 from jaxsim import VelRepr
 from jaxsim.rbda.contacts import SoftContacts, SoftContactsParams
 
+from .utils import assert_allclose
+
 # All JaxSim algorithms, excluding the variable-step integrators, should support
 # being automatically differentiated until second order, both in FWD and REV modes.
 # However, checking the second-order derivatives is particularly slow and makes
@@ -434,7 +436,7 @@ def test_ad_safe_norm(
     assert jaxsim.math.safe_norm(array, axis=-1).shape == (2,)
 
     # Test that the safe_norm function is correctly computing the norm.
-    assert np.allclose(
+    assert_allclose(
         jaxsim.math.safe_norm(array, axis=-1), np.linalg.norm(array, axis=-1)
     )
 

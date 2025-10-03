@@ -120,7 +120,7 @@ jobs:
         if: |
           contains(matrix.os, 'ubuntu') &&
           (github.event_name != 'pull_request')
-        run: pixi run --frozen test
+        run: pixi run --frozen test --numprocesses auto
         env:
           # https://github.com/pytest-dev/pytest/issues/7443#issuecomment-656642591
           PY_COLORS: "1"

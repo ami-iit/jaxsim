@@ -7,7 +7,6 @@ import jax.numpy as jnp
 
 import jaxsim.api as js
 import jaxsim.exceptions
-import jaxsim.terrain
 import jaxsim.typing as jtp
 from jaxsim import logging
 from jaxsim.math import Adjoint, Cross, Transform

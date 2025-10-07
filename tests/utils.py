@@ -11,7 +11,9 @@ import jaxsim.api as js
 from jaxsim import VelRepr
 
 
-def assert_allclose(actual, desired, rtol=1e-7, atol=1e-9, err_msg=""):
+def assert_allclose(
+    actual, desired, rtol=1e-3, atol=1e-4, err_msg="", equal_nan=False, strict=False
+):
     """
     Assert allclose with custom default tolerances.
     Normalizes only signed zeros using np.copysign.

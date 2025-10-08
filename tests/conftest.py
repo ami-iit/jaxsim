@@ -8,7 +8,6 @@ import subprocess
 import jax
 import pytest
 import rod
-import rod.urdf
 import rod.urdf.exporter
 
 import jaxsim

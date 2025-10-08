@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import itertools
 from collections.abc import Sequence
 
 from jaxsim import logging
@@ -26,9 +25,7 @@ class ModelDescription(KinematicGraph):
 
     fixed_base: bool = True
 
-    collision_shapes: tuple = dataclasses.field(
-        default_factory=list, repr=False
-    )
+    collision_shapes: tuple = dataclasses.field(default_factory=list, repr=False)
 
     @staticmethod
     def build_model_from(
@@ -107,7 +104,7 @@ class ModelDescription(KinematicGraph):
 
             # # If the frame was found, update the collidable points' pose and add them
             # # to the new collision shape.
-            # for cp in collision_shape.collidable_points:
+            # for cp in collision_shape:
             #     # Find the link that is part of the (reduced) model in which the
             #     # collision shape's parent was lumped into
             #     real_parent_link_name = kinematic_graph.frames_dict[

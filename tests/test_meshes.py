@@ -1,6 +1,6 @@
 import trimesh
 
-from jaxsim.parsers.rod import meshes
+from jaxsim.parsers.sdformat import meshes
 
 
 def test_mesh_wrapping_vertex_extraction():

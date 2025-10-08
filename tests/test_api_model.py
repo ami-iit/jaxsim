@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-import rod
+import sdformat
 
 import jaxsim.api as js
 import jaxsim.math
@@ -35,14 +35,19 @@ def test_model_creation_and_reduction(
     # Check that the data of the full model is valid.
     assert data_full.valid(model=model_full)
 
-    # Build the ROD model from the original description.
+    # Build the SDFormat model from the original description.
     assert isinstance(model_full.built_from, str | pathlib.Path)
-    rod_sdf = rod.Sdf.load(sdf=model_full.built_from)
-    assert len(rod_sdf.models()) == 1
+    root = sdformat.Root()
+    root.load(str(model_full.built_from))
+    # Check if model exists (SDFormat Root doesn't have model_count method)
+    assert root.model() is not None
 
     # Get all non-fixed joint names from the description.
+    sdf_model = root.model()
     joint_names_in_description = [
-        j.name for j in rod_sdf.models()[0].joints() if j.type != "fixed"
+        sdf_model.joint_by_index(i).name()
+        for i in range(sdf_model.joint_count())
+        if sdf_model.joint_by_index(i).type() != sdformat.JointType.FIXED
     ]
 
     # Check that all non-fixed joints are in the full model.

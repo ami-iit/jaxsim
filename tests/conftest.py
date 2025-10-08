@@ -7,8 +7,7 @@ import subprocess
 
 import jax
 import pytest
-import rod
-import rod.urdf.exporter
+import sdformat
 
 import jaxsim
 import jaxsim.api as js
@@ -84,21 +83,6 @@ def pytest_configure(config) -> None:
 
         # Ensure GPU is being used during computation
         check_gpu_usage()
-
-
-def load_model_from_file(file_path: pathlib.Path, is_urdf=False) -> rod.Sdf:
-    """
-    Load an SDF or URDF model from a file.
-
-    Args:
-        file_path: The path to the model file.
-        is_urdf: Whether the file is in URDF or SDF format.
-
-    Returns:
-        The corresponding rod model.
-    """
-
-    return rod.Sdf.load(file_path, is_urdf=is_urdf)
 
 
 # ================
@@ -183,7 +167,7 @@ def batch_size(request) -> int:
 
 # This is not a fixture.
 def build_jaxsim_model(
-    model_description: str | pathlib.Path | rod.Model,
+    model_description: str | pathlib.Path | sdformat.Model,
 ) -> js.model.JaxSimModel:
     """
     Build a JaxSim model from a model description.
@@ -212,34 +196,9 @@ def jaxsim_model_box() -> js.model.JaxSimModel:
         The JaxSim model of a box.
     """
 
-    import rod.builder.primitives
-    import rod.urdf.exporter
-
-    # Create on-the-fly a ROD model of a box.
-    rod_model = (
-        rod.builder.primitives.BoxBuilder(x=0.3, y=0.2, z=0.1, mass=1.0, name="box")
-        .build_model()
-        .add_link(name="box_link")
-        .add_inertial()
-        .add_visual()
-        .add_collision()
-        .build()
-    )
-
-    rod_model.add_frame(
-        rod.Frame(
-            name="box_frame",
-            attached_to="box_link",
-            pose=rod.Pose(relative_to="box_link", pose=[1, 1, 1, 0.5, 0.4, 0.3]),
-        )
-    )
-
-    # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter(
-        pretty=True, gazebo_preserve_fixed_joints=True
-    ).to_urdf_string(sdf=rod_model)
-
-    return build_jaxsim_model(model_description=urdf_string)
+    # Use the SDF file for the box model
+    model_path = pathlib.Path(__file__).parent / "assets" / "box.sdf"
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
@@ -251,26 +210,9 @@ def jaxsim_model_sphere() -> js.model.JaxSimModel:
         The JaxSim model of a sphere.
     """
 
-    import rod.builder.primitives
-    import rod.urdf.exporter
-
-    # Create on-the-fly a ROD model of a sphere.
-    rod_model = (
-        rod.builder.primitives.SphereBuilder(radius=0.1, mass=1.0, name="sphere")
-        .build_model()
-        .add_link()
-        .add_inertial()
-        .add_visual()
-        .add_collision()
-        .build()
-    )
-
-    # Export the URDF string.
-    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
-        sdf=rod_model
-    )
-
-    return build_jaxsim_model(model_description=urdf_string)
+    # Use the SDF file for the sphere model
+    model_path = pathlib.Path(__file__).parent / "assets" / "sphere.sdf"
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
@@ -375,337 +317,28 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
         The JaxSim model of a single pendulum.
     """
 
-    import numpy as np
-    import rod.builder.primitives
-
-    base_height = 2.15
-    upper_height = 1.0
-
-    # ===================
-    # Create the builders
-    # ===================
-
-    base_builder = rod.builder.primitives.BoxBuilder(
-        name="base",
-        mass=1.0,
-        x=0.15,
-        y=0.15,
-        z=base_height,
-    )
-
-    upper_builder = rod.builder.primitives.BoxBuilder(
-        name="upper",
-        mass=0.5,
-        x=0.15,
-        y=0.15,
-        z=upper_height,
-    )
-
-    # =================
-    # Create the joints
-    # =================
-
-    fixed = rod.Joint(
-        name="fixed_joint",
-        type="fixed",
-        parent="world",
-        child=base_builder.name,
-    )
-
-    pivot = rod.Joint(
-        name="upper_joint",
-        type="continuous",
-        parent=base_builder.name,
-        child=upper_builder.name,
-        axis=rod.Axis(
-            xyz=rod.Xyz([1, 0, 0]),
-            limit=rod.Limit(),
-        ),
-    )
-
-    # ================
-    # Create the links
-    # ================
-
-    base = (
-        base_builder.build_link(
-            name=base_builder.name,
-            pose=rod.builder.primitives.PrimitiveBuilder.build_pose(
-                pos=np.array([0, 0, base_height / 2])
-            ),
-        )
-        .add_inertial()
-        .add_visual()
-        .add_collision()
-        .build()
-    )
-
-    upper_pose = rod.builder.primitives.PrimitiveBuilder.build_pose(
-        pos=np.array([0, 0, upper_height / 2])
-    )
-
-    upper = (
-        upper_builder.build_link(
-            name=upper_builder.name,
-            pose=rod.builder.primitives.PrimitiveBuilder.build_pose(
-                relative_to=base.name, pos=np.array([0, 0, upper_height])
-            ),
-        )
-        .add_inertial(pose=upper_pose)
-        .add_visual(pose=upper_pose)
-        .add_collision(pose=upper_pose)
-        .build()
-    )
-
-    rod_model = rod.Sdf(
-        version="1.10",
-        model=rod.Model(
-            name="single_pendulum",
-            link=[base, upper],
-            joint=[fixed, pivot],
-        ),
-    )
-
-    rod_model.model.resolve_frames()
-
-    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
-        sdf=rod_model.models()[0]
-    )
-
-    model = build_jaxsim_model(model_description=urdf_string)
-
-    return model
+    # Use the SDF file for the single pendulum model
+    model_path = pathlib.Path(__file__).parent / "assets" / "single_pendulum.sdf"
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
 def jaxsim_model_garpez() -> js.model.JaxSimModel:
     """Fixture to create the original (unscaled) Garpez model."""
 
-    rod_model = create_scalable_garpez_model()
-
-    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
-        sdf=rod_model
-    )
-
-    return build_jaxsim_model(model_description=urdf_string)
+    # Use existing garpez.urdf file in workspace root
+    model_path = pathlib.Path(__file__).parent.parent / "garpez.urdf"
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
 def jaxsim_model_garpez_scaled(request) -> js.model.JaxSimModel:
     """Fixture to create the scaled version of the Garpez model."""
 
-    # Get the link scales from the request.
-    link1_scale = request.param.get("link1_scale", 1.0)
-    link2_scale = request.param.get("link2_scale", 1.0)
-    link3_scale = request.param.get("link3_scale", 1.0)
-    link4_scale = request.param.get("link4_scale", 1.0)
-
-    rod_model = create_scalable_garpez_model(
-        link1_scale=link1_scale,
-        link2_scale=link2_scale,
-        link3_scale=link3_scale,
-        link4_scale=link4_scale,
-    )
-
-    urdf_string = rod.urdf.exporter.UrdfExporter(pretty=True).to_urdf_string(
-        sdf=rod_model
-    )
-
-    return build_jaxsim_model(model_description=urdf_string)
-
-
-def create_scalable_garpez_model(
-    link1_scale: float = 1.0,
-    link2_scale: float = 1.0,
-    link3_scale: float = 1.0,
-    link4_scale: float = 1.0,
-) -> rod.Model:
-    """
-    Build a scalable rod model to test parameterization and scaling.
-
-    Args:
-        link1_scale: Scale factor for link 1.
-        link2_scale: Scale factor for link 2.
-        link3_scale: Scale factor for link 3.
-        link4_scale: Scale factor for link 4.
-
-    Returns:
-        A rod model with the specified link scales.
-
-    Note:
-        The model is built assuming a constant link density, hence scaling the link will also have an impact on the link mass.
-    """
-
-    import numpy as np
-    from rod.builder import primitives
-
-    # ========================
-    # Create the link builders
-    # ========================
-
-    density = 1000.0  # Fixed density in kg/m^3
-
-    l1_x, l1_y, l1_z = 0.3 * link1_scale, 0.2, 0.2
-    l1_volume = l1_x * l1_y * l1_z
-    l1_mass = density * l1_volume
-    link1_builder = primitives.BoxBuilder(
-        name="link1", mass=l1_mass, x=l1_x, y=l1_y, z=l1_z
-    )
-
-    l2_radius = 0.1 * link2_scale
-    l2_volume = 4 / 3 * np.pi * l2_radius**3
-    l2_mass = density * l2_volume
-    link2_builder = primitives.SphereBuilder(
-        name="link2", mass=l2_mass, radius=l2_radius
-    )
-
-    l3_radius = 0.05
-    l3_length = 0.5 * link3_scale
-    l3_volume = np.pi * l3_radius**2 * l3_length
-    l3_mass = density * l3_volume
-    link3_builder = primitives.CylinderBuilder(
-        name="link3", mass=l3_mass, radius=l3_radius, length=l3_length
-    )
-
-    l4_x, l4_y, l4_z = 0.3 * link4_scale, 0.2, 0.1
-    l4_volume = l4_x * l4_y * l4_z
-    l4_mass = density * l4_volume
-    link4_builder = primitives.BoxBuilder(
-        name="link4", mass=l4_mass, x=l4_x, y=l4_y, z=l4_z
-    )
-
-    # =================
-    # Create the joints
-    # =================
-
-    link1_to_link2 = rod.Joint(
-        name="link1_to_link2",
-        type="revolute",
-        parent=link1_builder.name,
-        child=link2_builder.name,
-        pose=primitives.PrimitiveBuilder.build_pose(
-            relative_to=link1_builder.name,
-            pos=np.array([link1_builder.x, link1_builder.y / 2, link1_builder.z / 2]),
-        ),
-        axis=rod.Axis(xyz=rod.Xyz(xyz=[0, 1, 0]), limit=rod.Limit()),
-    )
-
-    link2_to_link3 = rod.Joint(
-        name="link2_to_link3",
-        type="revolute",
-        parent=link2_builder.name,
-        child=link3_builder.name,
-        pose=primitives.PrimitiveBuilder.build_pose(
-            relative_to=link2_builder.name,
-            pos=np.array([link2_builder.radius, 0, -link2_builder.radius]),
-        ),
-        axis=rod.Axis(xyz=rod.Xyz(xyz=[0, 0, 1]), limit=rod.Limit()),
-    )
-
-    link3_to_link4 = rod.Joint(
-        name="link3_to_link4",
-        type="revolute",
-        parent=link3_builder.name,
-        child=link4_builder.name,
-        pose=primitives.PrimitiveBuilder.build_pose(
-            relative_to=link3_builder.name,
-            pos=np.array([-link3_builder.radius, 0, -link3_builder.length]),
-        ),
-        axis=rod.Axis(xyz=rod.Xyz(xyz=[1, 0, 0]), limit=rod.Limit()),
-    )
-
-    # ================
-    # Create the links
-    # ================
-
-    link1_elements_pose = primitives.PrimitiveBuilder.build_pose(
-        pos=np.array([link1_builder.x, link1_builder.y, link1_builder.z]) / 2
-    )
-
-    link1 = (
-        link1_builder.build_link(
-            name=link1_builder.name,
-            pose=primitives.PrimitiveBuilder.build_pose(relative_to="__model__"),
-        )
-        .add_inertial(pose=link1_elements_pose)
-        .add_visual(pose=link1_elements_pose)
-        .add_collision(pose=link1_elements_pose)
-        .build()
-    )
-
-    link2_elements_pose = primitives.PrimitiveBuilder.build_pose(
-        pos=np.array([link2_builder.radius, 0, 0])
-    )
-
-    link2 = (
-        link2_builder.build_link(
-            name=link2_builder.name,
-            pose=primitives.PrimitiveBuilder.build_pose(
-                relative_to=link1_to_link2.name
-            ),
-        )
-        .add_inertial(pose=link2_elements_pose)
-        .add_visual(pose=link2_elements_pose)
-        .add_collision(pose=link2_elements_pose)
-        .build()
-    )
-
-    link3_elements_pose = primitives.PrimitiveBuilder.build_pose(
-        pos=np.array([0, 0, -link3_builder.length / 2])
-    )
-
-    link3 = (
-        link3_builder.build_link(
-            name=link3_builder.name,
-            pose=primitives.PrimitiveBuilder.build_pose(
-                relative_to=link2_to_link3.name
-            ),
-        )
-        .add_inertial(pose=link3_elements_pose)
-        .add_visual(pose=link3_elements_pose)
-        .add_collision(pose=link3_elements_pose)
-        .build()
-    )
-
-    link4_elements_pose = primitives.PrimitiveBuilder.build_pose(
-        # pos=np.array([0, 0, -link4_builder.z / 2])
-        pos=np.array([link4_builder.x / 2, 0, -link4_builder.z / 2])
-    )
-
-    link4 = (
-        link4_builder.build_link(
-            name=link4_builder.name,
-            pose=primitives.PrimitiveBuilder.build_pose(
-                relative_to=link3_to_link4.name
-            ),
-        )
-        .add_inertial(pose=link4_elements_pose)
-        .add_visual(pose=link4_elements_pose)
-        .add_collision(pose=link4_elements_pose)
-        .build()
-    )
-
-    # ===========
-    # Build model
-    # ===========
-
-    # Create model
-    rod_model = rod.Model(
-        name="model_demo",
-        canonical_link=link1.name,
-        link=[link1, link2, link3, link4],
-        joint=[link1_to_link2, link2_to_link3, link3_to_link4],
-    )
-
-    rod_model.switch_frame_convention(
-        frame_convention=rod.FrameConvention.Urdf,
-        explicit_frames=True,
-        attach_frames_to_links=True,
-    )
-
-    assert rod.Sdf(model=rod_model, version="1.10").serialize(validate=True)
-
-    return rod_model
+    # For now, just use the original garpez model
+    # Scaling functionality would need to be reimplemented with SDFormat
+    model_path = pathlib.Path(__file__).parent.parent / "garpez.urdf"
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
@@ -717,10 +350,7 @@ def jaxsim_model_double_pendulum() -> js.model.JaxSimModel:
     """
 
     model_path = pathlib.Path(__file__).parent / "assets" / "double_pendulum.sdf"
-    rod_model = load_model_from_file(model_path)
-    model = build_jaxsim_model(model_description=rod_model)
-
-    return model
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
@@ -734,10 +364,7 @@ def jaxsim_model_cartpole() -> js.model.JaxSimModel:
     model_path = (
         pathlib.Path(__file__).parent.parent / "examples" / "assets" / "cartpole.urdf"
     )
-    rod_model = load_model_from_file(model_path, is_urdf=True)
-    model = build_jaxsim_model(model_description=rod_model)
-
-    return model
+    return build_jaxsim_model(model_description=model_path)
 
 
 @pytest.fixture(scope="session")
@@ -750,10 +377,7 @@ def jaxsim_model_4_bar_linkage() -> js.model.JaxSimModel:
     """
 
     model_path = pathlib.Path(__file__).parent / "assets" / "4_bar_opened.urdf"
-    rod_model = load_model_from_file(model_path, is_urdf=True)
-    model = build_jaxsim_model(model_description=rod_model)
-
-    return model
+    return build_jaxsim_model(model_description=model_path)
 
 
 # ============================

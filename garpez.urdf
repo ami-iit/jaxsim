@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="model_demo">
+  <link name="world"/>
+  <link name="link0">
+    <inertial>
+      <origin xyz="0.0 0.0 1.0" rpy="0.0 0.0 1.5707963267948963"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.08333358333333334" ixy="0.0" ixz="0.0" iyy="0.08333358333333334" iyz="0.0" izz="5e-07"/>
+    </inertial>
+  </link>
+  <link name="link1">
+    <inertial>
+      <origin xyz="0.15 0.1 0.1" rpy="0.0 0.0 0.0"/>
+      <mass value="12.0"/>
+      <inertia ixx="0.08000000000000002" ixy="0.0" ixz="0.0" iyy="0.13" iyz="0.0" izz="0.13"/>
+    </inertial>
+    <visual name="link1_visual">
+      <origin xyz="0.15 0.1 0.1" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.3 0.2 0.2"/>
+      </geometry>
+    </visual>
+    <collision name="link1_collision">
+      <origin xyz="0.15 0.1 0.1" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.3 0.2 0.2"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link2">
+    <inertial>
+      <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <mass value="4.188790204786391"/>
+      <inertia ixx="0.01675516081914557" ixy="0.0" ixz="0.0" iyy="0.01675516081914557" iyz="0.0" izz="0.01675516081914557"/>
+    </inertial>
+    <visual name="link2_visual">
+      <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <sphere radius="0.1"/>
+      </geometry>
+    </visual>
+    <collision name="link2_collision">
+      <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <sphere radius="0.1"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link3">
+    <inertial>
+      <origin xyz="0.0 0.0 -0.25" rpy="0.0 0.0 0.0"/>
+      <mass value="3.926990816987242"/>
+      <inertia ixx="0.08426667794785124" ixy="0.0" ixz="0.0" iyy="0.08426667794785124" iyz="0.0" izz="0.0049087385212340535"/>
+    </inertial>
+    <visual name="link3_visual">
+      <origin xyz="0.0 0.0 -0.25" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.5"/>
+      </geometry>
+    </visual>
+    <collision name="link3_collision">
+      <origin xyz="0.0 0.0 -0.25" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.5"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link4">
+    <inertial>
+      <origin xyz="0.15 0.0 -0.05" rpy="0.0 0.0 0.0"/>
+      <mass value="6.0"/>
+      <inertia ixx="0.025000000000000005" ixy="0.0" ixz="0.0" iyy="0.05" iyz="0.0" izz="0.065"/>
+    </inertial>
+    <visual name="link4_visual">
+      <origin xyz="0.15 0.0 -0.05" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.3 0.2 0.1"/>
+      </geometry>
+    </visual>
+    <collision name="link4_collision">
+      <origin xyz="0.15 0.0 -0.05" rpy="0.0 0.0 0.0"/>
+      <geometry>
+        <box size="0.3 0.2 0.1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_link0" type="fixed">
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    <parent link="world"/>
+    <child link="link0"/>
+  </joint>
+  <joint name="link0_to_link1" type="prismatic">
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+    <parent link="link0"/>
+    <child link="link1"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+  </joint>
+  <joint name="link1_to_link2" type="fixed">
+    <origin xyz="0.3 0.1 0.1" rpy="0.0 0.0 0.0"/>
+    <parent link="link1"/>
+    <child link="link2"/>
+  </joint>
+  <joint name="link2_to_link3" type="revolute">
+    <origin xyz="0.1 0.0 -0.1" rpy="0.0 0.0 0.0"/>
+    <parent link="link2"/>
+    <child link="link3"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+  </joint>
+  <joint name="link3_to_link4" type="revolute">
+    <origin xyz="-0.05 0.0 -0.5" rpy="0.0 0.0 0.0"/>
+    <parent link="link3"/>
+    <child link="link4"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+  </joint>
+</robot>

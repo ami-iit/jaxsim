@@ -1,5 +1,5 @@
 import pytest
-import rod
+import sdformat
 
 from jaxsim.mujoco import ModelToMjcf
 from jaxsim.mujoco.loaders import MujocoCamera
@@ -27,23 +27,27 @@ def test_urdf_loading(jaxsim_model_single_pendulum, mujoco_camera):
 
 def test_sdf_loading(jaxsim_model_single_pendulum, mujoco_camera):
 
-    model = rod.Sdf.load(sdf=jaxsim_model_single_pendulum.built_from).serialize(
-        pretty=True
-    )
+    root = sdformat.Root()
+    root.load(str(jaxsim_model_single_pendulum.built_from))
+    model = root.to_string()
 
     _ = ModelToMjcf.convert(model=model, cameras=mujoco_camera)
 
 
-def test_rod_loading(jaxsim_model_single_pendulum, mujoco_camera):
+def test_sdformat_loading(jaxsim_model_single_pendulum, mujoco_camera):
 
-    model = rod.Sdf.load(sdf=jaxsim_model_single_pendulum.built_from).models()[0]
+    root = sdformat.Root()
+    root.load(str(jaxsim_model_single_pendulum.built_from))
+    model = root.model_by_index(0)
 
     _ = ModelToMjcf.convert(model=model, cameras=mujoco_camera)
 
 
 def test_heightmap(jaxsim_model_single_pendulum, mujoco_camera):
 
-    model = rod.Sdf.load(sdf=jaxsim_model_single_pendulum.built_from).models()[0]
+    root = sdformat.Root()
+    root.load(str(jaxsim_model_single_pendulum.built_from))
+    model = root.model_by_index(0)
 
     _ = ModelToMjcf.convert(
         model=model,
@@ -55,7 +59,9 @@ def test_heightmap(jaxsim_model_single_pendulum, mujoco_camera):
 
 def test_inclined_plane(jaxsim_model_single_pendulum, mujoco_camera):
 
-    model = rod.Sdf.load(sdf=jaxsim_model_single_pendulum.built_from).models()[0]
+    root = sdformat.Root()
+    root.load(str(jaxsim_model_single_pendulum.built_from))
+    model = root.model_by_index(0)
 
     _ = ModelToMjcf.convert(
         model=model,

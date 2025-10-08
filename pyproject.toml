@@ -53,7 +53,7 @@ dependencies = [
     "pptree",
     "optax >= 0.2.3",
     "qpax",
-    "rod >= 0.3.3",
+    "sdformat >= 0.23.0",
     "typing_extensions ; python_version < '3.12'",
     "trimesh",
 ]
@@ -221,7 +221,7 @@ jax-dataclasses = "*"
 pptree = "*"
 optax = "*"
 qpax = "*"
-rod = "*"
+# rod = "*"  # Replaced with custom SDFormat implementation
 trimesh = "*"
 typing_extensions = "*"
 #
@@ -235,6 +235,8 @@ scipy = "*"
 # Additional dependencies.
 #
 pip = "*"
+sdformat = "*"
+xmltodict = "*"
 
 # Dependencies from PyPI.
 [tool.pixi.pypi-dependencies]

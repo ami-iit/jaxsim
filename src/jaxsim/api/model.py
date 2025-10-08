@@ -320,16 +320,35 @@ class JaxSimModel(JaxsimDataclass):
 
         return model
 
+    def _find_supported_visual(self, rod_link):
+        """Find the first supported visual from a link's visuals."""
+        if rod_link is None:
+            return None
+
+        visuals = rod_link.visuals()
+        if not visuals:
+            return None
+
+        # Check each visual for supported geometry
+        for visual in visuals:
+            if visual is not None and visual.geometry is not None:
+                geometry = visual.geometry.geometry()
+                if isinstance(geometry, (rod.Box, rod.Sphere, rod.Cylinder)):
+                    return visual
+
+        return None
+
     def _is_link_supported(self, rod_link, link_index: int) -> bool:
         """Check if a link is fully supported for parametrization."""
         if rod_link is None:
             return False
-        if len(rod_link.visuals()) != 1 or rod_link.visual is None:
+
+        # Check if we can find at least one supported visual
+        supported_visual = self._find_supported_visual(rod_link)
+        if supported_visual is None:
             return False
-        if not isinstance(
-            rod_link.visual.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
-        ):
-            return False
+
+        # Check transformation matrix constraint
         return jnp.allclose(
             self.kin_dyn_parameters.joint_model.suc_H_i[link_index],
             jnp.eye(4),
@@ -344,7 +363,12 @@ class JaxSimModel(JaxsimDataclass):
 
         Note: This method assumes the link has already been validated as supported.
         """
-        geometry = rod_link.visual.geometry.geometry()
+        # Find the supported visual to use for parametrization
+        supported_visual = self._find_supported_visual(rod_link)
+        if supported_visual is None:
+            return LinkParametrizableShape.Unsupported, [0, 0, 0], 0.0
+
+        geometry = supported_visual.geometry.geometry()
         mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
 
         if isinstance(geometry, rod.Box):
@@ -412,9 +436,12 @@ class JaxSimModel(JaxsimDataclass):
             if rod_link and rod_link.inertial
             else jnp.eye(4)
         )
+
+        # Use the supported visual for pose (if link is supported)
+        supported_visual = self._find_supported_visual(rod_link)
         visual_pose = (
-            rod_link.visual.pose.transform()
-            if rod_link and rod_link.visual
+            supported_visual.pose.transform()
+            if supported_visual is not None
             else jnp.eye(4)
         )
 

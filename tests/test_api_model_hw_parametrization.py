@@ -447,3 +447,113 @@ def test_hw_parameters_collision_scaling(
     assert jnp.isclose(
         updated_base_height, expected_height, atol=1e-3
     ), f"model base height mismatch: expected {expected_height}, got {updated_base_height}"
+
+
+def test_unsupported_link_cases():
+    """
+    Test that unsupported link cases are handled correctly.
+    """
+    import rod.builder.primitives
+
+    from jaxsim.api.kin_dyn_parameters import LinkParametrizableShape
+
+    # Test unsupported (no visual)
+    no_visual_model = js.model.JaxSimModel.build_from_model_description(
+        rod.builder.primitives.BoxBuilder(x=1, y=1, z=1, mass=1, name="no_vis_box")
+        .build_model()
+        .add_link(name="no_visual_link")
+        .add_inertial()
+        .build()  # No .add_visual()
+    )
+    no_visual_metadata = no_visual_model.kin_dyn_parameters.hw_link_metadata
+    assert (
+        no_visual_metadata.link_shape[0] == LinkParametrizableShape.Unsupported
+    ), "No visual should be unsupported"
+    assert (
+        len(no_visual_metadata.link_shape)
+        == len(no_visual_metadata.geometry)
+        == len(no_visual_metadata.density)
+        == no_visual_model.number_of_links()
+    )
+
+    # Create a simple two-link URDF directly add collision to ensure both links are kept
+    two_link_urdf = """
+        <?xml version="1.0"?>
+        <robot name="two_link_test">
+
+        <!-- Link 1: Supported (with box visual) -->
+        <link name="supported_link">
+            <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+            <visual>
+            <geometry>
+                <box size="1.0 1.0 1.0"/>
+            </geometry>
+            </visual>
+            <collision>
+            <geometry>
+                <box size="1.0 1.0 1.0"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link 2: Unsupported (no visual but has collision) -->
+        <link name="unsupported_link">
+            <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+            <!-- No visual element - this makes it unsupported -->
+            <collision>
+            <geometry>
+                <box size="0.5 0.5 0.5"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint connecting the links -->
+        <joint name="connecting_joint" type="revolute">
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <parent link="supported_link"/>
+            <child link="unsupported_link"/>
+            <axis xyz="1 0 0"/>
+            <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+        </joint>
+
+        </robot>
+    """
+
+    # Build JaxSim model from the two-link URDF
+    two_link_model = js.model.JaxSimModel.build_from_model_description(
+        two_link_urdf, is_urdf=True
+    )
+    two_link_metadata = two_link_model.kin_dyn_parameters.hw_link_metadata
+
+    # Verify array consistency for 2-link model
+    assert (
+        len(two_link_metadata.link_shape)
+        == len(two_link_metadata.geometry)
+        == len(two_link_metadata.density)
+        == two_link_model.number_of_links()
+    )
+
+    # Count verification in single model
+    supported_count = sum(
+        1
+        for s in two_link_metadata.link_shape
+        if s != LinkParametrizableShape.Unsupported
+    )
+    unsupported_count = sum(
+        1
+        for s in two_link_metadata.link_shape
+        if s == LinkParametrizableShape.Unsupported
+    )
+
+    assert (
+        supported_count == 1
+    ), f"Expected 1 supported link in single model, got {supported_count}"
+    assert (
+        unsupported_count == 1
+    ), f"Expected 1 unsupported link in single model, got {unsupported_count}"

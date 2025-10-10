@@ -12,6 +12,8 @@ def test_call_jit_compiled_function_passing_different_objects(
     ergocub_model_description_path: pathlib.Path,
 ):
 
+    jax.config.update("jax_explain_cache_misses", True)
+
     # Create a first model from the URDF.
     model1 = js.model.JaxSimModel.build_from_model_description(
         model_description=ergocub_model_description_path

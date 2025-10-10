@@ -419,7 +419,6 @@ def jaxsim_model_single_pendulum() -> js.model.JaxSimModel:
         child=upper_builder.name,
         axis=rod.Axis(
             xyz=rod.Xyz([1, 0, 0]),
-            limit=rod.Limit(),
         ),
     )
 

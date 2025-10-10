@@ -53,7 +53,7 @@ dependencies = [
     "pptree",
     "optax >= 0.2.3",
     "qpax",
-    "rod >= 0.3.3",
+    "rod >= 0.4.1",
     "typing_extensions ; python_version < '3.12'",
     "trimesh",
 ]
@@ -221,7 +221,7 @@ jax-dataclasses = "*"
 pptree = "*"
 optax = "*"
 qpax = "*"
-rod = "*"
+rod = ">=0.4.1"
 trimesh = "*"
 typing_extensions = "*"
 #

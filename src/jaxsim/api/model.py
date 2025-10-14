@@ -412,7 +412,7 @@ class JaxSimModel(JaxsimDataclass):
                 )
                 continue
 
-            rod_link = rod_links_dict[link_name]
+            rod_link = rod_links_dict.get(link_name)
             link_index = int(js.link.name_to_idx(model=self, link_name=link_name))
 
             # Get child joints for the link
@@ -431,51 +431,62 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization due to unsupported suc_H_link."
                 )
-                continue
+                rod_link = None
 
             # Compute density and dimensions
             mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
-            geometry = rod_link.visual.geometry.geometry()
+            geometry = rod_link.visual.geometry.geometry() if rod_link else None
             if isinstance(geometry, rod.Box):
                 lx, ly, lz = geometry.size
                 density = mass / (lx * ly * lz)
-                geoms.append([lx, ly, lz])
-                shapes.append(LinkParametrizableShape.Box)
+                geom = [lx, ly, lz]
+                shape = LinkParametrizableShape.Box
             elif isinstance(geometry, rod.Sphere):
                 r = geometry.radius
                 density = mass / (4 / 3 * jnp.pi * r**3)
-                geoms.append([r, 0, 0])
-                shapes.append(LinkParametrizableShape.Sphere)
+                geom = [r, 0, 0]
+                shape = LinkParametrizableShape.Sphere
             elif isinstance(geometry, rod.Cylinder):
                 r, l = geometry.radius, geometry.length
                 density = mass / (jnp.pi * r**2 * l)
-                geoms.append([r, l, 0])
-                shapes.append(LinkParametrizableShape.Cylinder)
+                geom = [r, l, 0]
+                shape = LinkParametrizableShape.Cylinder
             else:
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization due to unsupported geometry."
                 )
-                continue
+                density = 0.0
+                geom = [0, 0, 0]
+                shape = LinkParametrizableShape.Unsupported
 
+            inertial_pose = (
+                rod_link.inertial.pose.transform() if rod_link else jnp.eye(4)
+            )
+            visual_pose = (
+                rod_link.visual.pose.transform()
+                if rod_link and rod_link.visual
+                else jnp.eye(4)
+            )
+            l_h_pre_mask = [
+                int(joint_index in child_joints_indices)
+                for joint_index in range(self.number_of_joints())
+            ]
+            l_h_pre = [
+                (
+                    self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
+                    if joint_index in child_joints_indices
+                    else jnp.eye(4)
+                )
+                for joint_index in range(self.number_of_joints())
+            ]
+
+            shapes.append(shape)
+            geoms.append(geom)
             densities.append(density)
-            L_H_Gs.append(rod_link.inertial.pose.transform())
-            L_H_vises.append(rod_link.visual.pose.transform())
-            L_H_pre_masks.append(
-                [
-                    int(joint_index in child_joints_indices)
-                    for joint_index in range(self.number_of_joints())
-                ]
-            )
-            L_H_pre.append(
-                [
-                    (
-                        self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
-                        if joint_index in child_joints_indices
-                        else jnp.eye(4)
-                    )
-                    for joint_index in range(self.number_of_joints())
-                ]
-            )
+            L_H_Gs.append(inertial_pose)
+            L_H_vises.append(visual_pose)
+            L_H_pre_masks.append(l_h_pre_mask)
+            L_H_pre.append(l_h_pre)
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(

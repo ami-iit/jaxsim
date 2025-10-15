@@ -451,12 +451,28 @@ class JaxSimModel(JaxsimDataclass):
                 geom = [0, 0, 0]
                 shape = LinkParametrizableShape.Unsupported
 
+            # Find the first supported visual
+            supported_visual = (
+                next(
+                    (
+                        v
+                        for v in rod_link.visuals()
+                        if isinstance(
+                            v.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
+                        )
+                    ),
+                    None,
+                )
+                if rod_link
+                else None
+            )
+
             inertial_pose = (
                 rod_link.inertial.pose.transform() if rod_link else jnp.eye(4)
             )
             visual_pose = (
-                rod_link.visual.pose.transform()
-                if rod_link and rod_link.visual
+                supported_visual.pose.transform()
+                if rod_link and supported_visual
                 else jnp.eye(4)
             )
             l_h_pre_mask = [

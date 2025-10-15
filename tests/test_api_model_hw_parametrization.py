@@ -466,18 +466,18 @@ def test_unsupported_link_cases():
         .build()  # No .add_visual()
     )
     no_visual_metadata = no_visual_model.kin_dyn_parameters.hw_link_metadata
-    assert (
-        no_visual_metadata.link_shape[0] == LinkParametrizableShape.Unsupported
-    ), "No visual should be unsupported"
-    assert (
-        len(no_visual_metadata.link_shape)
-        == len(no_visual_metadata.geometry)
-        == len(no_visual_metadata.density)
-        == no_visual_model.number_of_links()
+    empty_metadata = HwLinkMetadata.empty()
+    comparison = jax.tree.map(
+        lambda a, b: jnp.allclose(a, b),
+        no_visual_metadata,
+        empty_metadata,
     )
+    assert jax.tree.reduce(
+        lambda acc, value: acc and bool(value), comparison, True
+    ), "No links should be supported."
 
-    # Create a simple two-link URDF directly add collision to ensure both links are kept
-    two_link_urdf = """
+    # Create a simple multi-link URDF and add collision to ensure links are kept
+    multi_link_urdf = """
         <?xml version="1.0"?>
         <robot name="two_link_test">
 
@@ -513,6 +513,29 @@ def test_unsupported_link_cases():
             </collision>
         </link>
 
+        <!-- Link 3: Two visuals (first should be picked) -->
+        <link name="double_visual_link">
+            <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+            <visual name="primary_sphere">
+            <geometry>
+                <sphere radius="0.4"/>
+            </geometry>
+            </visual>
+            <visual name="secondary_box">
+            <geometry>
+                <box size="0.8 0.2 0.2"/>
+            </geometry>
+            </visual>
+            <collision>
+            <geometry>
+                <sphere radius="0.4"/>
+            </geometry>
+            </collision>
+        </link>
+
         <!-- Joint connecting the links -->
         <joint name="connecting_joint" type="revolute">
             <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
@@ -522,38 +545,70 @@ def test_unsupported_link_cases():
             <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
         </joint>
 
+        <!-- Joint for double visual link -->
+        <joint name="double_visual_joint" type="revolute">
+            <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <parent link="unsupported_link"/>
+            <child link="double_visual_link"/>
+            <axis xyz="0 1 0"/>
+            <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+        </joint>
+
         </robot>
     """
 
-    # Build JaxSim model from the two-link URDF
-    two_link_model = js.model.JaxSimModel.build_from_model_description(
-        two_link_urdf, is_urdf=True
+    # Build JaxSim model from the URDF
+    multi_link_model = js.model.JaxSimModel.build_from_model_description(
+        multi_link_urdf, is_urdf=True
     )
-    two_link_metadata = two_link_model.kin_dyn_parameters.hw_link_metadata
+    multi_link_metadata = multi_link_model.kin_dyn_parameters.hw_link_metadata
 
-    # Verify array consistency for 2-link model
+    # Verify array consistency for the model
+    num_links = multi_link_model.number_of_links()
+    assert num_links == 3, f"Expected 3 links in the URDF model, got {num_links}"
     assert (
-        len(two_link_metadata.link_shape)
-        == len(two_link_metadata.geometry)
-        == len(two_link_metadata.density)
-        == two_link_model.number_of_links()
+        len(multi_link_metadata.link_shape)
+        == len(multi_link_metadata.geometry)
+        == len(multi_link_metadata.density)
+        == num_links
     )
 
     # Count verification in single model
     supported_count = sum(
         1
-        for s in two_link_metadata.link_shape
+        for s in multi_link_metadata.link_shape
         if s != LinkParametrizableShape.Unsupported
     )
     unsupported_count = sum(
         1
-        for s in two_link_metadata.link_shape
+        for s in multi_link_metadata.link_shape
         if s == LinkParametrizableShape.Unsupported
     )
 
     assert (
-        supported_count == 1
-    ), f"Expected 1 supported link in single model, got {supported_count}"
+        supported_count == 2
+    ), f"Expected 2 supported links in single model, got {supported_count}"
     assert (
         unsupported_count == 1
     ), f"Expected 1 unsupported link in single model, got {unsupported_count}"
+
+    # Ensure shapes match expectations by name
+    link_indices = {name: idx for idx, name in enumerate(multi_link_model.link_names())}
+
+    assert (
+        multi_link_metadata.link_shape[link_indices["supported_link"]]
+        == LinkParametrizableShape.Box
+    ), "Supported link should remain a box"
+    assert (
+        multi_link_metadata.link_shape[link_indices["unsupported_link"]]
+        == LinkParametrizableShape.Unsupported
+    ), "Unsupported link should remain unsupported"
+
+    double_visual_idx = link_indices["double_visual_link"]
+    assert (
+        multi_link_metadata.link_shape[double_visual_idx]
+        == LinkParametrizableShape.Sphere
+    ), "Double visual link should pick the first (sphere) visual"
+    assert multi_link_metadata.geometry[double_visual_idx, 0] == pytest.approx(
+        0.4
+    ), "Sphere radius must match the first visual"

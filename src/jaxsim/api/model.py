@@ -359,25 +359,7 @@ class JaxSimModel(JaxsimDataclass):
             frame_convention=rod.FrameConvention.Urdf, explicit_frames=True
         )
 
-        rod_links_dict = {}
-
-        # Filter links that support parameterization
-        for rod_link in rod_model.links():
-            if len(rod_link.visuals()) != 1:
-                logging.debug(
-                    f"Skipping link '{rod_link.name}' for hardware parametrization due to multiple visuals."
-                )
-                continue
-
-            if not isinstance(
-                rod_link.visual.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
-            ):
-                logging.debug(
-                    f"Skipping link '{rod_link.name}' for hardware parametrization due to unsupported geometry."
-                )
-                continue
-
-            rod_links_dict[rod_link.name] = rod_link
+        rod_links_dict = {link.name: link for link in rod_model.links()}
 
         # Initialize lists to collect metadata for all links
         shapes = []
@@ -396,13 +378,11 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization as it is not part of the JaxSim model."
                 )
-                continue
 
             if link_name not in rod_links_dict:
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization as it is not part of the ROD model."
                 )
-                continue
 
             rod_link = rod_links_dict.get(link_name)
             link_index = int(js.link.name_to_idx(model=self, link_name=link_name))
@@ -427,7 +407,26 @@ class JaxSimModel(JaxsimDataclass):
 
             # Compute density and dimensions
             mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
-            geometry = rod_link.visual.geometry.geometry() if rod_link else None
+
+            # Find the first supported visual
+            supported_visual = (
+                next(
+                    (
+                        v
+                        for v in rod_link.visuals()
+                        if isinstance(
+                            v.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
+                        )
+                    ),
+                    None,
+                )
+                if rod_link
+                else None
+            )
+
+            geometry = (
+                supported_visual.geometry.geometry() if supported_visual else None
+            )
             if isinstance(geometry, rod.Box):
                 lx, ly, lz = geometry.size
                 density = mass / (lx * ly * lz)
@@ -451,29 +450,11 @@ class JaxSimModel(JaxsimDataclass):
                 geom = [0, 0, 0]
                 shape = LinkParametrizableShape.Unsupported
 
-            # Find the first supported visual
-            supported_visual = (
-                next(
-                    (
-                        v
-                        for v in rod_link.visuals()
-                        if isinstance(
-                            v.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
-                        )
-                    ),
-                    None,
-                )
-                if rod_link
-                else None
-            )
-
             inertial_pose = (
                 rod_link.inertial.pose.transform() if rod_link else jnp.eye(4)
             )
             visual_pose = (
-                supported_visual.pose.transform()
-                if rod_link and supported_visual
-                else jnp.eye(4)
+                supported_visual.pose.transform() if supported_visual else jnp.eye(4)
             )
             l_h_pre_mask = [
                 int(joint_index in child_joints_indices)

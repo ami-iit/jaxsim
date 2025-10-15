@@ -1,6 +1,7 @@
 import io
 from contextlib import redirect_stdout
 
+import chex
 import jax
 import jax.numpy as jnp
 import pytest
@@ -14,6 +15,7 @@ def test_exceptions_in_jit_functions():
     msg_during_jit = "Compiling jit_compiled_function"
 
     @jax.jit
+    @chex.assert_max_traces(n=1)
     def jit_compiled_function(data: jax.Array) -> jax.Array:
 
         # This message is compiled only during JIT compilation.
@@ -52,7 +54,6 @@ def test_exceptions_in_jit_functions():
         assert out == data
 
     assert msg_during_jit in stdout
-    assert jit_compiled_function._cache_size() == 1
 
     # In the second call, the function won't be compiled and won't print the message.
     with jax.log_compiles(), io.StringIO() as buf, redirect_stdout(buf):
@@ -63,7 +64,6 @@ def test_exceptions_in_jit_functions():
         assert out == data
 
     assert msg_during_jit not in stdout
-    assert jit_compiled_function._cache_size() == 1
 
     # Let's trigger a ValueError exception by passing 42.
     data = 42
@@ -73,8 +73,6 @@ def test_exceptions_in_jit_functions():
     ):
         _ = jit_compiled_function(data=data)
 
-    assert jit_compiled_function._cache_size() == 1
-
     # Let's trigger a RuntimeError exception by passing -42.
     data = -42
     with pytest.raises(
@@ -82,5 +80,3 @@ def test_exceptions_in_jit_functions():
         match=f"RuntimeError: Raising RuntimeError since data={data}",
     ):
         _ = jit_compiled_function(data=data)
-
-    assert jit_compiled_function._cache_size() == 1

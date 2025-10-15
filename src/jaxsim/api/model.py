@@ -352,15 +352,7 @@ class JaxSimModel(JaxsimDataclass):
                     f"Invalid type for model.built_from ({type(self.built_from)})."
                     "Skipping for hardware parametrization."
                 )
-                return HwLinkMetadata(
-                    link_shape=jnp.array([]),
-                    geometry=jnp.array([]),
-                    density=jnp.array([]),
-                    L_H_G=jnp.array([]),
-                    L_H_vis=jnp.array([]),
-                    L_H_pre_mask=jnp.array([]),
-                    L_H_pre=jnp.array([]),
-                )
+                return HwLinkMetadata.empty()
 
         # Use URDF frame convention for consistent pose representation
         rod_model.switch_frame_convention(
@@ -487,6 +479,12 @@ class JaxSimModel(JaxsimDataclass):
             L_H_vises.append(visual_pose)
             L_H_pre_masks.append(l_h_pre_mask)
             L_H_pre.append(l_h_pre)
+
+        if np.all(np.array(shapes) == LinkParametrizableShape.Unsupported):
+            logging.debug(
+                "All links were skipped for hardware parametrization. Returning empty metadata."
+            )
+            return HwLinkMetadata.empty()
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(

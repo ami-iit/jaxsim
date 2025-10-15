@@ -942,6 +942,19 @@ class HwLinkMetadata(JaxsimDataclass):
     L_H_pre_mask: jtp.Vector
     L_H_pre: jtp.Matrix
 
+    @classmethod
+    def empty(cls) -> HwLinkMetadata:
+        """Return hardware metadata representing the absence of links."""
+        return cls(
+            link_shape=jnp.array([], dtype=int),
+            geometry=jnp.array([], dtype=float),
+            density=jnp.array([], dtype=float),
+            L_H_G=jnp.array([], dtype=float),
+            L_H_vis=jnp.array([], dtype=float),
+            L_H_pre_mask=jnp.array([], dtype=bool),
+            L_H_pre=jnp.array([], dtype=float),
+        )
+
     @staticmethod
     def compute_mass_and_inertia(
         hw_link_metadata: HwLinkMetadata,

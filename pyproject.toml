@@ -65,6 +65,7 @@ style = [
     "pre-commit",
 ]
 testing = [
+    "chex >= 0.1.91",
     "idyntree >= 12.2.1",
     "pytest >=6.0",
     "pytest-benchmark",
@@ -255,6 +256,7 @@ test = { cmd = "pytest", depends-on = ["pipcheck"] }
 
 [tool.pixi.feature.test.dependencies]
 black-jupyter = "24.*"
+chex = ">=0.1.91"
 idyntree = "*"
 isort = "*"
 pre-commit = "*"

@@ -25,6 +25,7 @@ dependencies:
   - isort
   - pre-commit
   # [testing]
+  - chex
   - idyntree >= 12.2.1
   - pytest
   - pytest-benchmark

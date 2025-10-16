@@ -20,6 +20,12 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+try:
+    from optax.tree_utils import tree_norm
+except ImportError:
+    tree_norm = optax.tree_utils.tree_l2_norm
+    optax.tree_utils.tree_norm = tree_norm
+
 
 @jax_dataclasses.pytree_dataclass
 class RelaxedRigidContactsParams(common.ContactsParams):
@@ -446,7 +452,7 @@ class RelaxedRigidContacts(common.ContactModel):
 
                 iter_num = optax.tree_utils.tree_get(state, "count")
                 grad = optax.tree_utils.tree_get(state, "grad")
-                err = optax.tree_utils.tree_l2_norm(grad)
+                err = optax.tree_utils.tree_norm(grad)
 
                 return (iter_num == 0) | ((iter_num < maxiter) & (err >= tol))
 

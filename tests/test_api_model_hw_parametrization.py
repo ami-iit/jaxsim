@@ -5,6 +5,7 @@ import rod
 
 import jaxsim.api as js
 from jaxsim.api.kin_dyn_parameters import HwLinkMetadata, ScalingFactors
+from jaxsim.rbda.contacts import SoftContactsParams
 
 
 def test_update_hw_link_parameters(jaxsim_model_garpez: js.model.JaxSimModel):
@@ -401,6 +402,18 @@ def test_hw_parameters_collision_scaling(
     # Define the scaling factor for the model
     scaling_factor = 5.0
 
+    # Recompute K and D, since the mass is scaled by scaling_factor^3
+    # and the expected static compression of the terrain is approximately
+    # proportional to mass/K and divided by the 4 contact points.
+    K = model.contact_params.K * (scaling_factor**2)
+
+    # Strongly overdamped, to avoid oscillations due to the high mass
+    # and the low penetration allowed.
+    D = 8 * jnp.sqrt(K)
+
+    with model.editable(validate=False) as model:
+        model.contact_params = SoftContactsParams(K=K, D=D)
+
     # Define the nominal radius of the sphere
     nominal_height = model.kin_dyn_parameters.hw_link_metadata.geometry[0, 2]
 
@@ -413,6 +426,9 @@ def test_hw_parameters_collision_scaling(
     # Update the model with the scaling parameters
     updated_model = js.model.update_hw_parameters(model, scaling_parameters)
 
+    # Compute the expected height (nominal radius * scaling factor)
+    expected_height = nominal_height * scaling_factor / 2
+
     # Simulate the box falling under gravity
     data = js.data.JaxSimModelData.build(
         model=updated_model,
@@ -424,7 +440,7 @@ def test_hw_parameters_collision_scaling(
         base_position=jnp.array(
             [
                 *jax.random.uniform(subkey, shape=(2,)),
-                nominal_height * scaling_factor + 0.01,
+                expected_height + 0.05,
             ]
         ),
     )
@@ -439,9 +455,6 @@ def test_hw_parameters_collision_scaling(
 
     # Get the final height of the box's base
     updated_base_height = data.base_position[2]
-
-    # Compute the expected height (nominal radius * scaling factor)
-    expected_height = nominal_height * scaling_factor / 2
 
     # Assert that the box settles at the expected height
     assert jnp.isclose(

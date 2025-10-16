@@ -352,40 +352,14 @@ class JaxSimModel(JaxsimDataclass):
                     f"Invalid type for model.built_from ({type(self.built_from)})."
                     "Skipping for hardware parametrization."
                 )
-                return HwLinkMetadata(
-                    link_shape=jnp.array([]),
-                    geometry=jnp.array([]),
-                    density=jnp.array([]),
-                    L_H_G=jnp.array([]),
-                    L_H_vis=jnp.array([]),
-                    L_H_pre_mask=jnp.array([]),
-                    L_H_pre=jnp.array([]),
-                )
+                return HwLinkMetadata.empty()
 
         # Use URDF frame convention for consistent pose representation
         rod_model.switch_frame_convention(
             frame_convention=rod.FrameConvention.Urdf, explicit_frames=True
         )
 
-        rod_links_dict = {}
-
-        # Filter links that support parameterization
-        for rod_link in rod_model.links():
-            if len(rod_link.visuals()) != 1:
-                logging.debug(
-                    f"Skipping link '{rod_link.name}' for hardware parametrization due to multiple visuals."
-                )
-                continue
-
-            if not isinstance(
-                rod_link.visual.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
-            ):
-                logging.debug(
-                    f"Skipping link '{rod_link.name}' for hardware parametrization due to unsupported geometry."
-                )
-                continue
-
-            rod_links_dict[rod_link.name] = rod_link
+        rod_links_dict = {link.name: link for link in rod_model.links()}
 
         # Initialize lists to collect metadata for all links
         shapes = []
@@ -404,15 +378,13 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization as it is not part of the JaxSim model."
                 )
-                continue
 
             if link_name not in rod_links_dict:
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization as it is not part of the ROD model."
                 )
-                continue
 
-            rod_link = rod_links_dict[link_name]
+            rod_link = rod_links_dict.get(link_name)
             link_index = int(js.link.name_to_idx(model=self, link_name=link_name))
 
             # Get child joints for the link
@@ -431,51 +403,85 @@ class JaxSimModel(JaxsimDataclass):
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization due to unsupported suc_H_link."
                 )
-                continue
+                rod_link = None
 
             # Compute density and dimensions
             mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
-            geometry = rod_link.visual.geometry.geometry()
+
+            # Find the first supported visual
+            supported_visual = (
+                next(
+                    (
+                        v
+                        for v in rod_link.visuals()
+                        if isinstance(
+                            v.geometry.geometry(), (rod.Box, rod.Sphere, rod.Cylinder)
+                        )
+                    ),
+                    None,
+                )
+                if rod_link
+                else None
+            )
+
+            geometry = (
+                supported_visual.geometry.geometry() if supported_visual else None
+            )
             if isinstance(geometry, rod.Box):
                 lx, ly, lz = geometry.size
                 density = mass / (lx * ly * lz)
-                geoms.append([lx, ly, lz])
-                shapes.append(LinkParametrizableShape.Box)
+                geom = [lx, ly, lz]
+                shape = LinkParametrizableShape.Box
             elif isinstance(geometry, rod.Sphere):
                 r = geometry.radius
                 density = mass / (4 / 3 * jnp.pi * r**3)
-                geoms.append([r, 0, 0])
-                shapes.append(LinkParametrizableShape.Sphere)
+                geom = [r, 0, 0]
+                shape = LinkParametrizableShape.Sphere
             elif isinstance(geometry, rod.Cylinder):
                 r, l = geometry.radius, geometry.length
                 density = mass / (jnp.pi * r**2 * l)
-                geoms.append([r, l, 0])
-                shapes.append(LinkParametrizableShape.Cylinder)
+                geom = [r, l, 0]
+                shape = LinkParametrizableShape.Cylinder
             else:
                 logging.debug(
                     f"Skipping link '{link_name}' for hardware parametrization due to unsupported geometry."
                 )
-                continue
+                density = 0.0
+                geom = [0, 0, 0]
+                shape = LinkParametrizableShape.Unsupported
 
+            inertial_pose = (
+                rod_link.inertial.pose.transform() if rod_link else jnp.eye(4)
+            )
+            visual_pose = (
+                supported_visual.pose.transform() if supported_visual else jnp.eye(4)
+            )
+            l_h_pre_mask = [
+                int(joint_index in child_joints_indices)
+                for joint_index in range(self.number_of_joints())
+            ]
+            l_h_pre = [
+                (
+                    self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
+                    if joint_index in child_joints_indices
+                    else jnp.eye(4)
+                )
+                for joint_index in range(self.number_of_joints())
+            ]
+
+            shapes.append(shape)
+            geoms.append(geom)
             densities.append(density)
-            L_H_Gs.append(rod_link.inertial.pose.transform())
-            L_H_vises.append(rod_link.visual.pose.transform())
-            L_H_pre_masks.append(
-                [
-                    int(joint_index in child_joints_indices)
-                    for joint_index in range(self.number_of_joints())
-                ]
+            L_H_Gs.append(inertial_pose)
+            L_H_vises.append(visual_pose)
+            L_H_pre_masks.append(l_h_pre_mask)
+            L_H_pre.append(l_h_pre)
+
+        if np.all(np.array(shapes) == LinkParametrizableShape.Unsupported):
+            logging.debug(
+                "All links were skipped for hardware parametrization. Returning empty metadata."
             )
-            L_H_pre.append(
-                [
-                    (
-                        self.kin_dyn_parameters.joint_model.λ_H_pre[joint_index + 1]
-                        if joint_index in child_joints_indices
-                        else jnp.eye(4)
-                    )
-                    for joint_index in range(self.number_of_joints())
-                ]
-            )
+            return HwLinkMetadata.empty()
 
         # Stack collected data into JAX arrays
         return HwLinkMetadata(

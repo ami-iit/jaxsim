@@ -447,3 +447,168 @@ def test_hw_parameters_collision_scaling(
     assert jnp.isclose(
         updated_base_height, expected_height, atol=1e-3
     ), f"model base height mismatch: expected {expected_height}, got {updated_base_height}"
+
+
+def test_unsupported_link_cases():
+    """
+    Test that unsupported link cases are handled correctly.
+    """
+    import rod.builder.primitives
+
+    from jaxsim.api.kin_dyn_parameters import LinkParametrizableShape
+
+    # Test unsupported (no visual)
+    no_visual_model = js.model.JaxSimModel.build_from_model_description(
+        rod.builder.primitives.BoxBuilder(x=1, y=1, z=1, mass=1, name="no_vis_box")
+        .build_model()
+        .add_link(name="no_visual_link")
+        .add_inertial()
+        .build()  # No .add_visual()
+    )
+    no_visual_metadata = no_visual_model.kin_dyn_parameters.hw_link_metadata
+    empty_metadata = HwLinkMetadata.empty()
+    comparison = jax.tree.map(
+        lambda a, b: jnp.allclose(a, b),
+        no_visual_metadata,
+        empty_metadata,
+    )
+    assert jax.tree.reduce(
+        lambda acc, value: acc and bool(value), comparison, True
+    ), "No links should be supported."
+
+    # Create a simple multi-link URDF and add collision to ensure links are kept
+    multi_link_urdf = """
+        <?xml version="1.0"?>
+        <robot name="two_link_test">
+
+        <!-- Link 1: Supported (with box visual) -->
+        <link name="supported_link">
+            <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+            <visual>
+            <geometry>
+                <box size="1.0 1.0 1.0"/>
+            </geometry>
+            </visual>
+            <collision>
+            <geometry>
+                <box size="1.0 1.0 1.0"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link 2: Unsupported (no visual but has collision) -->
+        <link name="unsupported_link">
+            <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+            <!-- No visual element - this makes it unsupported -->
+            <collision>
+            <geometry>
+                <box size="0.5 0.5 0.5"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link 3: Two visuals (first should be picked) -->
+        <link name="double_visual_link">
+            <inertial>
+            <mass value="1.0"/>
+            <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+            <visual name="primary_sphere">
+            <geometry>
+                <sphere radius="0.4"/>
+            </geometry>
+            </visual>
+            <visual name="secondary_box">
+            <geometry>
+                <box size="0.8 0.2 0.2"/>
+            </geometry>
+            </visual>
+            <collision>
+            <geometry>
+                <sphere radius="0.4"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint connecting the links -->
+        <joint name="connecting_joint" type="revolute">
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <parent link="supported_link"/>
+            <child link="unsupported_link"/>
+            <axis xyz="1 0 0"/>
+            <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+        </joint>
+
+        <!-- Joint for double visual link -->
+        <joint name="double_visual_joint" type="revolute">
+            <origin xyz="0.1 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <parent link="unsupported_link"/>
+            <child link="double_visual_link"/>
+            <axis xyz="0 1 0"/>
+            <limit effort="3.4028235e+38" velocity="3.4028235e+38"/>
+        </joint>
+
+        </robot>
+    """
+
+    # Build JaxSim model from the URDF
+    multi_link_model = js.model.JaxSimModel.build_from_model_description(
+        multi_link_urdf, is_urdf=True
+    )
+    multi_link_metadata = multi_link_model.kin_dyn_parameters.hw_link_metadata
+
+    # Verify array consistency for the model
+    num_links = multi_link_model.number_of_links()
+    assert num_links == 3, f"Expected 3 links in the URDF model, got {num_links}"
+    assert (
+        len(multi_link_metadata.link_shape)
+        == len(multi_link_metadata.geometry)
+        == len(multi_link_metadata.density)
+        == num_links
+    )
+
+    # Count verification in single model
+    supported_count = sum(
+        1
+        for s in multi_link_metadata.link_shape
+        if s != LinkParametrizableShape.Unsupported
+    )
+    unsupported_count = sum(
+        1
+        for s in multi_link_metadata.link_shape
+        if s == LinkParametrizableShape.Unsupported
+    )
+
+    assert (
+        supported_count == 2
+    ), f"Expected 2 supported links in single model, got {supported_count}"
+    assert (
+        unsupported_count == 1
+    ), f"Expected 1 unsupported link in single model, got {unsupported_count}"
+
+    # Ensure shapes match expectations by name
+    link_indices = {name: idx for idx, name in enumerate(multi_link_model.link_names())}
+
+    assert (
+        multi_link_metadata.link_shape[link_indices["supported_link"]]
+        == LinkParametrizableShape.Box
+    ), "Supported link should remain a box"
+    assert (
+        multi_link_metadata.link_shape[link_indices["unsupported_link"]]
+        == LinkParametrizableShape.Unsupported
+    ), "Unsupported link should remain unsupported"
+
+    double_visual_idx = link_indices["double_visual_link"]
+    assert (
+        multi_link_metadata.link_shape[double_visual_idx]
+        == LinkParametrizableShape.Sphere
+    ), "Double visual link should pick the first (sphere) visual"
+    assert multi_link_metadata.geometry[double_visual_idx, 0] == pytest.approx(
+        0.4
+    ), "Sphere radius must match the first visual"

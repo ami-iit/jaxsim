@@ -60,7 +60,7 @@ dependencies = [
 
 [project.optional-dependencies]
 style = [
-    "black[jupyter] ~= 24.0",
+    "black[jupyter]",
     "isort",
     "pre-commit",
 ]
@@ -255,7 +255,7 @@ lint = { cmd = "pre-commit run --all-files --hook-stage=manual" }
 test = { cmd = "pytest", depends-on = ["pipcheck"] }
 
 [tool.pixi.feature.test.dependencies]
-black-jupyter = "24.*"
+black-jupyter = "*"
 chex = ">=0.1.91"
 idyntree = "*"
 isort = "*"

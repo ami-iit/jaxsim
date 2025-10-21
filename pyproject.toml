@@ -195,9 +195,10 @@ ignore = [
 # Pixi configuration
 # ==================
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64", "osx-64"]
+requires-pixi = ">=0.39.0"
 
 [tool.pixi.environments]
 # We resolve only two groups: cpu and gpu.

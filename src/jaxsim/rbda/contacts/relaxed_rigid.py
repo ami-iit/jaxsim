@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import jax_dataclasses
 import optax
+from optax.tree_utils import tree_get
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
@@ -20,11 +21,11 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+
 try:
     from optax.tree_utils import tree_norm
 except ImportError:
-    tree_norm = optax.tree_utils.tree_l2_norm
-    optax.tree_utils.tree_norm = tree_norm
+    from optax.tree_utils import tree_l2_norm as tree_norm
 
 
 @jax_dataclasses.pytree_dataclass
@@ -450,9 +451,9 @@ class RelaxedRigidContacts(common.ContactModel):
 
                 _, state = carry
 
-                iter_num = optax.tree_utils.tree_get(state, "count")
-                grad = optax.tree_utils.tree_get(state, "grad")
-                err = optax.tree_utils.tree_norm(grad)
+                iter_num = tree_get(state, "count")
+                grad = tree_get(state, "grad")
+                err = tree_norm(grad)
 
                 return (iter_num == 0) | ((iter_num < maxiter) & (err >= tol))
 

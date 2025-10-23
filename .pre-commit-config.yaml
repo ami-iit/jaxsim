@@ -42,6 +42,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
+        args: ["-S", "*.lock"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.13.3

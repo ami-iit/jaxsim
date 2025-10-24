@@ -415,15 +415,25 @@ class SoftContacts(common.ContactModel):
         # Compute the position and linear velocities (mixed representation) of
         # all the collidable shapes belonging to the robot and extract the ones
         # for the enabled collidable shapes.
-        δ, δ̇, n̂, W_p_C, CW_ṗ_C = jax.vmap(
-            common.compute_penetration_data, in_axes=(None,)
+        δ, δ̇, n̂, W_p_C, CW_ṗ_C = jax.vmap(
+            lambda shape_transform, shape_type, shape_size, link_transform, link_velocity: common.compute_penetration_data(
+                model,
+                shape_transform=shape_transform,
+                shape_type=shape_type,
+                shape_size=shape_size,
+                link_transforms=link_transform,
+                link_velocities=link_velocity,
+            )
         )(
-            model,
-            shape_offset=model.kin_dyn_parameters.contact_parameters.center,
-            shape_type=model.kin_dyn_parameters.contact_parameters.shape_type,
-            shape_size=model.kin_dyn_parameters.contact_parameters.shape_size,
-            link_transforms=data._link_transforms,
-            link_velocities=data._link_velocities,
+            model.kin_dyn_parameters.contact_parameters.transform,
+            model.kin_dyn_parameters.contact_parameters.shape_type,
+            model.kin_dyn_parameters.contact_parameters.shape_size,
+            data._link_transforms[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
+            data._link_velocities[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
         )
 
         # Extract the material deformation corresponding to the collidable shapes.
@@ -437,9 +447,15 @@ class SoftContacts(common.ContactModel):
         # We exploit two levels of vmap to vectorize over both the shapes and the points.
         # The outer vmap vectorizes over the shapes, while the inner vmap vectorizes
         # over the maximum points (3) belonging to each shape.
-        W_f, ṁ = jax.vmap(
+        W_f_per_shape, ṁ = jax.vmap(
             SoftContacts.compute_contact_force,
             in_axes=(0, 0, 0, 0, 0, 0, None),  # vectorize over shapes
-        )(δ, δ̇, W_p_C, CW_ṗ_C, n̂, m, model.contact_params)
+        )(δ, δ̇, W_p_C, CW_ṗ_C, n̂, m, model.contact_params)
 
-        return W_f, {"m_dot": ṁ}
+        # Accumulate forces by parent link using segment_sum
+        body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+        W_f = jax.ops.segment_sum(
+            W_f_per_shape, body_indices, num_segments=model.number_of_links()
+        )
+
+        return W_f, {"m_dot": ṁ}

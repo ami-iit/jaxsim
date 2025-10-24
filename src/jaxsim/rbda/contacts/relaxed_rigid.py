@@ -328,15 +328,25 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.
-        δ, δ̇, n̂, W_p_C, CW_ṗ_C = jax.vmap(
-            common.compute_penetration_data, in_axes=(None,)
+        δ, δ̇, n̂, W_p_C, CW_ṗ_C = jax.vmap(
+            lambda shape_transform, shape_type, shape_size, link_transform, link_velocity: common.compute_penetration_data(
+                model,
+                shape_transform=shape_transform,
+                shape_type=shape_type,
+                shape_size=shape_size,
+                link_transforms=link_transform,
+                link_velocities=link_velocity,
+            )
         )(
-            model,
-            shape_offset=model.kin_dyn_parameters.contact_parameters.center,
-            shape_type=model.kin_dyn_parameters.contact_parameters.shape_type,
-            shape_size=model.kin_dyn_parameters.contact_parameters.shape_size,
-            link_transforms=data._link_transforms,
-            link_velocities=data._link_velocities,
+            model.kin_dyn_parameters.contact_parameters.transform,
+            model.kin_dyn_parameters.contact_parameters.shape_type,
+            model.kin_dyn_parameters.contact_parameters.shape_size,
+            data._link_transforms[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
+            data._link_velocities[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
         )
 
         # Compute the position in the constraint frame.
@@ -346,7 +356,7 @@ class RelaxedRigidContacts(common.ContactModel):
         a_ref, r, *_ = self._regularizers(
             model=model,
             position_constraint=position_constraint,
-            velocity_constraint=CW_ṗ_C,
+            velocity_constraint=CW_ṗ_C,
             parameters=model.contact_params,
         )
 
@@ -529,13 +539,21 @@ class RelaxedRigidContacts(common.ContactModel):
 
         # Compute the contact forces in inertial representation for
         # each link and contact point.
-        # Nested vmap: inner over contacts, outer over links
-        W_f_C = jax.vmap(lambda f_link, H_link: jax.vmap(to_inertial)(f_link, H_link))(
-            CW_fl_per_link, W_H_C
+        # Nested vmap: inner over contacts, outer over shapes
+        W_f_C = jax.vmap(
+            lambda f_shape, H_shape: jax.vmap(to_inertial)(f_shape, H_shape)
+        )(CW_fl_per_link, W_H_C)
+
+        # Sum over contacts for each shape: (n_shapes, 6)
+        W_f_per_shape = W_f_C.sum(axis=1)
+
+        # Accumulate forces by parent link using segment_sum
+        body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+        W_f_per_link = jax.ops.segment_sum(
+            W_f_per_shape, body_indices, num_segments=model.number_of_links()
         )
 
-        # Sum over contacts for each link
-        return W_f_C.sum(axis=1), {}
+        return W_f_per_link, {}
 
     @staticmethod
     def _regularizers(
@@ -576,7 +594,11 @@ class RelaxedRigidContacts(common.ContactModel):
         )
 
         # Compute the 6D inertia matrices of all links.
-        M_L = js.model.link_spatial_inertia_matrices(model=model)[:, :3, :3]
+        M_L_all = js.model.link_spatial_inertia_matrices(model=model)[:, :3, :3]
+
+        # Index M_L by the body (parent link) of each collision shape
+        body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+        M_L = M_L_all[body_indices]
 
         def imp_aref(
             pos: jtp.Vector,

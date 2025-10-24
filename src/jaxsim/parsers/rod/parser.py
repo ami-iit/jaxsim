@@ -353,7 +353,7 @@ def extract_model_data(
             # Fill with unsupported collision shape
             collisions.append(
                 descriptions.collision.CollisionShape(
-                    center=jnp.array([0.0, 0.0, 0.0]),
+                    transform=jnp.eye(4),
                     size=jnp.array([0.0, 0.0, 0.0]),
                     parent_link=link.name,
                 )

@@ -783,23 +783,40 @@ class ContactParameters(JaxsimDataclass):
 
     Attributes:
         body:
-            A tuple of integers representing, for each collidable point, the index of
-            the body (link) to which it is rigidly attached to.
-        point:
-            The translations between the link frame and the collidable point, expressed
-            in the coordinates of the parent link frame.
-        enabled:
-            A tuple of booleans representing, for each collidable point, whether it is
-            enabled or not in contact models.
+            A tuple of integers representing, for each collision shape, the index of
+            the link to which it is rigidly attached to.
+        transform:
+            The 4x4 homogeneous transformation matrices representing the pose of each
+            collision shape with respect to the parent link frame.
+        shape_size:
+            The size parameters of each collidable shape.
+        shape_type:
+            The type of each collidable shape (sphere, box, cylinder, etc.).
 
     Note:
         Contrarily to LinkParameters and JointParameters, this class is not meant
         to be created with vmap. This is because the `body` attribute must be `Static`.
     """
 
-    center: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
+    body: Static[tuple[int, ...]] = dataclasses.field(default_factory=tuple)
+
+    transform: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.array([]))
     shape_size: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
     shape_type: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
+
+    @property
+    def center(self) -> jtp.Array:
+        """Extract translation vectors from transformation matrices."""
+        if self.transform.size == 0:
+            return jnp.array([])
+        return self.transform[:, :3, 3]
+
+    @property
+    def orientation(self) -> jtp.Array:
+        """Extract rotation matrices from transformation matrices."""
+        if self.transform.size == 0:
+            return jnp.array([])
+        return self.transform[:, :3, :3]
 
     @staticmethod
     def build_from(model_description: ModelDescription) -> ContactParameters:
@@ -816,7 +833,12 @@ class ContactParameters(JaxsimDataclass):
         if len(model_description.collision_shapes) == 0:
             return ContactParameters()
 
-        shape_types, shape_sizes, centers = [], [], []
+        shape_types, shape_sizes, transforms, parent_link_indices = (
+            [],
+            [],
+            [],
+            [],
+        )
 
         # Assume the link_parameters and the collision_shapes are in the same order.
         for collision in model_description.collision_shapes:
@@ -828,11 +850,17 @@ class ContactParameters(JaxsimDataclass):
 
             shape_sizes.append(collision.size.squeeze())
 
-            centers.append(collision.center)
+            transforms.append(collision.transform)
+
+            # Get the parent link index for this collision shape.
+            parent_link_indices.append(
+                model_description.links_dict[collision.parent_link].index
+            )
 
         # Build the ContactParameters object.
         return ContactParameters(
-            center=jnp.array(centers, dtype=float),
+            body=tuple(parent_link_indices),
+            transform=jnp.array(transforms, dtype=float),
             shape_type=jnp.array(shape_types, dtype=int),
             shape_size=jnp.array(shape_sizes, dtype=float),
         )

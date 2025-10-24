@@ -36,18 +36,28 @@ def contact_point_kinematics(
         the linear component of the mixed 6D frame velocity.
     """
 
-    _, _, _, W_p_Ci, W_ṗ_Ci = jax.vmap(
-        jaxsim.rbda.contacts.common.compute_penetration_data, in_axes=(None,)
+    _, _, _, W_p_Ci, W_ṗ_Ci = jax.vmap(
+        lambda shape_transform, shape_type, shape_size, link_transform, link_velocity: jaxsim.rbda.contacts.common.compute_penetration_data(
+            model,
+            shape_transform=shape_transform,
+            shape_type=shape_type,
+            shape_size=shape_size,
+            link_transforms=link_transform,
+            link_velocities=link_velocity,
+        )
     )(
-        model,
-        shape_offset=model.kin_dyn_parameters.contact_parameters.center,
-        shape_type=model.kin_dyn_parameters.contact_parameters.shape_type,
-        shape_size=model.kin_dyn_parameters.contact_parameters.shape_size,
-        link_transforms=data._link_transforms,
-        link_velocities=data._link_velocities,
+        model.kin_dyn_parameters.contact_parameters.transform,
+        model.kin_dyn_parameters.contact_parameters.shape_type,
+        model.kin_dyn_parameters.contact_parameters.shape_size,
+        data._link_transforms[
+            jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+        ],
+        data._link_velocities[
+            jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+        ],
     )
 
-    return W_p_Ci, W_ṗ_Ci
+    return W_p_Ci, W_ṗ_Ci
 
 
 @jax.jit
@@ -241,13 +251,20 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     # Get the transforms of the parent link of all collidable points.
     W_H_L = data._link_transforms
 
-    def _process_single_shape(shape_type, shape_size, W_H_Li):
+    # Index transforms by the body (parent link) of each collision shape
+    body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+    W_H_L_indexed = W_H_L[body_indices]
+
+    def _process_single_shape(shape_type, shape_size, shape_transform, W_H_Li):
+        # Apply the collision shape transform to get W_H_S
+        W_H_S = W_H_Li @ shape_transform
+
         _, W_H_C = jax.lax.switch(
             shape_type,
             (detection.box_plane, detection.cylinder_plane, detection.sphere_plane),
             model.terrain,
             shape_size,
-            W_H_Li,
+            W_H_S,
         )
 
         return W_H_C
@@ -255,7 +272,8 @@ def transforms(model: js.model.JaxSimModel, data: js.data.JaxSimModelData) -> jt
     return jax.vmap(_process_single_shape)(
         model.kin_dyn_parameters.contact_parameters.shape_type,
         model.kin_dyn_parameters.contact_parameters.shape_size,
-        W_H_L,
+        model.kin_dyn_parameters.contact_parameters.transform,
+        W_H_L_indexed,
     )
 
 
@@ -294,13 +312,17 @@ def jacobian(
         model=model, data=data, output_vel_repr=VelRepr.Inertial
     )
 
-    # Compute contact transforms (n_links, n_contacts, 4, 4)
+    # Compute contact transforms (n_shapes, n_contacts_per_shape, 4, 4)
     W_H_C = transforms(model=model, data=data)
 
-    # Flatten link × contact axes for single-batch processing (n_links*n_contacts, 6, 6+n)
-    W_J_WC_flat = jnp.repeat(W_J_WL, 3, axis=0)
+    # Index Jacobians by the body (parent link) of each collision shape
+    body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+    W_J_WL_indexed = W_J_WL[body_indices]  # (n_shapes, 6, 6+n)
 
-    # Flatten contact transforms (n_links*n_contacts, 4, 4)
+    # Repeat for each contact point per shape: (n_shapes*n_contacts_per_shape, 6, 6+n)
+    W_J_WC_flat = jnp.repeat(W_J_WL_indexed, 3, axis=0)
+
+    # Flatten contact transforms (n_shapes*n_contacts_per_shape, 4, 4)
     W_H_C_flat = W_H_C.reshape(-1, 4, 4)
 
     # Transform Jacobian based on velocity representation
@@ -357,7 +379,11 @@ def jacobian_derivative(
     # Get the link velocities.
     W_v_WL = data._link_velocities
 
-    # Compute the contact transforms (n_links, n_contacts, 4, 4)
+    # Index link velocities by body (parent link) of each collision shape
+    body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+    W_v_WL_indexed = W_v_WL[body_indices]  # (n_shapes, 6)
+
+    # Compute the contact transforms (n_shapes, n_contacts, 4, 4)
     W_H_C = transforms(model=model, data=data)
 
     # =====================================================
@@ -408,6 +434,10 @@ def jacobian_derivative(
             model=model, data=data
         )
 
+    # Index Jacobians by body (parent link) of each collision shape
+    W_J_WL_W_indexed = W_J_WL_W[body_indices]  # (n_shapes, 6, 6+n)
+    W_J̇_WL_W_indexed = W_J̇_WL_W[body_indices]  # (n_shapes, 6, 6+n)
+
     def compute_O_J̇_WC_I(W_H_C, W_v_WL, W_J_WL_W, W_J̇_WL_W) -> jtp.Matrix:
         match output_vel_repr:
             case VelRepr.Inertial:
@@ -430,15 +460,15 @@ def jacobian_derivative(
 
         return O_J̇_WC_I
 
-    O_J̇_per_link = jax.vmap(
-        lambda H_C_link, v_WL_link, J_WL_link, J̇_WL_link: jax.vmap(
+    O_J̇_per_shape = jax.vmap(
+        lambda H_C_shape, v_WL_shape, J_WL_shape, J̇_WL_shape: jax.vmap(
             compute_O_J̇_WC_I,
             in_axes=(0, None, None, None),  # Map over contacts for W_H_C only
-        )(H_C_link, v_WL_link, J_WL_link, J̇_WL_link),
-        in_axes=(0, 0, 0, 0),  # Map over links
-    )(W_H_C, W_v_WL, W_J_WL_W, W_J̇_WL_W)
+        )(H_C_shape, v_WL_shape, J_WL_shape, J̇_WL_shape),
+        in_axes=(0, 0, 0, 0),  # Map over shapes
+    )(W_H_C, W_v_WL_indexed, W_J_WL_W_indexed, W_J̇_WL_W_indexed)
 
-    O_J̇_WC = O_J̇_per_link.reshape(-1, 6, 6 + model.dofs())
+    O_J̇_WC = O_J̇_per_shape.reshape(-1, 6, 6 + model.dofs())
 
     return O_J̇_WC
 

@@ -105,11 +105,9 @@ def create_box_collision(
 
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
-    center = H[:3, 3]
-
     return descriptions.BoxCollision(
         size=np.array([x, y, z]),
-        center=center,
+        transform=H,
         parent_link=link_description.name,
     )
 
@@ -132,11 +130,9 @@ def create_sphere_collision(
 
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
-    center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
-
     return descriptions.SphereCollision(
         size=np.array([r] * 3),
-        center=center_wrt_link,
+        transform=H,
         parent_link=link_description.name,
     )
 
@@ -160,10 +156,8 @@ def create_cylinder_collision(
 
     H = collision.pose.transform() if collision.pose is not None else np.eye(4)
 
-    center_wrt_link = (H @ np.hstack([0, 0, 0, 1.0]))[0:-1]
-
     return descriptions.CylinderCollision(
         size=np.array([r, l, 0]),
-        center=center_wrt_link,
+        transform=H,
         parent_link=link_description.name,
     )

@@ -102,16 +102,24 @@ def test_contact_jacobian_derivative(
         velocity_representation=velocity_representation,
     )
 
-    W_H_L = data._link_transforms
+    body_indices = np.array(model.kin_dyn_parameters.contact_parameters.body)
+
+    # Get link transforms for each collision shape
+    W_H_L = data._link_transforms[body_indices]
+
+    # Get contact point positions (shape: num_collision_shapes, 3, 3)
     W_p_C = js.contact.contact_point_positions(model=model, data=data)
 
-    # Vectorize over the 3 points for one link
-    transform_points = jax.vmap(
-        lambda H, p: H @ jnp.hstack([p, 1.0]), in_axes=(None, 0)
-    )
+    # Transform contact points from world to link frame
+    # For each collision shape, transform its 3 contact points
+    def transform_to_link_frame(W_H_L_i, W_p_Ci):
+        """Transform 3 contact points from world to link frame."""
 
-    # Vectorize over the links
-    L_p_Ci = jax.vmap(transform_points, in_axes=(0, 0))(W_H_L, W_p_C)[..., :3]
+        L_H_W = jnp.linalg.inv(W_H_L_i)
+        return jax.vmap(lambda p: (L_H_W @ jnp.hstack([p, 1.0]))[:3])(W_p_Ci)
+
+    # Apply to all collision shapes: shape (num_collision_shapes, 3, 3)
+    L_p_Ci = jax.vmap(transform_to_link_frame)(W_H_L, W_p_C)
 
     # =====
     # Tests
@@ -120,16 +128,15 @@ def test_contact_jacobian_derivative(
     # Load the model in ROD.
     rod_model = rod.Sdf.load(sdf=model.built_from).model
 
-    # Add dummy frames on the contact shapes.
-
-    for idx, link_name, points in zip(
-        np.arange(model.number_of_links()), model.link_names(), L_p_Ci, strict=True
+    for shape_idx, (link_idx, points) in enumerate(
+        zip(body_indices, L_p_Ci, strict=True)
     ):
-        # points: shape (3, 3) for this link
+        link_name = model.link_names()[link_idx]
+
         for j, p in enumerate(points):
             rod_model.add_frame(
                 frame=rod.Frame(
-                    name=f"contact_shape_{idx}_{j}",
+                    name=f"contact_shape_{shape_idx}_{j}",
                     attached_to=link_name,
                     pose=rod.Pose(
                         relative_to=link_name,
@@ -159,11 +166,12 @@ def test_contact_jacobian_derivative(
     )
 
     # Extract the indexes of the frames attached to the contact shapes.
+    num_collision_shapes = len(model.kin_dyn_parameters.contact_parameters.body)
     frame_idxs = js.frame.names_to_idxs(
         model=model_with_frames,
         frame_names=(
-            f"contact_shape_{idx}_{j}"
-            for idx in np.arange(model.number_of_links())
+            f"contact_shape_{shape_idx}_{j}"
+            for shape_idx in range(num_collision_shapes)
             for j in range(3)
         ),
     )

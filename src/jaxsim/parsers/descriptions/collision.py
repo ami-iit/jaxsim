@@ -3,6 +3,8 @@ from __future__ import annotations
 import dataclasses
 from abc import ABC
 
+import numpy as np
+
 import jaxsim.typing as jtp
 
 
@@ -15,16 +17,16 @@ class CollisionShape(ABC):
     It is not intended to be instantiated directly.
     """
 
-    center: jtp.VectorLike
     size: jtp.VectorLike
     parent_link: str
+    transform: jtp.MatrixLike = dataclasses.field(default_factory=lambda: np.eye(4))
 
     def __hash__(self) -> int:
         return hash(
             (
-                hash(tuple(self.center.tolist())),
                 hash(tuple(self.size.tolist())),
                 hash(self.parent_link),
+                hash(tuple(self.transform.flatten().tolist())),
             )
         )
 
@@ -35,36 +37,22 @@ class CollisionShape(ABC):
 
         return hash(self) == hash(other)
 
+    @property
+    def center(self) -> jtp.Vector:
+        """Extract the translation from the transformation matrix."""
+        return self.transform[:3, 3]
+
+    @property
+    def orientation(self) -> jtp.Matrix:
+        """Extract the rotation matrix from the transformation matrix."""
+        return self.transform[:3, :3]
+
 
 @dataclasses.dataclass
 class BoxCollision(CollisionShape):
     """
     Represents a box-shaped collision shape.
     """
-
-    @property
-    def x(self) -> float:
-        return self.size[0]
-
-    @property
-    def y(self) -> float:
-        return self.size[1]
-
-    @property
-    def z(self) -> float:
-        return self.size[2]
-
-    @x.setter
-    def x(self, value: float) -> None:
-        self.size[0] = value
-
-    @y.setter
-    def y(self, value: float) -> None:
-        self.size[1] = value
-
-    @z.setter
-    def z(self, value: float) -> None:
-        self.size[2] = value
 
 
 @dataclasses.dataclass
@@ -73,21 +61,9 @@ class SphereCollision(CollisionShape):
     Represents a spherical collision shape.
     """
 
-    @property
-    def radius(self) -> float:
-        return self.size[0]
-
 
 @dataclasses.dataclass
 class CylinderCollision(CollisionShape):
     """
     Represents a cylindrical collision shape.
     """
-
-    @property
-    def radius(self) -> float:
-        return self.size[0]
-
-    @property
-    def height(self) -> float:
-        return self.size[1]

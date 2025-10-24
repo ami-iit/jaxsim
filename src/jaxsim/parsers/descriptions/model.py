@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import itertools
 from collections.abc import Sequence
 
 from jaxsim import logging
@@ -27,9 +26,7 @@ class ModelDescription(KinematicGraph):
 
     fixed_base: bool = True
 
-    collision_shapes: tuple = dataclasses.field(
-        default_factory=list, repr=False
-    )
+    collision_shapes: tuple = dataclasses.field(default_factory=list, repr=False)
 
     @staticmethod
     def build_model_from(
@@ -102,31 +99,33 @@ class ModelDescription(KinematicGraph):
                 logging.info(msg.format(parent_link_of_shape))
                 continue
 
-            # Create a new collision shape
-            # new_collision_shape = CollisionShape(collidable_points=())
-            # final_collisions.append(new_collision_shape)
+            # Find the link that is part of the (reduced) model in which the
+            # collision shape's parent was lumped into.
+            real_parent_link_name = kinematic_graph.frames_dict[
+                parent_link_of_shape
+            ].parent_name
 
-            # # If the frame was found, update the collidable points' pose and add them
-            # # to the new collision shape.
-            # for cp in collision_shape.collidable_points:
-            #     # Find the link that is part of the (reduced) model in which the
-            #     # collision shape's parent was lumped into
-            #     real_parent_link_name = kinematic_graph.frames_dict[
-            #         parent_link_of_shape.name
-            #     ].parent_name
+            # Get the transform from the real parent link to the removed link
+            # that still exists as a frame.
+            parent_H_frame = fk.relative_transform(
+                relative_to=real_parent_link_name,
+                name=parent_link_of_shape,
+            )
 
-            #     # Change the link associated to the collidable point, updating their
-            #     # relative pose
-            #     moved_cp = cp.change_link(
-            #         new_link=kinematic_graph.links_dict[real_parent_link_name],
-            #         new_H_old=fk.relative_transform(
-            #             relative_to=real_parent_link_name,
-            #             name=cp.parent_link.name,
-            #         ),
-            #     )
+            # Transform the collision shape's pose to the new parent link frame.
+            # The collision shape was defined w.r.t. the removed link (now a frame).
+            # Now we need to express it w.r.t. the link that absorbed the removed link.
+            # Compose the transforms: parent_H_shape = parent_H_frame @ frame_H_shape
+            parent_H_shape = parent_H_frame @ collision_shape.transform
 
-            #     # Store the updated collision.
-            #     new_collision_shape.collidable_points += (moved_cp,)
+            # Create a new collision shape with updated pose and parent link
+            new_collision_shape = dataclasses.replace(
+                collision_shape,
+                transform=parent_H_shape,
+                parent_link=real_parent_link_name,
+            )
+
+            final_collisions.append(new_collision_shape)
 
         # Build the model
         model = ModelDescription(

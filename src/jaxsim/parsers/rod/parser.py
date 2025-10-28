@@ -333,7 +333,9 @@ def extract_model_data(
                 collisions.append(sphere_collision)
                 break
 
-            if collision.geometry.cylinder is not None:
+            if collision.geometry.cylinder is not None and int(
+                os.environ.get("JAXSIM_ENABLE_CYLINDER_COLLISION", 0)
+            ):
                 cylinder_collision = utils.create_cylinder_collision(
                     collision=collision,
                     link_description=links_dict[link.name],

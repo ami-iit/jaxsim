@@ -9,16 +9,9 @@ Collision Dynamics
 
 Environment variables starting with ``JAXSIM_COLLISION_`` are used to configure collision dynamics. The available variables are:
 
-- ``JAXSIM_COLLISION_SPHERE_POINTS``: Specifies the number of collision points to approximate the sphere.
-
-  *Default:* ``50``.
-
-- ``JAXSIM_COLLISION_USE_BOTTOM_ONLY``: Limits collision detection to only the bottom half of the box or sphere.
+- ``JAXSIM_COLLISION_ENABLE_CYLINDER``: Enables collision dynamics for cylindrical geometries.
 
   *Default:* ``False``.
-
-.. note::
-  The bottom half is defined as the half of the box or sphere with the lowest z-coordinate in the collision link frame.
 
 
 Testing

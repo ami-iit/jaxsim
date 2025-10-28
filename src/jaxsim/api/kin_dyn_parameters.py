@@ -840,13 +840,16 @@ class ContactParameters(JaxsimDataclass):
             [],
         )
 
-        # Assume the link_parameters and the collision_shapes are in the same order.
         for collision in model_description.collision_shapes:
-            shape_types.append(
-                _COLLISION_SHAPE_MAP.get(
-                    type(collision), CollidableShapeType.Unsupported
-                )
+            shape_type = _COLLISION_SHAPE_MAP.get(
+                type(collision), CollidableShapeType.Unsupported
             )
+
+            # Skip unsupported collision shapes
+            if shape_type == CollidableShapeType.Unsupported:
+                continue
+
+            shape_types.append(shape_type)
 
             shape_sizes.append(collision.size.squeeze())
 

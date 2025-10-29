@@ -17,9 +17,13 @@ def _contact_frame(normal: jtp.Vector, position: jtp.Vector) -> jtp.Matrix:
 
     R = jnp.stack([t1, t2, n], axis=1)
 
-    return jaxsim.math.Transform.from_rotation_and_translation(
-        rotation=R,
-        translation=position,
+    return jnp.block(
+        [
+            [R[0, 0], R[0, 1], R[0, 2], position[0]],
+            [R[1, 0], R[1, 1], R[1, 2], position[1]],
+            [R[2, 0], R[2, 1], R[2, 2], position[2]],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
     )
 
 

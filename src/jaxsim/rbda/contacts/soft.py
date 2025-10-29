@@ -5,6 +5,7 @@ import dataclasses
 import jax
 import jax.numpy as jnp
 import jax_dataclasses
+import numpy as np
 
 import jaxsim.api as js
 import jaxsim.math
@@ -429,10 +430,10 @@ class SoftContacts(common.ContactModel):
             model.kin_dyn_parameters.contact_parameters.shape_type,
             model.kin_dyn_parameters.contact_parameters.shape_size,
             data._link_transforms[
-                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+                np.array(model.kin_dyn_parameters.contact_parameters.body)
             ],
             data._link_velocities[
-                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+                np.array(model.kin_dyn_parameters.contact_parameters.body)
             ],
         )
 

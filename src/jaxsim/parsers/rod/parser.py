@@ -27,7 +27,7 @@ class SDFData(NamedTuple):
     link_descriptions: list[descriptions.LinkDescription]
     joint_descriptions: list[descriptions.JointDescription]
     frame_descriptions: list[descriptions.LinkDescription]
-    collision_shapes: list[descriptions.CollisionShape]
+    collision_shapes: list
 
     sdf_model: rod.Model | None = None
     model_pose: kinematic_graph.RootPose = kinematic_graph.RootPose()
@@ -308,10 +308,12 @@ def extract_model_data(
     # ================
 
     # Initialize the collision shapes
-    collisions: list[descriptions.CollisionShape] = []
+    collisions = []
 
     # Parse the collisions
     for link in sdf_model.links():
+        # If a link has multiple collision shapes, we consider only the first
+        # supported one with priority box > sphere > cylinder.
         for collision in link.collisions():
             if collision.geometry.box is not None:
                 box_collision = utils.create_box_collision(
@@ -320,6 +322,7 @@ def extract_model_data(
                 )
 
                 collisions.append(box_collision)
+                break
 
             if collision.geometry.sphere is not None:
                 sphere_collision = utils.create_sphere_collision(
@@ -328,18 +331,28 @@ def extract_model_data(
                 )
 
                 collisions.append(sphere_collision)
+                break
 
-            if collision.geometry.mesh is not None and int(
-                os.environ.get("JAXSIM_COLLISION_MESH_ENABLED", "0")
+            if collision.geometry.cylinder is not None and int(
+                os.environ.get("JAXSIM_ENABLE_CYLINDER_COLLISION", 0)
             ):
-                logging.warning("Mesh collision support is still experimental.")
-                mesh_collision = utils.create_mesh_collision(
+                cylinder_collision = utils.create_cylinder_collision(
                     collision=collision,
                     link_description=links_dict[link.name],
-                    method=utils.meshes.extract_points_vertices,
                 )
 
-                collisions.append(mesh_collision)
+                collisions.append(cylinder_collision)
+                break
+
+        else:
+            # Fill with unsupported collision shape
+            collisions.append(
+                descriptions.collision.CollisionShape(
+                    transform=jnp.eye(4),
+                    size=jnp.array([0.0, 0.0, 0.0]),
+                    parent_link=link.name,
+                )
+            )
 
     return SDFData(
         model_name=sdf_model.name,

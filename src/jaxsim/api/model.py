@@ -535,6 +535,12 @@ class JaxSimModel(JaxsimDataclass):
             if link_name not in links_dict:
                 continue
 
+            # Skip links with unsupported shapes
+            shape = hw_metadata.link_shape[link_index]
+            if shape == LinkParametrizableShape.Unsupported:
+                logging.debug(f"Skipping link '{link_name}' with unsupported shape")
+                continue
+
             # Update mass and inertia
             mass = float(self.kin_dyn_parameters.link_parameters.mass[link_index])
             center_of_mass = np.array(
@@ -556,7 +562,6 @@ class JaxSimModel(JaxsimDataclass):
             )
 
             # Update visual shape
-            shape = hw_metadata.link_shape[link_index]
             dims = hw_metadata.geometry[link_index]
             if shape == LinkParametrizableShape.Box:
                 links_dict[link_name].visual.geometry.box.size = dims.tolist()

@@ -597,7 +597,45 @@ class JaxSimModel(JaxsimDataclass):
                             relative_to=link_name,
                         )
 
-        # Export the URDF string.
+        # Restore continuous joint types for joints with infinite limits
+        # to ensure valid URDF export (continuous joints should not have limits).
+        # Continuous joints are internally represented as revolute with infinite
+        # limits, but must be exported as type="continuous" for valid URDF.
+        for joint in joints_dict.values():
+            # Skip if not a revolute joint with axis and limits
+            if not (
+                joint.type == "revolute"
+                and joint.axis is not None
+                and joint.axis.limit is not None
+            ):
+                continue
+
+            lower, upper = joint.axis.limit.lower, joint.axis.limit.upper
+
+            # Check if both limits are infinite (indicating original continuous joint)
+            if not (
+                lower is not None
+                and upper is not None
+                and np.isinf(lower)
+                and lower < 0
+                and np.isinf(upper)
+                and upper > 0
+            ):
+                continue
+
+            # Restore as continuous joint
+            joint.type = "continuous"
+
+            # Create a new Limit object with only effort and velocity
+            # (no position limits for continuous joints)
+            joint.axis.limit = rod.Limit(
+                effort=joint.axis.limit.effort,
+                velocity=joint.axis.limit.velocity,
+                lower=None,
+                upper=None,
+            )
+
+        # Export the URDF string
         urdf_string = UrdfExporter(pretty=True).to_urdf_string(sdf=rod_model_output)
 
         return urdf_string

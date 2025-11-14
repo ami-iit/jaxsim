@@ -631,3 +631,88 @@ def test_unsupported_link_cases():
     assert multi_link_metadata.geometry[double_visual_idx, 0] == pytest.approx(
         0.4
     ), "Sphere radius must match the first visual"
+
+
+def test_export_continuous_joint_handling():
+    """
+    Test that continuous joints are correctly exported with type="continuous"
+    and without position limits, while preserving effort and velocity limits.
+    """
+    import pathlib
+    import xml.etree.ElementTree as ET
+
+    # Load cartpole model which has a continuous joint (pivot)
+    cartpole_path = (
+        pathlib.Path(__file__).parent.parent / "examples" / "assets" / "cartpole.urdf"
+    )
+    model = js.model.JaxSimModel.build_from_model_description(cartpole_path)
+
+    # Define some simple scaling parameters (identity scaling)
+    scaling_parameters = ScalingFactors(
+        dims=jnp.ones((model.number_of_links(), 3)),
+        density=jnp.ones(model.number_of_links()),
+    )
+
+    # Update the model with scaling parameters
+    updated_model = js.model.update_hw_parameters(model, scaling_parameters)
+
+    # Export the updated model
+    exported_urdf = updated_model.export_updated_model()
+
+    # Parse the URDF XML directly (not through rod, which would convert continuous back to revolute)
+    root = ET.fromstring(exported_urdf)
+
+    # Find the pivot joint (continuous joint)
+    pivot_joint = None
+    for joint_elem in root.findall(".//joint"):
+        if joint_elem.get("name") == "pivot":
+            pivot_joint = joint_elem
+            break
+
+    assert pivot_joint is not None, "pivot joint should exist in exported model"
+
+    # Verify that the joint type is "continuous"
+    assert (
+        pivot_joint.get("type") == "continuous"
+    ), f"pivot joint should have type='continuous', got '{pivot_joint.get('type')}'"
+
+    # Verify that position limits are not present for continuous joints
+    limit_elem = pivot_joint.find("limit")
+    assert limit_elem is not None, "pivot joint should have limits element"
+
+    assert (
+        limit_elem.get("lower") is None
+    ), f"continuous joint should not have lower position limit, got {limit_elem.get('lower')}"
+    assert (
+        limit_elem.get("upper") is None
+    ), f"continuous joint should not have upper position limit, got {limit_elem.get('upper')}"
+
+    # Verify that effort and velocity limits are preserved
+    assert (
+        limit_elem.get("effort") is not None
+    ), "continuous joint should preserve effort limit"
+    assert (
+        limit_elem.get("velocity") is not None
+    ), "continuous joint should preserve velocity limit"
+
+    # Verify that the linear joint (prismatic) is NOT changed to continuous
+    linear_joint = None
+    for joint_elem in root.findall(".//joint"):
+        if joint_elem.get("name") == "linear":
+            linear_joint = joint_elem
+            break
+
+    assert linear_joint is not None, "linear joint should exist in exported model"
+    assert (
+        linear_joint.get("type") == "prismatic"
+    ), f"linear joint should remain prismatic, got '{linear_joint.get('type')}'"
+
+    # Prismatic joint should keep its limits
+    linear_limit = linear_joint.find("limit")
+    assert linear_limit is not None, "prismatic joint should have limits"
+    assert (
+        linear_limit.get("lower") is not None
+    ), "prismatic joint should have lower limit"
+    assert (
+        linear_limit.get("upper") is not None
+    ), "prismatic joint should have upper limit"

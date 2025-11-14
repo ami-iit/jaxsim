@@ -536,9 +536,6 @@ class JaxSimModelReferences(js.common.ModelDataWithVelocityRepresentation):
             references = self.apply_link_forces(
                 model=model,
                 data=data,
-                link_names=js.link.idxs_to_names(
-                    model=model, link_indices=parent_link_idxs
-                ),
                 forces=W_f_L,
                 additive=additive,
             )

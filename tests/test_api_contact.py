@@ -1,10 +1,11 @@
 import jax
 import jax.numpy as jnp
-import pytest
 import rod
 
 import jaxsim.api as js
 from jaxsim import VelRepr
+
+from .utils import assert_allclose
 
 
 def test_contact_kinematics(
@@ -45,14 +46,15 @@ def test_contact_kinematics(
     for contact_idx, index_of_parent_link in enumerate(
         parent_link_idx_of_enabled_collidable_points
     ):
-        assert W_H_C[contact_idx, 0:3, 0:3] == pytest.approx(
-            W_H_L[index_of_parent_link][0:3, 0:3]
+        assert_allclose(
+            W_H_C[contact_idx, 0:3, 0:3], W_H_L[index_of_parent_link][0:3, 0:3]
         )
 
     # Check that the origin of the implicit contact frame is located over the
     # collidable point.
     W_p_C = js.contact.collidable_point_positions(model=model, data=data)
-    assert W_p_C == pytest.approx(W_H_C[:, 0:3, 3])
+
+    assert_allclose(W_p_C, W_H_C[:, 0:3, 3])
 
     # Compute the velocity of the collidable point.
     # This quantity always matches with the linear component of the mixed 6D velocity
@@ -65,7 +67,7 @@ def test_contact_kinematics(
     CW_vl_WC = jnp.einsum("c6g,g->c6", CW_J_WC, ν)[:, 0:3]
 
     # Compare the two velocities.
-    assert W_ṗ_C == pytest.approx(CW_vl_WC)
+    assert_allclose(W_ṗ_C, CW_vl_WC)
 
 
 def test_collidable_point_jacobians(
@@ -97,7 +99,7 @@ def test_collidable_point_jacobians(
     # Compute the velocity of the collidable points using the Jacobians.
     v_WC_from_jax = jax.vmap(lambda J, ν: J @ ν, in_axes=(0, None))(CW_J_WC, ν)
 
-    assert W_ṗ_C == pytest.approx(v_WC_from_jax[:, 0:3])
+    assert_allclose(W_ṗ_C, v_WC_from_jax[:, 0:3])
 
 
 def test_contact_jacobian_derivative(
@@ -196,4 +198,4 @@ def test_contact_jacobian_derivative(
     )(model_with_frames, data, frame_index=frame_idxs)
 
     # Compare the two Jacobians.
-    assert J̇_WC == pytest.approx(J̇_WF)
+    assert_allclose(J̇_WC, J̇_WF)

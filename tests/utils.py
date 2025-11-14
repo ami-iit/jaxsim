@@ -11,6 +11,21 @@ import jaxsim.api as js
 from jaxsim import VelRepr
 
 
+def assert_allclose(actual, desired, rtol=1e-7, atol=1e-9, err_msg=""):
+    """
+    Assert allclose with custom default tolerances.
+    Normalizes only signed zeros using np.copysign.
+    """
+    actual = np.asarray(actual, dtype=float)
+    desired = np.asarray(desired, dtype=float)
+
+    # Normalize zeros to avoid -0.0 vs 0.0 mismatches.
+    actual = actual + 0.0
+    desired = desired + 0.0
+
+    np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, err_msg=err_msg)
+
+
 def build_kindyncomputations_from_jaxsim_model(
     model: js.model.JaxSimModel,
     data: js.data.JaxSimModelData,

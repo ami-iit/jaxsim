@@ -3,14 +3,14 @@ import pathlib
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 import rod
 
 import jaxsim.api as js
 import jaxsim.math
 from jaxsim import VelRepr
 
-from . import utils_idyntree
+from . import utils
+from .utils import assert_allclose
 
 
 def test_model_creation_and_reduction(
@@ -123,21 +123,21 @@ def test_model_creation_and_reduction(
     assert data_reduced.valid(model=model_reduced)
 
     # Check that the total mass is preserved.
-    assert js.model.total_mass(model=model_full) == pytest.approx(
-        js.model.total_mass(model=model_reduced)
+    assert_allclose(
+        js.model.total_mass(model=model_full), js.model.total_mass(model=model_reduced)
     )
 
     # Check that the CoM position is preserved.
-    assert js.com.com_position(model=model_full, data=data_full) == pytest.approx(
-        js.com.com_position(model=model_reduced, data=data_reduced), abs=1e-6
+    assert_allclose(
+        js.com.com_position(model=model_full, data=data_full),
+        js.com.com_position(model=model_reduced, data=data_reduced),
+        atol=1e-6,
     )
 
     # Check that joint serialization works.
-    assert data_full.joint_positions[joint_idxs] == pytest.approx(
-        data_reduced.joint_positions
-    )
-    assert data_full.joint_velocities[joint_idxs] == pytest.approx(
-        data_reduced.joint_velocities
+    assert_allclose(data_full.joint_positions[joint_idxs], data_reduced.joint_positions)
+    assert_allclose(
+        data_full.joint_velocities[joint_idxs], data_reduced.joint_velocities
     )
 
     # Check that link transforms are preserved.
@@ -152,52 +152,55 @@ def test_model_creation_and_reduction(
             data=data_reduced,
             link_index=js.link.name_to_idx(model=model_reduced, link_name=link_name),
         )
-        assert W_H_L_full == pytest.approx(W_H_L_reduced)
+        assert_allclose(W_H_L_full, W_H_L_reduced)
 
     # Check that collidable point positions are preserved.
-    assert js.contact.collidable_point_positions(
-        model=model_full, data=data_full
-    ) == pytest.approx(
-        js.contact.collidable_point_positions(model=model_reduced, data=data_reduced)
+    assert_allclose(
+        js.contact.collidable_point_positions(model=model_full, data=data_full),
+        js.contact.collidable_point_positions(model=model_reduced, data=data_reduced),
     )
 
     # =====================
     # Test against iDynTree
     # =====================
 
-    kin_dyn_full = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+    kin_dyn_full = utils.build_kindyncomputations_from_jaxsim_model(
         model=model_full, data=data_full
     )
 
-    kin_dyn_reduced = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
+    kin_dyn_reduced = utils.build_kindyncomputations_from_jaxsim_model(
         model=model_reduced, data=data_reduced
     )
 
     # Check that the total mass is preserved.
-    assert kin_dyn_full.total_mass() == pytest.approx(kin_dyn_reduced.total_mass())
+    assert_allclose(kin_dyn_full.total_mass(), kin_dyn_reduced.total_mass())
 
     # Check that the CoM position match.
-    assert kin_dyn_full.com_position() == pytest.approx(kin_dyn_reduced.com_position())
-    assert kin_dyn_full.com_position() == pytest.approx(
-        js.com.com_position(model=model_reduced, data=data_reduced)
+    assert_allclose(kin_dyn_full.com_position(), kin_dyn_reduced.com_position())
+    assert_allclose(
+        kin_dyn_full.com_position(),
+        js.com.com_position(model=model_reduced, data=data_reduced),
     )
-
     # Check that link transforms match.
     for link_name in model_reduced.link_names():
 
-        assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
-            kin_dyn_full.frame_transform(frame_name=link_name)
-        ), link_name
+        assert_allclose(
+            kin_dyn_reduced.frame_transform(frame_name=link_name),
+            kin_dyn_full.frame_transform(frame_name=link_name),
+            err_msg=f"Mismatch in link {link_name}",
+        )
 
-        assert kin_dyn_reduced.frame_transform(frame_name=link_name) == pytest.approx(
+        assert_allclose(
+            kin_dyn_reduced.frame_transform(frame_name=link_name),
             js.link.transform(
                 model=model_reduced,
                 data=data_reduced,
                 link_index=js.link.name_to_idx(
                     model=model_reduced, link_name=link_name
                 ),
-            )
-        ), link_name
+            ),
+            err_msg=f"Mismatch in link {link_name}",
+        )
 
     # Check that frame transforms match.
     for frame_name in model_reduced.frame_names():
@@ -209,19 +212,23 @@ def test_model_creation_and_reduction(
         if "skin" in frame_name or "laser" in frame_name or "depth" in frame_name:
             continue
 
-        assert kin_dyn_reduced.frame_transform(frame_name=frame_name) == pytest.approx(
-            kin_dyn_full.frame_transform(frame_name=frame_name)
-        ), frame_name
+        assert_allclose(
+            kin_dyn_reduced.frame_transform(frame_name=frame_name),
+            kin_dyn_full.frame_transform(frame_name=frame_name),
+            err_msg=f"Mismatch in frame {frame_name}",
+        )
 
-        assert kin_dyn_reduced.frame_transform(frame_name=frame_name) == pytest.approx(
+        assert_allclose(
+            kin_dyn_reduced.frame_transform(frame_name=frame_name),
             js.frame.transform(
                 model=model_reduced,
                 data=data_reduced,
                 frame_index=js.frame.name_to_idx(
                     model=model_reduced, frame_name=frame_name
                 ),
-            )
-        ), frame_name
+            ),
+            err_msg=f"Mismatch in frame {frame_name}",
+        )
 
 
 def test_model_properties(
@@ -237,9 +244,7 @@ def test_model_properties(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # =====
     # Tests
@@ -247,27 +252,27 @@ def test_model_properties(
 
     m_idt = kin_dyn.total_mass()
     m_js = js.model.total_mass(model=model)
-    assert pytest.approx(m_idt) == m_js
+    assert_allclose(m_idt, m_js)
 
     J_Bh_idt = kin_dyn.total_momentum_jacobian()
     J_Bh_js = js.model.total_momentum_jacobian(model=model, data=data)
-    assert pytest.approx(J_Bh_idt) == J_Bh_js
+    assert_allclose(J_Bh_idt, J_Bh_js)
 
     h_tot_idt = kin_dyn.total_momentum()
     h_tot_js = js.model.total_momentum(model=model, data=data)
-    assert pytest.approx(h_tot_idt) == h_tot_js
+    assert_allclose(h_tot_idt, h_tot_js)
 
     M_locked_idt = kin_dyn.locked_spatial_inertia()
     M_locked_js = js.model.locked_spatial_inertia(model=model, data=data)
-    assert pytest.approx(M_locked_idt) == M_locked_js
+    assert_allclose(M_locked_idt, M_locked_js)
 
     J_avg_idt = kin_dyn.average_velocity_jacobian()
     J_avg_js = js.model.average_velocity_jacobian(model=model, data=data)
-    assert pytest.approx(J_avg_idt) == J_avg_js
+    assert_allclose(J_avg_idt, J_avg_js)
 
     v_avg_idt = kin_dyn.average_velocity()
     v_avg_js = js.model.average_velocity(model=model, data=data)
-    assert pytest.approx(v_avg_idt) == v_avg_js
+    assert_allclose(v_avg_idt, v_avg_js)
 
 
 def test_model_rbda(
@@ -283,9 +288,7 @@ def test_model_rbda(
         model=model, key=subkey, velocity_representation=velocity_representation
     )
 
-    kin_dyn = utils_idyntree.build_kindyncomputations_from_jaxsim_model(
-        model=model, data=data
-    )
+    kin_dyn = utils.build_kindyncomputations_from_jaxsim_model(model=model, data=data)
 
     # =====
     # Tests
@@ -297,31 +300,31 @@ def test_model_rbda(
     # Mass matrix
     M_idt = kin_dyn.mass_matrix()
     M_js = js.model.free_floating_mass_matrix(model=model, data=data)
-    assert pytest.approx(M_idt[sl, sl]) == M_js[sl, sl]
+    assert_allclose(M_idt[sl, sl], M_js[sl, sl])
 
     # Gravity forces
     g_idt = kin_dyn.gravity_forces()
     g_js = js.model.free_floating_gravity_forces(model=model, data=data)
-    assert pytest.approx(g_idt[sl]) == g_js[sl]
+    assert_allclose(g_idt[sl], g_js[sl])
 
     # Bias forces
     h_idt = kin_dyn.bias_forces()
     h_js = js.model.free_floating_bias_forces(model=model, data=data)
-    assert pytest.approx(h_idt[sl]) == h_js[sl]
+    assert_allclose(h_idt[sl], h_js[sl])
 
     # Forward kinematics
     HH_js = data._link_transforms
     HH_idt = jnp.stack(
         [kin_dyn.frame_transform(frame_name=name) for name in model.link_names()]
     )
-    assert pytest.approx(HH_idt) == HH_js
+    assert_allclose(HH_idt, HH_js)
 
     # Bias accelerations
     Jν_js = js.model.link_bias_accelerations(model=model, data=data)
     Jν_idt = jnp.stack(
         [kin_dyn.frame_bias_acc(frame_name=name) for name in model.link_names()]
     )
-    assert pytest.approx(Jν_idt) == Jν_js
+    assert_allclose(Jν_idt, Jν_js)
 
 
 def test_model_jacobian(
@@ -368,7 +371,7 @@ def test_model_jacobian(
     ):
 
         f = references.link_forces(model=model, data=data)
-        assert f == pytest.approx(references._link_forces)
+        assert_allclose(f, references._link_forces)
 
         J = js.model.generalized_free_floating_jacobian(model=model, data=data)
         JTf_inertial = jnp.einsum("l6g,l6->g", J, f)
@@ -392,7 +395,7 @@ def test_model_jacobian(
 
                 f = references.link_forces(model=model, data=data)
                 JTf_other = jnp.einsum("l6g,l6->g", J, f)
-                assert pytest.approx(JTf_inertial) == JTf_other, vel_repr.name
+                assert_allclose(JTf_inertial, JTf_other, err_msg=vel_repr.name)
 
 
 def test_coriolis_matrix(
@@ -419,7 +422,7 @@ def test_coriolis_matrix(
     g = js.model.free_floating_gravity_forces(model=model, data=data)
     Cν = h - g
 
-    assert C @ I_ν == pytest.approx(Cν)
+    assert_allclose(C @ I_ν, Cν)
 
     # Compute the free-floating mass matrix.
     # This function will be used to compute the Ṁ with AD.
@@ -481,7 +484,7 @@ def test_coriolis_matrix(
         Ṁ = Ṁ.at[6:, 0:6].set(0)
 
     # Ensure that (Ṁ - 2C) is skew symmetric.
-    assert Ṁ - C - C.T == pytest.approx(0)
+    assert_allclose(Ṁ - C - C.T, 0.0)
 
 
 def test_model_fd_id_consistency(
@@ -537,8 +540,8 @@ def test_model_fd_id_consistency(
         link_forces=references.link_forces(model=model, data=data),
     )
 
-    assert pytest.approx(s̈_aba) == s̈_crb
-    assert pytest.approx(v̇_WB_aba) == v̇_WB_crb
+    assert_allclose(s̈_aba, s̈_crb)
+    assert_allclose(v̇_WB_aba, v̇_WB_crb)
 
     # Compute inverse dynamics with the quantities computed by forward dynamics
     fB_id, τ_id = js.model.inverse_dynamics(
@@ -550,8 +553,8 @@ def test_model_fd_id_consistency(
     )
 
     # Check consistency between FD and ID
-    assert pytest.approx(τ_id) == references.joint_force_references(model=model)
-    assert pytest.approx(fB_id, abs=1e-9) == jnp.zeros(6)
+    assert_allclose(τ_id, references.joint_force_references(model=model))
+    assert_allclose(fB_id, 0.0)
 
     if model.floating_base():
         # If we remove the base 6D force from the inputs, we should find it as output.
@@ -565,8 +568,5 @@ def test_model_fd_id_consistency(
             .set(jnp.zeros(6)),
         )
 
-        assert pytest.approx(τ_id) == references.joint_force_references(model=model)
-        assert (
-            pytest.approx(fB_id, abs=1e-9)
-            == references.link_forces(model=model, data=data)[0]
-        )
+        assert_allclose(τ_id, references.joint_force_references(model=model))
+        assert_allclose(fB_id, references.link_forces(model=model, data=data)[0])

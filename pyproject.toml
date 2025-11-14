@@ -70,6 +70,7 @@ testing = [
     "pytest >=6.0",
     "pytest-benchmark",
     "pytest-icdiff",
+    "pytest-xdist",
     "robot-descriptions >= 1.16.0",
     "icub-models",
 ]
@@ -264,6 +265,7 @@ pre-commit = "*"
 pytest = "*"
 pytest-benchmark = "*"
 pytest-icdiff = "*"
+pytest-xdist = "*"
 robot_descriptions = ">=1.16.0"
 setuptools_scm = ">=8.3.1,<9"
 

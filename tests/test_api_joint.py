@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import pytest
 from jax.errors import JaxRuntimeError
+from numpy.testing import assert_array_equal
 
 import jaxsim.api as js
 
@@ -20,9 +21,10 @@ def test_joint_index(
         assert js.joint.idx_to_name(model=model, joint_index=idx) == joint_name
 
     # See discussion in https://github.com/ami-iit/jaxsim/pull/280
-    assert js.joint.names_to_idxs(
-        model=model, joint_names=model.joint_names()
-    ) == pytest.approx(jnp.arange(model.number_of_joints()))
+    assert_array_equal(
+        js.joint.names_to_idxs(model=model, joint_names=model.joint_names()),
+        jnp.arange(model.number_of_joints()),
+    )
 
     assert (
         js.joint.idxs_to_names(

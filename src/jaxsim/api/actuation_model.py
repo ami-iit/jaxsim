@@ -72,7 +72,7 @@ def compute_resultant_torques(
     τ_friction = jnp.zeros_like(τ_references).astype(float)
 
     # Apply joint friction only if enabled in the actuation parameters.
-    if model.dofs() > 0 and model.actuation_params.friction:
+    if model.dofs() > 0 and model.actuation_params.enable_friction:
 
         # Static and viscous joint friction parameters
         kc = jnp.array(

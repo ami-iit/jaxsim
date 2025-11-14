@@ -16,4 +16,4 @@ class ActuationParams(JaxsimDataclass):
     torque_max: jtp.Float = dataclasses.field(default=3000.0)  # (Nm)
     omega_th: jtp.Float = dataclasses.field(default=30.0)  # (rad/s)
     omega_max: jtp.Float = dataclasses.field(default=100.0)  # (rad/s)
-    friction: Static[bool] = dataclasses.field(default=True)
+    enable_friction: Static[bool] = dataclasses.field(default=True)

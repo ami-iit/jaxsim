@@ -14,7 +14,7 @@ from jaxsim import VelRepr
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-9, err_msg=""):
     """
     Assert allclose with custom default tolerances.
-    Normalizes signed zeros avoiding -0.0 vs 0.0 mismatches.
+    Normalizes only signed zeros using np.copysign.
     """
     actual = np.asarray(actual, dtype=float)
     desired = np.asarray(desired, dtype=float)

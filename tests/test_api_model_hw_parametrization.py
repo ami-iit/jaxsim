@@ -1,3 +1,6 @@
+import pathlib
+import xml.etree.ElementTree as ET
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -244,17 +247,26 @@ def test_export_updated_model(
         attrs = [attr for attr in vars(exported_geom) if hasattr(ref_geom, attr)]
         exported_vals = jnp.array([getattr(exported_geom, attr) for attr in attrs])
         ref_vals = jnp.array([getattr(ref_geom, attr) for attr in attrs])
-        assert_allclose(exported_vals, ref_vals, err_msg=f"Geometry mismatch in {label} model.", atol=1e-6)
+        assert_allclose(
+            exported_vals,
+            ref_vals,
+            err_msg=f"Geometry mismatch in {label} model.",
+            atol=1e-6,
+        )
 
     def compare_mass_and_inertia(exported_link, ref_link, label=""):
-        assert exported_link.inertial.mass == pytest.approx(
-            ref_link.inertial.mass, abs=1e-4
-        ), f"Mass mismatch in {label} model."
-        assert jnp.allclose(
+        assert_allclose(
+            exported_link.inertial.mass,
+            ref_link.inertial.mass,
+            atol=1e-4,
+            err_msg=f"Mass mismatch in {label} model.",
+        )
+        assert_allclose(
             exported_link.inertial.inertia.matrix(),
             ref_link.inertial.inertia.matrix(),
             atol=1e-4,
-        ), f"Inertia matrix mismatch in {label} model."
+            err_msg=f"Inertia matrix mismatch in {label} model.",
+        )
 
     def compare_collisions(exported_link, ref_link, label=""):
         geom_types = ["box", "sphere", "cylinder"]
@@ -280,21 +292,6 @@ def test_export_updated_model(
 
         urdf = updated_model.export_updated_model()
         assert isinstance(urdf, str), f"{label}: Exported URDF is not a string."
-
-        # Compare mass
-        assert_allclose(
-            exported_link.inertial.mass,
-            ref_link.inertial.mass,
-            atol=1e-4,
-            err_msg=f"Mismatch in mass for link {link_name}",
-        )
-
-        # Compare inertia tensors
-        assert_allclose(
-            exported_link.inertial.inertia.matrix(),
-            ref_link.inertial.inertia.matrix(),
-            atol=1e-4,
-        )
 
         exported_sdf = rod.Sdf.load(urdf, is_urdf=True)
 
@@ -653,9 +650,11 @@ def test_unsupported_link_cases():
         multi_link_metadata.link_shape[double_visual_idx]
         == LinkParametrizableShape.Sphere
     ), "Double visual link should pick the first (sphere) visual"
-    assert multi_link_metadata.geometry[double_visual_idx, 0] == pytest.approx(
-        0.4
-    ), "Sphere radius must match the first visual"
+    assert_allclose(
+        multi_link_metadata.geometry[double_visual_idx, 0],
+        0.4,
+        err_msg="Sphere radius must match the first visual",
+    )
 
 
 def test_export_continuous_joint_handling():
@@ -663,8 +662,6 @@ def test_export_continuous_joint_handling():
     Test that continuous joints are correctly exported with type="continuous"
     and without position limits, while preserving effort and velocity limits.
     """
-    import pathlib
-    import xml.etree.ElementTree as ET
 
     # Load cartpole model which has a continuous joint (pivot)
     cartpole_path = (

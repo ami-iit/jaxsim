@@ -1,66 +1,96 @@
 from __future__ import annotations
 
 import abc
-import functools
 
 import jax
 import jax.numpy as jnp
 
 import jaxsim.api as js
-import jaxsim.terrain
 import jaxsim.typing as jtp
-from jaxsim.math import STANDARD_GRAVITY
-from jaxsim.utils import JaxsimDataclass
+from jaxsim.math import STANDARD_GRAVITY, Skew
+from jaxsim.utils import CollidableShapeType, JaxsimDataclass
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
 
+from .detection import box_plane, cylinder_plane, sphere_plane
 
 MAX_STIFFNESS = 1e6
 MAX_DAMPING = 1e4
 
+# Define a mapping from collidable shape types to distance functions.
+_COLLISION_MAP = {
+    CollidableShapeType.Sphere: sphere_plane,
+    CollidableShapeType.Box: box_plane,
+    CollidableShapeType.Cylinder: cylinder_plane,
+}
 
-@functools.partial(jax.jit, static_argnames=("terrain",))
+
+@jax.jit
 def compute_penetration_data(
-    p: jtp.VectorLike,
-    v: jtp.VectorLike,
-    terrain: jaxsim.terrain.Terrain,
+    model: js.model.JaxSimModel,
+    *,
+    shape_transform: jtp.Matrix,
+    shape_type: CollidableShapeType,
+    shape_size: jtp.Vector,
+    link_transforms: jtp.Matrix,
+    link_velocities: jtp.Matrix,
 ) -> tuple[jtp.Float, jtp.Float, jtp.Vector]:
     """
     Compute the penetration data (depth, rate, and terrain normal) of a collidable point.
 
     Args:
-        p: The position of the collidable point.
-        v:
-            The linear velocity of the point (linear component of the mixed 6D velocity
-            of the implicit frame `C = (W_p_C, [W])` associated to the point).
-        terrain: The considered terrain.
+        model: The model to consider.
+        shape_transform: The 4x4 transform of the collidable shape with respect to the link frame.
+        shape_type: The type of the collidable shape.
+        shape_size: The size parameters of the collidable shape.
+        link_transforms: The transforms from the world frame to each link.
+        link_velocities: The linear and angular velocities of each link.
 
     Returns:
         A tuple containing the penetration depth, the penetration velocity,
-        and the considered terrain normal.
+        the terrain normal, the contact point position, and the contact point velocity
+        expressed in mixed representation.
     """
 
+    W_H_L, W_ṗ_L = link_transforms, link_velocities
+
+    # Apply the collision shape transform.
+    # This computes W_H_S where S is the collision shape frame.
+    W_H_S = W_H_L @ shape_transform
+
     # Pre-process the position and the linear velocity of the collidable point.
-    W_ṗ_C = jnp.array(v).squeeze()
-    px, py, pz = jnp.array(p).squeeze()
+    # Note that we consider 3 candidate contact points also for spherical shapes,
+    # in which the output is padded with zeros.
+    # This is to allow parallel evaluation of the collision types.
+    δ, W_H_C = jax.lax.switch(
+        shape_type,
+        (box_plane, cylinder_plane, sphere_plane),
+        model.terrain,
+        shape_size,
+        W_H_S,
+    )
 
-    # Compute the terrain normal and the contact depth.
-    n̂ = terrain.normal(x=px, y=py).squeeze()
-    h = jnp.array([0, 0, terrain.height(x=px, y=py) - pz])
+    W_p_C = W_H_C[:, :3, 3]
+    n̂ = W_H_C[:, :3, 2]
 
-    # Compute the penetration depth normal to the terrain.
-    δ = jnp.maximum(0.0, jnp.dot(h, n̂))
+    def process_shape_kinematics(W_p_Ci: jtp.Vector) -> jtp.Vector:
 
-    # Compute the penetration normal velocity.
-    δ_dot = -jnp.dot(W_ṗ_C, n̂)
+        # Compute the velocity of the contact points.
+        CW_ṗ_Ci = jnp.block([jnp.eye(3), -Skew.wedge(vector=W_p_Ci).squeeze()]) @ W_ṗ_L
 
-    # Enforce the penetration rate to be zero when the penetration depth is zero.
-    δ_dot = jnp.where(δ > 0, δ_dot, 0.0)
+        return CW_ṗ_Ci
 
-    return δ, δ_dot, n̂
+    CW_ṗ_C = jax.vmap(process_shape_kinematics)(W_p_C)
+
+    δ = jnp.maximum(0.0, -δ)
+
+    δ̇ = -jax.vmap(jnp.dot)(CW_ṗ_C, n̂)
+    δ̇ = jnp.where(δ > 0, δ̇, 0.0)
+
+    return δ, δ̇, n̂, W_p_C, CW_ṗ_C
 
 
 class ContactsParams(JaxsimDataclass):
@@ -94,7 +124,6 @@ class ContactsParams(JaxsimDataclass):
         standard_gravity: jtp.FloatLike = STANDARD_GRAVITY,
         static_friction_coefficient: jtp.FloatLike = 0.5,
         max_penetration: jtp.FloatLike = 0.001,
-        number_of_active_collidable_points_steady_state: jtp.IntLike = 1,
         damping_ratio: jtp.FloatLike = 1.0,
         p: jtp.FloatLike = 0.5,
         q: jtp.FloatLike = 0.5,
@@ -110,8 +139,6 @@ class ContactsParams(JaxsimDataclass):
             standard_gravity: The standard gravity acceleration.
             static_friction_coefficient: The static friction coefficient.
             max_penetration: The maximum penetration depth.
-            number_of_active_collidable_points_steady_state:
-                The number of active collidable points in steady state.
             damping_ratio: The damping ratio.
             p: The first parameter of the contact model.
             q: The second parameter of the contact model.
@@ -137,7 +164,6 @@ class ContactsParams(JaxsimDataclass):
         ξ = damping_ratio
         δ_max = max_penetration
         μc = static_friction_coefficient
-        nc = number_of_active_collidable_points_steady_state
 
         # Compute the total mass of the model.
         m = jnp.array(model.kin_dyn_parameters.link_parameters.mass).sum()
@@ -147,7 +173,7 @@ class ContactsParams(JaxsimDataclass):
         # the damping term of the Hunt/Crossley model.
         if stiffness is None:
             # Compute the average support force on each collidable point.
-            f_average = m * standard_gravity / nc
+            f_average = m * standard_gravity
 
             stiffness = f_average / jnp.power(δ_max, 1 + p)
             stiffness = jnp.clip(stiffness, 0, MAX_STIFFNESS)

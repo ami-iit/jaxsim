@@ -1,10 +1,6 @@
 import jax
 import jax.numpy as jnp
-<<<<<<< HEAD
-=======
 import numpy as np
-import pytest
->>>>>>> 91f80b4 (Fix contact API test)
 import rod
 
 import jaxsim.api as js
@@ -35,7 +31,7 @@ def test_contact_kinematics(
     # Compute the pose of the implicit contact frame associated to the collidable shapes
     # and the transforms of all links.
     W_H_C = js.contact.transforms(model=model, data=data)
- 
+
     # Check that the origin of the implicit contact frame is located over the
     # collidable shape.
     W_p_C = js.contact.contact_point_positions(model=model, data=data)
@@ -52,7 +48,7 @@ def test_contact_kinematics(
     CW_vl_WC = jnp.einsum("c6g,g->c6", CW_J_WC, ν)[:, 0:3]
 
     # Compare the two velocities.
-    assert_allclose(jnp.contatenate(W_ṗ_C), CW_vl_WC)
+    assert_allclose(jnp.concatenate(W_ṗ_C), CW_vl_WC)
 
 
 def test_contact_point_jacobians(

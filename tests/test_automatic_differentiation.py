@@ -514,6 +514,6 @@ def test_ad_hw_parameters(
         f=update_hw_params_and_compute_fk_and_mass,
         args=(scaling_factors,),
         order=AD_ORDER,
-        modes=["fwd"],  # TODO: not working in rev mode
+        modes=["fwd", "rev"],
         eps=ε,
     )

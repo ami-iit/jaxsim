@@ -130,7 +130,7 @@ def test_model_scaling_against_rod(
     assert_allclose(scaled_metadata.L_H_vis, pre_scaled_metadata.L_H_vis, atol=1e-6)
 
     # Compare collidable points positions
-    assert jnp.allclose(
+    assert_allclose(
         jaxsim_model_garpez_scaled.kin_dyn_parameters.contact_parameters.point,
         updated_model.kin_dyn_parameters.contact_parameters.point,
         atol=1e-6,

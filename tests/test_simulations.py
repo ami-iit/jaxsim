@@ -192,10 +192,11 @@ def run_simulation(
 
 
 def test_simulation_with_soft_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator
+    jaxsim_model_box: js.model.JaxSimModel, integrator, prng_key: jax.Array,
 ):
 
     model = jaxsim_model_box
+    _, subkey = jax.random.split(prng_key, num=2)
 
     # Define the maximum penetration at steady state.
     max_penetration = 0.001
@@ -210,15 +211,15 @@ def test_simulation_with_soft_contacts(
             max_penetration=max_penetration,
         )
 
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
-
     # Check jaxsim_model_box@conftest.py.
     box_height = 0.1
+
+    rnd_x, rnd_y = jax.random.uniform(subkey, shape=(2,), minval=-0.5, maxval=0.5)
 
     # Build the data of the model.
     data_t0 = js.data.JaxSimModelData.build(
         model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
+        base_position=jnp.array([rnd_x, rnd_y, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
     )
 
@@ -233,10 +234,11 @@ def test_simulation_with_soft_contacts(
 
 
 def test_simulation_with_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator
+    jaxsim_model_box: js.model.JaxSimModel, integrator, prng_key: jax.Array,
 ):
 
     model = jaxsim_model_box
+    _, subkey = jax.random.split(prng_key, num=2)
 
     with model.editable(validate=False) as model:
 
@@ -247,17 +249,6 @@ def test_simulation_with_rigid_contacts(
         )
         model.contact_params = model.contact_model._parameters_class(K=1e5)
 
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
-        )
-
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
-
     # Initialize the maximum penetration of each collidable point at steady state.
     # This model is rigid, so we expect (almost) no penetration.
     max_penetration = 0.000
@@ -265,10 +256,12 @@ def test_simulation_with_rigid_contacts(
     # Check jaxsim_model_box@conftest.py.
     box_height = 0.1
 
+    rnd_x, rnd_y = jax.random.uniform(subkey, shape=(2,), minval=-0.5, maxval=0.5)
+
     # Build the data of the model.
     data_t0 = js.data.JaxSimModelData.build(
         model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
+        base_position=jnp.array([rnd_x, rnd_y, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
     )
 
@@ -283,10 +276,11 @@ def test_simulation_with_rigid_contacts(
 
 
 def test_simulation_with_relaxed_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator
+    jaxsim_model_box: js.model.JaxSimModel, integrator, prng_key: jax.Array,
 ):
 
     model = jaxsim_model_box
+    _, subkey = jax.random.split(prng_key, num=2)
 
     with model.editable(validate=False) as model:
 
@@ -295,17 +289,7 @@ def test_simulation_with_relaxed_rigid_contacts(
         )
         model.contact_params = model.contact_model._parameters_class()
 
-        # Enable a subset of the collidable points.
-        enabled_collidable_points_mask = np.zeros(
-            len(model.kin_dyn_parameters.contact_parameters.body), dtype=bool
-        )
-        enabled_collidable_points_mask[[0, 1, 2, 3]] = True
-        model.kin_dyn_parameters.contact_parameters.enabled = tuple(
-            enabled_collidable_points_mask.tolist()
-        )
         model.integrator = integrator
-
-    assert np.sum(model.kin_dyn_parameters.contact_parameters.enabled) == 4
 
     # Initialize the maximum penetration of each collidable point at steady state.
     # This model is quasi-rigid, so we expect (almost) no penetration.
@@ -314,10 +298,12 @@ def test_simulation_with_relaxed_rigid_contacts(
     # Check jaxsim_model_box@conftest.py.
     box_height = 0.1
 
+    rnd_x, rnd_y = jax.random.uniform(subkey, shape=(2,), minval=-0.5, maxval=0.5)
+
     # Build the data of the model.
     data_t0 = js.data.JaxSimModelData.build(
         model=model,
-        base_position=jnp.array([0.0, 0.0, box_height * 2]),
+        base_position=jnp.array([rnd_x, rnd_y, box_height * 2]),
         velocity_representation=VelRepr.Inertial,
     )
 

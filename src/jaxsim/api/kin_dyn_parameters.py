@@ -92,7 +92,9 @@ class KinDynParameters(JaxsimDataclass):
 
     @staticmethod
     def build(
-        model_description: ModelDescription, constraints: ConstraintMap | None
+        model_description: ModelDescription,
+        constraints: ConstraintMap | None,
+        indices_of_enabled_collidable_links: set[int] | None = None,
     ) -> KinDynParameters:
         """
         Construct the kinematic and dynamic parameters of the model.
@@ -100,6 +102,8 @@ class KinDynParameters(JaxsimDataclass):
         Args:
             model_description: The parsed model description to consider.
             constraints: An object of type ConstraintMap specifying the kinematic constraint of the model.
+            indices_of_enabled_collidable_links:
+                The set of link indices for which collision shapes should be considered. If None, all links with collision shapes are considered.
 
         Returns:
             The kinematic and dynamic parameters of the model.
@@ -175,7 +179,8 @@ class KinDynParameters(JaxsimDataclass):
         # must be Static for JIT-related reasons, and tree_map would not consider it
         # as a leaf.
         contact_parameters = ContactParameters.build_from(
-            model_description=model_description
+            model_description=model_description,
+            indices_of_enabled_collidable_links=indices_of_enabled_collidable_links,
         )
 
         # =================
@@ -819,53 +824,63 @@ class ContactParameters(JaxsimDataclass):
         return self.transform[:, :3, :3]
 
     @staticmethod
-    def build_from(model_description: ModelDescription) -> ContactParameters:
+    def build_from(
+        model_description: ModelDescription,
+        indices_of_enabled_collidable_links: set[int] | None = None,
+    ) -> ContactParameters:
         """
         Build a ContactParameters object from a model description.
 
         Args:
             model_description: The model description to consider.
+            indices_of_enabled_collidable_links:
+                An optional set of link indices for which to include collision shapes.
+                If None, all collision shapes are included.
 
         Returns:
             The ContactParameters object.
         """
 
-        if len(model_description.collision_shapes) == 0:
+        if not (collisions := model_description.collision_shapes):
             return ContactParameters()
 
-        shape_types, shape_sizes, transforms, parent_link_indices = (
-            [],
-            [],
-            [],
-            [],
+        links_dict = model_description.links_dict
+        shape_map = _COLLISION_SHAPE_MAP
+
+        enabled = (
+            indices_of_enabled_collidable_links
+            if indices_of_enabled_collidable_links is not None
+            else set(range(len(links_dict)))
         )
 
-        for collision in model_description.collision_shapes:
-            shape_type = _COLLISION_SHAPE_MAP.get(
-                type(collision), CollidableShapeType.Unsupported
-            )
+        shape_types = []
+        shape_sizes = []
+        transforms = []
+        parent_indices = []
+
+        for collision in collisions:
+
+            shape_type = shape_map.get(type(collision), CollidableShapeType.Unsupported)
+
+            parent_idx = links_dict[collision.parent_link].index
 
             # Skip unsupported collision shapes
-            if shape_type == CollidableShapeType.Unsupported:
+            if shape_type == CollidableShapeType.Unsupported or (
+                parent_idx not in enabled
+            ):
                 continue
 
             shape_types.append(shape_type)
-
             shape_sizes.append(collision.size.squeeze())
-
             transforms.append(collision.transform)
-
-            # Get the parent link index for this collision shape.
-            parent_link_indices.append(
-                model_description.links_dict[collision.parent_link].index
-            )
+            parent_indices.append(parent_idx)
 
         # Build the ContactParameters object.
         return ContactParameters(
-            body=tuple(parent_link_indices),
-            transform=jnp.array(transforms, dtype=float),
-            shape_type=jnp.array(shape_types, dtype=int),
-            shape_size=jnp.array(shape_sizes, dtype=float),
+            body=tuple(parent_indices),
+            transform=jnp.asarray(transforms, dtype=float),
+            shape_type=jnp.asarray(shape_types, dtype=int),
+            shape_size=jnp.asarray(shape_sizes, dtype=float),
         )
 
 

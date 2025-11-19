@@ -245,13 +245,6 @@ class RigidContacts(ContactModel):
             A tuple containing as first element the computed contact forces.
         """
 
-        # Get the indices of the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-        )
-
-        n_collidable_points = len(indices_of_enabled_collidable_points)
-
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
@@ -275,7 +268,7 @@ class RigidContacts(ContactModel):
 
         # Compute the position and linear velocities (mixed representation) of
         # all enabled collidable points belonging to the robot.
-        position, velocity = js.contact.collidable_point_kinematics(
+        position, velocity = js.contact.contact_point_kinematics(
             model=model, data=data
         )
 
@@ -343,10 +336,10 @@ class RigidContacts(ContactModel):
         G = _compute_ineq_constraint_matrix(
             inactive_collidable_points=(δ <= 0), mu=model.contact_params.mu
         )
-        h_bounds = jnp.zeros(shape=(n_collidable_points * 6,))
+        h_bounds = jnp.zeros(shape=(G.shape[0],))
 
         # Construct the equality constraints.
-        A = jnp.zeros((0, 3 * n_collidable_points))
+        A = jnp.zeros((0, 3 * G.shape[0] // 6))
         b = jnp.zeros((0,))
 
         # Solve the following optimization problem with qpax:

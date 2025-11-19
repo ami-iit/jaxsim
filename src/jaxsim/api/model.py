@@ -141,6 +141,7 @@ class JaxSimModel(JaxsimDataclass):
         considered_joints: Sequence[str] | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
+        indices_of_enabled_collidable_links: set[int] | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -170,6 +171,8 @@ class JaxSimModel(JaxsimDataclass):
             constraints:
                 An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
                 Note that constraints can be used only with RelaxedRigidContacts.
+            indices_of_enabled_collidable_links:
+                The set of link indices for which collision shapes should be considered. If None, all links with collision shapes are considered.
 
         Returns:
             The built Model object.
@@ -202,6 +205,7 @@ class JaxSimModel(JaxsimDataclass):
             integrator=integrator,
             gravity=-gravity,
             constraints=constraints,
+            indices_of_enabled_collidable_links=indices_of_enabled_collidable_links,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
@@ -230,6 +234,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
+        indices_of_enabled_collidable_links: set[int] | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -254,6 +259,8 @@ class JaxSimModel(JaxsimDataclass):
             gravity: The gravity constant.
             constraints:
                 An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
+            indices_of_enabled_collidable_links:
+                The set of link indices for which collision shapes should be considered. If None, all links with collision shapes are considered.
 
         Returns:
             The built Model object.
@@ -302,7 +309,9 @@ class JaxSimModel(JaxsimDataclass):
         model = cls(
             model_name=model_name,
             kin_dyn_parameters=js.kin_dyn_parameters.KinDynParameters.build(
-                model_description=model_description, constraints=constraints
+                model_description=model_description,
+                constraints=constraints,
+                indices_of_enabled_collidable_links=indices_of_enabled_collidable_links,
             ),
             time_step=time_step,
             terrain=terrain,

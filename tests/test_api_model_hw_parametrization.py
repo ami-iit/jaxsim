@@ -656,6 +656,27 @@ def test_unsupported_link_cases():
         err_msg="Sphere radius must match the first visual",
     )
 
+    # Test selective parametrization: only 'supported_link' and 'double_visual_link' should be parametrized
+    selective_model = js.model.JaxSimModel.build_from_model_description(
+        multi_link_urdf, is_urdf=True, parametrized_links=("double_visual_link")
+    )
+    selective_metadata = selective_model.kin_dyn_parameters.hw_link_metadata
+
+    # Check that only the selected links are parametrized
+    link_indices = {name: idx for idx, name in enumerate(selective_model.link_names())}
+    assert (
+        selective_metadata.link_shape[link_indices["supported_link"]]
+        == LinkParametrizableShape.Unsupported
+    ), "Selected supported_link should be parametrized as Box"
+    assert (
+        selective_metadata.link_shape[link_indices["double_visual_link"]]
+        == LinkParametrizableShape.Sphere
+    ), "Selected double_visual_link should be parametrized as Sphere"
+    assert (
+        selective_metadata.link_shape[link_indices["unsupported_link"]]
+        == LinkParametrizableShape.Unsupported
+    ), "Non-selected unsupported_link should be marked as Unsupported"
+
 
 def test_export_continuous_joint_handling():
     """

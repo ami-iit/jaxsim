@@ -302,9 +302,13 @@ def test_ad_soft_contacts(
         model.contact_model = jaxsim.rbda.contacts.SoftContacts.build()
 
     _, subkey1, subkey2, subkey3 = jax.random.split(prng_key, num=4)
-    p = jax.random.uniform(subkey1, shape=(3,), minval=-1)
-    v = jax.random.uniform(subkey2, shape=(3,), minval=-1)
+    p = jax.random.uniform(subkey1, shape=(1, 3), minval=-1)
+    v = jax.random.uniform(subkey2, shape=(1, 3), minval=-1)
     m = jax.random.uniform(subkey3, shape=(3,), minval=-1)
+    n = jax.random.uniform(subkey3, shape=(1, 3), minval=-1)
+    n = n / jnp.linalg.norm(n)
+    delta = jax.random.uniform(subkey1, shape=(1, 3), minval=-0.1, maxval=0.1)
+    delta_dot = jax.random.uniform(subkey2, shape=(1, 3), minval=-1, maxval=1)
 
     # Get the soft contacts parameters.
     parameters = js.contact.estimate_good_contact_parameters(model=model)
@@ -315,18 +319,23 @@ def test_ad_soft_contacts(
 
     # Get a closure exposing only the parameters to be differentiated.
     def close_over_inputs_and_parameters(
+        delta: jtp.VectorLike,
+        delta_dot: jtp.VectorLike,
         p: jtp.VectorLike,
         v: jtp.VectorLike,
+        n: jtp.VectorLike,
         m: jtp.VectorLike,
         params: SoftContactsParams,
     ) -> tuple[jtp.Vector, jtp.Vector]:
 
         W_f_Ci, CW_ṁ = SoftContacts.compute_contact_force(
+            penetration=delta,
+            penetration_rate=delta_dot,
             position=p,
             velocity=v,
+            normal=n,
             tangential_deformation=m,
             parameters=params,
-            terrain=model.terrain,
         )
 
         return W_f_Ci, CW_ṁ
@@ -334,7 +343,7 @@ def test_ad_soft_contacts(
     # Check derivatives against finite differences.
     check_grads(
         f=close_over_inputs_and_parameters,
-        args=(p, v, m, parameters),
+        args=(delta, delta_dot, p, v, n, m, parameters),
         order=AD_ORDER,
         modes=["rev", "fwd"],
         eps=ε,

@@ -1109,7 +1109,7 @@ class HwLinkMetadata(JaxsimDataclass):
         return scaling_factors.dims[per_link_indices.squeeze()]
 
     @staticmethod
-    def compute_contact_points(
+    def compute_contact_transforms(
         original_contact_params: jtp.Vector,
         link_shapes: jtp.Vector,
         original_com_positions: jtp.Vector,
@@ -1117,7 +1117,7 @@ class HwLinkMetadata(JaxsimDataclass):
         scaling_factors: ScalingFactors,
     ) -> jtp.Matrix:
         """
-        Compute the new contact points based on the original contact parameters and
+        Compute the new contact transforms based on the original contact parameters and
         the scaling factors.
 
         Args:
@@ -1128,7 +1128,7 @@ class HwLinkMetadata(JaxsimDataclass):
             scaling_factors: The scaling factors for the link dimensions.
 
         Returns:
-            The new contact points positions in the parent link frame.
+            The new contact transforms.
         """
 
         parent_link_indices = np.array(original_contact_params.body)
@@ -1136,7 +1136,7 @@ class HwLinkMetadata(JaxsimDataclass):
         # Translate the original contact point positions in the origin, so
         # that we can apply the scaling factors.
         L_p_Ci = (
-            original_contact_params.point - original_com_positions[parent_link_indices]
+            original_contact_params.center - original_com_positions[parent_link_indices]
         )
 
         # Extract the shape types of the parent links.
@@ -1170,7 +1170,9 @@ class HwLinkMetadata(JaxsimDataclass):
             L_p_Ci,
         )
 
-        return new_positions + updated_com_positions[parent_link_indices]
+        centers = new_positions + updated_com_positions[parent_link_indices]
+
+        return original_contact_params.transform.at[:, :3, 3].set(centers)
 
     @staticmethod
     def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:

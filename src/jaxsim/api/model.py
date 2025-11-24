@@ -2449,7 +2449,7 @@ def update_hw_parameters(
     )
 
     # Compute the contact parameters
-    points = HwLinkMetadata.compute_contact_points(
+    transforms = HwLinkMetadata.compute_contact_transforms(
         original_contact_params=kin_dyn_params.contact_parameters,
         link_shapes=updated_hw_link_metadata.link_shape,
         original_com_positions=link_parameters.center_of_mass,
@@ -2458,7 +2458,9 @@ def update_hw_parameters(
     )
 
     # Update contact parameters
-    updated_contact_parameters = kin_dyn_params.contact_parameters.replace(point=points)
+    updated_contact_parameters = kin_dyn_params.contact_parameters.replace(
+        transform=transforms
+    )
 
     # Update joint model transforms (λ_H_pre)
     def update_λ_H_pre(joint_index):

@@ -1,8 +1,6 @@
 from .collision import (
     BoxCollision,
-    CollidablePoint,
-    CollisionShape,
-    MeshCollision,
+    CylinderCollision,
     SphereCollision,
 )
 from .joint import JointDescription, JointGenericAxis, JointType

@@ -156,8 +156,8 @@ def test_model_creation_and_reduction(
 
     # Check that collidable point positions are preserved.
     assert_allclose(
-        js.contact.collidable_point_positions(model=model_full, data=data_full),
-        js.contact.collidable_point_positions(model=model_reduced, data=data_reduced),
+        js.contact.contact_point_positions(model=model_full, data=data_full),
+        js.contact.contact_point_positions(model=model_reduced, data=data_reduced),
     )
 
     # =====================

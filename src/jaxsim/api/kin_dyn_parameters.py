@@ -14,8 +14,15 @@ import jaxsim
 import jaxsim.typing as jtp
 from jaxsim.math import Inertia, JointModel, supported_joint_motion
 from jaxsim.math.adjoint import Adjoint
-from jaxsim.parsers.descriptions import JointDescription, JointType, ModelDescription
-from jaxsim.utils import HashedNumpyArray, JaxsimDataclass
+from jaxsim.parsers.descriptions import (
+    BoxCollision,
+    CylinderCollision,
+    JointDescription,
+    JointType,
+    ModelDescription,
+    SphereCollision,
+)
+from jaxsim.utils import CollidableShapeType, HashedNumpyArray, JaxsimDataclass
 
 
 @jax_dataclasses.pytree_dataclass(eq=False, unsafe_hash=False)
@@ -85,7 +92,9 @@ class KinDynParameters(JaxsimDataclass):
 
     @staticmethod
     def build(
-        model_description: ModelDescription, constraints: ConstraintMap | None
+        model_description: ModelDescription,
+        constraints: ConstraintMap | None,
+        indices_of_enabled_collidable_links: set[int] | None = None,
     ) -> KinDynParameters:
         """
         Construct the kinematic and dynamic parameters of the model.
@@ -93,6 +102,8 @@ class KinDynParameters(JaxsimDataclass):
         Args:
             model_description: The parsed model description to consider.
             constraints: An object of type ConstraintMap specifying the kinematic constraint of the model.
+            indices_of_enabled_collidable_links:
+                The set of link indices for which collision shapes should be considered. If None, all links with collision shapes are considered.
 
         Returns:
             The kinematic and dynamic parameters of the model.
@@ -168,7 +179,8 @@ class KinDynParameters(JaxsimDataclass):
         # must be Static for JIT-related reasons, and tree_map would not consider it
         # as a leaf.
         contact_parameters = ContactParameters.build_from(
-            model_description=model_description
+            model_description=model_description,
+            indices_of_enabled_collidable_links=indices_of_enabled_collidable_links,
         )
 
         # =================
@@ -762,6 +774,13 @@ class LinkParameters(JaxsimDataclass):
         return jnp.atleast_2d(jnp.where(I, I, I.T)).astype(float)
 
 
+_COLLISION_SHAPE_MAP = {
+    SphereCollision: CollidableShapeType.Sphere,
+    BoxCollision: CollidableShapeType.Box,
+    CylinderCollision: CollidableShapeType.Cylinder,
+}
+
+
 @jax_dataclasses.pytree_dataclass
 class ContactParameters(JaxsimDataclass):
     """
@@ -769,14 +788,15 @@ class ContactParameters(JaxsimDataclass):
 
     Attributes:
         body:
-            A tuple of integers representing, for each collidable point, the index of
-            the body (link) to which it is rigidly attached to.
-        point:
-            The translations between the link frame and the collidable point, expressed
-            in the coordinates of the parent link frame.
-        enabled:
-            A tuple of booleans representing, for each collidable point, whether it is
-            enabled or not in contact models.
+            A tuple of integers representing, for each collision shape, the index of
+            the link to which it is rigidly attached to.
+        transform:
+            The 4x4 homogeneous transformation matrices representing the pose of each
+            collision shape with respect to the parent link frame.
+        shape_size:
+            The size parameters of each collidable shape.
+        shape_type:
+            The type of each collidable shape (sphere, box, cylinder, etc.).
 
     Note:
         Contrarily to LinkParameters and JointParameters, this class is not meant
@@ -785,59 +805,83 @@ class ContactParameters(JaxsimDataclass):
 
     body: Static[tuple[int, ...]] = dataclasses.field(default_factory=tuple)
 
-    point: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.array([]))
-
-    enabled: Static[tuple[bool, ...]] = dataclasses.field(default_factory=tuple)
+    transform: jtp.Matrix = dataclasses.field(default_factory=lambda: jnp.array([]))
+    shape_size: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
+    shape_type: jtp.Vector = dataclasses.field(default_factory=lambda: jnp.array([]))
 
     @property
-    def indices_of_enabled_collidable_points(self) -> npt.NDArray:
-        """
-        Return the indices of the enabled collidable points.
-        """
-        return np.where(np.array(self.enabled))[0]
+    def center(self) -> jtp.Array:
+        """Extract translation vectors from transformation matrices."""
+        if self.transform.size == 0:
+            return jnp.array([])
+        return self.transform[:, :3, 3]
+
+    @property
+    def orientation(self) -> jtp.Array:
+        """Extract rotation matrices from transformation matrices."""
+        if self.transform.size == 0:
+            return jnp.array([])
+        return self.transform[:, :3, :3]
 
     @staticmethod
-    def build_from(model_description: ModelDescription) -> ContactParameters:
+    def build_from(
+        model_description: ModelDescription,
+        indices_of_enabled_collidable_links: set[int] | None = None,
+    ) -> ContactParameters:
         """
         Build a ContactParameters object from a model description.
 
         Args:
             model_description: The model description to consider.
+            indices_of_enabled_collidable_links:
+                An optional set of link indices for which to include collision shapes.
+                If None, all collision shapes are included.
 
         Returns:
             The ContactParameters object.
         """
 
-        if len(model_description.collision_shapes) == 0:
+        if not (collisions := model_description.collision_shapes):
             return ContactParameters()
 
-        # Get all the links so that we can take their updated index.
-        links_dict = {link.name: link for link in model_description}
+        links_dict = model_description.links_dict
+        shape_map = _COLLISION_SHAPE_MAP
 
-        # Get all the enabled collidable points of the model.
-        collidable_points = model_description.all_enabled_collidable_points()
-
-        # Extract the positions L_p_C of the collidable points w.r.t. the link frames
-        # they are rigidly attached to.
-        points = jnp.vstack([cp.position for cp in collidable_points])
-
-        # Extract the indices of the links to which the collidable points are rigidly
-        # attached to.
-        link_index_of_points = tuple(
-            links_dict[cp.parent_link.name].index for cp in collidable_points
+        enabled = (
+            indices_of_enabled_collidable_links
+            if indices_of_enabled_collidable_links is not None
+            else set(range(len(links_dict)))
         )
+
+        shape_types = []
+        shape_sizes = []
+        transforms = []
+        parent_indices = []
+
+        for collision in collisions:
+
+            shape_type = shape_map.get(type(collision), CollidableShapeType.Unsupported)
+
+            parent_idx = links_dict[collision.parent_link].index
+
+            # Skip unsupported collision shapes
+            if shape_type == CollidableShapeType.Unsupported or (
+                parent_idx not in enabled
+            ):
+                continue
+
+            shape_types.append(shape_type)
+            shape_sizes.append(collision.size.squeeze())
+            transforms.append(collision.transform)
+            parent_indices.append(parent_idx)
 
         # Build the ContactParameters object.
-        cp = ContactParameters(
-            point=points,
-            body=link_index_of_points,
-            enabled=tuple(True for _ in link_index_of_points),
+        return ContactParameters(
+            body=tuple(parent_indices),
+            transform=jnp.asarray(transforms, dtype=float),
+            shape_type=jnp.asarray(shape_types, dtype=int),
+            shape_size=jnp.asarray(shape_sizes, dtype=float),
         )
-
-        assert cp.point.shape[1] == 3, cp.point.shape[1]
-        assert cp.point.shape[0] == len(cp.body), cp.point.shape[0]
-
-        return cp
 
 
 @jax_dataclasses.pytree_dataclass
@@ -1065,7 +1109,7 @@ class HwLinkMetadata(JaxsimDataclass):
         return scaling_factors.dims[per_link_indices.squeeze()]
 
     @staticmethod
-    def compute_contact_points(
+    def compute_contact_transforms(
         original_contact_params: jtp.Vector,
         link_shapes: jtp.Vector,
         original_com_positions: jtp.Vector,
@@ -1073,7 +1117,7 @@ class HwLinkMetadata(JaxsimDataclass):
         scaling_factors: ScalingFactors,
     ) -> jtp.Matrix:
         """
-        Compute the new contact points based on the original contact parameters and
+        Compute the new contact transforms based on the original contact parameters and
         the scaling factors.
 
         Args:
@@ -1084,7 +1128,7 @@ class HwLinkMetadata(JaxsimDataclass):
             scaling_factors: The scaling factors for the link dimensions.
 
         Returns:
-            The new contact points positions in the parent link frame.
+            The new contact transforms.
         """
 
         parent_link_indices = np.array(original_contact_params.body)
@@ -1092,7 +1136,7 @@ class HwLinkMetadata(JaxsimDataclass):
         # Translate the original contact point positions in the origin, so
         # that we can apply the scaling factors.
         L_p_Ci = (
-            original_contact_params.point - original_com_positions[parent_link_indices]
+            original_contact_params.center - original_com_positions[parent_link_indices]
         )
 
         # Extract the shape types of the parent links.
@@ -1126,7 +1170,9 @@ class HwLinkMetadata(JaxsimDataclass):
             L_p_Ci,
         )
 
-        return new_positions + updated_com_positions[parent_link_indices]
+        centers = new_positions + updated_com_positions[parent_link_indices]
+
+        return original_contact_params.transform.at[:, :3, 3].set(centers)
 
     @staticmethod
     def compute_inertia_link(I_com, L_H_G) -> jtp.Matrix:

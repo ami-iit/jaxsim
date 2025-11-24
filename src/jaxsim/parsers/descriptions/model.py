@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import dataclasses
-import itertools
 from collections.abc import Sequence
 
 from jaxsim import logging
 from jaxsim.logging import jaxsim_warn
 
 from ..kinematic_graph import KinematicGraph, KinematicGraphTransforms, RootPose
-from .collision import CollidablePoint, CollisionShape
 from .joint import JointDescription
 from .link import LinkDescription
 
@@ -28,9 +26,7 @@ class ModelDescription(KinematicGraph):
 
     fixed_base: bool = True
 
-    collision_shapes: tuple[CollisionShape, ...] = dataclasses.field(
-        default_factory=list, repr=False
-    )
+    collision_shapes: tuple = dataclasses.field(default_factory=list, repr=False)
 
     @staticmethod
     def build_model_from(
@@ -38,7 +34,7 @@ class ModelDescription(KinematicGraph):
         links: list[LinkDescription],
         joints: list[JointDescription],
         frames: list[LinkDescription] | None = None,
-        collisions: tuple[CollisionShape, ...] = (),
+        collisions: tuple = (),
         fixed_base: bool = False,
         base_link_name: str | None = None,
         considered_joints: Sequence[str] | None = None,
@@ -81,61 +77,55 @@ class ModelDescription(KinematicGraph):
         fk = KinematicGraphTransforms(graph=kinematic_graph)
 
         # Container of the final model's collision shapes.
-        final_collisions: list[CollisionShape] = []
+        final_collisions: list = []
 
         # Move and express the collision shapes of removed links to the resulting
         # lumped link that replace the combination of the removed link and its parent.
         for collision_shape in collisions:
 
-            # Get all the collidable points of the shape
-            coll_points = tuple(collision_shape.collidable_points)
-
-            # Assume they have an unique parent link
-            if not len(set({cp.parent_link.name for cp in coll_points})) == 1:
-                msg = "Collision shape not currently supported (multiple parent links)"
-                raise RuntimeError(msg)
-
             # Get the parent link of the collision shape.
             # Note that this link could have been lumped and we need to find the
             # link in which it was lumped into.
-            parent_link_of_shape = collision_shape.collidable_points[0].parent_link
+            parent_link_of_shape = collision_shape.parent_link
 
             # If it is part of the (reduced) graph, add it as it is...
-            if parent_link_of_shape.name in kinematic_graph.link_names():
+            if parent_link_of_shape in kinematic_graph.link_names():
                 final_collisions.append(collision_shape)
                 continue
 
             # ... otherwise look for the frame
-            if parent_link_of_shape.name not in kinematic_graph.frame_names():
+            if parent_link_of_shape not in kinematic_graph.frame_names():
                 msg = "Parent frame '{}' of collision shape not found, ignoring shape"
-                logging.info(msg.format(parent_link_of_shape.name))
+                logging.info(msg.format(parent_link_of_shape))
                 continue
 
-            # Create a new collision shape
-            new_collision_shape = CollisionShape(collidable_points=())
+            # Find the link that is part of the (reduced) model in which the
+            # collision shape's parent was lumped into.
+            real_parent_link_name = kinematic_graph.frames_dict[
+                parent_link_of_shape
+            ].parent_name
+
+            # Get the transform from the real parent link to the removed link
+            # that still exists as a frame.
+            parent_H_frame = fk.relative_transform(
+                relative_to=real_parent_link_name,
+                name=parent_link_of_shape,
+            )
+
+            # Transform the collision shape's pose to the new parent link frame.
+            # The collision shape was defined w.r.t. the removed link (now a frame).
+            # Now we need to express it w.r.t. the link that absorbed the removed link.
+            # Compose the transforms: parent_H_shape = parent_H_frame @ frame_H_shape
+            parent_H_shape = parent_H_frame @ collision_shape.transform
+
+            # Create a new collision shape with updated pose and parent link
+            new_collision_shape = dataclasses.replace(
+                collision_shape,
+                transform=parent_H_shape,
+                parent_link=real_parent_link_name,
+            )
+
             final_collisions.append(new_collision_shape)
-
-            # If the frame was found, update the collidable points' pose and add them
-            # to the new collision shape.
-            for cp in collision_shape.collidable_points:
-                # Find the link that is part of the (reduced) model in which the
-                # collision shape's parent was lumped into
-                real_parent_link_name = kinematic_graph.frames_dict[
-                    parent_link_of_shape.name
-                ].parent_name
-
-                # Change the link associated to the collidable point, updating their
-                # relative pose
-                moved_cp = cp.change_link(
-                    new_link=kinematic_graph.links_dict[real_parent_link_name],
-                    new_H_old=fk.relative_transform(
-                        relative_to=real_parent_link_name,
-                        name=cp.parent_link.name,
-                    ),
-                )
-
-                # Store the updated collision.
-                new_collision_shape.collidable_points += (moved_cp,)
 
         # Build the model
         model = ModelDescription(
@@ -193,63 +183,6 @@ class ModelDescription(KinematicGraph):
             reduced_model_description.joints_removed.append(joint)
 
         return reduced_model_description
-
-    def update_collision_shape_of_link(self, link_name: str, enabled: bool) -> None:
-        """
-        Enable or disable collision shapes associated with a link.
-
-        Args:
-            link_name: The name of the link.
-            enabled: Enable or disable collision shapes associated with the link.
-        """
-
-        if link_name not in self.link_names():
-            raise ValueError(link_name)
-
-        for point in self.collision_shape_of_link(
-            link_name=link_name
-        ).collidable_points:
-            point.enabled = enabled
-
-    def collision_shape_of_link(self, link_name: str) -> CollisionShape:
-        """
-        Get the collision shape associated with a specific link.
-
-        Args:
-            link_name: The name of the link.
-
-        Returns:
-            The collision shape associated with the link.
-        """
-
-        if link_name not in self.link_names():
-            raise ValueError(link_name)
-
-        return CollisionShape(
-            collidable_points=[
-                point
-                for shape in self.collision_shapes
-                for point in shape.collidable_points
-                if point.parent_link.name == link_name
-            ]
-        )
-
-    def all_enabled_collidable_points(self) -> list[CollidablePoint]:
-        """
-        Get all enabled collidable points in the model.
-
-        Returns:
-            The list of all enabled collidable points.
-
-        """
-
-        # Get iterator of all collidable points
-        all_collidable_points = itertools.chain.from_iterable(
-            [shape.collidable_points for shape in self.collision_shapes]
-        )
-
-        # Return enabled collidable points
-        return [cp for cp in all_collidable_points if cp.enabled]
 
     def __eq__(self, other: ModelDescription) -> bool:
 

@@ -15,7 +15,6 @@ dependencies:
   - pptree
   - qpax
   - rod >= 0.3.3
-  - trimesh
   - typing_extensions # python<3.12
   # ====================================
   # Optional dependencies from setup.cfg

@@ -245,13 +245,6 @@ class RigidContacts(ContactModel):
             A tuple containing as first element the computed contact forces.
         """
 
-        # Get the indices of the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-        )
-
-        n_collidable_points = len(indices_of_enabled_collidable_points)
-
         link_forces = jnp.atleast_2d(
             jnp.array(link_forces, dtype=float).squeeze()
             if link_forces is not None
@@ -273,17 +266,31 @@ class RigidContacts(ContactModel):
             joint_force_references=joint_force_references,
         )
 
-        # Compute the position and linear velocities (mixed representation) of
-        # all enabled collidable points belonging to the robot.
-        position, velocity = js.contact.collidable_point_kinematics(
-            model=model, data=data
-        )
-
-        # Compute the penetration depth and velocity of the collidable points.
+        # Compute the position and linear velocities (mixed representation) and
+        # the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.
-        δ, δ_dot, n̂ = jax.vmap(common.compute_penetration_data, in_axes=(0, 0, None))(
-            position, velocity, model.terrain
+        δ, δ_dot, n̂, *_ = jax.vmap(
+            lambda shape_transform, shape_type, shape_size, link_transform, link_velocity: common.compute_penetration_data(
+                model,
+                shape_transform=shape_transform,
+                shape_type=shape_type,
+                shape_size=shape_size,
+                link_transforms=link_transform,
+                link_velocities=link_velocity,
+            )
+        )(
+            model.kin_dyn_parameters.contact_parameters.transform,
+            model.kin_dyn_parameters.contact_parameters.shape_type,
+            model.kin_dyn_parameters.contact_parameters.shape_size,
+            data._link_transforms[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
+            data._link_velocities[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
         )
+        δ = δ.flatten()
+        δ_dot = δ_dot.flatten()
 
         W_H_C = js.contact.transforms(model=model, data=data)
 
@@ -343,10 +350,10 @@ class RigidContacts(ContactModel):
         G = _compute_ineq_constraint_matrix(
             inactive_collidable_points=(δ <= 0), mu=model.contact_params.mu
         )
-        h_bounds = jnp.zeros(shape=(n_collidable_points * 6,))
+        h_bounds = jnp.zeros(shape=(G.shape[0],))
 
         # Construct the equality constraints.
-        A = jnp.zeros((0, 3 * n_collidable_points))
+        A = jnp.zeros((0, 3 * G.shape[0] // 6))
         b = jnp.zeros((0,))
 
         # Solve the following optimization problem with qpax:
@@ -362,21 +369,34 @@ class RigidContacts(ContactModel):
         )
 
         # Reshape the optimized solution to be a matrix of 3D contact forces.
-        CW_fl_C = solution.reshape(-1, 3)
+        CW_fl_C_per_link = solution.reshape(-1, 3, 3)
 
-        # Convert the contact forces from mixed to inertial-fixed representation.
+        # Transform each contact force to inertial frame
+        def to_inertial(force, H_C):
+            return ModelDataWithVelocityRepresentation.other_representation_to_inertial(
+                array=jnp.zeros(6).at[0:3].set(force),
+                transform=H_C,
+                other_representation=VelRepr.Mixed,
+                is_force=True,
+            )
+
+        # Compute the contact forces in inertial representation for
+        # each link and contact point.
+        # Nested vmap: inner over contacts, outer over shapes
         W_f_C = jax.vmap(
-            lambda CW_fl_C, W_H_C: (
-                ModelDataWithVelocityRepresentation.other_representation_to_inertial(
-                    array=jnp.zeros(6).at[0:3].set(CW_fl_C),
-                    transform=W_H_C,
-                    other_representation=VelRepr.Mixed,
-                    is_force=True,
-                )
-            ),
-        )(CW_fl_C, W_H_C)
+            lambda f_shape, H_shape: jax.vmap(to_inertial)(f_shape, H_shape)
+        )(CW_fl_C_per_link, W_H_C)
 
-        return W_f_C, {}
+        # Sum over contacts for each shape: (n_shapes, 6)
+        W_f_per_shape = W_f_C.sum(axis=1)
+
+        # Accumulate forces by parent link using segment_sum
+        body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+        W_f_per_link = jax.ops.segment_sum(
+            W_f_per_shape, body_indices, num_segments=model.number_of_links()
+        )
+
+        return W_f_per_link, {}
 
     @jax.jit
     @js.common.named_scope
@@ -394,25 +414,32 @@ class RigidContacts(ContactModel):
             The updated data of the considered model.
         """
 
-        # Extract the indices corresponding to the enabled collidable points.
-        indices_of_enabled_collidable_points = (
-            model.kin_dyn_parameters.contact_parameters.indices_of_enabled_collidable_points
-        )
-
-        W_p_C = js.contact.collidable_point_positions(model, data)[
-            indices_of_enabled_collidable_points
-        ]
-
         # Compute the penetration depth of the collidable points.
         δ, *_ = jax.vmap(
-            common.compute_penetration_data,
-            in_axes=(0, 0, None),
-        )(W_p_C, jnp.zeros_like(W_p_C), model.terrain)
+            lambda shape_transform, shape_type, shape_size, link_transform, link_velocity: common.compute_penetration_data(
+                model,
+                shape_transform=shape_transform,
+                shape_type=shape_type,
+                shape_size=shape_size,
+                link_transforms=link_transform,
+                link_velocities=link_velocity,
+            )
+        )(
+            model.kin_dyn_parameters.contact_parameters.transform,
+            model.kin_dyn_parameters.contact_parameters.shape_type,
+            model.kin_dyn_parameters.contact_parameters.shape_size,
+            data._link_transforms[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
+            data._link_velocities[
+                jnp.array(model.kin_dyn_parameters.contact_parameters.body)
+            ],
+        )
+
+        δ = δ.flatten()
 
         with data.switch_velocity_representation(VelRepr.Mixed):
-            J_WC = js.contact.jacobian(model, data)[
-                indices_of_enabled_collidable_points
-            ]
+            J_WC = js.contact.jacobian(model, data)
             M = js.model.free_floating_mass_matrix(model, data)
             BW_ν_pre_impact = data.generalized_velocity
 
@@ -532,8 +559,4 @@ def _compute_baumgarte_stabilization_term(
     D: jtp.FloatLike,
 ) -> jtp.Array:
 
-    return jnp.where(
-        inactive_collidable_points[:, jnp.newaxis],
-        jnp.zeros_like(n),
-        (K * δ + D * δ_dot)[:, jnp.newaxis] * n,
-    )
+    return (K * δ + D * δ_dot) * n

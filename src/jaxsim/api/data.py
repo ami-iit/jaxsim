@@ -176,7 +176,7 @@ class JaxSimModelData(common.ModelDataWithVelocityRepresentation):
         if isinstance(model.contact_model, jaxsim.rbda.contacts.SoftContacts):
             contact_state["tangential_deformation"] = contact_state.get(
                 "tangential_deformation",
-                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.point),
+                jnp.zeros_like(model.kin_dyn_parameters.contact_parameters.center),
             )
 
         model_data = JaxSimModelData(

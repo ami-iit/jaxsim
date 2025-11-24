@@ -151,3 +151,6 @@ src/jaxsim/_version.py
 # data
 .mp4
 .png
+
+# macOS
+.DS_Store

@@ -268,9 +268,7 @@ class RigidContacts(ContactModel):
 
         # Compute the position and linear velocities (mixed representation) of
         # all enabled collidable points belonging to the robot.
-        position, velocity = js.contact.contact_point_kinematics(
-            model=model, data=data
-        )
+        position, velocity = js.contact.contact_point_kinematics(model=model, data=data)
 
         # Compute the penetration depth and velocity of the collidable points.
         # Note that this function considers the penetration in the normal direction.

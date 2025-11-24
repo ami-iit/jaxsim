@@ -192,7 +192,9 @@ def run_simulation(
 
 
 def test_simulation_with_soft_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator, prng_key: jax.Array,
+    jaxsim_model_box: js.model.JaxSimModel,
+    integrator,
+    prng_key: jax.Array,
 ):
 
     model = jaxsim_model_box
@@ -234,7 +236,9 @@ def test_simulation_with_soft_contacts(
 
 
 def test_simulation_with_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator, prng_key: jax.Array,
+    jaxsim_model_box: js.model.JaxSimModel,
+    integrator,
+    prng_key: jax.Array,
 ):
 
     model = jaxsim_model_box
@@ -276,7 +280,9 @@ def test_simulation_with_rigid_contacts(
 
 
 def test_simulation_with_relaxed_rigid_contacts(
-    jaxsim_model_box: js.model.JaxSimModel, integrator, prng_key: jax.Array,
+    jaxsim_model_box: js.model.JaxSimModel,
+    integrator,
+    prng_key: jax.Array,
 ):
 
     model = jaxsim_model_box

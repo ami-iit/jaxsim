@@ -9,7 +9,7 @@ import jaxsim.api as js
 import jaxsim.exceptions
 import jaxsim.typing as jtp
 from jaxsim import logging
-from jaxsim.math import Adjoint, Cross, Transform
+from jaxsim.math import Adjoint, Cross
 from jaxsim.rbda.contacts import SoftContacts, detection
 
 from .common import VelRepr
@@ -448,9 +448,9 @@ def jacobian_derivative(
                 O_Ẋ_W = -O_X_W @ Cross.vx(W_v_WL)
             case VelRepr.Mixed:
                 W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
-                O_X_W = Adjoint.from_transform(Transform.inverse(W_H_CW))
-                v_CW = O_X_W @ W_v_WL
-                O_Ẋ_W = -O_X_W @ Cross.vx(v_CW.at[:3].set(v_CW[:3]))
+                O_X_W = Adjoint.from_transform(W_H_CW, inverse=True)
+                O_v_CW = (O_X_W @ W_v_WL).at[3:6].set(0.0)
+                O_Ẋ_W = -O_X_W @ Cross.vx(O_v_CW)
             case _:
                 raise ValueError(output_vel_repr)
 

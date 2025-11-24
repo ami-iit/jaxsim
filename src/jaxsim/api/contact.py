@@ -382,6 +382,7 @@ def jacobian_derivative(
     # Index link velocities by body (parent link) of each collision shape
     body_indices = jnp.array(model.kin_dyn_parameters.contact_parameters.body)
     W_v_WL_indexed = W_v_WL[body_indices]  # (n_shapes, 6)
+    W_H_L_indexed = data._link_transforms[body_indices]  # (n_shapes, 4, 4)
 
     # Compute the contact transforms (n_shapes, n_contacts, 4, 4)
     W_H_C = transforms(model=model, data=data)
@@ -438,13 +439,15 @@ def jacobian_derivative(
     W_J_WL_W_indexed = W_J_WL_W[body_indices]  # (n_shapes, 6, 6+n)
     W_J̇_WL_W_indexed = W_J̇_WL_W[body_indices]  # (n_shapes, 6, 6+n)
 
-    def compute_O_J̇_WC_I(W_H_C, W_v_WL, W_J_WL_W, W_J̇_WL_W) -> jtp.Matrix:
+    def compute_O_J̇_WC_I(W_H_C, W_H_L, W_v_WL, W_J_WL_W, W_J̇_WL_W) -> jtp.Matrix:
         match output_vel_repr:
             case VelRepr.Inertial:
                 O_X_W = jnp.eye(6)
                 O_Ẋ_W = jnp.zeros((6, 6))
             case VelRepr.Body:
-                O_X_W = Adjoint.from_transform(W_H_C, inverse=True)
+                O_X_W = Adjoint.from_transform(
+                    W_H_C.at[0:3, 0:3].set(W_H_L[0:3, 0:3]), inverse=True
+                )
                 O_Ẋ_W = -O_X_W @ Cross.vx(W_v_WL)
             case VelRepr.Mixed:
                 W_H_CW = W_H_C.at[0:3, 0:3].set(jnp.eye(3))
@@ -461,13 +464,18 @@ def jacobian_derivative(
         return O_J̇_WC_I
 
     O_J̇_per_shape = jax.vmap(
-        lambda H_C_shape, v_WL_shape, J_WL_shape, J̇_WL_shape: jax.vmap(
+        lambda H_C_shape, H_L_shape, v_WL_shape, J_WL_shape, J̇_WL_shape: jax.vmap(
             compute_O_J̇_WC_I,
-            in_axes=(0, None, None, None),  # Map over contacts for W_H_C only
-        )(H_C_shape, v_WL_shape, J_WL_shape, J̇_WL_shape),
-        in_axes=(0, 0, 0, 0),  # Map over shapes
-    )(W_H_C, W_v_WL_indexed, W_J_WL_W_indexed, W_J̇_WL_W_indexed)
-
+            in_axes=(0, None, None, None, None),  # map over contacts in H_C
+        )(H_C_shape, H_L_shape, v_WL_shape, J_WL_shape, J̇_WL_shape),
+        in_axes=(0, 0, 0, 0, 0),  # map over shapes
+    )(
+        W_H_C,
+        W_H_L_indexed,
+        W_v_WL_indexed,
+        W_J_WL_W_indexed,
+        W_J̇_WL_W_indexed,
+    )
     O_J̇_WC = O_J̇_per_shape.reshape(-1, 6, 6 + model.dofs())
 
     return O_J̇_WC

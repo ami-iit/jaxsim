@@ -131,8 +131,8 @@ def test_model_scaling_against_rod(
 
     # Compare collidable points positions
     assert_allclose(
-        jaxsim_model_garpez_scaled.kin_dyn_parameters.contact_parameters.point,
-        updated_model.kin_dyn_parameters.contact_parameters.point,
+        jaxsim_model_garpez_scaled.kin_dyn_parameters.contact_parameters.transform,
+        updated_model.kin_dyn_parameters.contact_parameters.transform,
         atol=1e-6,
     )
 
@@ -485,9 +485,7 @@ def test_hw_parameters_collision_scaling(
     updated_base_height = data.base_position[2]
 
     # Assert that the box settles at the expected height
-    assert jnp.isclose(
-        updated_base_height, expected_height, atol=1e-3
-    ), f"model base height mismatch: expected {expected_height}, got {updated_base_height}"
+    assert_allclose(updated_base_height, expected_height, atol=1e-3)
 
 
 def test_unsupported_link_cases():

@@ -212,14 +212,6 @@ class JaxSimModel(JaxsimDataclass):
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
 
-        # Compute the hw parametrization metadata of the model
-        # TODO: move the building of the metadata to KinDynParameters.build()
-        #       and use the model_description instead of model.built_from.
-        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata(
-                parametrized_links=parametrized_links
-            )
-
         return model
 
     @classmethod
@@ -326,6 +318,14 @@ class JaxSimModel(JaxsimDataclass):
             # kin_dyn_parameters attribute.
             _description=wrappers.HashlessObject(obj=model_description),
         )
+
+        # Compute the hw parametrization metadata of the model
+        # TODO: move the building of the metadata to KinDynParameters.build()
+        #       and use the model_description instead of model.built_from.
+        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata(
+                parametrized_links=parametrized_links
+            )
 
         return model
 

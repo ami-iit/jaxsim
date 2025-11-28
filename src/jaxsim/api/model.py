@@ -141,6 +141,7 @@ class JaxSimModel(JaxsimDataclass):
         considered_joints: Sequence[str] | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
+        parametrized_links: tuple[str, ...] | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from a model description.
@@ -170,6 +171,8 @@ class JaxSimModel(JaxsimDataclass):
             constraints:
                 An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
                 Note that constraints can be used only with RelaxedRigidContacts.
+            parametrized_links:
+                The optional list of links to be parametrized. If None, all links are parametrized.
 
         Returns:
             The built Model object.
@@ -202,17 +205,12 @@ class JaxSimModel(JaxsimDataclass):
             integrator=integrator,
             gravity=-gravity,
             constraints=constraints,
+            parametrized_links=parametrized_links,
         )
 
         # Store the origin of the model, in case downstream logic needs it.
         with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
             model.built_from = model_description
-
-        # Compute the hw parametrization metadata of the model
-        # TODO: move the building of the metadata to KinDynParameters.build()
-        #       and use the model_description instead of model.built_from.
-        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
-            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata()
 
         return model
 
@@ -230,6 +228,7 @@ class JaxSimModel(JaxsimDataclass):
         integrator: IntegratorType | None = None,
         gravity: jtp.FloatLike = jaxsim.math.STANDARD_GRAVITY,
         constraints: jaxsim.rbda.kinematic_constraints.ConstraintMap | None = None,
+        parametrized_links: tuple[str, ...] | None = None,
     ) -> JaxSimModel:
         """
         Build a Model object from an intermediate model description.
@@ -254,6 +253,8 @@ class JaxSimModel(JaxsimDataclass):
             gravity: The gravity constant.
             constraints:
                 An object of type ConstraintMap containing the kinematic constraints to consider. If None, no constraints are considered.
+            parametrized_links:
+                The optional list of links to be parametrized. If None, all links are parametrized.
 
         Returns:
             The built Model object.
@@ -318,11 +319,26 @@ class JaxSimModel(JaxsimDataclass):
             _description=wrappers.HashlessObject(obj=model_description),
         )
 
+        # Compute the hw parametrization metadata of the model
+        # TODO: move the building of the metadata to KinDynParameters.build()
+        #       and use the model_description instead of model.built_from.
+        with model.mutable_context(mutability=Mutability.MUTABLE_NO_VALIDATION):
+            model.kin_dyn_parameters.hw_link_metadata = model.compute_hw_link_metadata(
+                parametrized_links=parametrized_links
+            )
+
         return model
 
-    def compute_hw_link_metadata(self) -> HwLinkMetadata:
+    def compute_hw_link_metadata(
+        self, parametrized_links: tuple[str, ...] | None = None
+    ) -> HwLinkMetadata:
         """
         Compute the parametric metadata of the links in the model.
+
+        Args:
+            parametrized_links:
+                An optional tuple of link names to be parametrized. If None,
+                all links will be parametrized.
 
         Returns:
             An instance of HwLinkMetadata containing the metadata of all links.
@@ -370,19 +386,20 @@ class JaxSimModel(JaxsimDataclass):
         L_H_pre_masks = []
         L_H_pre = []
 
-        # Process each link
+        # Process each link, only parametrizing those in parametrized_links if provided
         for link_description in ordered_links:
             link_name = link_description.name
 
-            if link_name not in self.link_names():
-                logging.debug(
-                    f"Skipping link '{link_name}' for hardware parametrization as it is not part of the JaxSim model."
-                )
-
-            if link_name not in rod_links_dict:
-                logging.debug(
-                    f"Skipping link '{link_name}' for hardware parametrization as it is not part of the ROD model."
-                )
+            if parametrized_links is not None and link_name not in parametrized_links:
+                # Mark as unsupported for non-parametrized links
+                shapes.append(LinkParametrizableShape.Unsupported)
+                geoms.append([0, 0, 0])
+                densities.append(0.0)
+                L_H_Gs.append(jnp.eye(4))
+                L_H_vises.append(jnp.eye(4))
+                L_H_pre_masks.append([0] * self.number_of_joints())
+                L_H_pre.append([jnp.eye(4)] * self.number_of_joints())
+                continue
 
             rod_link = rod_links_dict.get(link_name)
             link_index = int(js.link.name_to_idx(model=self, link_name=link_name))

@@ -588,6 +588,11 @@ class JaxSimModel(JaxsimDataclass):
                 relative_to=link_name,
             )
 
+            links_dict[link_name].collision.pose = rod.Pose.from_transform(
+                transform=np.array(hw_metadata.L_H_vis[link_index]),
+                relative_to=link_name,
+            )
+
             # Update joint poses
             for joint_index in range(self.number_of_joints()):
                 if hw_metadata.L_H_pre_mask[link_index, joint_index]:

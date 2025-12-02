@@ -1536,16 +1536,16 @@ def free_floating_mass_matrix(
 
         case VelRepr.Inertial:
             B_X_W = Adjoint.from_transform(transform=data.base_transform, inverse=True)
-            invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+            B_X_W_block = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
-            return invT.T @ M_body @ invT
+            return B_X_W_block.T @ M_body @ B_X_W_block
 
         case VelRepr.Mixed:
             BW_H_B = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
-            invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
+            B_X_BW_block = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
-            return invT.T @ M_body @ invT
+            return B_X_BW_block.T @ M_body @ B_X_BW_block
 
         case _:
             raise ValueError(data.velocity_representation)
@@ -1578,16 +1578,16 @@ def free_floating_mass_matrix_inverse(
         case VelRepr.Body:
             return M_inv_body
         case VelRepr.Inertial:
-            B_X_W = Adjoint.from_transform(transform=data.base_transform)
-            invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+            W_X_B = Adjoint.from_transform(transform=data.base_transform)
+            W_X_B_block = jax.scipy.linalg.block_diag(W_X_B, jnp.eye(model.dofs()))
 
-            return invT @ M_inv_body @ invT.T
+            return W_X_B_block @ M_inv_body @ W_X_B_block.T
         case VelRepr.Mixed:
-            BW_H_B = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
-            B_X_BW = Adjoint.from_transform(transform=BW_H_B)
-            invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
+            B_H_BW = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
+            BW_X_B = Adjoint.from_transform(transform=B_H_BW)
+            BW_X_B_block = jax.scipy.linalg.block_diag(BW_X_B, jnp.eye(model.dofs()))
 
-            return invT @ M_inv_body @ invT.T
+            return BW_X_B_block @ M_inv_body @ BW_X_B_block.T
         case _:
             raise ValueError(data.velocity_representation)
 

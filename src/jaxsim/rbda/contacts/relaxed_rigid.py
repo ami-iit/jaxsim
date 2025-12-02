@@ -367,7 +367,7 @@ class RelaxedRigidContacts(common.ContactModel):
                 )
             )
 
-            M = js.model.free_floating_mass_matrix(model=model, data=data)
+            M_inv = js.model.free_floating_mass_matrix_inverse(model=model, data=data)
 
             # Compute the linear part of the Jacobian of the collidable points
             Jl_WC = jnp.vstack(
@@ -382,9 +382,6 @@ class RelaxedRigidContacts(common.ContactModel):
                     js.contact.jacobian_derivative(model=model, data=data)[:, :3], δ
                 ),
             )
-
-        # Compute the Delassus matrix for contacts (mixed representation).
-        M_inv = jnp.linalg.pinv(M)
 
         # Compute the Delassus matrix directly using J and J̇.
         G_contacts = Jl_WC @ M_inv @ Jl_WC.T

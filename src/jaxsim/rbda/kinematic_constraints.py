@@ -254,7 +254,7 @@ def compute_constraint_wrenches(
         )
 
         # Compute mass matrix
-        M = js.model.free_floating_mass_matrix(model=model, data=data)
+        M_inv = js.model.free_floating_mass_matrix_inverse(model=model, data=data)
 
         W_H_constr_pairs = _compute_constraint_transforms_batched(
             model=model,
@@ -287,7 +287,7 @@ def compute_constraint_wrenches(
         J_constr = jnp.vstack(J_constr)
 
         # Compute Delassus matrix for constraints
-        G_constraints = J_constr @ jnp.linalg.solve(M, J_constr.T)
+        G_constraints = J_constr @ M_inv @ J_constr.T
 
         # Compute constraint acceleration
         # TODO: add J̇_constr with efficient computation

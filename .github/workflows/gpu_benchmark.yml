@@ -28,7 +28,7 @@ jobs:
             apt update && apt install -y git git-lfs
 
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           lfs: true
           fetch-depth: 0

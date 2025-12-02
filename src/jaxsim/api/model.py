@@ -1509,6 +1509,33 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
     return W_H_LL
 
 
+def _transform_M_block(M_body: jtp.Matrix, X: jtp.Matrix) -> jtp.Matrix:
+    """
+    Apply invTᵀ M_body invT with invT = diag(X, I_n), without forming invT.
+
+    Args:
+        M_body: (6+n, 6+n) mass matrix (inverse) in body representation.
+        X:      (6, 6) adjoint (e.g. B_X_W or B_X_BW).
+
+    Returns:
+        M_repr: (6+n, 6+n) mass matrix (inverse) in the new representation.
+    """
+
+    # invTᵀ M invT with invT = diag(X, I):
+    # Mbb' = Xᵀ Mbb X
+    # Mbj' = Xᵀ Mbj
+    # Mjb' = Mjb X
+    # Mjj' = Mjj
+    Mbb_t = X.T @ M_body[:6, :6] @ X
+    Mbj_t = X.T @ M_body[:6, 6:]
+    Mjb_t = M_body[6:, :6] @ X
+    Mjj_t = M_body[6:, 6:]
+
+    top = jnp.concatenate([Mbb_t, Mbj_t], axis=1)
+    bottom = jnp.concatenate([Mjb_t, Mjj_t], axis=1)
+    return jnp.concatenate([top, bottom], axis=0)
+
+
 @jax.jit
 @js.common.named_scope
 def free_floating_mass_matrix(
@@ -1536,17 +1563,14 @@ def free_floating_mass_matrix(
 
         case VelRepr.Inertial:
             B_X_W = Adjoint.from_transform(transform=data.base_transform, inverse=True)
-            B_X_W_block = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
 
-            return B_X_W_block.T @ M_body @ B_X_W_block
+            return _transform_M_block(M_body, B_X_W)
 
         case VelRepr.Mixed:
             BW_H_B = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
-            B_X_BW_block = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
-            return B_X_BW_block.T @ M_body @ B_X_BW_block
-
+            return _transform_M_block(M_body, B_X_BW)
         case _:
             raise ValueError(data.velocity_representation)
 
@@ -1579,15 +1603,13 @@ def free_floating_mass_matrix_inverse(
             return M_inv_body
         case VelRepr.Inertial:
             W_X_B = Adjoint.from_transform(transform=data.base_transform)
-            W_X_B_block = jax.scipy.linalg.block_diag(W_X_B, jnp.eye(model.dofs()))
 
-            return W_X_B_block @ M_inv_body @ W_X_B_block.T
+            return _transform_M_block(M_inv_body, W_X_B.T)
         case VelRepr.Mixed:
             B_H_BW = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
             BW_X_B = Adjoint.from_transform(transform=B_H_BW)
-            BW_X_B_block = jax.scipy.linalg.block_diag(BW_X_B, jnp.eye(model.dofs()))
 
-            return BW_X_B_block @ M_inv_body @ BW_X_B_block.T
+            return _transform_M_block(M_inv_body, BW_X_B.T)
         case _:
             raise ValueError(data.velocity_representation)
 

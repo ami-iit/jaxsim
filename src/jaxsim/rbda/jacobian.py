@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 import jaxsim.api as js
 import jaxsim.typing as jtp
@@ -74,7 +73,7 @@ def jacobian(
         jax.lax.scan(
             f=propagate_kinematics,
             init=propagate_kinematics_carry,
-            xs=np.arange(start=1, stop=model.number_of_links()),
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
         )
         if model.number_of_links() > 1
         else [(i_X_0,), None]
@@ -116,7 +115,7 @@ def jacobian(
         jax.lax.scan(
             f=compute_jacobian,
             init=J,
-            xs=np.arange(start=1, stop=model.number_of_links()),
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
         )
         if model.number_of_links() > 1
         else [J, None]
@@ -202,7 +201,7 @@ def jacobian_full_doubly_left(
         jax.lax.scan(
             f=compute_full_jacobian,
             init=compute_full_jacobian_carry,
-            xs=np.arange(start=1, stop=model.number_of_links()),
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
         )
         if model.number_of_links() > 1
         else [(B_X_i, J), None]
@@ -322,7 +321,7 @@ def jacobian_derivative_full_doubly_left(
         jax.lax.scan(
             f=compute_full_jacobian_derivative,
             init=compute_full_jacobian_derivative_carry,
-            xs=np.arange(start=1, stop=model.number_of_links()),
+            xs=jnp.arange(start=1, stop=model.number_of_links()),
         )
         if model.number_of_links() > 1
         else [(_, B_X_i, B_Ẋ_i, J̇), None]

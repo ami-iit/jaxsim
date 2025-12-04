@@ -1509,6 +1509,33 @@ def forward_kinematics(model: JaxSimModel, data: js.data.JaxSimModelData) -> jtp
     return W_H_LL
 
 
+def _transform_M_block(M_body: jtp.Matrix, X: jtp.Matrix) -> jtp.Matrix:
+    """
+    Apply invTᵀ M_body invT with invT = diag(X, I_n), without forming invT.
+
+    Args:
+        M_body: (6+n, 6+n) mass matrix (inverse) in body representation.
+        X:      (6, 6) adjoint (e.g. B_X_W or B_X_BW).
+
+    Returns:
+        M_repr: (6+n, 6+n) mass matrix (inverse) in the new representation.
+    """
+
+    # invTᵀ M invT with invT = diag(X, I):
+    # Mbb' = Xᵀ Mbb X
+    # Mbj' = Xᵀ Mbj
+    # Mjb' = Mjb X
+    # Mjj' = Mjj
+    Mbb_t = X.T @ M_body[:6, :6] @ X
+    Mbj_t = X.T @ M_body[:6, 6:]
+    Mjb_t = M_body[6:, :6] @ X
+    Mjj_t = M_body[6:, 6:]
+
+    top = jnp.concatenate([Mbb_t, Mbj_t], axis=1)
+    bottom = jnp.concatenate([Mjb_t, Mjj_t], axis=1)
+    return jnp.concatenate([top, bottom], axis=0)
+
+
 @jax.jit
 @js.common.named_scope
 def free_floating_mass_matrix(
@@ -1535,18 +1562,54 @@ def free_floating_mass_matrix(
             return M_body
 
         case VelRepr.Inertial:
-            B_X_W = Adjoint.from_transform(transform=data._base_transform, inverse=True)
-            invT = jax.scipy.linalg.block_diag(B_X_W, jnp.eye(model.dofs()))
+            B_X_W = Adjoint.from_transform(transform=data.base_transform, inverse=True)
 
-            return invT.T @ M_body @ invT
+            return _transform_M_block(M_body, B_X_W)
 
         case VelRepr.Mixed:
-            BW_H_B = data._base_transform.at[0:3, 3].set(jnp.zeros(3))
+            BW_H_B = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
             B_X_BW = Adjoint.from_transform(transform=BW_H_B, inverse=True)
-            invT = jax.scipy.linalg.block_diag(B_X_BW, jnp.eye(model.dofs()))
 
-            return invT.T @ M_body @ invT
+            return _transform_M_block(M_body, B_X_BW)
+        case _:
+            raise ValueError(data.velocity_representation)
 
+
+@jax.jit
+@js.common.named_scope
+def free_floating_mass_matrix_inverse(
+    model: JaxSimModel, data: js.data.JaxSimModelData
+) -> jtp.Matrix:
+    """
+    Compute the inverse of the free-floating mass matrix of the model
+    with the CRBA algorithm.
+
+    Args:
+        model: The model to consider.
+        data: The data of the considered model.
+
+    Returns:
+        The inverse of the free-floating mass matrix of the model.
+    """
+    M_inv_body = jaxsim.rbda.mass_inverse(
+        model=model,
+        base_position=data.base_position,
+        base_quaternion=data.base_orientation,
+        joint_positions=data.joint_positions,
+    )
+
+    match data.velocity_representation:
+        case VelRepr.Body:
+            return M_inv_body
+        case VelRepr.Inertial:
+            W_X_B = Adjoint.from_transform(transform=data.base_transform)
+
+            return _transform_M_block(M_inv_body, W_X_B.T)
+        case VelRepr.Mixed:
+            B_H_BW = data.base_transform.at[0:3, 3].set(jnp.zeros(3))
+            BW_X_B = Adjoint.from_transform(transform=B_H_BW)
+
+            return _transform_M_block(M_inv_body, BW_X_B.T)
         case _:
             raise ValueError(data.velocity_representation)
 

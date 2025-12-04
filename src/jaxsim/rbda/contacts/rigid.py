@@ -294,7 +294,7 @@ class RigidContacts(ContactModel):
             # Compute kin-dyn quantities used in the contact model.
             BW_ν = data.generalized_velocity
 
-            M = js.model.free_floating_mass_matrix(model=model, data=data)
+            M_inv = js.model.free_floating_mass_matrix_inverse(model=model, data=data)
 
             J_WC = js.contact.jacobian(model=model, data=data)
             J̇_WC = js.contact.jacobian_derivative(model=model, data=data)
@@ -329,7 +329,7 @@ class RigidContacts(ContactModel):
         ).flatten()
 
         # Compute the Delassus matrix.
-        delassus_matrix = _delassus_matrix(M=M, J_WC=J_WC)
+        delassus_matrix = _delassus_matrix(M_inv=M_inv, J_WC=J_WC)
 
         # Initialize regularization term of the Delassus matrix for
         # better numerical conditioning.
@@ -460,14 +460,14 @@ class RigidContacts(ContactModel):
 
 @staticmethod
 def _delassus_matrix(
-    M: jtp.MatrixLike,
+    M_inv: jtp.MatrixLike,
     J_WC: jtp.MatrixLike,
 ) -> jtp.Matrix:
 
     sl = jnp.s_[:, 0:3, :]
     J_WC_lin = jnp.vstack(J_WC[sl])
 
-    delassus_matrix = J_WC_lin @ jnp.linalg.pinv(M) @ J_WC_lin.T
+    delassus_matrix = J_WC_lin @ M_inv @ J_WC_lin.T
     return delassus_matrix
 
 

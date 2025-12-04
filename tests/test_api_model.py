@@ -326,6 +326,11 @@ def test_model_rbda(
     )
     assert_allclose(Jν_idt, Jν_js)
 
+    # Mass matrix inverse via RBDA
+    M_inv_js = js.model.free_floating_mass_matrix_inverse(model=model, data=data)
+    M_inv_idt = jnp.linalg.inv(M_idt)
+    assert_allclose(M_inv_idt[sl, sl], M_inv_js[sl, sl])
+
 
 def test_model_jacobian(
     jaxsim_models_types: js.model.JaxSimModel,

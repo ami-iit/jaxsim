@@ -65,7 +65,7 @@ class JaxSimModel(JaxsimDataclass):
         default=None, repr=False
     )
 
-    contact_params: Static[jaxsim.rbda.contacts.ContactsParams] = dataclasses.field(
+    contact_params: jaxsim.rbda.contacts.ContactsParams = dataclasses.field(
         default=None, repr=False
     )
 

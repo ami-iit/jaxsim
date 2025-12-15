@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765288387629,
+  "lastUpdate": 1765758952258,
   "repoUrl": "https://github.com/ami-iit/jaxsim",
   "entries": {
     "Benchmark": [
@@ -5888,6 +5888,196 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.487971667326989",
             "extra": "mean: 52.89990299139172 sec\nrounds: 5"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Filippo Luca Ferretti",
+            "username": "flferretti",
+            "email": "102977828+flferretti@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "98939044f7094b40d4bfeec25a002a4d536df0c6",
+          "message": "Merge pull request #489 from ami-iit/selective_parametrization",
+          "timestamp": "2025-12-10T08:01:33Z",
+          "url": "https://github.com/ami-iit/jaxsim/commit/98939044f7094b40d4bfeec25a002a4d536df0c6"
+        },
+        "date": 1765758951534,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmark.py::test_forward_dynamics_aba[1]",
+            "value": 319.1573856805419,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007283072748308941",
+            "extra": "mean: 3.133250380114789 msec\nrounds: 321"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_dynamics_aba[128]",
+            "value": 25.900144931583007,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00013525058026112434",
+            "extra": "mean: 38.609822556652404 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_bias_forces[1]",
+            "value": 296.53707643648573,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000009726746070067816",
+            "extra": "mean: 3.372259590662642 msec\nrounds: 299"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_bias_forces[128]",
+            "value": 14.577673247533516,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0004658670956080342",
+            "extra": "mean: 68.59805285930634 msec\nrounds: 15"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_kinematics[1]",
+            "value": 361.15954928283094,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000008522984374278971",
+            "extra": "mean: 2.768859364194413 msec\nrounds: 365"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_forward_kinematics[128]",
+            "value": 39.19142814792589,
+            "unit": "iter/sec",
+            "range": "stddev: 0.009085445507904888",
+            "extra": "mean: 25.515783610271995 msec\nrounds: 29"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_mass_matrix[1]",
+            "value": 151.60124867032556,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000013787421297428796",
+            "extra": "mean: 6.596251737837698 msec\nrounds: 153"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_mass_matrix[128]",
+            "value": 150.00871113876605,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00001258616975060821",
+            "extra": "mean: 6.666279527426555 msec\nrounds: 151"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian[1]",
+            "value": 412.9292947843146,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000009278582425328694",
+            "extra": "mean: 2.4217221026237192 msec\nrounds: 416"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian[128]",
+            "value": 419.3301154670631,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000008479408187804407",
+            "extra": "mean: 2.3847559789169175 msec\nrounds: 422"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian_derivative[1]",
+            "value": 336.9026388916553,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000009141524866038504",
+            "extra": "mean: 2.968216584143737 msec\nrounds: 339"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_free_floating_jacobian_derivative[128]",
+            "value": 300.440844566119,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00002015026625978202",
+            "extra": "mean: 3.3284422477381455 msec\nrounds: 303"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_soft_contact_model[1]",
+            "value": 288.71558530449545,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000011203835645939194",
+            "extra": "mean: 3.4636162746300814 msec\nrounds: 291"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_soft_contact_model[128]",
+            "value": 26.601903343847617,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00016309483963675554",
+            "extra": "mean: 37.59129514434823 msec\nrounds: 27"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_rigid_contact_model[1]",
+            "value": 47.23150507603938,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000014064861845176181",
+            "extra": "mean: 21.17230857644851 msec\nrounds: 48"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_rigid_contact_model[128]",
+            "value": 0.7092368647641895,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00030056883978335443",
+            "extra": "mean: 1.4099661899730562 sec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_relaxed_rigid_contact_model[1]",
+            "value": 98.62495219226285,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001346205224426134",
+            "extra": "mean: 10.139421898532998 msec\nrounds: 99"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_relaxed_rigid_contact_model[128]",
+            "value": 5.062665541435857,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000128063245237796",
+            "extra": "mean: 197.5244052397708 msec\nrounds: 6"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_simulation_step[1]",
+            "value": 87.20366814959068,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000200435563429573",
+            "extra": "mean: 11.467407521029765 msec\nrounds: 88"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_simulation_step[128]",
+            "value": 4.458922722794631,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001798005983150922",
+            "extra": "mean: 224.26941711455584 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_update_hw_parameters[1]",
+            "value": 102.36685926207821,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005421450009102948",
+            "extra": "mean: 9.768786570268938 msec\nrounds: 176"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_update_hw_parameters[128]",
+            "value": 100.04286668560094,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00003718152031805983",
+            "extra": "mean: 9.99571516820528 msec\nrounds: 103"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_export_updated_model[1]",
+            "value": 3.51800310737432,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0008203893847648126",
+            "extra": "mean: 284.25216507166624 msec\nrounds: 5"
+          },
+          {
+            "name": "tests/test_benchmark.py::test_export_updated_model[128]",
+            "value": 0.019077916006046268,
+            "unit": "iter/sec",
+            "range": "stddev: 0.45678923672923255",
+            "extra": "mean: 52.41662662122398 sec\nrounds: 5"
           }
         ]
       }
